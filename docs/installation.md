@@ -7,6 +7,9 @@
 - Docker and either the Dev Container CLI or VS Code Dev Containers on the host.
 - On Windows, keep the repository in the WSL filesystem (`~/dev/...`); `/mnt/c`
   paths suffer severe filesystem-performance and permission problems in containers.
+- On macOS, Docker Desktop works out of the box on Apple Silicon and Intel
+  (OrbStack is a faster drop-in alternative if bind-mount performance bites).
+  All host-side scripts run on the stock macOS bash 3.2.
 
 ## Install
 

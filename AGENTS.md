@@ -26,6 +26,11 @@ consuming project — bias toward small, reviewable, backward-compatible commits
   `~/.agents` — binaries go to `~/.local/bin`, never under `~/.agents` or `~/.grok`.
 - Pin tool versions in Dockerfile ARGs where the upstream supports it; only
   Claude Code (`stable`) and Grok Build (latest stable) are deliberately mutable.
+- Host-side scripts (`dev`, `templates/dev`, `install.sh`, `verify.sh`,
+  `scripts/host/`) must stay bash-3.2 compatible and avoid GNU-only flags — they
+  run on stock macOS as well as WSL (`verify.sh` gates this under `bash:3.2`).
+- The container image must build for both linux/amd64 and linux/arm64
+  (Apple Silicon); new installers must handle `aarch64`.
 
 ## Before changing code
 

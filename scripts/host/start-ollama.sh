@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Start Ollama on the WINDOWS HOST, from WSL, tuned for parallel inference.
+# Start Ollama on the HOST (Windows-from-WSL, or macOS), tuned for parallel inference.
 #
-# Stops any running Ollama instance - including the system-tray app, which
+# Stops any running Ollama instance - including the tray/menu-bar app, which
 # would otherwise respawn the server with default settings - then launches
 # `ollama serve` in the foreground with:
 #
@@ -12,18 +12,20 @@
 #   OLLAMA_FLASH_ATTENTION   = 1
 #   OLLAMA_KV_CACHE_TYPE     = --kv-cache-type   (default q8_0, halves KV-cache VRAM)
 #
-# KV cache is allocated as context_length x parallel up front. On a 16 GB card
-# most of the VRAM is weights - raise --parallel only as far as `ollama ps`
-# still shows 100% GPU; spilling weights to CPU costs far more than
-# parallelism gains.
+# KV cache is allocated as context_length x parallel up front. Most of the VRAM
+# is weights - raise --parallel only as far as `ollama ps` still shows 100% GPU;
+# spilling weights to CPU costs far more than parallelism gains. (On Apple
+# Silicon, Metal acceleration is automatic and memory is unified - the same
+# `ollama ps` check applies.)
 #
-# The variables are forwarded to the Windows process via WSLENV for this
+# On WSL the variables are forwarded to the Windows process via WSLENV for this
 # launch only; nothing is written to the system environment. Ctrl+C stops the
-# server - relaunch the Ollama desktop app afterwards if you want the tray
-# icon / default behavior back.
+# server - relaunch the Ollama desktop app afterwards if you want the tray icon
+# / default behavior back.
 #
-# Dev containers reach the server at http://host.docker.internal:11434 when
-# the project's runArgs include --add-host=host.docker.internal:host-gateway.
+# Dev containers reach the server at http://host.docker.internal:11434 (on
+# Docker Desktop for Mac this hostname exists by default; on Windows/WSL add
+# the --add-host=host.docker.internal:host-gateway runArg to the project).
 set -euo pipefail
 
 parallel=24
@@ -49,21 +51,47 @@ while (($#)); do
   esac
 done
 
-if ! command -v ollama.exe >/dev/null 2>&1; then
-  echo "ollama.exe not found on PATH." >&2
-  echo "Install it from https://ollama.com/download/windows and make sure WSL" >&2
-  echo "Windows-PATH interop is enabled (appendWindowsPath in /etc/wsl.conf)." >&2
+case "$(uname -s)" in
+  Darwin) platform=macos ;;
+  Linux)
+    if command -v ollama.exe >/dev/null 2>&1; then
+      platform=wsl
+    else
+      echo "This helper manages a HOST Ollama (Windows-from-WSL or macOS)." >&2
+      echo "ollama.exe was not found on PATH - on plain Linux, run 'ollama serve'" >&2
+      echo "with the OLLAMA_* variables set directly." >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Unsupported platform: $(uname -s)" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$platform" == "macos" ]] && ! command -v ollama >/dev/null 2>&1; then
+  echo "ollama not found on PATH - install it with 'brew install ollama'" >&2
+  echo "or from https://ollama.com/download/mac" >&2
   exit 1
 fi
 
-# The tray app ("ollama app") supervises the server: stop it first, or it
-# immediately respawns ollama.exe with default settings.
-for name in "ollama app.exe" "ollama.exe"; do
-  taskkill.exe /F /IM "$name" >/dev/null 2>&1 || true
-done
+# The tray/menu-bar app supervises the server: stop it first, or it immediately
+# respawns the server with default settings.
+if [[ "$platform" == "wsl" ]]; then
+  for name in "ollama app.exe" "ollama.exe"; do
+    taskkill.exe /F /IM "$name" >/dev/null 2>&1 || true
+  done
+else
+  osascript -e 'quit app "Ollama"' >/dev/null 2>&1 || true
+  pkill -x ollama >/dev/null 2>&1 || true
+fi
 
 port_in_use() {
-  netstat.exe -ano 2>/dev/null | grep -E ':11434[[:space:]]' | grep -q LISTENING
+  if [[ "$platform" == "wsl" ]]; then
+    netstat.exe -ano 2>/dev/null | grep -E ':11434[[:space:]]' | grep -q LISTENING
+  else
+    lsof -iTCP:11434 -sTCP:LISTEN >/dev/null 2>&1
+  fi
 }
 
 # Wait (up to ~5s) for the previous server to release port 11434.
@@ -82,25 +110,30 @@ export OLLAMA_NUM_PARALLEL="$parallel"
 export OLLAMA_FLASH_ATTENTION=1
 export OLLAMA_KV_CACHE_TYPE="$kv_cache_type"
 
-# WSLENV /w flags forward these WSL variables into the Windows process.
-export WSLENV="${WSLENV:+$WSLENV:}OLLAMA_MAX_LOADED_MODELS/w:OLLAMA_CONTEXT_LENGTH/w:OLLAMA_NUM_PARALLEL/w:OLLAMA_FLASH_ATTENTION/w:OLLAMA_KV_CACHE_TYPE/w"
+if [[ "$platform" == "wsl" ]]; then
+  # WSLENV /w flags forward these WSL variables into the Windows process.
+  export WSLENV="${WSLENV:+$WSLENV:}OLLAMA_MAX_LOADED_MODELS/w:OLLAMA_CONTEXT_LENGTH/w:OLLAMA_NUM_PARALLEL/w:OLLAMA_FLASH_ATTENTION/w:OLLAMA_KV_CACHE_TYPE/w"
+  serve_cmd=(ollama.exe)
+else
+  serve_cmd=(ollama)
+fi
 
 cat <<EOF
 
-Starting ollama serve (Windows host) with:
+Starting ollama serve ($platform host) with:
   OLLAMA_MAX_LOADED_MODELS = $OLLAMA_MAX_LOADED_MODELS
   OLLAMA_CONTEXT_LENGTH    = $OLLAMA_CONTEXT_LENGTH
   OLLAMA_NUM_PARALLEL      = $OLLAMA_NUM_PARALLEL
   OLLAMA_FLASH_ATTENTION   = $OLLAMA_FLASH_ATTENTION
   OLLAMA_KV_CACHE_TYPE     = $OLLAMA_KV_CACHE_TYPE
 
-Containers reach it at http://host.docker.internal:11434 (requires the
---add-host=host.docker.internal:host-gateway runArg in that project).
+Containers reach it at http://host.docker.internal:11434 (on Windows/WSL this
+requires the --add-host=host.docker.internal:host-gateway runArg in the project).
 
-After the first batch, run 'ollama.exe ps' - the model must show 100% GPU;
+After the first batch, run '${serve_cmd[0]} ps' - the model must show 100% GPU;
 if it doesn't, restart with a lower --parallel.
 Ctrl+C stops the server.
 
 EOF
 
-exec ollama.exe serve
+exec "${serve_cmd[@]}" serve

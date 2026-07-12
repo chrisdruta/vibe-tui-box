@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 290" width="900" height="290" role="img" aria-label="An apple and a window carrying the same shipping container, a penguin peeking out of its door">
+  <style>
+    .cap { fill: #57606a; font: italic 17px ui-sans-serif, -apple-system, "Segoe UI", sans-serif; }
+    .stencil { fill: #ffffff; font: 700 13px ui-monospace, "Cascadia Mono", Menlo, monospace; letter-spacing: 1px; opacity: 0.92; }
+    .stencil-sm { fill: #ffffff; font: 700 10px ui-monospace, "Cascadia Mono", Menlo, monospace; letter-spacing: 1px; opacity: 0.75; }
+    @media (prefers-color-scheme: dark) {
+      .cap { fill: #8b949e; }
+    }
+  </style>
+
+  <!-- ground shadow -->
+  <ellipse cx="450" cy="232" rx="330" ry="14" fill="#000000" opacity="0.10"/>
+
+  <!-- ================= shipping container ================= -->
+  <g>
+    <rect x="290" y="72" width="320" height="138" rx="7" fill="#e8590c" stroke="#a63f08" stroke-width="3"/>
+    <!-- corrugation -->
+    <g stroke="#a63f08" stroke-width="2" opacity="0.45">
+      <line x1="312" y1="80" x2="312" y2="202"/>
+      <line x1="334" y1="80" x2="334" y2="202"/>
+      <line x1="356" y1="80" x2="356" y2="202"/>
+      <line x1="378" y1="80" x2="378" y2="202"/>
+      <line x1="400" y1="80" x2="400" y2="202"/>
+      <line x1="422" y1="80" x2="422" y2="202"/>
+      <line x1="444" y1="80" x2="444" y2="202"/>
+      <line x1="466" y1="80" x2="466" y2="202"/>
+      <line x1="488" y1="80" x2="488" y2="202"/>
+      <line x1="510" y1="80" x2="510" y2="202"/>
+      <line x1="532" y1="80" x2="532" y2="202"/>
+    </g>
+    <!-- stencil label plate -->
+    <rect x="306" y="96" width="204" height="52" rx="4" fill="#a63f08" opacity="0.55"/>
+    <text x="316" y="117" class="stencil">VIBE-DEVCTR-0001</text>
+    <text x="316" y="137" class="stencil-sm">MAX GROSS: &#8734; TOKENS</text>
+
+    <!-- open door + dark inside -->
+    <rect x="548" y="80" width="54" height="122" rx="3" fill="#2b1a10"/>
+    <!-- swung-open door panel -->
+    <rect x="598" y="76" width="14" height="130" rx="3" fill="#d0490a" stroke="#a63f08" stroke-width="2"/>
+
+    <!-- penguin peeking out -->
+    <g>
+      <ellipse cx="575" cy="172" rx="17" ry="26" fill="#161b22"/>
+      <ellipse cx="575" cy="179" rx="11" ry="17" fill="#f6f8fa"/>
+      <circle cx="569" cy="156" r="3.4" fill="#ffffff"/>
+      <circle cx="581" cy="156" r="3.4" fill="#ffffff"/>
+      <circle cx="569.8" cy="156.6" r="1.7" fill="#161b22"/>
+      <circle cx="580.2" cy="156.6" r="1.7" fill="#161b22"/>
+      <polygon points="570,164 580,164 575,171" fill="#f59f00"/>
+      <ellipse cx="568" cy="199" rx="6" ry="3.4" fill="#f59f00"/>
+      <ellipse cx="582" cy="199" rx="6" ry="3.4" fill="#f59f00"/>
+    </g>
+  </g>
+
+  <!-- ================= apple character (macOS side) ================= -->
+  <g>
+    <!-- carrying arm first, behind body -->
+    <path d="M 208 156 Q 255 190 293 204" stroke="#c0392b" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <circle cx="293" cy="204" r="7" fill="#c0392b"/>
+
+    <!-- body -->
+    <path d="M 170 112
+             C 138 104 122 132 124 158
+             C 126 186 146 206 170 202
+             C 194 206 214 186 216 158
+             C 218 132 202 104 170 112 Z" fill="#e5484d" stroke="#c0392b" stroke-width="3"/>
+    <!-- stem + leaf -->
+    <path d="M 170 112 Q 168 98 174 90" stroke="#6e4a2f" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <ellipse cx="188" cy="94" rx="13" ry="6.5" fill="#2f9e44" transform="rotate(-24 188 94)"/>
+    <!-- face: chill, doing none of the work -->
+    <circle cx="155" cy="150" r="4.2" fill="#5c1a1a"/>
+    <circle cx="187" cy="150" r="4.2" fill="#5c1a1a"/>
+    <path d="M 152 170 Q 171 182 190 170" stroke="#5c1a1a" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+    <!-- other arm on hip -->
+    <path d="M 132 158 Q 112 168 126 182" stroke="#c0392b" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <!-- legs -->
+    <line x1="156" y1="202" x2="150" y2="226" stroke="#c0392b" stroke-width="7" stroke-linecap="round"/>
+    <line x1="184" y1="202" x2="190" y2="226" stroke="#c0392b" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="146" cy="229" rx="10" ry="4.5" fill="#c0392b"/>
+    <ellipse cx="194" cy="229" rx="10" ry="4.5" fill="#c0392b"/>
+  </g>
+
+  <!-- ================= window character (WSL side) ================= -->
+  <g>
+    <!-- carrying arm first, behind frame -->
+    <path d="M 692 158 Q 650 192 607 204" stroke="#1c5bbf" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <circle cx="607" cy="204" r="7" fill="#1c5bbf"/>
+
+    <!-- frame -->
+    <rect x="688" y="106" width="98" height="98" rx="8" fill="#2d6cdf" stroke="#1c5bbf" stroke-width="3"/>
+    <!-- panes -->
+    <rect x="697" y="115" width="37" height="37" rx="3" fill="#bfe0ff"/>
+    <rect x="740" y="115" width="37" height="37" rx="3" fill="#bfe0ff"/>
+    <rect x="697" y="158" width="37" height="37" rx="3" fill="#bfe0ff"/>
+    <rect x="740" y="158" width="37" height="37" rx="3" fill="#bfe0ff"/>
+    <!-- face on the glass: straining slightly -->
+    <circle cx="715" cy="135" r="4.2" fill="#173a63"/>
+    <circle cx="758" cy="135" r="4.2" fill="#173a63"/>
+    <path d="M 707 130 L 722 126" stroke="#173a63" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 766 126 L 751 130" stroke="#173a63" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cx="737" cy="178" rx="7" ry="8.5" fill="#173a63"/>
+    <!-- sweat drop -->
+    <path d="M 796 112 q 7 10 0 15 q -8 -5 0 -15" fill="#4dabf7"/>
+    <!-- windowsill -->
+    <rect x="680" y="200" width="114" height="10" rx="4" fill="#1c5bbf"/>
+    <!-- legs -->
+    <line x1="712" y1="210" x2="706" y2="228" stroke="#1c5bbf" stroke-width="7" stroke-linecap="round"/>
+    <line x1="762" y1="210" x2="768" y2="228" stroke="#1c5bbf" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="702" cy="231" rx="10" ry="4.5" fill="#1c5bbf"/>
+    <ellipse cx="772" cy="231" rx="10" ry="4.5" fill="#1c5bbf"/>
+  </g>
+
+  <!-- caption -->
+  <text x="450" y="270" text-anchor="middle" class="cap">works on my machine &#8212; and yours. it&#8217;s the same machine.</text>
+</svg>

@@ -1,15 +1,17 @@
-# Local models: Ollama on the Windows host
+# Local models: Ollama on the host
 
 Don't mount the GPU into containers. On AMD + WSL2 + Docker Desktop that path is
-unsupported — Docker's `--gpus` flag is NVIDIA-only, and ROCm-on-WSL explicitly
-excludes containers. The setup that works well: run the inference server natively
-on Windows, where the Radeon drivers are first-class, and let containers reach it
-over the host gateway.
+unsupported (Docker's `--gpus` flag is NVIDIA-only, and ROCm-on-WSL explicitly
+excludes containers), and on macOS containers can't see Metal at all. The setup
+that works on both: run the inference server natively on the host, where the GPU
+drivers are first-class, and let containers reach it over the host gateway.
 
 Model weights live once on the host, every devcontainer shares the same server,
 and containers stay slim.
 
-## 1. Start Ollama (from WSL)
+## 1. Start Ollama
+
+The same helper works on Windows (run from WSL) and macOS:
 
 ```bash
 ./.devcontainer/harness/scripts/host/start-ollama.sh --parallel 24
@@ -17,12 +19,18 @@ and containers stay slim.
 
 The helper:
 
-- stops the Ollama tray app first (it would otherwise respawn the server with
-  default settings), then any running server, and waits for port 11434 to free;
-- forwards the tuning variables to the Windows process via `WSLENV` `/w` flags —
-  nothing is written to the system environment;
+- stops the Ollama tray / menu-bar app first (it would otherwise respawn the
+  server with default settings), then any running server, and waits for port
+  11434 to free;
+- exports the tuning variables for this launch only — on WSL they are forwarded
+  to the Windows process via `WSLENV` `/w` flags; nothing is written to the
+  system environment;
 - runs `ollama serve` in the foreground (Ctrl+C stops it; relaunch the desktop app
   afterwards if you want the tray icon back).
+
+On macOS, install Ollama with `brew install ollama` or from
+[ollama.com/download/mac](https://ollama.com/download/mac); Apple Silicon uses
+Metal acceleration automatically, with unified memory serving as VRAM.
 
 | Flag               | Default | Sets                       |
 | ------------------ | ------- | -------------------------- |
@@ -45,7 +53,9 @@ not part of the generic harness):
 "--add-host=host.docker.internal:host-gateway"
 ```
 
-Then `dev rebuild`.
+Then `dev rebuild`. On Docker Desktop for Mac, `host.docker.internal` resolves
+without this runArg — adding it anyway is harmless and keeps the project config
+portable across both hosts.
 
 ## 3. Point tooling at it
 

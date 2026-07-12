@@ -34,6 +34,16 @@ else
   echo "SKIP: shellcheck not installed"
 fi
 
+# Host-side scripts must stay bash-3.2 compatible (stock macOS bash).
+host_side_files=(install.sh verify.sh dev templates/dev scripts/host/start-ollama.sh)
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  for file in "${host_side_files[@]}"; do
+    docker run --rm -v "$repo_root:/src:ro" bash:3.2 -n "/src/$file"
+  done
+else
+  echo "SKIP: docker unavailable; bash-3.2 syntax gate not run"
+fi
+
 # 2. Install each preset into a scratch git repo and validate the result.
 # Submodule add clones this repository's HEAD, so uncommitted changes are invisible.
 if [[ -n "$(git -C "$repo_root" status --porcelain)" ]]; then

@@ -1,7 +1,11 @@
 # vibe-devcontainer-submodule
 
+<p align="center">
+  <img src="assets/header.svg" alt="An apple and a window carrying the same shipping container; a Linux penguin peeks out of the door" width="760">
+</p>
+
 A reusable, isolated development environment for running coding agents inside your
-project's toolchain on Windows + WSL2 + Docker. Claude Code by default; Codex and
+project's toolchain on Windows + WSL2 or macOS. Claude Code by default; Codex and
 Grok Build opt-in. Distributed as a **git submodule**, so every project picks up
 harness improvements from one place while keeping its own thin configuration:
 
@@ -24,10 +28,12 @@ my-project/.devcontainer/
 
 ## Requirements
 
-- Git and Docker (on Windows: Docker Desktop with the WSL2 backend)
-- The Dev Container CLI (`npm install -g @devcontainers/cli`) or VS Code with the
-  Dev Containers extension
-- Repositories in the Linux filesystem (`~/dev/my-project`), not under `/mnt/c`
+- Git and the Dev Container CLI (`npm install -g @devcontainers/cli`) or VS Code
+  with the Dev Containers extension
+- **Windows**: Docker Desktop with the WSL2 backend; keep repositories in the WSL
+  filesystem (`~/dev/my-project`), not under `/mnt/c`
+- **macOS**: Docker Desktop (Apple Silicon or Intel — images build natively for
+  either architecture)
 
 ## Install
 
@@ -114,7 +120,7 @@ Full threat model: [docs/security.md](docs/security.md).
 - [Agent state & multi-agent use](docs/agent-state.md)
 - [Updating the harness](docs/updating.md)
 - [Security model](docs/security.md)
-- [Local models (Ollama on the Windows host)](docs/local-models.md)
+- [Local models (Ollama on the host)](docs/local-models.md)
 - [Roblox integration recipe](docs/roblox.md)
 - [Architecture & contributing](docs/architecture.md)
 

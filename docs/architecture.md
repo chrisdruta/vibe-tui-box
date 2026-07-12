@@ -3,8 +3,9 @@
 ## The layering
 
 ```text
-Windows 11 (or any Docker host)
+Windows 11 (or macOS / any Docker host)
 └── WSL2 Ubuntu — canonical git repos, credentials, Dev Container CLI
+    (on macOS: the Mac itself plays this role — no VM layer to think about)
     └── project Dev Container  ← the agent harness IS the project container
         ├── coding agents (Claude Code; Codex/Grok opt-in)
         ├── project runtime & tooling
