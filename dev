@@ -41,9 +41,18 @@ case "$command_name" in
     exec "${cli[@]}" exec --workspace-folder "$repo_root" bash "$@"
     ;;
   agent)
+    # With DEV_AGENT_TMUX=1 the agent runs inside a tmux session: it survives a
+    # dropped terminal, and a second `dev agent` reattaches (-A) instead of
+    # double-launching. `.env` still loads only inside the pane process via
+    # env-run.sh — never into the tmux server or an interactive shell.
     # shellcheck disable=SC2016  # expansion happens inside the container shell
     exec "${cli[@]}" exec --workspace-folder "$repo_root" \
-      bash -lc 'source .devcontainer/config.env; exec .devcontainer/harness/scripts/env-run.sh ${DEV_AGENT_CMD:-claude} "$@"' _ "$@"
+      bash -lc 'source .devcontainer/config.env
+        cmd=(.devcontainer/harness/scripts/env-run.sh ${DEV_AGENT_CMD:-claude} "$@")
+        if [ "${DEV_AGENT_TMUX:-0}" = "1" ] && [ -z "${TMUX:-}" ]; then
+          exec tmux new-session -A -s "${DEV_AGENT_TMUX_SESSION:-agent}" "$(printf "%q " "${cmd[@]}")"
+        fi
+        exec "${cmd[@]}"' _ "$@"
     ;;
   doctor)
     exec "${cli[@]}" exec --workspace-folder "$repo_root" \

@@ -12,7 +12,7 @@ All commands run from the project root via the seeded wrapper:
 | `rebuild`   | Recreate the container — required after editing `devcontainer.json` or the Dockerfile |
 | `build`     | Build the image only                                                   |
 | `shell`     | Open a Bash shell in the container                                     |
-| `agent`     | Run the configured default agent (`DEV_AGENT_CMD`) with explicit `.env` loading |
+| `agent`     | Run the configured default agent (`DEV_AGENT_CMD`) with explicit `.env` loading; with `DEV_AGENT_TMUX=1`, inside a persistent tmux session |
 | `run CMD`   | Run any command with explicit `.env` loading (e.g. `dev run codex`)    |
 | `exec CMD`  | Run any command **without** `.env` loading                             |
 | `doctor`    | Check the environment; prints OK/MISS per requirement                  |
@@ -30,6 +30,17 @@ the project from its own location.
 ./.devcontainer/dev agent       # interactive Claude session
 ./.devcontainer/dev exec uv run pytest
 ```
+
+## tmux
+
+With `DEV_AGENT_TMUX=1` in `config.env` (the seeded default for new installs),
+`dev agent` runs inside a tmux session named `agent` (`DEV_AGENT_TMUX_SESSION`):
+
+- **Detach** with `Ctrl-b d` — the agent keeps running; closing the terminal or
+  losing the connection also leaves it running.
+- **Reattach** by rerunning `./.devcontainer/dev agent` (arguments are ignored
+  when an existing session is attached; the session ends when the agent exits).
+- **One-off plain run**: `dev run claude`, or set `DEV_AGENT_TMUX=0`.
 
 Run several agents side by side in tmux (installed in the image):
 

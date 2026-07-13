@@ -10,6 +10,8 @@ Non-secret behavior toggles, sourced by the lifecycle scripts and `dev agent`:
 | Variable                | Default                       | Meaning                                            |
 | ----------------------- | ----------------------------- | -------------------------------------------------- |
 | `DEV_AGENT_CMD`         | `claude`                      | What `dev agent` runs (may include arguments)      |
+| `DEV_AGENT_TMUX`        | `1` (seeded; unset = `0`)     | `1`: `dev agent` runs in a persistent tmux session — rerunning attaches, detaching (`Ctrl-b d`) keeps it alive |
+| `DEV_AGENT_TMUX_SESSION`| `agent`                       | tmux session name used by `dev agent`              |
 | `DEV_BOOTSTRAP_STRICT`  | `1`                           | `1`: bootstrap steps fail loudly; `0`: warn and continue |
 | `DEV_AUTO_INSTALL`      | `1`                           | Enable lockfile-detected dependency installation   |
 | `DEV_AUTO_GIT_HOOKS`    | `1`                           | Wire `.githooks/` into `core.hooksPath` (see [security.md](security.md)) |
