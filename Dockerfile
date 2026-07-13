@@ -6,6 +6,11 @@ ARG BASE_IMAGE=mcr.microsoft.com/devcontainers/base:debian
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 FROM ${BASE_IMAGE}
 
+# Installer pipelines (curl | bash) must fail the build, not silently no-op
+# when the download fails — the default sh -c has no pipefail, and a poisoned
+# layer then persists in cache with the tool missing.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 ARG INSTALL_CLAUDE_CODE=true
 # "stable" is the one consciously mutable component; set a concrete version to freeze it.
 ARG CLAUDE_CODE_VERSION=stable
@@ -70,7 +75,8 @@ RUN mkdir -p /home/vscode/.agents
 
 # Claude Code is the only agent installed by default. The other CLIs are opt-in.
 RUN if [ "${INSTALL_CLAUDE_CODE}" = "true" ]; then \
-        curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_CODE_VERSION}"; \
+        curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_CODE_VERSION}" \
+        && test -x /home/vscode/.local/bin/claude; \
     fi
 
 RUN if [ "${INSTALL_CODEX}" = "true" ]; then \
@@ -95,7 +101,8 @@ RUN if [ "${INSTALL_GROK}" = "true" ]; then \
 
 # Optional ecosystem bootstraps. Project-specific tool versions remain declared by the project.
 RUN if [ "${INSTALL_BUN}" = "true" ]; then \
-        curl -fsSL https://bun.sh/install | bash -s -- "bun-v${BUN_VERSION}"; \
+        curl -fsSL https://bun.sh/install | bash -s -- "bun-v${BUN_VERSION}" \
+        && test -x /home/vscode/.bun/bin/bun; \
     fi
 
 RUN if [ "${INSTALL_ROKIT}" = "true" ]; then \
