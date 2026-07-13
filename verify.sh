@@ -70,10 +70,16 @@ for preset in minimal python bun roblox; do
   [[ -x "$target/.devcontainer/dev" ]]
   [[ -f "$target/.devcontainer/devcontainer.json" ]]
   [[ -f "$target/.devcontainer/config.env" ]]
+  [[ -f "$target/.devcontainer/AGENTS.md" ]]
+  [[ -f "$target/.claude/settings.json" ]]
   [[ -f "$target/.devcontainer/harness/Dockerfile" ]]
   [[ -x "$target/.devcontainer/harness/dev" ]]
   [[ -f "$target/.gitmodules" ]]
   json_check "$target/.devcontainer/devcontainer.json"
+  json_check "$target/.claude/settings.json"
+
+  # The exec bit must be recorded in the index (survives core.fileMode=false).
+  git -C "$target" ls-files -s .devcontainer/dev | grep -q '^100755'
 
   # No unrendered placeholders may survive.
   if grep -rn '@[A-Z_]*@' "$target/.devcontainer/devcontainer.json" "$target/.devcontainer/config.env"; then
@@ -89,9 +95,12 @@ grep -q '"INSTALL_ROKIT": "true"' "$tmp/roblox-project/.devcontainer/devcontaine
 grep -q 'devcontainers/python:3.14' "$tmp/python-project/.devcontainer/devcontainer.json"
 grep -q 'devcontainers/base:debian' "$tmp/minimal-project/.devcontainer/devcontainer.json"
 
-# --force reinstall over an existing setup must back up and succeed.
+# --force reinstall over an existing setup must back up and succeed, and must
+# never touch an existing .claude/settings.json.
+echo '{"comment": "user-edited"}' >"$tmp/minimal-project/.claude/settings.json"
 "$repo_root/install.sh" --preset minimal --url "$repo_root" --force "$tmp/minimal-project" >/dev/null
 [[ -f "$tmp/minimal-project/.devcontainer/harness/Dockerfile" ]]
 compgen -G "$tmp/minimal-project/.devcontainer.backup.*" >/dev/null
+grep -q 'user-edited' "$tmp/minimal-project/.claude/settings.json"
 
 echo "Scaffold verification passed."

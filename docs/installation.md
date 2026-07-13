@@ -23,9 +23,14 @@ git clone https://github.com/chrisdruta/vibe-devcontainer-submodule.git \
 The installer:
 
 1. seeds the project-owned files (`devcontainer.json`, `config.env`, `dev` wrapper,
-   `project/` hooks) rendered for the chosen preset,
+   `AGENTS.md`, `project/` hooks) rendered for the chosen preset, plus
+   `.claude/settings.json` (statusline + sudo-deny) unless the project already
+   has one,
 2. runs `git submodule add` for `.devcontainer/harness`,
 3. stages everything — nothing is committed; review with `git status` and commit.
+
+To have an agent make the judgment calls (build args, hooks, migrating an old
+`.devcontainer`), see [onboarding.md](onboarding.md).
 
 ## Options
 

@@ -76,6 +76,20 @@ project-owned layers, not the shared Dockerfile. The harness ships one such
 feature: `features/playwright-deps` for headless-browser automation — see
 [browser-automation.md](browser-automation.md).
 
+## Claude Code project settings
+
+`install.sh` seeds `<project>/.claude/settings.json` (only when the project has
+none) wiring a statusline — `user ➜ dir (branch ✗) · model (effort) · context%` —
+plus a per-subagent statusline and a `sudo`/`su` permission deny (sudo does not
+exist in the container; denying skips doomed attempts). The scripts live in the
+harness (`scripts/statusline.sh`, `scripts/subagent-statusline.sh`), so they
+update with the submodule. To adopt them in a project with existing settings,
+merge the keys from `templates/claude-settings.json`.
+
+`install.sh` also seeds `.devcontainer/AGENTS.md` — container rules for agents;
+import it from the project's root `CLAUDE.md`/`AGENTS.md` with a
+`@.devcontainer/AGENTS.md` line (see [onboarding.md](onboarding.md)).
+
 ## Secrets
 
 Nothing auto-sources `.env`; `.bashrc` is never modified. Load explicitly:

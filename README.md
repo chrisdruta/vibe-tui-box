@@ -47,6 +47,9 @@ git clone https://github.com/chrisdruta/vibe-devcontainer-submodule.git \
 The target must be the top level of a git repository. The installer seeds the
 project-owned files, adds the submodule, and stages everything for review — commit
 when satisfied. Details, options, and uninstall: [docs/installation.md](docs/installation.md).
+The judgment calls (build args, lifecycle hooks, migrating an old `.devcontainer`)
+can be delegated to an agent: [docs/onboarding.md](docs/onboarding.md) has the
+checklist and a copy-paste prompt.
 
 ## Start coding
 
@@ -115,6 +118,7 @@ Full threat model: [docs/security.md](docs/security.md).
 ## Documentation
 
 - [Installation & uninstall](docs/installation.md)
+- [Onboarding a project (agent-driven)](docs/onboarding.md)
 - [Daily usage & troubleshooting](docs/usage.md)
 - [Configuration reference](docs/configuration.md)
 - [Agent state & multi-agent use](docs/agent-state.md)

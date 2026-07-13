@@ -162,8 +162,18 @@ render() {
 render "$script_dir/templates/devcontainer.json" "$destination/devcontainer.json"
 render "$script_dir/templates/config.env" "$destination/config.env"
 cp -- "$script_dir/templates/dev" "$destination/dev"
+cp -- "$script_dir/templates/agents.md" "$destination/AGENTS.md"
 cp -a -- "$script_dir/templates/project" "$destination/project"
 chmod +x "$destination/dev" "$destination/project/"*.sh
+
+# Claude Code project settings (statusline, sudo-deny). Seeded only when the
+# project has none — an existing .claude/settings.json is never touched.
+claude_settings_seeded=0
+if [[ ! -e "$target/.claude/settings.json" ]]; then
+  mkdir -p -- "$target/.claude"
+  cp -- "$script_dir/templates/claude-settings.json" "$target/.claude/settings.json"
+  claude_settings_seeded=1
+fi
 
 # protocol.file.allow: permit local-path scaffold URLs (pre-publish workflow).
 git -C "$target" -c protocol.file.allow=always \
@@ -173,13 +183,33 @@ git -C "$target" add \
   .devcontainer/devcontainer.json \
   .devcontainer/config.env \
   .devcontainer/dev \
+  .devcontainer/AGENTS.md \
   .devcontainer/project
+if [[ $claude_settings_seeded -eq 1 ]]; then
+  git -C "$target" add .claude/settings.json
+fi
+
+# Record the execution bits in the index explicitly: with core.fileMode=false
+# (Windows-side clones, some filesystems) `git add` records 644 and every
+# checkout would strip +x from the launchers.
+git -C "$target" update-index --chmod=+x \
+  .devcontainer/dev \
+  .devcontainer/project/post-create.sh \
+  .devcontainer/project/post-start.sh
 
 printf '\nInstalled the %s preset in:\n  %s\n\n' "$preset" "$destination"
 echo "The submodule and seeded files are staged; review and commit them:"
 echo "  git -C '$target' status"
 echo
+if [[ $claude_settings_seeded -eq 0 ]]; then
+  echo "Existing .claude/settings.json left untouched. To get the harness"
+  echo "statusline, merge in the keys from:"
+  echo "  $script_dir/templates/claude-settings.json"
+  echo
+fi
 echo "Next:"
 echo "  1. Review .devcontainer/devcontainer.json and config.env"
-echo "  2. Run ./.devcontainer/dev up"
-echo "  3. Run ./.devcontainer/dev agent"
+echo "  2. Add '@.devcontainer/AGENTS.md' to the project's CLAUDE.md or AGENTS.md"
+echo "     so agents inherit the container rules (see docs/onboarding.md)"
+echo "  3. Run ./.devcontainer/dev up"
+echo "  4. Run ./.devcontainer/dev agent"
