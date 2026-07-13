@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Weekly canary: the image pulls live installers (claude.ai, bun.sh,
+    # nodesource); this catches upstream drift with no repo change.
+    - cron: "0 6 * * 1"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # Shell syntax, ShellCheck, bash-3.2 host gate, preset installs into
+      # scratch repos, seeded-file and placeholder assertions.
+      - run: ./verify.sh
+      - name: hadolint (Dockerfile)
+        # DL3008: apt packages deliberately track the base image (policy in
+        # docs/configuration.md); DL3003: cd into a mktemp dir — WORKDIR would
+        # wrongly persist it in image metadata.
+        run: |
+          docker run --rm -i hadolint/hadolint \
+            hadolint --ignore DL3008 --ignore DL3003 - < Dockerfile
+
+  build-image:
+    # Full Dev Container build of the minimal preset — exercises the live
+    # installer pipelines that verify.sh cannot.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g @devcontainers/cli
+      - name: Install preset into a scratch repo and build
+        run: |
+          target="$(mktemp -d)"
+          git -C "$target" init -q -b main
+          git -C "$target" -c user.name=ci -c user.email=ci@localhost \
+            commit -q --allow-empty -m init
+          ./install.sh --preset minimal --url "$PWD" "$target"
+          cd "$target"
+          ./.devcontainer/dev build

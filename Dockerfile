@@ -56,7 +56,7 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
     && rm -f /etc/sudoers.d/vscode
 
 COPY --from=uv /uv /uvx /usr/local/bin/
-COPY tmux.conf /etc/tmux.conf
+COPY config/tmux.conf /etc/tmux.conf
 
 # Node is required by the npm-distributed Codex CLI and available standalone.
 RUN if [ "${INSTALL_NODE}" = "true" ] || [ "${INSTALL_CODEX}" = "true" ]; then \

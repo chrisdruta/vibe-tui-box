@@ -31,7 +31,14 @@ my-project/.devcontainer/
     ├── scripts/        # lifecycle: lib, post-create, post-start, doctor, env-run
     ├── scripts/host/   # WSL-host helpers (start-ollama.sh)
     ├── features/       # opt-in Dev Container Features (build-time apt installs)
+    ├── config/         # container config baked by the Dockerfile (tmux.conf)
     └── templates/      # seeds for the project-owned files (install-time only)
+
+`Dockerfile`, `dev`, `scripts/`, `features/`, and `templates/` are effectively the
+harness's public interface: seeded consumer files reference them by path
+(`harness/Dockerfile`, `harness/scripts/post-create.sh`, …), so renaming or moving
+them breaks every consumer on its next submodule update. Anything else may be
+reorganized freely.
 ```
 
 Everything above `harness/` belongs to the project and is seeded once by
