@@ -35,6 +35,10 @@ consuming project — bias toward small, reviewable, backward-compatible commits
 ## Before changing code
 
 - Read `docs/architecture.md` and `docs/security.md`.
+- Never edit files under `.devcontainer/harness/` — it is the pinned self-submodule
+  copy the container runs from; changes there land in the nested clone, not this
+  repository. Edit the real files at the repository root and sync the submodule
+  forward to test (see "Dogfooding" in `README.md`).
 - If touching `templates/` or `install.sh`, check every preset delta in
   `install.sh` and the placeholder set (`@PRESET_NAME@`, `@BASE_IMAGE@`,
   `@INSTALL_BUN@`, `@INSTALL_ROKIT@`, `@EXTRA_EXTENSIONS@`, `@EXTRA_COMMANDS@`).

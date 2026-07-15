@@ -102,6 +102,26 @@ git add .devcontainer/harness && git commit -m "Update devcontainer harness to v
 
 Branch-following convenience and caveats: [docs/updating.md](docs/updating.md).
 
+## Dogfooding
+
+This repository consumes itself: it carries its own `.devcontainer/` with the
+harness as a self-submodule, so `./.devcontainer/dev up` and `dev agent` work
+here like in any consumer. The container runs the **pinned submodule copy** at
+`.devcontainer/harness`, not your working tree — to test a harness change
+through the harness itself, sync the copy forward:
+
+```bash
+git commit ...                                       # your change, in the outer repo
+git -C .devcontainer/harness fetch "$PWD" my-branch
+git -C .devcontainer/harness checkout FETCH_HEAD
+./.devcontainer/dev rebuild   # only if Dockerfile/devcontainer.json changed
+```
+
+Never edit files under `.devcontainer/harness/` — that is the nested clone;
+changes there do not land in this repository. The self-submodule is marked
+`update = none` so recursive clones skip it; after a fresh clone, initialize it
+explicitly with `git submodule update --init --checkout .devcontainer/harness`.
+
 ## Security
 
 The agent can modify the mounted repository and read any credentials you deliberately
