@@ -10,6 +10,10 @@
 # is pinned (if at all) in the agent definition's frontmatter, so for repo-defined
 # agents we read `effort:` from .claude/agents/<type>.md; built-ins / unpinned
 # agents inherit the session effort and show the model only.
+#
+# tasks[].model needs Claude Code >= 2.1.205 (absent on older CLIs, and the payload
+# has no session-model field to fall back to) — so a missing model drops the
+# segment entirely rather than rendering a placeholder.
 
 input=$(cat)
 repo="${CLAUDE_PROJECT_DIR:-$PWD}"
@@ -32,12 +36,17 @@ echo "$input" | jq -c '.tasks[]?' | while IFS= read -r task; do
     effort=$(awk '/^---$/{n++; next} n==1 && /^effort:/ {print $2; exit}' "$repo/.claude/agents/$type.md")
   fi
 
-  seg="${MAGENTA}${short:-model?}${RESET}"
-  [ -n "$effort" ] && seg="${seg}${GRAY}(${effort})${RESET}"
+  seg=""
+  if [ -n "$short" ]; then
+    seg="${MAGENTA}${short}${RESET}"
+    [ -n "$effort" ] && seg="${seg}${GRAY}(${effort})${RESET}"
+  fi
 
   toks=$(awk -v n="$tok" 'BEGIN { if (n >= 1000) printf "%.0fk", n / 1000; else printf "%d", n }')
   label=$(awk -v s="$label" 'BEGIN { if (length(s) > 44) s = substr(s, 1, 41) "..."; print s }')
 
-  content="${label} ${GRAY}·${RESET} ${seg} ${GRAY}· ${toks} tok${RESET}"
+  content="${label}"
+  [ -n "$seg" ] && content="${content} ${GRAY}·${RESET} ${seg}"
+  content="${content} ${GRAY}· ${toks} tok${RESET}"
   jq -cn --argjson t "$task" --arg content "$content" '{id: $t.id, content: $content}'
 done
