@@ -62,4 +62,18 @@ else
   check_ok "$DEV_ENV_FILE is absent (optional)"
 fi
 
+# gh absence is already reported via DEV_REQUIRED_COMMANDS above.
+if command -v gh >/dev/null 2>&1; then
+  if gh auth token >/dev/null 2>&1; then
+    if git config --global --get-all credential."https://github.com".helper 2>/dev/null \
+        | grep -q 'gh auth git-credential'; then
+      check_ok "gh is logged in and wired as git's credential helper"
+    else
+      check_miss "gh is logged in but git is not wired (rerun post-start, or: gh auth setup-git)"
+    fi
+  else
+    check_ok "gh is not logged in (optional; see configuration.md -> GitHub access)"
+  fi
+fi
+
 exit "$status"

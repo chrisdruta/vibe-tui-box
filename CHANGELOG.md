@@ -3,6 +3,17 @@
 Consumers pin a commit; tags mark intentional upgrade points
 (see [docs/updating.md](docs/updating.md)).
 
+## Unreleased
+
+- **Login-gated GitHub git wiring**: when (and only when) `gh` is logged in,
+  `post-start.sh` wires gh as git's credential helper and rewrites
+  `git@github.com:` remotes to HTTPS inside the container — restoring the
+  container-local `~/.gitconfig` after every rebuild, so an SSH-cloned repo
+  shared with the host stays pushable in-container. The `gh auth login` is the
+  opt-in; never logging in leaves git untouched. `vibe doctor` reports the
+  state (logged in + wired / not wired / not logged in). Also: post-start's
+  exec-bit self-heal now covers the renamed `vibe` wrapper.
+
 ## v0.4.0 — 2026-07-17
 
 - **Per-project `gh` logins**: `GH_CONFIG_DIR` now points into the agent-state

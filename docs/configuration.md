@@ -111,7 +111,14 @@ Contents read/write (plus Pull Requests for `gh pr`), an expiry, and no
 `workflow` or admin scopes — pasted into `gh auth login` inside the container.
 `GH_CONFIG_DIR` points into the state volume, so the login persists across
 rebuilds and stays compartmentalized per project, like the agent logins.
-`gh` also registers itself as git's credential helper, so `git push` works.
+
+The login is also the opt-in for git wiring: on every container start,
+`post-start.sh` checks whether gh is logged in and only then wires gh as
+git's credential helper and rewrites `git@github.com:` remotes to HTTPS
+(container-side only — the container has no SSH keys, so an SSH-cloned repo
+shared with the host would otherwise be push-dead in here; host git is
+untouched). Never logged in → nothing is wired. `vibe doctor` reports the
+state either way.
 
 Alternative: `GH_TOKEN` is forwarded from the host via `remoteEnv` (never baked
 into the image). Note the trade: a host-level token is one token for **every**
