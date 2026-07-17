@@ -19,6 +19,7 @@ All commands run via the seeded wrapper — or as plain `vibe` with the
 | `doctor`    | Check the environment; prints OK/MISS per requirement                  |
 | `bootstrap` | Rerun create-time dependency setup (idempotent)                        |
 | `clip [DIR]` | Save the host clipboard image into container `/tmp`, or `DIR` in the workspace (image-paste workaround) |
+| `show [PATH]` | Preview an image in the terminal via sixel (default: newest `vibe clip` capture) |
 
 The launcher uses a locally installed `devcontainer` CLI, falling back to a
 **version-pinned** `npx -y @devcontainers/cli@<pinned>` (unpinned `npx` would
@@ -41,7 +42,7 @@ Only when run from outside any project does it fall back to the project the
 script itself lives in.
 
 Container commands (`agent`, `shell`, `run`, `exec`, `doctor`, `bootstrap`,
-`clip`) start the container automatically when it isn't running — a cold
+`clip`, `show`) start the container automatically when it isn't running — a cold
 `vibe agent` is the whole morning routine. Start-up progress goes to stderr,
 so `vibe run` output stays pipeable.
 
@@ -126,6 +127,23 @@ written straight through the bind mount (no running container required):
 ```
 
 Gitignore the directory if you use this mode routinely.
+
+### Seeing what you clipped
+
+Agent TUIs show attached images only as a `[Image 1]` placeholder — the Claude
+Code terminal UI cannot render images inline (upstream: not planned). To eyeball
+an image, render it with sixel graphics instead:
+
+- `vibe show` (host or container) previews the newest `/tmp/clip-*.png`;
+  `vibe show PATH` previews any image.
+- Inside the agent tmux session, **prefix + `i`** opens the same preview in a
+  transient split pane; Enter closes it.
+
+Both use `chafa`. Inside tmux the sixel data travels in a passthrough envelope
+(tmux's own sixel engine doesn't reliably re-emit images to the client), so the
+outer terminal must render sixel itself — Windows Terminal ≥ 1.22 qualifies.
+Outside tmux, `chafa` probes the terminal and falls back to unicode blocks
+where sixel is unavailable.
 
 ## Troubleshooting
 

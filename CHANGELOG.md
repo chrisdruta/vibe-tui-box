@@ -3,6 +3,15 @@
 Consumers pin a commit; tags mark intentional upgrade points
 (see [docs/updating.md](docs/updating.md)).
 
+## Unreleased
+
+- **New: `vibe show [PATH]`** — sixel image preview in the terminal, the
+  companion to `vibe clip`: with no argument it renders the newest
+  `/tmp/clip-*.png` so you can see what an agent is about to look at (agent
+  TUIs only show `[Image 1]` placeholders). Also `prefix + i` inside the agent
+  tmux session opens the same preview in a transient split pane. Adds `chafa`
+  and `libsixel-bin` to the image — rebuild required.
+
 ## v0.5.2 — 2026-07-17
 
 - **Fix: `vibe clip` broken on WSL** (v0.5.1 regression) — WSL only shares

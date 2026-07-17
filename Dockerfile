@@ -37,6 +37,7 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
     && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
+        chafa \
         curl \
         fd-find \
         gh \
@@ -44,6 +45,7 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
         git-lfs \
         jq \
         less \
+        libsixel-bin \
         procps \
         ripgrep \
         shellcheck \

@@ -176,6 +176,13 @@ case "$command_name" in
     ensure_up
     exec "${cli[@]}" exec --workspace-folder "$repo_root" "$@"
     ;;
+  show)
+    # Preview an image (default: newest `vibe clip` capture) with chafa in the
+    # invoking terminal — the agent TUI can't render images inline.
+    ensure_up
+    exec "${cli[@]}" exec --workspace-folder "$repo_root" \
+      bash .devcontainer/harness/scripts/show-image.sh "$@"
+    ;;
   clip)
     # Host-side: grabs the OS clipboard image; container /tmp by default, or a
     # workspace-relative directory when given (vibe clip .captures). Workspace
@@ -201,6 +208,7 @@ Commands:
   bootstrap   Rerun create-time dependency setup
   exec        Run an arbitrary command in the container (no .env loading)
   clip        Save the host clipboard image for the container: /tmp, or DIR in the workspace
+  show        Preview an image in the terminal (default: newest vibe clip capture)
 HELP
     ;;
   *)

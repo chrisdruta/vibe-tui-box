@@ -70,6 +70,7 @@ Or open the repository in VS Code and choose **Reopen in Container**.
 | `vibe run CMD`   | Run any command with explicit `.env` loading              |
 | `vibe shell`     | Open a Bash shell inside the container                    |
 | `vibe clip`      | Save the host clipboard image for the container (image-paste workaround) |
+| `vibe show`      | Preview an image in the terminal (default: newest `vibe clip` capture) |
 | `vibe doctor`    | Check the environment (run this first when things break)  |
 | `vibe rebuild`   | Recreate after editing `devcontainer.json`/Dockerfile     |
 
