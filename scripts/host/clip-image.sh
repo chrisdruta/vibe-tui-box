@@ -75,18 +75,30 @@ if command -v powershell.exe >/dev/null 2>&1; then
   # WSL: PowerShell needs a WINDOWS path; wslpath maps the WSL-side temp file.
   # Pass the destination through the environment, never interpolated into the
   # script text: a path containing a single quote would otherwise break out of
-  # the PowerShell string and run as host-side code. WSL forwards env vars to
-  # Windows processes, so $env:CLIP_WIN_PATH reads it back as inert data.
+  # the PowerShell string and run as host-side code. WSL only shares variables
+  # listed in WSLENV with Windows processes; a flagless entry passes the value
+  # verbatim (it is already a Windows path, so no /p translation).
   CLIP_WIN_PATH="$(wslpath -w "$host_png")"
   export CLIP_WIN_PATH
+  export WSLENV="${WSLENV:+$WSLENV:}CLIP_WIN_PATH"
   # shellcheck disable=SC2016  # single quotes are deliberate: $env:... is PowerShell, not bash
   result="$(powershell.exe -NoProfile -Command '
-    Add-Type -AssemblyName System.Windows.Forms
-    $img = [System.Windows.Forms.Clipboard]::GetImage()
-    if ($img -eq $null) { Write-Output "NOIMAGE" } else { $img.Save($env:CLIP_WIN_PATH, [System.Drawing.Imaging.ImageFormat]::Png); Write-Output "SAVED" }
+    $ErrorActionPreference = "Stop"
+    try {
+      Add-Type -AssemblyName System.Windows.Forms
+      $img = [System.Windows.Forms.Clipboard]::GetImage()
+      if ($img -eq $null) { Write-Output "NOIMAGE" }
+      else { $img.Save($env:CLIP_WIN_PATH, [System.Drawing.Imaging.ImageFormat]::Png); Write-Output "SAVED" }
+    } catch { Write-Output "ERROR: $_" }
   ' | tr -d '\r')"
-  if [ "$result" != "SAVED" ]; then
+  if [ "$result" = "NOIMAGE" ]; then
     echo "No image on the Windows clipboard." >&2
+    exit 1
+  elif [ "$result" != "SAVED" ]; then
+    echo "Failed to save the clipboard image: ${result:-no output from powershell.exe}" >&2
+    exit 1
+  elif [ ! -s "$host_png" ]; then
+    echo "powershell.exe reported success but wrote no file: $host_png" >&2
     exit 1
   fi
 elif command -v osascript >/dev/null 2>&1; then
