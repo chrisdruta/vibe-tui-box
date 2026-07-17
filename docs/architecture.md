@@ -27,7 +27,7 @@ my-project/.devcontainer/
 ├── project/            # PROJECT-owned: lifecycle hooks
 └── harness/            # SHARED: this repo, pinned as a git submodule
     ├── Dockerfile      # image recipe (base + optional tool args)
-    ├── vibe            # launcher (repo-agnostic; `dev` kept as back-compat shim)
+    ├── vibe            # launcher (repo-agnostic)
     ├── scripts/        # lifecycle: lib, post-create, post-start, doctor, env-run
     ├── scripts/host/   # WSL-host helpers (start-ollama.sh)
     ├── features/       # opt-in Dev Container Features (build-time apt installs)

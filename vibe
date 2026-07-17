@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# This launcher normally runs as .devcontainer/harness/dev inside a consuming
+# This launcher normally runs as .devcontainer/harness/vibe inside a consuming
 # project (the seeded .devcontainer/vibe wrapper execs it), but it also works
 # from the host PATH (e.g. symlinked into ~/.local/bin). The target project is
 # the nearest ancestor of $PWD with a .devcontainer/devcontainer.json; when

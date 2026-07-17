@@ -3,8 +3,12 @@
 Consumers pin a commit; tags mark intentional upgrade points
 (see [docs/updating.md](docs/updating.md)).
 
-## Unreleased
+## v0.5.0 — 2026-07-17
 
+- **`dev` back-compat shim removed**: `harness/dev` is gone and the seeded
+  wrapper execs `harness/vibe` directly. Pre-v0.4.0 installs must replace
+  their `.devcontainer/dev` wrapper in the same commit that moves the pin to
+  ≥ v0.5.0 — see [updating.md](docs/updating.md) → Crossing the v0.4.0 rename.
 - **Login-gated GitHub git wiring**: when (and only when) `gh` is logged in,
   `post-start.sh` wires gh as git's credential helper and rewrites
   `git@github.com:` remotes to HTTPS inside the container — restoring the

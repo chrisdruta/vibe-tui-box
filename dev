@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-# Back-compat shim: the launcher is named `vibe` now. Existing consumer
-# wrappers exec .devcontainer/harness/dev; keep them working across the rename.
-set -euo pipefail
-self_path="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
-exec "$(dirname -- "$self_path")/vibe" "$@"

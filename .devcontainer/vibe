@@ -5,14 +5,11 @@ set -euo pipefail
 self_path="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
 here="$(cd -- "$(dirname -- "$self_path")" && pwd)"
 
-# Prefer the current launcher name; fall back to the pre-rename one so this
-# wrapper also works while the harness pin predates the vibe rename.
-for launcher in vibe dev; do
-  if [[ -x "$here/harness/$launcher" ]]; then
-    exec "$here/harness/$launcher" "$@"
-  fi
-done
+if [[ ! -x "$here/harness/vibe" ]]; then
+  echo "Harness launcher not found at .devcontainer/harness/vibe" >&2
+  echo "Missing submodule? Run: git submodule update --init" >&2
+  echo "Pin older than v0.4.0? Update it: see harness docs/updating.md" >&2
+  exit 1
+fi
 
-echo "Harness submodule is missing or empty." >&2
-echo "Run: git submodule update --init" >&2
-exit 1
+exec "$here/harness/vibe" "$@"

@@ -51,12 +51,22 @@ done
   newly installed projects; your project-owned files are never rewritten —
   re-run `install.sh --force` if you want a fresh seed, your old files are backed up).
 
-## Crossing v0.4.0 from an older install
+## Crossing the v0.4.0 rename from an older install
 
-Projects installed before v0.4.0 keep working unchanged — the wrapper is still
-`.devcontainer/dev` there, and it runs the new launcher through the
-`harness/dev` back-compat shim. Two seeded files are worth reconciling by hand
-(or with `install.sh --force`) to pick up the v0.4.0 features:
+The launcher was renamed `dev` → `vibe` in v0.4.0 and the back-compat shim was
+dropped in v0.5.0, so a pre-v0.4.0 project's seeded `.devcontainer/dev`
+wrapper stops working when the pin moves to ≥ v0.5.0 (it execs
+`harness/dev`, which no longer exists — the failure message misleadingly
+suggests a missing submodule). **In the same commit as the pin bump**, replace
+the wrapper:
+
+```bash
+git mv .devcontainer/dev .devcontainer/vibe
+cp .devcontainer/harness/templates/vibe .devcontainer/vibe
+```
+
+Two more seeded files are worth reconciling by hand (or with
+`install.sh --force`) to pick up the v0.4.0 features:
 
 - `devcontainer.json`: add `"GH_CONFIG_DIR": "/home/vscode/.agents/gh"` to
   `containerEnv` — without it, `gh auth login` lands in the container

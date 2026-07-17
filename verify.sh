@@ -18,7 +18,6 @@ shell_files=(
   "$repo_root/install.sh"
   "$repo_root/verify.sh"
   "$repo_root/vibe"
-  "$repo_root/dev"
   "$repo_root/templates/vibe"
 )
 while IFS= read -r -d '' file; do
@@ -42,7 +41,7 @@ for manifest in "$repo_root"/features/*/devcontainer-feature.json; do
 done
 
 # Host-side scripts must stay bash-3.2 compatible (stock macOS bash).
-host_side_files=(install.sh verify.sh vibe dev templates/vibe scripts/host/start-ollama.sh scripts/host/clip-image.sh)
+host_side_files=(install.sh verify.sh vibe templates/vibe scripts/host/start-ollama.sh scripts/host/clip-image.sh)
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   for file in "${host_side_files[@]}"; do
     docker run --rm -v "$repo_root:/src:ro" bash:3.2 -n "/src/$file"
