@@ -42,13 +42,18 @@ the checklist, and a prompt you can paste to have an agent do it.
 
 ## Agent prompt
 
-Paste into an agent running at the project root (after cloning the harness to
-`~/dev/vibe-devcontainer-submodule`, or adjust the path):
+Paste into an agent running at the project root — no local harness clone
+needed; the prompt has the agent fetch it:
 
 ```text
-Onboard this repository onto the vibe-devcontainer-submodule harness at
-~/dev/vibe-devcontainer-submodule and reconcile it with the project.
+Onboard this repository onto the vibe-devcontainer-submodule harness
+(https://github.com/chrisdruta/vibe-devcontainer-submodule) and reconcile it
+with the project.
 
+0. If ~/dev/vibe-devcontainer-submodule does not exist, clone it:
+   git clone https://github.com/chrisdruta/vibe-devcontainer-submodule.git \
+     ~/dev/vibe-devcontainer-submodule
+   (An existing clone is fine to use as-is; git -C it pull if it is stale.)
 1. Inspect the repo (lockfiles, README setup steps, any existing .devcontainer
    or CI config) and pick the preset: python (uv.lock), bun (bun.lock),
    roblox (rokit.toml), else minimal.
