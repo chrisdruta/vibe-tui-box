@@ -74,10 +74,16 @@ in_tmux=""
 command -v chafa >/dev/null 2>&1 || { echo "chafa not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "jq not installed" >&2; exit 1; }
 
-# Singleton: a second viewer (hook race, double prefix+i) fails this lock,
-# exits, and its window self-closes without ever taking focus.
-exec 9>"$LOCK"
-flock -n 9 || exit 0
+# Singleton for the TMUX window only: a second window instance (hook race,
+# double prefix+i) fails this lock, exits, and its window self-closes
+# without ever taking focus. A host-terminal `vibe review` is deliberately
+# NOT gated — it owns its own terminal, and blocking it here would make it
+# exit silently whenever the tmux window happens to be open. (If both run,
+# both watch the dir; a hook-queued path jumps whichever drains it first.)
+if [ -n "$in_tmux" ]; then
+  exec 9>"$LOCK"
+  flock -n 9 || exit 0
+fi
 
 # Project config, best effort: harness layout puts config.env two levels up
 # (.devcontainer/harness/scripts -> .devcontainer/config.env); the baked copy

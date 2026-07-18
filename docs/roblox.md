@@ -57,3 +57,12 @@ Application integrations stay in the project's own configuration:
   in the project over adding it to the shared Dockerfile.
 - MCP server registration is agent configuration — script it in
   `project/post-create.sh` so it lands in the persisted agent state.
+
+## Reviewing generated images and renders
+
+For pipelines that produce image batches (Blender renders, generated
+textures/sprites), point the harness image reviewer at the output directory in
+`config.env` (`VIBE_PREVIEW_DIR`, `VIBE_PREVIEW_GLOB`) and review from the
+terminal: `vibe review` in any host terminal, or `prefix+i` inside the agent
+tmux session. Approve/reject verdicts append to a JSONL file the pipeline or
+agent can act on — see [usage.md](usage.md#reviewing-images).
