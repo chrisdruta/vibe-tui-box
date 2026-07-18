@@ -59,6 +59,9 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
 
 COPY --from=uv /uv /uvx /usr/local/bin/
 COPY config/tmux.conf /etc/tmux.conf
+# Baked under a fixed name so tmux.conf's prefix+i binding can call it — the
+# per-project harness path isn't known at image build time.
+COPY --chmod=0755 scripts/show-image.sh /usr/local/bin/vibe-show-image
 
 # Node is required by the npm-distributed Codex CLI and available standalone.
 RUN if [ "${INSTALL_NODE}" = "true" ] || [ "${INSTALL_CODEX}" = "true" ]; then \

@@ -74,14 +74,14 @@ tmux list-panes -F '#{pane_id} #{pane_title}' 2>/dev/null |
   awk '$2 == "vibe-preview" {print $1}' |
   while read -r pane; do tmux kill-pane -t "$pane" 2>/dev/null; done
 
-# The split draws FOCUSED, then hands focus straight back to the invoking
-# pane: sixel passthrough renders at the client cursor, so an unfocused (-d)
-# pane draws the image at whatever position the active pane's redraw left the
-# cursor — over the TUI, half the time nowhere visible. The focus flap lasts
-# only as long as the render (~100ms); the pane then lingers unfocused and
-# closes itself after VIBE_PREVIEW_SECONDS.
+# The split opens detached (-d) and never touches focus: show-image.sh
+# anchors the sixel at this pane's client coordinates, so the render lands
+# right regardless of which pane is active or how busy the TUI is. The brief
+# settle lets tmux finish painting the fresh pane before the image occupies
+# those cells (the creation repaint would wipe it); the pane then closes
+# itself after VIBE_PREVIEW_SECONDS.
 # The pane titles itself (OSC 2) rather than via `select-pane -T`, which can
-# also change the active pane and would re-steal the focus just handed back.
-tmux split-window -v -l '35%' \
-  "printf '\\033]2;vibe-preview\\033\\\\'; bash '$script_dir/show-image.sh' '$path'; tmux select-pane -t '${TMUX_PANE:-}' 2>/dev/null; sleep ${VIBE_PREVIEW_SECONDS:-15}" 2>/dev/null || exit 0
+# change the active pane.
+tmux split-window -d -v -l '35%' \
+  "printf '\\033]2;vibe-preview\\033\\\\'; sleep 0.3; bash '$script_dir/show-image.sh' '$path'; sleep ${VIBE_PREVIEW_SECONDS:-15}" 2>/dev/null || exit 0
 exit 0

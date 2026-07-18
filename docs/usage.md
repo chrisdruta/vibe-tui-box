@@ -148,11 +148,12 @@ where sixel is unavailable.
 Claude Code sessions go one better: hooks in the seeded `.claude/settings.json`
 (from `templates/claude-settings.json`) auto-open the preview split — when you
 submit a prompt containing an image path, and whenever the agent `Read`s an
-image file, so you see what it sees. The split takes focus only for the
-instant the image renders (sixel passthrough draws at the client cursor, so an
-unfocused pane would paint in the wrong place), hands it straight back, and is
-vertical (width changes trigger a known Claude-TUI rewrap stall). It closes
-itself after `VIBE_PREVIEW_SECONDS` (default 15; set it in `config.env`).
+image file, so you see what it sees. The split opens in the background and
+never takes focus — the render is anchored to the split's own client
+coordinates (raw sixel passthrough draws at the client cursor, wherever a
+busy pane last dragged it) — and is vertical (width changes trigger a known
+Claude-TUI rewrap stall). It closes itself after `VIBE_PREVIEW_SECONDS`
+(default 15; set it in `config.env`).
 Repeats of the same image within 30s are debounced per window.
 
 When Claude Code converts a pasted path into an `[Image #N]` *attachment*,
