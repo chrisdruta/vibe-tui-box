@@ -139,20 +139,19 @@ an image, render it with sixel graphics instead:
 - Inside the agent tmux session, **prefix + `i`** opens the same preview in a
   transient split pane; Enter closes it.
 
-Both use `chafa`. Inside tmux the sixel data travels in a passthrough envelope
-(tmux's own sixel engine doesn't reliably re-emit images to the client), so the
-outer terminal must render sixel itself — Windows Terminal ≥ 1.22 qualifies.
-Outside tmux, `chafa` probes the terminal and falls back to unicode blocks
-where sixel is unavailable.
+Both use `chafa`. Inside tmux the raw sixel is composited by tmux's native
+image support — the image is ordinary pane content, so tmux handles clipping,
+scrolling, and repaints. That needs a sixel-capable outer terminal (Windows
+Terminal ≥ 1.22 qualifies; tmux auto-detects it — check
+`tmux display -p '#{client_termfeatures}'`). Outside tmux, `chafa` probes the
+terminal and falls back to unicode blocks where sixel is unavailable.
 
 Claude Code sessions go one better: hooks in the seeded `.claude/settings.json`
 (from `templates/claude-settings.json`) auto-open the preview split — when you
 submit a prompt containing an image path, and whenever the agent `Read`s an
 image file, so you see what it sees. The split opens in the background and
-never takes focus — the render is anchored to the split's own client
-coordinates (raw sixel passthrough draws at the client cursor, wherever a
-busy pane last dragged it) — and is vertical (width changes trigger a known
-Claude-TUI rewrap stall). It closes itself after `VIBE_PREVIEW_SECONDS`
+never takes focus, and is vertical (width changes trigger a known Claude-TUI
+rewrap stall). It closes itself after `VIBE_PREVIEW_SECONDS`
 (default 15; set it in `config.env`).
 Repeats of the same image within 30s are debounced per window.
 
