@@ -107,6 +107,10 @@ need_render=1
 winch=""
 last_active=""
 last_sig=""
+heal_left=0
+last_dcs="" # cached bare sixel DCS + anchor of the last render, for emit_last
+last_row=1
+last_col=1
 trap 'winch=1' WINCH
 trap 'printf "\033[2J\033[H"' EXIT
 
@@ -188,13 +192,26 @@ move() { # older|newer|newest — selection is by path; index recomputed per sca
   fi
 }
 
-render() { # $1 "heal" = follow-up pass, don't schedule another
+emit_last() {
+  # Flicker-free heal: re-emit only the cached sixel envelope, over itself.
+  # A render can land mid client-redraw (window switch, resize settling) and
+  # get wiped; the text survives in tmux's grid, so repainting just the
+  # pixels one tick later repairs the image without a clear — invisible when
+  # the first pass survived.
+  heal_left=0
+  [ -n "$last_dcs" ] || return 0
+  local esc
+  esc="$(printf '\033')"
+  printf '\033Ptmux;'
+  printf '\0337\033[%d;%dH%s\0338' "$last_row" "$last_col" "$last_dcs" | sed "s/$esc/$esc$esc/g"
+  # shellcheck disable=SC1003  # literal backslash: the ST terminator, not a quote escape
+  printf '\033\\'
+}
+
+render() {
   need_render=""
-  # In tmux, a render can land mid client-redraw (window switch, resize
-  # settling) and get wiped; one follow-up pass on the next tick repaints it
-  # after the storm. Identical bytes at identical coordinates — harmless
-  # when the first pass survived. Pointless outside tmux.
-  if [ "${1:-}" = "heal" ] || [ -z "$in_tmux" ]; then heal_left=0; else heal_left=1; fi
+  last_dcs=""
+  if [ -z "$in_tmux" ]; then heal_left=0; else heal_left=1; fi
   local cols rows idx
   cols="$(tput cols 2>/dev/null || echo 80)"
   rows="$(tput lines 2>/dev/null || echo 24)"
@@ -207,12 +224,19 @@ render() { # $1 "heal" = follow-up pass, don't schedule another
   idx="$(idx_of_current)"
   printf '[%d/%d] %s  (%s)\n' "$((idx + 1))" "${#images[@]}" \
     "$(basename -- "$current")" "$(verdict_of "$current")"
-  printf 'h/< newer  l/> older  g newest  y approve  n/x reject  r redraw  q quit\n'
+  printf 'h/< newer  l/> older  g newest  y approve  n/x reject  r redraw  q quit\n\n'
+  # Image box: side and bottom margins, centered via chafa (it composes the
+  # padding into the canvas, so the anchored sixel below stays one block).
+  local iw ih
+  iw=$((cols - 4))
+  ih=$((rows - 5))
+  if [ "$iw" -lt 4 ]; then iw=4; fi
+  if [ "$ih" -lt 3 ]; then ih=3; fi
   if [ -z "$in_tmux" ]; then
     # Plain terminal (`vibe review` from the host): chafa probes it directly
     # and picks sixel or unicode blocks itself — no tmux anywhere. This is
     # the zero-caveat path.
-    chafa -s "${cols}x$((rows - 3))" -- "$current" 2>/dev/null ||
+    chafa --align mid,mid -s "${iw}x${ih}" -- "$current" 2>/dev/null ||
       printf '(render failed — press r to retry)\n'
   elif tmux display-message -p '#{client_termfeatures}' 2>/dev/null | grep -q sixel; then
     # In tmux, a hand-anchored passthrough envelope — the only variant that
@@ -223,21 +247,64 @@ render() { # $1 "heal" = follow-up pass, don't schedule another
     # Self-positioning inside the envelope (save cursor, absolute jump,
     # draw, restore) is immune to both, and this window never scrolls, so
     # the shared-window ghost problem can't occur either.
-    local img esc row
-    img="$(chafa -f sixel --passthrough none -s "${cols}x$((rows - 3))" -- "$current" 2>/dev/null)"
-    if [ -z "$img" ]; then
-      printf '(render failed — press r to retry)\n'
-      return
+    # Sizing is measured, not predicted: chafa's cell→pixel mapping when its
+    # output is captured bears no relation to the real terminal's cell size
+    # (observed: images rendered beyond the whole screen). So render, read
+    # the true pixel size from the sixel raster header ("Pan;Pad;Ph;Pv), and
+    # if it busts a conservative pixel budget for the box (10x20 px/cell —
+    # real cells are almost always bigger, so output errs SMALL and fits),
+    # rescale the request proportionally and render once more.
+    local raw img esc row col voff hoff pxw pxh budw budh num den iw2 ih2 cw ch
+    budw=$((iw * 10))
+    budh=$((ih * 20))
+    raw="$(chafa -f sixel --passthrough none -s "${iw}x${ih}" -- "$current" 2>/dev/null)"
+    read -r pxw pxh <<<"$(printf '%s' "$raw" | head -c 200 |
+      sed -n 's/.*q"[0-9][0-9]*;[0-9][0-9]*;\([0-9][0-9]*\);\([0-9][0-9]*\).*/\1 \2/p')"
+    if [ -n "${pxw:-}" ] && [ -n "${pxh:-}" ] && [ "$pxw" -gt 0 ] && [ "$pxh" -gt 0 ]; then
+      if [ "$pxw" -gt "$budw" ] || [ "$pxh" -gt "$budh" ]; then
+        if [ $((pxw * budh)) -gt $((pxh * budw)) ]; then num=$budw den=$pxw; else num=$budh den=$pxh; fi
+        iw2=$((iw * num / den))
+        ih2=$((ih * num / den))
+        if [ "$iw2" -lt 1 ]; then iw2=1; fi
+        if [ "$ih2" -lt 1 ]; then ih2=1; fi
+        raw="$(chafa -f sixel --passthrough none -s "${iw2}x${ih2}" -- "$current" 2>/dev/null)"
+        read -r pxw pxh <<<"$(printf '%s' "$raw" | head -c 200 |
+          sed -n 's/.*q"[0-9][0-9]*;[0-9][0-9]*;\([0-9][0-9]*\);\([0-9][0-9]*\).*/\1 \2/p')"
+      fi
     fi
-    row=3 # image starts under the two header lines; window origin is client row 1
-    if [ "$(tmux show -gv status-position 2>/dev/null)" = "top" ]; then row=4; fi
+    case "$raw" in
+      *$'\x1bP'*) : ;;
+      *)
+        printf '(render failed — press r to retry)\n'
+        return
+        ;;
+    esac
+    # Bare DCS only — any text decoration executed inside the envelope acts
+    # at CLIENT level (spaces blank cells, a bottom-row linefeed scrolls the
+    # whole screen).
+    img="${raw#*$'\x1bP'}"
+    img="${img%$'\x1b\\'*}"
+    img=$'\x1bP'"$img"$'\x1b\\'
+    # Center using the same conservative cell estimate the budget used.
+    cw=$(((${pxw:-0} + 9) / 10))
+    ch=$(((${pxh:-0} + 19) / 20))
+    hoff=$(((iw - cw) / 2))
+    voff=$(((ih - ch) / 2))
+    if [ "$hoff" -lt 0 ]; then hoff=0; fi
+    if [ "$voff" -lt 0 ]; then voff=0; fi
+    row=$((4 + voff)) # under 2 header lines + 1 blank; window origin is client row 1
+    if [ "$(tmux show -gv status-position 2>/dev/null)" = "top" ]; then row=$((row + 1)); fi
+    col=$((3 + hoff))
+    last_dcs="$img" # cache for the flicker-free heal pass
+    last_row=$row
+    last_col=$col
     esc="$(printf '\033')"
     printf '\033Ptmux;'
-    printf '\0337\033[%d;1H%s\0338' "$row" "$img" | sed "s/$esc/$esc$esc/g"
+    printf '\0337\033[%d;%dH%s\0338' "$row" "$col" "$img" | sed "s/$esc/$esc$esc/g"
     # shellcheck disable=SC1003  # literal backslash: the ST terminator, not a quote escape
     printf '\033\\'
   else
-    chafa -f symbols -s "${cols}x$((rows - 3))" -- "$current" 2>/dev/null ||
+    chafa -f symbols --align mid,mid -s "${iw}x${ih}" -- "$current" 2>/dev/null ||
       printf '(render failed — press r to retry)\n'
   fi
 }
@@ -264,7 +331,7 @@ while :; do
     if [ -n "$need_render" ]; then
       render
     elif [ "${heal_left:-0}" -gt 0 ]; then
-      render heal
+      emit_last
     fi
   elif [ "$sig" != "$last_sig" ] && [ -n "${images[0]:-}" ]; then
     # Unfocused: one short line trips monitor-activity; render waits for entry.
