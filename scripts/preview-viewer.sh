@@ -22,8 +22,15 @@
 #
 # Modes:
 #   (no args)          run the UI — must be a tmux pane's own process
+#   DIR                review DIR as a batch: watch it and record verdicts
+#                      (default file: DIR/vibe-decisions.jsonl)
 #   --ensure SESSION   create the window detached if absent (hooks; silent)
 #   --focus  SESSION   jump to the window, creating it if needed (prefix+i)
+#
+# Viewing vs reviewing: verdict keys and the verdict label exist only when a
+# decisions target is configured — a DIR argument or VIBE_PREVIEW_DECISIONS in
+# config.env. Otherwise the viewer is passive (look, don't judge): the common
+# case for clip/paste previews, where demanding a decision is just noise.
 set -uo pipefail
 
 WINDOW_NAME=preview
@@ -59,10 +66,23 @@ case "${1:-}" in
     exit 0
     ;;
   -h | --help)
-    sed -n '2,25p' "$self" | sed 's/^# \{0,1\}//'
+    # The whole leading comment block, however long it grows.
+    awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$self"
     exit 0
     ;;
 esac
+
+# Optional positional DIR: review that directory as a batch (per-stage dirs in
+# a generation pipeline — `vibe review renders/asset42/angles`).
+review_dir=""
+if [ -n "${1:-}" ]; then
+  if [ -d "$1" ]; then
+    review_dir="$(cd -- "$1" && pwd)"
+  else
+    echo "not a directory: $1" >&2
+    exit 2
+  fi
+fi
 
 # Two homes: a tmux window (prefix+i — best effort, see header), or a plain
 # host terminal via `vibe review` (devcontainer exec with a pty) — the
@@ -93,9 +113,21 @@ for cfg in "$script_dir/../../config.env" "$PWD/.devcontainer/config.env"; do
   # shellcheck disable=SC1090  # runtime project config, path known only here
   if [ -f "$cfg" ]; then . "$cfg"; break; fi
 done
-watch_dir="${VIBE_PREVIEW_DIR:-/tmp}"
+watch_dir="${review_dir:-${VIBE_PREVIEW_DIR:-/tmp}}"
 watch_glob="${VIBE_PREVIEW_GLOB:-*.png *.jpg *.jpeg *.webp}"
-decisions="${VIBE_PREVIEW_DECISIONS:-${watch_dir%/}/vibe-decisions.jsonl}"
+
+# Review mode only with an explicit decisions target: VIBE_PREVIEW_DECISIONS
+# (config.env or environment) wins; a DIR argument implies its own batch file.
+# Neither set -> passive viewer, no verdict UI.
+review=""
+decisions=""
+if [ -n "${VIBE_PREVIEW_DECISIONS:-}" ]; then
+  review=1
+  decisions="$VIBE_PREVIEW_DECISIONS"
+elif [ -n "$review_dir" ]; then
+  review=1
+  decisions="${review_dir%/}/vibe-decisions.jsonl"
+fi
 
 # Light the window name in the status bar when we print while unfocused.
 [ -n "$in_tmux" ] && tmux set-option -w -t "${TMUX_PANE:-}" monitor-activity on 2>/dev/null
@@ -174,10 +206,25 @@ verdict_of() {
 }
 
 decide() {
+  [ -n "$review" ] || return 0
   [ -n "$current" ] && [ -f "$current" ] || return 0
+  local note=""
+  if [ "$1" = "reject" ]; then
+    # A bare reject gives the regenerating agent nothing to steer with — offer
+    # a one-line why. Prompt on the bottom row, clear of the image; the full
+    # redraw after the verdict wipes it. Enter (or EOF) records a plain reject.
+    printf '\033[999;1H\033[Kreject note (Enter = none): '
+    IFS= read -r note || note=""
+  fi
   mkdir -p -- "$(dirname -- "$decisions")" 2>/dev/null
-  jq -nc --arg ts "$(date -u +%FT%TZ)" --arg path "$current" --arg verdict "$1" \
-    '{ts: $ts, path: $path, verdict: $verdict}' >>"$decisions" 2>/dev/null
+  if [ -n "$note" ]; then
+    jq -nc --arg ts "$(date -u +%FT%TZ)" --arg path "$current" --arg verdict "$1" \
+      --arg note "$note" \
+      '{ts: $ts, path: $path, verdict: $verdict, note: $note}' >>"$decisions" 2>/dev/null
+  else
+    jq -nc --arg ts "$(date -u +%FT%TZ)" --arg path "$current" --arg verdict "$1" \
+      '{ts: $ts, path: $path, verdict: $verdict}' >>"$decisions" 2>/dev/null
+  fi
   move older # reviewing runs newest -> older through the batch
   need_render=1
 }
@@ -228,9 +275,14 @@ render() {
     return
   fi
   idx="$(idx_of_current)"
-  printf '[%d/%d] %s  (%s)\n' "$((idx + 1))" "${#images[@]}" \
-    "$(basename -- "$current")" "$(verdict_of "$current")"
-  printf 'h/< newer  l/> older  g newest  y approve  n/x reject  r redraw  q quit\n\n'
+  if [ -n "$review" ]; then
+    printf '[%d/%d] %s  (%s)\n' "$((idx + 1))" "${#images[@]}" \
+      "$(basename -- "$current")" "$(verdict_of "$current")"
+    printf 'h/< newer  l/> older  g newest  y approve  n/x reject(+note)  r redraw  q quit\n\n'
+  else
+    printf '[%d/%d] %s\n' "$((idx + 1))" "${#images[@]}" "$(basename -- "$current")"
+    printf 'h/< newer  l/> older  g newest  r redraw  q quit\n\n'
+  fi
   # Image box: side and bottom margins, centered via chafa (it composes the
   # padding into the canvas, so the anchored sixel below stays one block).
   local iw ih

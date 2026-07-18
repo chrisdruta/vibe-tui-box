@@ -3,6 +3,29 @@
 Consumers pin a commit; tags mark intentional upgrade points
 (see [docs/updating.md](docs/updating.md)).
 
+## v0.7.1 — 2026-07-18
+
+- **Changed: the image viewer is passive by default.** Verdict keys and the
+  per-image verdict label now exist only when a decisions target is
+  configured; without one the viewer just views — the right behavior for the
+  everyday case of glancing at a `vibe clip` capture or a prompt paste, where
+  "undecided" demanded a decision nobody owed. Review mode activates via
+  `VIBE_PREVIEW_DECISIONS` in `config.env` (every instance, including the
+  `prefix+i` window) or the new per-batch form below. Rebuild required to
+  bake the new viewer.
+- **New: `vibe review DIR`** reviews one directory as a batch: watches `DIR`
+  (workspace-relative), records verdicts to `DIR/vibe-decisions.jsonl`. Built
+  for staged generation pipelines — one directory and one `vibe review` per
+  approval gate; stage semantics (regenerate vs refine on reject) stay in the
+  project's agent skills.
+- **New: reject notes.** In review mode `n`/`x` prompts for an optional
+  one-line reason (Enter skips) recorded as a `"note"` field in the verdict
+  JSONL — turns reject-and-redo loops from rerolling into steering.
+- **Changed: agent onboarding prompt clones fresh.** The paste-prompt in
+  [docs/onboarding.md](docs/onboarding.md) no longer looks for (or reuses) a
+  local `~/dev` scaffold clone; it always shallow-clones the latest harness
+  to a throwaway `/tmp` directory.
+
 ## v0.7.0 — 2026-07-18
 
 - **New: image review — `vibe review` and the tmux `preview` window.**

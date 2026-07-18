@@ -184,10 +184,12 @@ case "$command_name" in
       bash .devcontainer/harness/scripts/show-image.sh "$@"
     ;;
   review)
-    # Interactive image review (watch dir + approve/reject verdicts) in the
-    # INVOKING terminal: chafa renders straight to it, no tmux between the
-    # pixels and the screen — the reliable path; prefix+i inside the agent
-    # session is the best-effort tmux flavor of the same viewer.
+    # Interactive image viewer in the INVOKING terminal: chafa renders straight
+    # to it, no tmux between the pixels and the screen — the reliable path;
+    # prefix+i inside the agent session is the best-effort tmux flavor of the
+    # same viewer. Verdict recording (approve/reject + note -> JSONL) turns on
+    # only with a DIR argument (`vibe review renders/batch1`) or
+    # VIBE_PREVIEW_DECISIONS in config.env; otherwise it just views.
     ensure_up
     exec "${cli[@]}" exec --workspace-folder "$repo_root" \
       bash .devcontainer/harness/scripts/preview-viewer.sh "$@"
@@ -218,7 +220,8 @@ Commands:
   exec        Run an arbitrary command in the container (no .env loading)
   clip        Save the host clipboard image for the container: /tmp, or DIR in the workspace
   show        Preview an image in the terminal (default: newest vibe clip capture)
-  review      Review images interactively (navigate, approve/reject to JSONL)
+  review [DIR]  View images; with DIR (or VIBE_PREVIEW_DECISIONS set), record
+              approve/reject verdicts (+ optional reject note) to JSONL
 HELP
     ;;
   *)

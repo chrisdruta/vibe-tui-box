@@ -143,28 +143,36 @@ harness renders them with sixel graphics instead, in a dedicated tmux window:
 - `vibe show [PATH]` (host, outside tmux) renders one image in the invoking
   terminal; with no argument, the newest clip or watched image.
 
-The `preview` window is built for batch review (e.g. generated images or
-render batches landing in a directory): it watches `VIBE_PREVIEW_DIR` for
-files matching `VIBE_PREVIEW_GLOB` (both in `config.env`; defaults `/tmp` and
-common image extensions), newest first. Keys, single press:
+The viewer has two modes. **Passive** (the default): flip through images that
+land in `VIBE_PREVIEW_DIR` matching `VIBE_PREVIEW_GLOB` (both in `config.env`;
+defaults `/tmp` and common image extensions), newest first — the mode for
+glancing at clips and pastes, with no decision asked of you. **Review**: the
+same UI plus verdict keys and a per-image verdict label, active only when a
+decisions target exists — pass a directory (`vibe review renders/batch1`,
+workspace-relative) to review it as a batch, or set `VIBE_PREVIEW_DECISIONS`
+in `config.env` to make every viewer instance (including the `preview`
+window) record verdicts. Keys, single press:
 
-| Key | Action |
-| --- | --- |
-| `h` / `←` | newer image |
-| `l` / `→` | older image |
-| `g` | jump to newest |
-| `y` | approve (recorded, advances) |
-| `n` / `x` | reject (recorded, advances) |
-| `r` | force re-render |
-| `q` | close the window |
+| Key | Action | Mode |
+| --- | --- | --- |
+| `h` / `←` | newer image | both |
+| `l` / `→` | older image | both |
+| `g` | jump to newest | both |
+| `y` | approve (recorded, advances) | review |
+| `n` / `x` | reject — prompts for an optional one-line note, then advances | review |
+| `r` | force re-render | both |
+| `q` | close the window | both |
 
-Verdicts append to a JSONL decisions file (`VIBE_PREVIEW_DECISIONS`, default
-`vibe-decisions.jsonl` inside the watch dir): one
-`{"ts":…,"path":…,"verdict":"approve"|"reject"}` per line, append-only — the
-last line per path wins. A pipeline or agent consumes it with e.g.
-`jq -s 'group_by(.path) | map(last)' vibe-decisions.jsonl`. Point
-`VIBE_PREVIEW_DIR` (and the decisions file) at your render-output directory
-to review batches in place and let the generating agent read the verdicts.
+Verdicts append to the JSONL decisions file (`VIBE_PREVIEW_DECISIONS`, or
+`vibe-decisions.jsonl` inside a `DIR` argument): one
+`{"ts":…,"path":…,"verdict":"approve"|"reject"}` per line — plus a `"note"`
+field when you typed one at the reject prompt, which is what gives a
+regenerating agent something to steer with. Append-only; the last line per
+path wins, so re-deciding an image just works. A pipeline or agent consumes
+it with e.g. `jq -s 'group_by(.path) | map(last)' vibe-decisions.jsonl`.
+For staged pipelines (concept art → angle sheets → renders), give each batch
+its own directory and run `vibe review <dir>` per gate — the verdict file
+lands next to the images it judges.
 
 Claude Code sessions feed the viewer automatically: hooks in the seeded
 `.claude/settings.json` (from `templates/claude-settings.json`) fire when you

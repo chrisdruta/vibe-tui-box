@@ -61,8 +61,14 @@ Application integrations stay in the project's own configuration:
 ## Reviewing generated images and renders
 
 For pipelines that produce image batches (Blender renders, generated
-textures/sprites), point the harness image reviewer at the output directory in
-`config.env` (`VIBE_PREVIEW_DIR`, `VIBE_PREVIEW_GLOB`) and review from the
-terminal: `vibe review` in any host terminal, or `prefix+i` inside the agent
-tmux session. Approve/reject verdicts append to a JSONL file the pipeline or
-agent can act on — see [usage.md](usage.md#reviewing-images).
+textures/sprites, concept art), give each pipeline stage its own output
+directory and review each gate with `vibe review <dir>` from any host
+terminal — verdicts (approve/reject, plus an optional one-line reject note
+the regenerating agent can steer by) append to `<dir>/vibe-decisions.jsonl`.
+A staged asset flow maps one review per gate — e.g. concept art → angle
+sheets → render batches, each a directory the generating agent writes into
+and then polls the verdict file of. The stage state machine (what "reject"
+triggers: regenerate vs refine) belongs to the project's agent skills, not
+the harness. Alternatively set `VIBE_PREVIEW_DIR`/`VIBE_PREVIEW_DECISIONS`
+in `config.env` to make the `prefix+i` window review a fixed directory —
+see [usage.md](usage.md#reviewing-images).
