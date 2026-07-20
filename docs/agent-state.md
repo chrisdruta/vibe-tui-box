@@ -55,7 +55,7 @@ The volume name uses only the workspace folder **basename**:
   **separate** state volumes → separate logins, full isolation.
 - Two projects whose folders share a basename (e.g. `~/dev/a/app` and `~/dev/b/app`)
   **collide** on the same volume — rename one folder, or change the volume `source=`
-  in that project's `devcontainer.json` to a unique key.
+  in that project's `compose.yaml` to a unique key.
 - The same `source=` edit can also **deliberately** share one volume — logins and
   session history included — across projects. That trades away per-project
   isolation; see [positioning.md](positioning.md#why-logins-are-per-project)

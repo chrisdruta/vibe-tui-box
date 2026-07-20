@@ -1,18 +1,19 @@
 # Daily usage
 
-All commands run via the seeded wrapper — or as plain `vibe` with the
-[global install](#global-install) below:
+All commands run via the seeded root symlink (or `.vibe/vibe`, the same
+thing) — or as plain `vibe` with the [global install](#global-install) below:
 
 ```bash
-./.devcontainer/vibe COMMAND [ARGS...]
+./vibe COMMAND [ARGS...]
 ```
 
 | Command     | Does                                                                  |
 | ----------- | --------------------------------------------------------------------- |
-| `up`        | Build (if needed) and start the Dev Container                          |
-| `rebuild`   | Recreate the container — required after editing `devcontainer.json` or the Dockerfile |
+| `up`        | Build (if needed) and start the container, then run the lifecycle hooks (post-create once per container, post-start per start) |
+| `rebuild`   | Fresh image + fresh container — required after editing `compose.yaml` or the Dockerfile |
 | `build`     | Build the image only                                                   |
-| `status`    | Show this project's container(s) — name, state, image, ports (needs a docker client) |
+| `config`    | Print the merged compose config (harness base + project override)      |
+| `status`    | Show this project's container(s) — name, state, image, ports           |
 | `down`      | Stop & remove this project's container; named volumes (agent state) are kept — `vibe up` recreates it |
 | `shell`     | Open a Bash shell in the container                                     |
 | `attach [SESSION]` | Attach (or create) a tmux session in the container — the door into a services session your `project/post-start.sh` stands up. Name: argument > `DEV_ATTACH_TMUX_SESSION` > `main` |
@@ -21,23 +22,25 @@ All commands run via the seeded wrapper — or as plain `vibe` with the
 | `exec CMD`  | Run any command **without** `.env` loading                             |
 | `doctor`    | Check the environment; prints OK/MISS per requirement                  |
 | `bootstrap` | Rerun create-time dependency setup (idempotent)                        |
+| `update [TAG]` | Move the harness pin (fetch, changelog delta, checkout, stage)      |
 | `clip [DIR]` | Save the host clipboard image into container `/tmp`, or `DIR` in the workspace (image-paste workaround) |
 | `show [PATH]` | Preview an image in the terminal via sixel (default: newest `vibe clip` capture) |
+| `review [DIR]` | Browse/review images with yazi (verdict keys, badges — below)       |
 
-The launcher uses a locally installed `devcontainer` CLI, falling back to a
-**version-pinned** `npx -y @devcontainers/cli@<pinned>` (unpinned `npx` would
-run whatever `latest` resolves to as the host user). Override the pin for one
-run with `DEVCONTAINER_CLI_SPEC=@devcontainers/cli@X.Y.Z vibe ...`, or just
-install the CLI globally to skip the fallback entirely.
+The launcher drives docker directly: `docker compose` for the container
+lifecycle (the harness base compose file with the project's
+`.vibe/compose.yaml` merged on top — `vibe config` prints the result) and
+`docker exec` for everything that runs inside. There is no devcontainer CLI
+and no Node dependency; git and Docker are the whole host requirement.
 
 ## Global install
 
 The launcher targets the nearest ancestor of the current directory with a
-`.devcontainer/devcontainer.json`, so one symlink on the host `PATH` serves
-every harness project:
+`.vibe/compose.yaml`, so one symlink on the host `PATH` serves every harness
+project:
 
 ```bash
-ln -s ~/dev/any-project/.devcontainer/harness/vibe ~/.local/bin/vibe
+ln -s ~/dev/any-project/.vibe/harness/vibe ~/.local/bin/vibe
 cd ~/dev/other-project && vibe agent    # targets other-project
 ```
 
@@ -45,9 +48,9 @@ Only when run from outside any project does it fall back to the project the
 script itself lives in.
 
 Container commands (`agent`, `shell`, `run`, `exec`, `doctor`, `bootstrap`,
-`clip`, `show`) start the container automatically when it isn't running — a cold
-`vibe agent` is the whole morning routine. Start-up progress goes to stderr,
-so `vibe run` output stays pipeable.
+`clip`, `show`, `review`) start the container automatically when it isn't
+running — a cold `vibe agent` is the whole morning routine. Start-up progress
+goes to stderr, so `vibe run` output stays pipeable.
 
 ## Typical day
 
@@ -63,14 +66,14 @@ With `DEV_AGENT_TMUX=1` in `config.env` (the seeded default for new installs),
 
 - **Detach** with `Ctrl-b d` — the agent keeps running; closing the terminal or
   losing the connection also leaves it running.
-- **Reattach** by rerunning `./.devcontainer/vibe agent` (arguments are ignored
+- **Reattach** by rerunning `./vibe agent` (arguments are ignored
   when an existing session is attached; the session ends when the agent exits).
 - **One-off plain run**: `vibe run claude`, or set `DEV_AGENT_TMUX=0`.
 
 Run several agents side by side in tmux (installed in the image):
 
 ```bash
-./.devcontainer/vibe shell
+./vibe shell
 tmux
 # pane 1: claude    pane 2: codex    pane 3: grok
 ```
@@ -93,9 +96,9 @@ Remaining arguments pass through (`vibe agent --cold --continue`), and it
 composes with the per-invocation agent selector:
 
 ```bash
-./.devcontainer/vibe agent -a codex          # Codex session (DEV_AGENT_CMD untouched)
-./.devcontainer/vibe agent --cold -a codex   # Codex without AGENTS.md
-./.devcontainer/vibe agent -a "codex --model gpt-5"   # override may carry arguments
+./vibe agent -a codex          # Codex session (DEV_AGENT_CMD untouched)
+./vibe agent --cold -a codex   # Codex without AGENTS.md
+./vibe agent -a "codex --model gpt-5"   # override may carry arguments
 ```
 
 With `DEV_AGENT_TMUX=1` each variant uses its own tmux session — `agent`,
@@ -110,7 +113,7 @@ server to reach it (the terminal only ever sends text down the pty). Instead,
 with an image on the host clipboard, run on the host:
 
 ```bash
-./.devcontainer/vibe clip
+./vibe clip
 # In the container: /tmp/clip-20260715-093042.png
 # (path copied to clipboard)
 ```
@@ -125,7 +128,7 @@ To keep captures instead, pass a workspace-relative directory — the image is
 written straight through the bind mount (no running container required):
 
 ```bash
-./.devcontainer/vibe clip .captures
+./vibe clip .captures
 # Saved: .captures/clip-20260715-093042.png
 ```
 
@@ -153,7 +156,7 @@ image, pinned by checksum) plus a one-shot renderer:
 
 Both entry points run a **layered config**: the harness supplies the review
 machinery (the `vibe.yazi` plugin, the verdict keybindings, a ✓/✗ badge
-column), and the project-owned `.devcontainer/yazi/` (seeded once from
+column), and the project-owned `.vibe/yazi/` (seeded once from
 `templates/yazi/`) supplies preferences on top — its `yazi.toml`/
 `theme.toml` replace the harness's, its `keymap.toml` entries merge in
 front (so they win on conflict), and its `init.lua` runs after the
@@ -165,8 +168,8 @@ so `a`/`r` keep their create/rename meanings:
   skips, Esc cancels the reject)
 
 Judged files get a persistent `✓`/`✗` badge in the list (the `verdict`
-linemode — existing verdicts load from the decisions file the first time
-you judge in a directory). Verdicts append as
+linemode — existing verdicts load as soon as a directory is entered).
+Verdicts append as
 `{"ts":…,"path":…,"verdict":"approve"|"reject"[,"note":…]}` JSONL lines to
 `.review-decisions.jsonl` **in the directory being browsed** — beside the
 images they judge, hidden from the listing as a dotfile. Set
@@ -179,7 +182,7 @@ directory and run `vibe review <dir>` per gate. The raw helper is also
 scriptable: `vibe-verdict reject PATH note words…`.
 
 Claude Code sessions feed the preview window automatically: hooks in the
-seeded `.claude/settings.json` (from `templates/claude-settings.json`) fire
+seeded `.claude/settings.json` (from `src/templates/claude-settings.json`) fire
 when you submit a prompt containing an image path and whenever the agent
 `Read`s an image file. The hook ensures the `preview` window exists and
 tells its yazi to reveal the image over DDS (`ya emit-to`); if the window
@@ -206,23 +209,20 @@ file content, never the extension.
   writability, required commands (`DEV_REQUIRED_COMMANDS`), the agent command,
   and the absence of the Docker socket and passwordless sudo. Its output is also
   logged to `/tmp/dev-doctor.log` inside the container on every start.
-- **Changed `devcontainer.json` or the Dockerfile and nothing happened?**
-  `vibe up` reuses an existing container; run `vibe rebuild`.
-- **`Harness submodule is missing`** — run `git submodule update --init`.
-- **Build warning `InvalidDefaultArgInFrom: Default value for ARG $BASE_IMAGE
-  ... (line 4)`** — harmless, and not from the harness Dockerfile (whose
-  `BASE_IMAGE` has a valid default). With `updateRemoteUserUID` the
-  devcontainer CLI runs a second UID-sync build using its own bundled
-  `updateUID.Dockerfile`, which declares `ARG BASE_IMAGE` without a default;
-  Docker ≥ 4.33 lints that file. Fix belongs upstream in devcontainers/cli.
+- **Changed `compose.yaml` or the Dockerfile and nothing happened?**
+  `vibe up` recreates on compose-config changes, but image contents need
+  `vibe rebuild`. `vibe config` shows what the merged config actually says.
+- **`Harness launcher not found`** — run `git submodule update --init`.
 - **Bootstrap fails loudly** — that is `DEV_BOOTSTRAP_STRICT=1` doing its job:
   a detected manifest's tool is missing. Install the tool via build args or set
   `DEV_BOOTSTRAP_STRICT=0` to degrade to warnings
   (see [configuration.md](configuration.md)).
 - **Agent asks to log in again after a rebuild** — the state volume persists
   across rebuilds but is per project folder name; see [agent-state.md](agent-state.md).
+- **Rotated `GH_TOKEN` on the host not visible in the container** — container
+  environment is baked at create time; `vibe down && vibe up` re-reads it.
 - **Slow file operations on macOS** — Docker Desktop bind mounts (virtiofs) are
   slower than WSL's native ext4; if a heavy directory (e.g. `node_modules`) hurts,
-  move it to a named volume in the project's `devcontainer.json`.
+  move it to a named volume in the project's `compose.yaml`.
 - **Root shell for maintenance**: `docker exec -u root -it <container> bash`
   (deliberately outside the normal flow).

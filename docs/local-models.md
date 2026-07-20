@@ -6,7 +6,7 @@ excludes containers), and on macOS containers can't see Metal at all. The setup
 that works on both: run the inference server natively on the host, where the GPU
 drivers are first-class, and let containers reach it over the host gateway.
 
-Model weights live once on the host, every devcontainer shares the same server,
+Model weights live once on the host, every project container shares the same server,
 and containers stay slim.
 
 ## 1. Start Ollama
@@ -14,7 +14,7 @@ and containers stay slim.
 The same helper works on Windows (run from WSL) and macOS:
 
 ```bash
-./.devcontainer/harness/scripts/host/start-ollama.sh --parallel 24
+.vibe/harness/src/scripts/host/start-ollama.sh --parallel 24
 ```
 
 The helper:
@@ -46,16 +46,19 @@ CPU costs far more than parallelism gains.
 
 ## 2. Route the container to the host
 
-Add to the project's `runArgs` in `devcontainer.json` (deliberately opt-in,
+Add to the project's `.vibe/compose.yaml` (deliberately opt-in,
 not part of the generic harness):
 
-```jsonc
-"--add-host=host.docker.internal:host-gateway"
+```yaml
+services:
+  dev:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 ```
 
-Then `vibe rebuild`. On Docker Desktop for Mac, `host.docker.internal` resolves
-without this runArg — adding it anyway is harmless and keeps the project config
-portable across both hosts.
+Then `vibe up` (recreates on the config change). On Docker Desktop for Mac,
+`host.docker.internal` resolves without this entry — adding it anyway is
+harmless and keeps the project config portable across both hosts.
 
 ## 3. Point tooling at it
 

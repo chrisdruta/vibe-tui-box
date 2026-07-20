@@ -25,17 +25,16 @@ jobs:
         # wrongly persist it in image metadata.
         run: |
           docker run --rm -i hadolint/hadolint \
-            hadolint --ignore DL3008 --ignore DL3003 - < Dockerfile
+            hadolint --ignore DL3008 --ignore DL3003 - < src/Dockerfile
 
   build-image:
-    # Full Dev Container build of the minimal preset — exercises the live
-    # installer pipelines that verify.sh cannot.
+    # Full image build of the minimal preset via the compose engine —
+    # exercises the live installer pipelines that verify.sh cannot.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - run: npm install -g @devcontainers/cli
       - name: Install preset into a scratch repo and build
         run: |
           target="$(mktemp -d)"
@@ -44,4 +43,4 @@ jobs:
             commit -q --allow-empty -m init
           ./install.sh --preset minimal --url "$PWD" "$target"
           cd "$target"
-          ./.devcontainer/vibe build
+          ./vibe build

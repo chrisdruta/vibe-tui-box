@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# This launcher normally runs as .devcontainer/harness/vibe inside a consuming
-# project (the seeded .devcontainer/vibe wrapper execs it), but it also works
-# from the host PATH (e.g. symlinked into ~/.local/bin). The target project is
-# the nearest ancestor of $PWD with a .devcontainer/devcontainer.json; when
-# $PWD is outside any project, it falls back to the project this script lives
-# in (two levels up, after resolving symlinks).
-# Resolve symlinks with a loop rather than `readlink -f` (GNU-only; stock macOS
-# readlink lacks -f). Follows each link hop; the trailing `cd`+`pwd` canonicalizes.
+# Host launcher. Normally runs as .vibe/harness/vibe inside a consuming
+# project (the seeded .vibe/vibe wrapper and the root-level ./vibe symlink
+# exec it), but also works from the host PATH (e.g. symlinked into
+# ~/.local/bin). The target project is the nearest ancestor of $PWD with a
+# .vibe/compose.yaml; when $PWD is outside any project, it falls back to
+# the project this script lives in (two levels up, after resolving
+# symlinks). Host may be stock macOS: keep this bash-3.2 compatible.
+#
+# Engine: docker compose + docker exec, directly — no devcontainer CLI, no
+# Node on the host. The container definition is the harness base compose
+# file with the project's .vibe/compose.yaml merged on top; lifecycle
+# (post-create once per container, post-start per start) is run from here.
+
+# Resolve symlinks with a loop (stock macOS readlink has no -f).
 self_path="${BASH_SOURCE[0]}"
 while [ -L "$self_path" ]; do
   link_target="$(readlink "$self_path")"
@@ -19,64 +25,37 @@ while [ -L "$self_path" ]; do
 done
 self_dir="$(cd -- "$(dirname -- "$self_path")" && pwd)"
 
-# shellcheck source=scripts/repo-root.sh disable=SC1091
-. "$self_dir/scripts/repo-root.sh"
+# shellcheck source=src/scripts/repo-root.sh disable=SC1091
+. "$self_dir/src/scripts/repo-root.sh"
 repo_root="$(find_repo_root_from_pwd || true)"
 if [[ -z "$repo_root" ]]; then
   fallback_root="$(cd -- "$self_dir/../.." && pwd)"
-  if [[ -f "$fallback_root/.devcontainer/devcontainer.json" ]]; then
+  if [[ -n "$(vibe_dir_name_for_root "$fallback_root")" ]]; then
     repo_root="$fallback_root"
   fi
 fi
 
 if [[ -z "$repo_root" ]]; then
-  echo "No .devcontainer/devcontainer.json found above: $PWD" >&2
-  echo "Run from inside a project set up with install.sh (or via its .devcontainer/vibe)." >&2
+  echo "No .vibe/compose.yaml (or legacy .devcontainer/) found above: $PWD" >&2
+  echo "Run from inside a project set up with install.sh (or via its .vibe/vibe)." >&2
   exit 1
 fi
 
-# `vibe update` needs only git — dispatch it before the devcontainer-CLI check
-# below so it also works from inside the container, where an agent has git but
-# neither npx nor docker (update.sh prints the rebuild handoff instead).
+vibe_dirname="$(vibe_dir_name_for_root "$repo_root")"
+
+# `vibe update` needs only git — dispatch before any docker/layout check so
+# it also works from inside the container and on the legacy layout.
 if [ "${1:-}" = "update" ]; then
   shift
-  VIBE_REPO_ROOT="$repo_root" exec bash "$self_dir/scripts/update.sh" "$@"
+  VIBE_REPO_ROOT="$repo_root" exec bash "$self_dir/src/scripts/update.sh" "$@"
 fi
 
-# Pin the npx fallback: `@devcontainers/cli` (unversioned) resolves the mutable
-# latest and runs it as the host user, so a bad release would execute with
-# access to the host home, SSH keys, and Docker. Prefer a locally installed CLI;
-# bump this pin deliberately. Override with DEVCONTAINER_CLI_SPEC if you must.
-DEVCONTAINER_CLI_SPEC="${DEVCONTAINER_CLI_SPEC:-@devcontainers/cli@0.87.0}"
-if command -v devcontainer >/dev/null 2>&1; then
-  cli=(devcontainer)
-elif command -v npx >/dev/null 2>&1; then
-  cli=(npx -y "$DEVCONTAINER_CLI_SPEC")
-else
-  echo "Install @devcontainers/cli or Node/npx on the WSL host." >&2
-  echo "Example: npm install -g @devcontainers/cli" >&2
+if [[ "$vibe_dirname" != ".vibe" ]]; then
+  echo "This project is on the retired devcontainer layout ($vibe_dirname/)." >&2
+  echo "Migrate it first: see the harness docs/updating.md ->" >&2
+  echo "\"Migrating to the compose engine\" (one-time, ~5 minutes)." >&2
   exit 1
 fi
-
-# The devcontainer CLI labels containers with the workspace path it started
-# them from; an empty `docker ps` match means stopped or never created. Hosts
-# without a docker client (e.g. podman) fall back to probing with a no-op exec.
-container_running() {
-  if command -v docker >/dev/null 2>&1; then
-    [[ -n "$(docker ps -q --filter "label=devcontainer.local_folder=$repo_root" 2>/dev/null)" ]]
-  else
-    "${cli[@]}" exec --workspace-folder "$repo_root" true >/dev/null 2>&1
-  fi
-}
-
-# Container commands start the container when it isn't running, so `vibe agent`
-# works cold. Progress goes to stderr to keep stdout clean for `vibe run` pipes.
-ensure_up() {
-  if ! container_running; then
-    echo "Container not running for $repo_root — starting it..." >&2
-    "${cli[@]}" up --workspace-folder "$repo_root" 1>&2
-  fi
-}
 
 command_name="${1:-help}"
 if (($#)); then
@@ -84,106 +63,15 @@ if (($#)); then
 fi
 
 case "$command_name" in
-  up)
-    exec "${cli[@]}" up --workspace-folder "$repo_root" "$@"
-    ;;
-  rebuild)
-    exec "${cli[@]}" up --workspace-folder "$repo_root" --remove-existing-container "$@"
-    ;;
-  build)
-    exec "${cli[@]}" build --workspace-folder "$repo_root" "$@"
-    ;;
-  status)
-    # Host-side: list this project's container(s) by the devcontainer CLI's
-    # workspace label. Needs a docker client — the CLI has no ps of its own.
-    command -v docker >/dev/null 2>&1 || { echo "vibe status needs a docker client on the host." >&2; exit 1; }
-    exec docker ps -a --filter "label=devcontainer.local_folder=$repo_root" \
-      --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}'
-    ;;
-  down)
-    # Stop & remove this project's container. Named volumes (agent state) are
-    # untouched — only the container goes; `vibe up` recreates it.
-    command -v docker >/dev/null 2>&1 || { echo "vibe down needs a docker client on the host." >&2; exit 1; }
-    ids="$(docker ps -aq --filter "label=devcontainer.local_folder=$repo_root")"
-    [[ -n "$ids" ]] || { echo "No container found for $repo_root" >&2; exit 0; }
-    # shellcheck disable=SC2086  # one id per word is the point
-    exec docker rm -f $ids
-    ;;
-  attach)
-    # Attach (or create) a tmux session in the container — the door into a
-    # long-lived services session a project's post-start hook stands up.
-    # Session name: argument > DEV_ATTACH_TMUX_SESSION in config.env > "main".
-    ensure_up
-    exec "${cli[@]}" exec --workspace-folder "$repo_root" \
-      bash .devcontainer/harness/scripts/agent-entry.sh attach "$@"
-    ;;
-  shell)
-    ensure_up
-    exec "${cli[@]}" exec --workspace-folder "$repo_root" bash "$@"
-    ;;
-  agent)
-    ensure_up
-    # All agent logic (flag parsing, DEV_AGENT_CMD resolution, tmux wrapping)
-    # lives container-side in agent-entry.sh, which gets real argv via exec —
-    # no payload string, no re-quoting on this side of the boundary.
-    exec "${cli[@]}" exec --workspace-folder "$repo_root" \
-      bash .devcontainer/harness/scripts/agent-entry.sh agent "$@"
-    ;;
-  doctor)
-    ensure_up
-    exec "${cli[@]}" exec --workspace-folder "$repo_root" \
-      bash .devcontainer/harness/scripts/doctor.sh "$@"
-    ;;
-  bootstrap)
-    ensure_up
-    exec "${cli[@]}" exec --workspace-folder "$repo_root" \
-      bash .devcontainer/harness/scripts/post-create.sh "$@"
-    ;;
-  run)
-    (($#)) || { echo "Usage: vibe run COMMAND [ARGUMENT ...]" >&2; exit 2; }
-    ensure_up
-    exec "${cli[@]}" exec --workspace-folder "$repo_root" \
-      .devcontainer/harness/scripts/env-run.sh "$@"
-    ;;
-  exec)
-    (($#)) || { echo "Usage: vibe exec COMMAND [ARGUMENT ...]" >&2; exit 2; }
-    ensure_up
-    exec "${cli[@]}" exec --workspace-folder "$repo_root" "$@"
-    ;;
-  show)
-    # Preview an image (default: newest `vibe clip` capture) in the invoking
-    # terminal — the agent TUI can't render images inline. `--diag PATH`
-    # explains a failing render instead of drawing it.
-    ensure_up
-    exec "${cli[@]}" exec --workspace-folder "$repo_root" \
-      bash .devcontainer/harness/scripts/show-image.sh "$@"
-    ;;
-  review)
-    # yazi in the INVOKING terminal (prefix+i inside the agent session opens
-    # the same thing as a dedicated tmux window). The harness binds A=approve
-    # and R=reject-with-note (vibe.yazi plugin; verdicts land in
-    # .review-decisions.jsonl beside the images); the project-owned
-    # .devcontainer/yazi/ layers preferences and rebinds on top.
-    ensure_up
-    exec "${cli[@]}" exec --workspace-folder "$repo_root" \
-      bash .devcontainer/harness/scripts/review.sh "$@"
-    ;;
-  clip)
-    # Host-side: grabs the OS clipboard image; container /tmp by default, or a
-    # workspace-relative directory when given (vibe clip .captures). Workspace
-    # mode writes straight to the bind mount, so only the /tmp streaming path
-    # (no DIR) needs a running container.
-    [ -n "${1:-}" ] || ensure_up
-    exec bash "$self_dir/scripts/host/clip-image.sh" "$repo_root" "${1:-}" "${cli[@]}"
-    ;;
   help|-h|--help)
     cat <<'HELP'
 Usage: vibe COMMAND [ARGUMENT ...]
 
 Commands:
-  up          Build/start the Dev Container
-  rebuild     Recreate the container (picks up devcontainer.json/Dockerfile edits)
-  build       Build the Dev Container image
+  up          Build/start the container (compose up; runs lifecycle hooks)
+  rebuild     Fresh image + fresh container (picks up compose.yaml/Dockerfile edits)
+  build       Build the image only
+  config      Print the merged compose config (base + project override)
   status      Show this project's container(s)
   down        Stop & remove this project's container (named volumes are kept)
   update [TAG]  Move the harness pin to TAG (default: newest release): fetch,
@@ -204,6 +92,209 @@ Commands:
   review [DIR]  Browse/review images with yazi; A approves, R rejects (with
               optional note) to .review-decisions.jsonl beside the images
 HELP
+    exit 0
+    ;;
+esac
+
+command -v docker >/dev/null 2>&1 || {
+  echo "vibe needs docker on the host (Docker Desktop, or docker in WSL)." >&2
+  exit 1
+}
+if docker compose version >/dev/null 2>&1; then
+  compose_bin=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+  compose_bin=(docker-compose)
+else
+  echo "vibe needs docker compose (bundled with Docker Desktop)." >&2
+  exit 1
+fi
+
+ws_base="$(basename -- "$repo_root")"
+workdir="/workspaces/$ws_base"
+# Compose project names must be lowercase [a-z0-9_-]; the basename also
+# feeds interpolations (volume name, mount target) unmodified.
+project_name="vibe-$(printf '%s' "$ws_base" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g')"
+
+compose() {
+  VIBE_PROJECT_NAME="$project_name" \
+  VIBE_WORKSPACE_BASENAME="$ws_base" \
+  VIBE_REPO_ROOT="$repo_root" \
+  VIBE_USER_UID="$(id -u)" \
+  "${compose_bin[@]}" \
+    --project-name "$project_name" \
+    --project-directory "$repo_root" \
+    -f "$self_dir/src/compose/base.yaml" \
+    -f "$repo_root/.vibe/compose.yaml" \
+    "$@"
+}
+
+# The image chain: the build-only `base` service produces the shared
+# harness image; a project image extension (.vibe/Dockerfile, declared in
+# .vibe/compose.yaml — docs/extending.md) chains a `dev` build on top.
+# Sequenced here because `dev` itself may have no build: section, and the
+# extension's FROM needs the base tag to exist/refresh first.
+build_images() {
+  compose --profile build build base
+  compose build # no-op unless the project declared an extension build
+}
+
+# Any image compose would run missing locally? (dev may not be buildable
+# by `up` anymore, so up must know to build first.)
+images_missing() {
+  local img
+  while IFS= read -r img; do
+    [ -n "$img" ] || continue
+    docker image inspect "$img" >/dev/null 2>&1 || return 0
+  done <<EOF
+$(compose config --images 2>/dev/null)
+EOF
+  return 1
+}
+
+# Discovery is by label, not container name — resilient to compose naming
+# changes. The legacy filter lets status/down see (and clean up) a
+# devcontainer-CLI-era container during migration.
+label_filter="label=vibe.project=$repo_root"
+legacy_filter="label=devcontainer.local_folder=$repo_root"
+
+container_id() {
+  docker ps -q --filter "$label_filter" | head -n 1
+}
+
+# Exec into the container as the workspace user, allocating a pty only when
+# we actually have one (keeps `vibe run ... | pipe` clean).
+cexec() {
+  local cid="$1"
+  shift
+  local tty_flags="-i"
+  if [ -t 0 ] && [ -t 1 ]; then
+    tty_flags="-it"
+  fi
+  docker exec "$tty_flags" -u vscode -w "$workdir" "$cid" "$@"
+}
+
+# Bring the container up and run the lifecycle scripts the way the
+# devcontainer CLI used to: post-create once per container (marker file on
+# the container filesystem — NOT the agent-state volume, so a recreated
+# container re-runs it), post-start on every actual (re)start. A `vibe up`
+# on an already-running, unchanged container is a fast no-op.
+do_up() {
+  local pre_cid cid
+  pre_cid="$(container_id || true)"
+  if images_missing; then
+    build_images 1>&2
+  fi
+  compose up -d "$@" 1>&2
+  cid="$(container_id)"
+  if [[ -z "$cid" ]]; then
+    echo "Container failed to start (docker compose -p $project_name logs)." >&2
+    exit 1
+  fi
+  if [[ "$cid" != "$pre_cid" ]]; then
+    if ! docker exec "$cid" test -f /var/tmp/.vibe-post-created 2>/dev/null; then
+      cexec "$cid" bash .vibe/harness/src/scripts/post-create.sh 1>&2
+      docker exec "$cid" touch /var/tmp/.vibe-post-created
+    fi
+    cexec "$cid" bash .vibe/harness/src/scripts/post-start.sh 1>&2
+  fi
+}
+
+# Container commands start the container when it isn't running, so `vibe
+# agent` works cold. Progress goes to stderr to keep stdout pipeable.
+ensure_up() {
+  if [[ -z "$(container_id)" ]]; then
+    echo "Container not running for $repo_root — starting it..." >&2
+    do_up
+  fi
+}
+
+case "$command_name" in
+  up)
+    do_up "$@"
+    ;;
+  rebuild)
+    # Fresh images (base, then extension when declared) + fresh container;
+    # cache-honoring, and the agent-state volume is never touched.
+    build_images 1>&2
+    do_up --force-recreate
+    ;;
+  build)
+    build_images
+    ;;
+  config)
+    # Render the merged compose config — what `up` will actually run.
+    # --profile build includes the base image recipe in the render.
+    compose --profile build config "$@"
+    ;;
+  status)
+    exec docker ps -a --filter "$label_filter" --filter "$legacy_filter" \
+      --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}'
+    ;;
+  down)
+    # Stop & remove this project's container(s), current or legacy-era.
+    # Named volumes (agent state) are untouched; `vibe up` recreates.
+    ids="$(docker ps -aq --filter "$label_filter"; docker ps -aq --filter "$legacy_filter")"
+    ids="$(printf '%s\n' "$ids" | sort -u | grep . || true)"
+    [[ -n "$ids" ]] || { echo "No container found for $repo_root" >&2; exit 0; }
+    # shellcheck disable=SC2086  # one id per word is the point
+    exec docker rm -f $ids
+    ;;
+  attach)
+    ensure_up
+    cexec "$(container_id)" bash .vibe/harness/src/scripts/agent-entry.sh attach "$@"
+    ;;
+  shell)
+    ensure_up
+    cexec "$(container_id)" bash "$@"
+    ;;
+  agent)
+    ensure_up
+    # All agent logic (flag parsing, DEV_AGENT_CMD resolution, tmux
+    # wrapping) lives container-side in agent-entry.sh, which gets real
+    # argv — no payload strings, no re-quoting at this boundary.
+    cexec "$(container_id)" bash .vibe/harness/src/scripts/agent-entry.sh agent "$@"
+    ;;
+  doctor)
+    ensure_up
+    cexec "$(container_id)" bash .vibe/harness/src/scripts/doctor.sh "$@"
+    ;;
+  bootstrap)
+    ensure_up
+    cexec "$(container_id)" bash .vibe/harness/src/scripts/post-create.sh "$@"
+    ;;
+  run)
+    (($#)) || { echo "Usage: vibe run COMMAND [ARGUMENT ...]" >&2; exit 2; }
+    ensure_up
+    cexec "$(container_id)" .vibe/harness/src/scripts/env-run.sh "$@"
+    ;;
+  exec)
+    (($#)) || { echo "Usage: vibe exec COMMAND [ARGUMENT ...]" >&2; exit 2; }
+    ensure_up
+    cexec "$(container_id)" "$@"
+    ;;
+  show)
+    ensure_up
+    cexec "$(container_id)" bash .vibe/harness/src/scripts/show-image.sh "$@"
+    ;;
+  review)
+    # yazi in the INVOKING terminal (prefix+i inside the agent session
+    # opens the same thing as a dedicated tmux window). A=approve,
+    # R=reject-with-note (vibe.yazi plugin); verdicts land in
+    # .review-decisions.jsonl beside the images. The project-owned
+    # .vibe/yazi/ layers preferences and rebinds on top.
+    ensure_up
+    cexec "$(container_id)" bash .vibe/harness/src/scripts/review.sh "$@"
+    ;;
+  clip)
+    # Host-side: grabs the OS clipboard image; container /tmp by default,
+    # or a workspace-relative DIR (writes straight to the bind mount — no
+    # running container needed).
+    if [ -n "${1:-}" ]; then
+      exec bash "$self_dir/src/scripts/host/clip-image.sh" "$repo_root" "$1" ""
+    else
+      ensure_up
+      exec bash "$self_dir/src/scripts/host/clip-image.sh" "$repo_root" "" "$(container_id)"
+    fi
     ;;
   *)
     echo "Unknown command: $command_name" >&2

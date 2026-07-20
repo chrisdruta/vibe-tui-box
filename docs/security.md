@@ -14,10 +14,9 @@ does not make running untrusted code safe.
   effectively root on the host; `vibe doctor` checks for it)
 - No SSH keys, no host home directory — only the workspace and the agent-state
   volume are mounted
-- No published ports (documented exception: loopback-only `appPort` binds —
-  `127.0.0.1:PORT:PORT` — for host tooling that must reach the container
-  without a forwarding client attached, e.g. Roblox Studio → Rojo; see
-  [roblox.md](roblox.md))
+- No published ports (documented exception: loopback-only binds —
+  `ports: ["127.0.0.1:PORT:PORT"]` — for host tooling that must reach the
+  container, e.g. Roblox Studio → Rojo; see [roblox.md](roblox.md))
 - `.env` is never auto-sourced; secrets reach a process only through explicit
   `vibe agent` / `vibe run` / `env-run.sh` invocation
 
@@ -27,7 +26,7 @@ Root maintenance remains possible from the host: `docker exec -u root -it <c> ba
 
 - **The repository itself.** The agent has full write access to the workspace —
   including `.git`. Anything valuable in the repo is exposed to whatever runs inside.
-- **Credentials you pass in.** `GH_TOKEN` (via `remoteEnv`) and any keys in `.env`
+- **Credentials you pass in.** `GH_TOKEN` (forwarded at container create) and any keys in `.env`
   are readable by the agent and by any project code the bootstrap executes
   (`npm ci` postinstall scripts, `uv sync` build hooks, etc.). The seeded
   `.claude/settings.json` denies Claude Code direct reads of `./.env*` — a
@@ -35,7 +34,7 @@ Root maintenance remains possible from the host: `docker exec -u root -it <c> ba
   the process env still carries whatever `env-run.sh` loaded. Project secrets
   that agents never need (production credentials) don't belong in the
   workspace at all; if tooling insists the file exist, bind `/dev/null` over
-  it read-only in `devcontainer.json` `mounts` so the container sees it empty.
+  it read-only in `.vibe/compose.yaml` `volumes` so the container sees it empty.
 - **The network.** Outbound access is unrestricted by default.
 
 Per-project agent-state volumes compartmentalize what a compromise reaches: an

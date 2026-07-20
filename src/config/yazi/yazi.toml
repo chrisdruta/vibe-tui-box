@@ -1,0 +1,9 @@
+# Harness base config for `vibe review` and the tmux preview window. Used
+# when the project ships no .vibe/yazi/yazi.toml; a project file
+# replaces this wholesale (keep `linemode = "verdict"` to keep the ✓/✗
+# badge column).
+[mgr]
+ratio = [1, 2, 5]    # wide preview pane — this surface is about pixels
+sort_by = "mtime"
+sort_reverse = true  # newest renders first
+linemode = "verdict" # per-file ✓/✗ review badges (vibe.yazi plugin)

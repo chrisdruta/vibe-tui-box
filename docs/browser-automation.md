@@ -5,32 +5,40 @@ navigate, snapshot the accessibility tree, screenshot pages and read them back.
 Uses the [Playwright Agent CLI](https://playwright.dev/agent-cli/introduction)
 (`@playwright/cli`), which is designed for token-efficient agent use.
 
-The split follows the harness policy: OS libraries bake into the image via a
-harness-shipped Dev Container Feature (there is no runtime sudo, so apt can
-only run at build time); the browser binary downloads at post-create into the
-persistent agents volume; everything else is project-owned.
+The split follows the harness policy: OS libraries bake in via a project
+image extension (`.vibe/Dockerfile` — see [extending.md](extending.md);
+there is no runtime sudo, so apt can only run at build time); the browser
+binary downloads at post-create into the persistent agents volume;
+everything else is project-owned.
 
 Verified against a Next.js project (nimbus) on the Debian base image, amd64.
 
 ## Per-project recipe
 
-1. **`devcontainer.json`** — set `"INSTALL_NODE": "true"` in `build.args` (the
-   feature build and `npx` need Node; the bun preset seeds it `false`),
-   reference the feature, and persist browser downloads across rebuilds:
+1. **Image extension** — easiest at install time: `install.sh --extras
+   playwright` (seeds `.vibe/Dockerfile` + the compose block and implies
+   Node). On an existing project, copy
+   `examples/extensions/playwright/Dockerfile` to `.vibe/Dockerfile`
+   (+ the dockerignore template) per [extending.md](extending.md), enable
+   Node in the base args, and persist browser downloads across rebuilds:
 
-   ```jsonc
-   "build": {
-     "args": { "INSTALL_NODE": "true" /* ...existing args... */ }
-   },
-   "features": {
-     // Optionally pin the playwright version that resolves the apt
-     // dependency list: { "version": "1.50.1" }. Default: latest.
-     "./harness/features/playwright-deps": {}
-   },
-   "containerEnv": {
-     // ...existing entries...
-     "PLAYWRIGHT_BROWSERS_PATH": "/home/vscode/.agents/ms-playwright"
-   }
+   ```yaml
+   services:
+     base:
+       build:
+         args:
+           INSTALL_NODE: "true"
+     dev:
+       image: ${VIBE_PROJECT_NAME}-dev
+       build:
+         context: ./.vibe
+         args:
+           VIBE_BASE_IMAGE: ${VIBE_PROJECT_NAME}-base
+           # Optionally pin the playwright version that resolves the apt
+           # dependency list (default: latest):
+           # PLAYWRIGHT_VERSION: "1.50.1"
+       environment:
+         PLAYWRIGHT_BROWSERS_PATH: /home/vscode/.agents/ms-playwright
    ```
 
 2. **Dev dependency** — `bun add -d @playwright/cli` (or the npm/pnpm

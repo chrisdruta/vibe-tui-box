@@ -48,7 +48,7 @@ project skills may build such flows *on top of* these affordances.
   persisted in that project's state volume. The harness points config dirs
   at the volume and otherwise stays out of credential handling.
 - **Repo-agnostic harness, thin project ownership.** Shared scripts carry no
-  project specifics; projects own their `devcontainer.json`, `config.env`,
+  project specifics; projects own their `compose.yaml`, `config.env`,
   and hooks.
 - **Opt-in over baked-in.** Codex, Grok, Features, `--cold`: additive and
   inert unless enabled.

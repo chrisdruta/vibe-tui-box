@@ -1,0 +1,47 @@
+# Project-owned container definition (seeded once by install.sh for the
+# Bun Agent Dev preset; edit freely). Merged ON TOP of the harness base —
+# .vibe/harness/src/compose/base.yaml — by every vibe command, so only
+# deltas belong here: build args merge per key, list entries (ports, extra
+# volumes) append. `vibe config` prints the merged result; edits take
+# effect on the next `vibe rebuild`.
+
+services:
+  # The shared harness image (build-only recipe; the dev container runs it).
+  base:
+    build:
+      args:
+        BASE_IMAGE: mcr.microsoft.com/devcontainers/base:debian
+        INSTALL_BUN: "true"
+        INSTALL_ROKIT: "false"
+        # More toggles (defaults live in the harness base):
+        # INSTALL_CODEX: "true"
+        # INSTALL_GROK: "true"
+        # INSTALL_NODE: "true"
+
+  # Dev-container deltas. Uncomment the whole block (comments may stay);
+  # everything not set here comes from the harness base.
+  #
+  # dev:
+  #   # Image extension — system-level additions (apt packages, Blender,
+  #   # browser libs, …) the shared image doesn't carry. Create
+  #   # .vibe/Dockerfile starting FROM ${VIBE_BASE_IMAGE} and uncomment
+  #   # (see .vibe/harness/docs/extending.md; image: and build: go together):
+  #   image: ${VIBE_PROJECT_NAME}-dev
+  #   build:
+  #     context: ./.vibe
+  #     args:
+  #       VIBE_BASE_IMAGE: ${VIBE_PROJECT_NAME}-base
+  #
+  #   # Published ports are none by default (agents need no inbound
+  #   # access). The sanctioned exception is host-loopback tooling that
+  #   # must reach a server inside the container (Roblox Studio -> Rojo):
+  #   ports:
+  #     - "127.0.0.1:34872:34872"
+  #
+  #   # Extra bind mounts (the workspace and agent-state volume come from
+  #   # the harness base; '.' is the project root):
+  #   volumes:
+  #     - ./models:/models:ro
+  #
+  #   environment:
+  #     MY_PROJECT_FLAG: "1"

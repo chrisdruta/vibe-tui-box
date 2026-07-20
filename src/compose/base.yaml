@@ -1,0 +1,102 @@
+# Harness base compose file — ships with the pin and updates with it, like
+# scripts/. The project-owned .vibe/compose.yaml merges ON TOP via -f
+# stacking; projects never edit this file.
+#
+# The `vibe` launcher invokes compose as:
+#   docker compose \
+#     --project-name  vibe-<basename>          # sanitized workspace basename
+#     --project-directory "$repo_root" \
+#     -f .vibe/harness/src/compose/base.yaml \
+#     -f .vibe/compose.yaml \
+#     ...
+# exporting VIBE_PROJECT_NAME, VIBE_WORKSPACE_BASENAME, VIBE_REPO_ROOT and
+# VIBE_USER_UID for the interpolations below. --project-directory makes
+# every relative path here resolve from the PROJECT root — that is what
+# lets one harness-owned file serve every consumer.
+#
+# Image chain: `base` (below) is a BUILD-ONLY recipe for the shared harness
+# image, tagged ${VIBE_PROJECT_NAME}-base; `dev` RUNS that tag directly. A
+# project needing system-level additions (apt installs, Blender, browser
+# libs) chains its own .vibe/Dockerfile on top instead of growing the
+# shared image — see docs/extending.md. The launcher sequences the builds
+# (base first, then the project extension when one is declared).
+
+services:
+  base:
+    # The "build" profile keeps this service out of up/ps entirely — it is
+    # a recipe, never a container. `vibe` builds it explicitly with
+    # `compose --profile build build base`.
+    profiles: ["build"]
+    image: ${VIBE_PROJECT_NAME:-vibe}-base
+    build:
+      context: ./.vibe/harness/src
+      dockerfile: Dockerfile
+      args:
+        # The project's compose.yaml overrides these per key; overriding
+        # one arg keeps the others (compose maps merge key-by-key).
+        BASE_IMAGE: mcr.microsoft.com/devcontainers/base:debian
+        INSTALL_CLAUDE_CODE: "true"
+        INSTALL_CODEX: "false"
+        INSTALL_GROK: "false"
+        INSTALL_NODE: "false"
+        INSTALL_BUN: "false"
+        INSTALL_ROKIT: "false"
+        # Replaces the devcontainer CLI's silent UID sync. WSL's default
+        # user is 1000 (a no-op); macOS file sharing does not care.
+        USER_UID: ${VIBE_USER_UID:-1000}
+
+  dev:
+    # Runs the shared image as-is. A project image extension overrides
+    # image: (to ${VIBE_PROJECT_NAME}-dev) and adds build: pointing at its
+    # .vibe/Dockerfile — the seeded compose.yaml carries the commented
+    # block, docs/extending.md the contract.
+    image: ${VIBE_PROJECT_NAME:-vibe}-base
+
+    # The devcontainer CLI kept the container alive implicitly; compose
+    # needs the idle process spelled out.
+    init: true
+    command: ["sleep", "infinity"]
+
+    user: vscode
+    working_dir: /workspaces/${VIBE_WORKSPACE_BASENAME}
+
+    # Hardening — runtime settings, deliberately NOT image content: they
+    # hold no matter what a project extension image does.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+    volumes:
+      # Workspace bind mount ('.' = --project-directory = repo root).
+      - .:/workspaces/${VIBE_WORKSPACE_BASENAME}
+      # Agent state; the top-level `name:` below keeps the volume name
+      # identical to the devcontainer era, so logins survive migration.
+      - agent-state:/home/vscode/.agents
+
+    environment:
+      CLAUDE_CONFIG_DIR: /home/vscode/.agents/claude
+      CODEX_HOME: /home/vscode/.agents/codex
+      GH_CONFIG_DIR: /home/vscode/.agents/gh
+      DISABLE_AUTOUPDATER: "1"
+      # Container env is baked at create time (the old remoteEnv was
+      # re-read per exec): after rotating a host GH_TOKEN, `vibe down`
+      # then `vibe up` picks up the new value.
+      GH_TOKEN: ${GH_TOKEN:-}
+
+    labels:
+      # Discovery label for vibe status/down/container_running — replaces
+      # the devcontainer CLI's devcontainer.local_folder.
+      vibe.project: ${VIBE_REPO_ROOT}
+
+    # post-create/post-start have no compose equivalent and need none:
+    # `vibe up` execs post-create.sh once per container (marker file at
+    # /var/tmp/.vibe-post-created) and post-start.sh on every start — the
+    # devcontainer CLI was only ever calling these same scripts.
+
+volumes:
+  agent-state:
+    # The explicit name defeats compose's <project>_ prefix: this MUST
+    # stay equal to the devcontainer-era
+    # agent-state-${localWorkspaceFolderBasename} so gh/claude logins
+    # survive the engine swap.
+    name: agent-state-${VIBE_WORKSPACE_BASENAME}

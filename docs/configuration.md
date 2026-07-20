@@ -3,6 +3,16 @@
 Project-owned configuration lives next to the harness submodule and is seeded by
 `install.sh`; edit it freely, it is never overwritten by harness updates.
 
+When changes apply (diagrams: [README → How it works](../README.md#how-it-works)):
+
+| File                  | Read at                                            | Changes apply on            |
+| --------------------- | -------------------------------------------------- | --------------------------- |
+| `.vibe/compose.yaml`  | image build & container create                     | `vibe rebuild` (or down/up) |
+| `.vibe/config.env`    | every container-side script run (via `lib.sh`)     | the next `vibe` command     |
+| `.env`                | process launch by `env-run.sh`                     | the next `vibe agent`/`run` |
+| `.vibe/project/*.sh`  | lifecycle (post-create once, post-start per start) | the next container (re)start |
+| `.vibe/yazi/`         | each `vibe review` / preview-window launch         | the next review session     |
+
 ## `config.env`
 
 Non-secret behavior toggles, sourced by the lifecycle scripts and `vibe agent`:
@@ -21,7 +31,7 @@ Non-secret behavior toggles, sourced by the lifecycle scripts and `vibe agent`:
 | `DEV_REQUIRED_COMMANDS` | `git gh jq rg uv claude` (+preset) | Commands `vibe doctor` requires                |
 | `VIBE_PREVIEW_DIR`      | `/tmp`                        | Where `vibe show` (no argument) looks for the newest image |
 | `VIBE_PREVIEW_GLOB`     | `*.png *.jpg *.jpeg *.gif *.bmp *.webp *.avif` | Space-separated glob list for that search (search filter only; the renderer sniffs the real format from file content) |
-| `VIBE_REVIEW_DECISIONS` | unset                         | Send all `vibe-verdict` output to one fixed JSONL path instead of `.review-decisions.jsonl` beside the reviewed images. The review keybindings themselves live in project-owned `.devcontainer/yazi/` (see [usage.md](usage.md)). |
+| `VIBE_REVIEW_DECISIONS` | unset                         | Send all `vibe-verdict` output to one fixed JSONL path instead of `.review-decisions.jsonl` beside the reviewed images. The review keybindings themselves live in project-owned `.vibe/yazi/` (see [usage.md](usage.md)). |
 
 ## Bootstrap behavior
 
@@ -46,63 +56,81 @@ idempotent and safe to rerun.
 ## Project lifecycle hooks
 
 ```text
-.devcontainer/project/post-create.sh   # once per container creation, after bootstrap
-.devcontainer/project/post-start.sh    # every container start; keep idempotent
+.vibe/project/post-create.sh   # once per container creation, after bootstrap
+.vibe/project/post-start.sh    # every container start; keep idempotent
 ```
 
 Put migrations, code generation, MCP setup, or service startup here. The harness
-itself never starts services and does not assume a process manager; prefer Compose
-sidecars for databases and long-running dependencies.
+itself never starts services and does not assume a process manager; long-running
+dependencies (databases, dev servers) can be compose services in the project's
+`compose.yaml`, or processes a `post-start.sh` stands up in a tmux session
+(`vibe attach` is the door in).
 
-## Image build arguments (`devcontainer.json`)
+## The compose override (`.vibe/compose.yaml`)
 
-```jsonc
-"args": {
-  "BASE_IMAGE": "mcr.microsoft.com/devcontainers/base:debian",
-  "INSTALL_CLAUDE_CODE": "true",
-  "INSTALL_CODEX": "false",   // OpenAI Codex CLI (pulls in Node; also bundles the Codex plugin for Claude Code)
-  "INSTALL_GROK": "false",    // xAI Grok Build
-  "INSTALL_NODE": "false",
-  "INSTALL_BUN": "false",
-  "INSTALL_ROKIT": "false"
-}
+The container is defined by the harness base
+(`.vibe/harness/src/compose/base.yaml` — workspace mount, agent-state volume,
+hardening, environment) with the project's `.vibe/compose.yaml` merged on
+top. `vibe config` prints the merged result. Two services: `base` is the
+build-only recipe for the shared harness image (tagged
+`${VIBE_PROJECT_NAME}-base`); `dev` is the container that runs it. Build
+args live under `base` and merge per key:
+
+```yaml
+services:
+  base:
+    build:
+      args:
+        BASE_IMAGE: mcr.microsoft.com/devcontainers/base:debian
+        INSTALL_CODEX: "false"   # OpenAI Codex CLI (pulls in Node; also bundles the Codex plugin for Claude Code)
+        INSTALL_GROK: "false"    # xAI Grok Build
+        INSTALL_NODE: "false"
+        INSTALL_BUN: "false"
+        INSTALL_ROKIT: "false"
 ```
 
 Versions are pinned as Dockerfile ARGs (`UV_VERSION`, `BUN_VERSION`, `ROKIT_VERSION`,
-`CODEX_VERSION`, `NODE_MAJOR`) and overridable per project without touching the
-submodule. `CLAUDE_CODE_VERSION` (default `stable`) and `GROK_VERSION` (default
-latest stable) are the consciously mutable components — set concrete versions to
-freeze them.
+`CODEX_VERSION`, `NODE_MAJOR`, `YAZI_VERSION`) and
+overridable per project without touching the submodule. `CLAUDE_CODE_VERSION`
+(default `stable`) and `GROK_VERSION` (default latest stable) are the
+consciously mutable components — set concrete versions to freeze them.
 
-Policy: small CLI tools may be build arguments; large ecosystems and service
-dependencies (Blender, databases, browsers) belong in Dev Container Features or
-project-owned layers, not the shared Dockerfile. The harness ships one such
-feature: `features/playwright-deps` for headless-browser automation — see
-[browser-automation.md](browser-automation.md).
+Policy: small CLI tools may be build arguments; everything else — apt
+packages, Blender, browser libraries — is a **project image extension**: an
+optional `.vibe/Dockerfile` chained onto the shared image (`dev` then sets
+`image: ${VIBE_PROJECT_NAME}-dev` + a `build:` block). Mechanism, contract,
+and rebuild semantics: [extending.md](extending.md); worked examples:
+`examples/extensions/`. Long-running service dependencies (databases) are
+project compose services, not image content.
+
+Interpolation variables exported by the launcher for compose files:
+`VIBE_PROJECT_NAME` (sanitized `vibe-<folder>`), `VIBE_WORKSPACE_BASENAME`,
+`VIBE_REPO_ROOT`, `VIBE_USER_UID`.
 
 ## Claude Code project settings
 
 `install.sh` seeds `<project>/.claude/settings.json` (only when the project has
 none) wiring a statusline — `user ➜ dir (branch ✗) · model (effort) · context%` —
-plus a per-subagent statusline and a `sudo`/`su` permission deny (sudo does not
-exist in the container; denying skips doomed attempts). The scripts live in the
-harness (`scripts/statusline.sh`, `scripts/subagent-statusline.sh`), so they
-update with the submodule. To adopt them in a project with existing settings,
-merge the keys from `templates/claude-settings.json`.
+plus a per-subagent statusline, the image-preview hooks, and a `sudo`/`su`
+permission deny (sudo does not exist in the container; denying skips doomed
+attempts). The scripts live in the harness (`src/scripts/statusline.sh`,
+`src/scripts/subagent-statusline.sh`), so they update with the submodule. To adopt
+them in a project with existing settings, merge the keys from
+`src/templates/claude-settings.json`.
 
-`install.sh` also seeds `.devcontainer/AGENTS.md` — container rules for agents;
+`install.sh` also seeds `.vibe/AGENTS.md` — container rules for agents;
 import it from the project's root `CLAUDE.md`/`AGENTS.md` with a
-`@.devcontainer/AGENTS.md` line (see [onboarding.md](onboarding.md)).
+`@.vibe/AGENTS.md` line (see [onboarding.md](onboarding.md)).
 
 ## Secrets
 
 Nothing auto-sources `.env`; `.bashrc` is never modified. Load explicitly:
 
 ```bash
-./.devcontainer/vibe agent            # loads DEV_ENV_FILE, then runs DEV_AGENT_CMD
-./.devcontainer/vibe agent --cold     # same, but without repo instruction files (see usage.md)
-./.devcontainer/vibe run codex        # same, for any command
-./.devcontainer/harness/scripts/env-run.sh some-command   # inside the container
+./vibe agent            # loads DEV_ENV_FILE, then runs DEV_AGENT_CMD
+./vibe agent --cold     # same, but without repo instruction files (see usage.md)
+./vibe run codex        # same, for any command
+.vibe/harness/src/scripts/env-run.sh some-command   # inside the container
 ```
 
 Agent API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`) belong in the
@@ -150,18 +178,24 @@ credentials). Grant it for interactive work on repos whose CI you edit; leave
 it off for unattended runs and low-trust projects, where a rejected
 workflow-file push is the guardrail working.
 
-Alternative: `GH_TOKEN` is forwarded from the host via `remoteEnv` (never baked
-into the image). Note the trade: a host-level token is one token for **every**
+Alternative: `GH_TOKEN` is forwarded from the host environment into the
+container at **create** time (never baked into the image; rotate = `vibe down
+&& vibe up`). Note the trade: a host-level token is one token for **every**
 project's container, and while it is set `gh auth login` refuses to run —
 unset it on the host to use per-project logins.
 
 ## Ports and host networking
 
 No ports are published by default. To let the container reach services on the host
-(e.g. a local LLM server), add to the project's `runArgs`:
+(e.g. a local LLM server), add to the project's `compose.yaml`:
 
-```jsonc
-"--add-host=host.docker.internal:host-gateway"
+```yaml
+services:
+  dev:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 ```
 
 This is deliberately opt-in per project — see [local-models.md](local-models.md).
+Publishing a port for host tooling that must reach the container stays
+loopback-only (`ports: ["127.0.0.1:X:Y"]` — see [roblox.md](roblox.md)).

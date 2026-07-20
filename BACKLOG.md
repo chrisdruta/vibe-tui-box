@@ -3,20 +3,26 @@
 Ideas accepted but not scheduled. Items graduate into a release when they get
 designed; entries here are one paragraph of intent, not a spec.
 
-- **Interactive installer.** `install.sh` is flag-driven (`--preset`, `--url`,
-  `--ref`, `--force`); with no flags on a tty it could interview instead:
-  pick a preset from the list, toggle the extras (`INSTALL_CODEX` /
-  `INSTALL_GROK` / `INSTALL_NODE`), seed the obvious `config.env` values, and
-  confirm before touching the target repo. Flags keep working unchanged for
-  scripted/CI use; interactive mode is sugar over the same code path.
+- **RESOLVED (2026-07, both phases at once): the devcontainer-engine
+  exit.** Implemented as the pre-v1.0 engine swap: `vibe` drives docker
+  compose + docker exec directly, the consumer layout is `.vibe/` with a
+  root `./vibe` symlink, and the devcontainer CLI/Node host dependency is
+  gone (see CHANGELOG Unreleased). Remaining from this item: renaming the
+  REPOSITORY itself (the `-devcontainer-` in `vibe-devcontainer-submodule`
+  no longer describes it) — GitHub redirects old URLs, but seeded docs and
+  the onboarding prompt embed the name, so do it as its own release.
 
-- **Auto-symlink `vibe` into the project root.** Consumers today run
-  `./.devcontainer/vibe up` (install.sh seeds the CLI at `.devcontainer/vibe`).
-  Have the installer also drop a root-level `vibe -> .devcontainer/vibe`
-  symlink so the everyday spelling is `./vibe up`. To decide: commit the
-  symlink vs. append it to `.gitignore` (a committed symlink is harmless on
-  Linux/WSL but noisy for Windows-native checkouts), and whether existing
-  projects get it on pin update or only at install time.
+- **RESOLVED (2026-07): interactive installer.** Implemented alongside the
+  submodule-first install flow: `install.sh` with no arguments on a tty
+  interviews (preset, extras via the new `--extras`
+  codex/grok/node/playwright, confirm); any argument or no tty keeps exact
+  flag behavior for scripted/CI use.
+
+- **RESOLVED (2026-07): auto-symlink `vibe` into the project root.**
+  install.sh now seeds a committed `vibe -> .vibe/vibe` symlink (skipped if
+  a real file is in the way); existing projects get it during the compose
+  migration. Harmless on Linux/WSL/macOS checkouts; Windows-native
+  checkouts see a text file, which was accepted.
 
 - **Reduced-trust profile for unattended runs.** Promised in
   docs/security.md ("planned but not implemented"): a config.env posture for
@@ -36,9 +42,9 @@ designed; entries here are one paragraph of intent, not a spec.
   stay bash regardless — they are the bootstrap and must run on stock
   macOS bash 3.2 with nothing installed.
 
-- **Reorganize `scripts/` into subdirectories.** Post-yazi the directory is
-  smaller but still flat (~13 files). `scripts/*` paths are public
-  interface (referenced by project-owned seeded files: devcontainer.json
-  lifecycle hooks, .claude/settings.json hook + statuslines, seeded
-  AGENTS.md), so any move needs one-release compat shims at the old paths
-  and a changelog flag for the pin-update reconcile.
+- **RESOLVED (2026-07): reorganize `scripts/` into subdirectories.**
+  Superseded by the `src/` reorg that rode along with the devcontainer-engine
+  exit (the breaking release made the path moves free): everything
+  harness-internal lives under `src/`, entry points stay at the root, and
+  `examples/` carries rendered per-preset seeds verified against real
+  installs. `src/*` paths are the new public interface (AGENTS.md).

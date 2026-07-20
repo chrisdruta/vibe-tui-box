@@ -5,6 +5,90 @@ Consumers pin a commit; tags mark intentional upgrade points
 
 ## Unreleased
 
+- **BREAKING: the devcontainer engine is gone — `vibe` drives docker
+  compose + docker exec directly.** Host requirements drop to git + docker
+  (no Node, no `@devcontainers/cli`, no npx fallback). The container is
+  defined by the harness base compose file (`compose/base.yaml`: workspace
+  mount, agent-state volume, hardening, environment, `vibe.project` label)
+  with the project-owned `.vibe/compose.yaml` merged on top via `-f`
+  stacking; the new `vibe config` prints the merged result. `vibe up` runs
+  compose and then the lifecycle itself: `post-create.sh` once per
+  container (marker at `/var/tmp/.vibe-post-created`), `post-start.sh` on
+  every actual start. Everything exec'd runs through `docker exec` (with a
+  real pty when the caller has one — something `devcontainer exec` never
+  offered).
+  - **The consumer layout is now `.vibe/`** (compose.yaml, config.env,
+    vibe wrapper, AGENTS.md, project/ hooks, yazi/, harness submodule) and
+    install.sh links a root-level `./vibe` symlink — the everyday spelling
+    is `./vibe up`. `devcontainer.json` is retired; ports are honest
+    compose `ports:` entries (loopback-only policy unchanged), extra env
+    and mounts are compose keys, and the `updateRemoteUserUID` behavior
+    became an explicit `USER_UID` build arg (WSL's 1000 is the no-op
+    default).
+  - **Migration is one commit** — docs/updating.md → "Migrating to the
+    compose engine": `git mv .devcontainer .vibe`, seed compose.yaml from
+    the template, port customizations over, fix hook paths, `vibe up`.
+    Agent logins survive: the state-volume name is unchanged (and now
+    documented as an ABI). `vibe update`, `repo-root.sh`, `lib.sh`, and
+    the review/config walks all still recognize the legacy layout so an
+    old project can pull this release and migrate from inside it;
+    `vibe status`/`down` also match the old devcontainer-CLI container
+    label for cleanup.
+  - **Retired**: VS Code `customizations` blocks and per-preset extension
+    lists (the harness no longer involves VS Code; WSL Remote/local
+    editing work as before), the `features/` directory — playwright-deps
+    is now the `INSTALL_PLAYWRIGHT_DEPS` build arg (+ optional
+    `PLAYWRIGHT_VERSION` pin), `GH_TOKEN` re-read-per-exec (container env
+    is baked at create; rotate = `vibe down && vibe up`), and the
+    `DEVCONTAINER_CLI_SPEC` override.
+  - CI's image-build job uses `./vibe build` (compose) instead of
+    installing the devcontainer CLI.
+  - **New: project image extensions replace Dockerfile flag creep.** The
+    compose base now has a build-only `base` service producing the shared
+    image (`${VIBE_PROJECT_NAME}-base`); `dev` runs that tag. A project
+    needing system-level tooling chains its own `.vibe/Dockerfile`
+    (`FROM ${VIBE_BASE_IMAGE}`, root work at build time, ends
+    `USER vscode`) and declares `image: ${VIBE_PROJECT_NAME}-dev` + a
+    `build:` block — the launcher sequences base → extension builds
+    (`vibe up` builds when images are missing; `vibe rebuild` always
+    rebuilds both, cache-honoring). Contract and rationale:
+    docs/extending.md; worked examples in `examples/extensions/`
+    (playwright, blender — Debian package, amd64+arm64). Consequences:
+    `INSTALL_PLAYWRIGHT_DEPS`/`PLAYWRIGHT_VERSION` are **removed** from
+    the shared Dockerfile (playwright is the first extension;
+    `install.sh --extras playwright` now seeds `.vibe/Dockerfile` +
+    `.vibe/.dockerignore` and appends the dev build block), project build
+    args move under `services.base.build.args`, and runtime hardening
+    (`user: vscode`, cap-drop, no-new-privileges) stays compose-side so no
+    extension image can weaken the running container. Compose-native build
+    chaining (`additional_contexts: service:`) was evaluated and rejected
+    for now: needs compose ≥ 2.33 + opt-in bake and has open ordering/
+    profile bugs; the launcher sequencing uses only ancient compose
+    features and the on-disk contract can adopt it later unchanged.
+  - **New install UX: submodule-first + interactive.** The recommended
+    install is now two git-native commands from the project root —
+    `git submodule add <url> .vibe/harness` then `.vibe/harness/install.sh`
+    — no scaffold clone, no `curl | sh`, no npx: the submodule is the
+    delivery mechanism, so everything arrives over git and is pinnable and
+    diffable (`./vibe update vX.Y.Z` pins a release after). install.sh
+    detects it is running from a project's `.vibe/harness` (target implied,
+    submodule step skipped or absorbed, rerun refuses and points at
+    `vibe update`). With no arguments on a terminal it interviews: preset,
+    optional extras, confirm — any argument keeps exact flag behavior for
+    scripts/CI. New `--extras codex,grok,node,playwright` enables those
+    build args in the seeded compose.yaml (`playwright` implies `node`);
+    the scaffold-clone flow is unchanged for multi-project/development use.
+    The onboarding agent prompt now uses the submodule-first flow.
+  - **Repo reorganized under `src/`** (same breaking release, so the path
+    change costs consumers nothing extra): `Dockerfile`, `compose/`,
+    `config/`, `scripts/`, `templates/` moved to `src/*`; entry points
+    (`vibe`, `install.sh`, `verify.sh`) stay at the root. Seeded consumer
+    references are `.vibe/harness/src/...` accordingly, and the compose
+    build context is `.vibe/harness/src` so the Dockerfile's COPY paths
+    are unchanged. New top-level **`examples/`**: the exact files each
+    preset seeds, rendered by `examples/render.sh` and kept in lockstep
+    with `src/templates/` by verify.sh (it diffs them against a real
+    install of every preset).
 - **Changed: image review is now [yazi](https://yazi-rs.github.io/).** The
   homegrown viewer (`preview-viewer.sh`, ~500 lines of tmux/sixel handling)
   is deleted — dogfooding judged it clunky, and yazi is the same class of
@@ -19,7 +103,8 @@ Consumers pin a commit; tags mark intentional upgrade points
     `A` approves, `R` rejects with an optional note via yazi's input box
     (both unbound in yazi's defaults — `a`/`r` keep create/rename), each
     confirmed by a toast, and judged files carry a persistent ✓/✗ badge
-    column (the `verdict` linemode; existing verdicts load per directory).
+    column (the `verdict` linemode; existing verdicts load as soon as a
+    directory is entered, including at startup).
     Verdicts append via the baked `vibe-verdict` helper to
     `.review-decisions.jsonl` beside the reviewed images — a dotfile, so it
     never steals the newest-first hover (`VIBE_REVIEW_DECISIONS` overrides
@@ -74,6 +159,19 @@ Consumers pin a commit; tags mark intentional upgrade points
   remains a non-goal. `BACKLOG.md` now carries the real roadmap: the
   reduced-trust profile and the recorded Go-migration triggers for the
   preview subsystem.
+- **Fixed: the baked preview lib/config was unreadable by the container
+  user** (since v0.7.3) — `COPY --chmod=0644` also applies to the parent
+  directory it implicitly creates, so `/usr/local/lib/vibe` ended up 0644
+  and untraversable: the baked `vibe-preview` (tmux `prefix+i`) silently
+  launched stock yazi with no review keys, and `vibe show`'s baked-lib
+  fallback failed. The Dockerfile now normalizes the tree (**rebuild
+  required**), and `vibe doctor` reports the readability (MISS on broken
+  images) plus a NOTE on the chafa/yazi pairing: chafa < 1.16 lacks
+  `--probe`, so yazi's cell-art fallback errors out in terminals without a
+  graphics protocol (e.g. the VS Code terminal); sixel-capable terminals
+  are unaffected. Debian trixie ships chafa 1.14.5 — upgrading it is an
+  open decision (upstream static builds have no arm64; source build adds
+  weight).
 - Removed the legacy `.devcontainer/dev` exec-bit self-heal (pre-v0.4.0
   wrapper name).
 

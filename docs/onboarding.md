@@ -1,29 +1,30 @@
 # Onboarding a project (agent-driven)
 
 `install.sh` seeds the files; the judgment calls — which toolchain args to flip,
-what goes in the lifecycle hooks, what to salvage from an old `.devcontainer` —
-are exactly the kind of reconciliation a coding agent does well. This page is
+what goes in the lifecycle hooks, what to salvage from an old setup — are
+exactly the kind of reconciliation a coding agent does well. This page is
 the checklist, and a prompt you can paste to have an agent do it.
 
 ## Checklist
 
 1. **Preset** — pick from the repo's lockfiles: `uv.lock` → `python`,
    `bun.lock`/`bun.lockb` → `bun`, `rokit.toml` → `roblox`, else `minimal`.
-   Run `install.sh --preset <preset>` (use `--force` if a `.devcontainer`
-   already exists; it is backed up first).
-2. **Build args** — reconcile `devcontainer.json` with the actual toolchain:
+   Run `install.sh --preset <preset>` (use `--force` if a `.vibe`
+   already exists; it is backed up first). A project on the legacy
+   `.devcontainer/` layout migrates via
+   [updating.md → Migrating to the compose engine](updating.md) instead.
+2. **Build args** — reconcile `.vibe/compose.yaml` with the actual toolchain:
    `INSTALL_NODE` (npm/pnpm/yarn lockfiles, or anything using `npx`),
    `INSTALL_BUN`, `INSTALL_CODEX`/`INSTALL_GROK` if those agents are used.
    Pin versions where the project cares (see [configuration.md](configuration.md)).
-3. **Migrate the old `.devcontainer`** (in the `.devcontainer.backup.*` dir
-   after `--force`): carry over extensions into `customizations.vscode`,
-   `containerEnv`, extra mounts, and features. Do **not** carry over sudo,
-   docker-socket mounts, or published ports without a reason — the hardening
-   is the point ([security.md](security.md)). One reason that qualifies:
-   loopback-only `appPort` binds (`127.0.0.1:PORT:PORT`) for host tooling
-   that must reach the container without a forwarding client attached
-   (Studio → Rojo being the canonical case; `forwardPorts` is client-side
-   and does nothing under bare `devcontainer exec`).
+3. **Migrate any old container setup** (an old `.devcontainer`, a
+   hand-rolled Dockerfile/compose file): carry over env vars, extra mounts,
+   and build steps into `compose.yaml` and the hooks. Do **not** carry over
+   sudo, docker-socket mounts, or published ports without a reason — the
+   hardening is the point ([security.md](security.md)). One reason that
+   qualifies: loopback-only port publishes (`127.0.0.1:PORT:PORT`) for host
+   tooling that must reach the container (Studio → Rojo being the canonical
+   case).
 4. **Lifecycle hooks** — translate the repo's README/setup steps into
    `project/post-create.sh` (one-time: codegen, migrations, MCP setup) and
    `project/post-start.sh` (every start; keep idempotent). Dependency installs
@@ -31,12 +32,12 @@ the checklist, and a prompt you can paste to have an agent do it.
 5. **`config.env`** — set `DEV_REQUIRED_COMMANDS` to what the project actually
    needs (`vibe doctor` enforces it); adjust `DEV_AGENT_CMD` / `DEV_AGENT_TMUX`.
 6. **Secrets** — ensure `.env` is gitignored; move API keys there.
-7. **Agent rules** — add `@.devcontainer/AGENTS.md` to the project's root
+7. **Agent rules** — add `@.vibe/AGENTS.md` to the project's root
    `CLAUDE.md`/`AGENTS.md` so agents inherit the container rules. If the
-   project already had `.claude/settings.json`, merge in the statusline keys
-   from `templates/claude-settings.json` (fresh installs get them seeded).
-   Project-specific agent behavior (hooks, skills, subagents) lives in the
-   project's `.claude/`, not the harness.
+   project already had `.claude/settings.json`, merge in the statusline and
+   hook keys from `src/templates/claude-settings.json` (fresh installs get them
+   seeded). Project-specific agent behavior (hooks, skills, subagents) lives
+   in the project's `.claude/`, not the harness.
 8. **Recipes** — apply what fits: [browser-automation.md](browser-automation.md)
    (headless Chromium for web projects), [roblox.md](roblox.md),
    [local-models.md](local-models.md).
@@ -46,51 +47,49 @@ the checklist, and a prompt you can paste to have an agent do it.
 
 ## Agent prompt
 
-Paste into an agent running at the project root — the agent fetches a fresh
-scaffold clone every run, so results never depend on the state of some local
-copy (the clone is throwaway: install.sh reads templates from it and adds the
-submodule from GitHub, so it can be deleted afterwards):
+Paste into an agent running at the project root — the flow is
+submodule-first, so nothing is fetched outside the project and the installer
+runs non-interactively via flags:
 
 ```text
 Onboard this repository onto the vibe-devcontainer-submodule harness
 (https://github.com/chrisdruta/vibe-devcontainer-submodule) and reconcile it
 with the project.
 
-0. Clone the latest harness scaffold (always fresh — do not look for or reuse
-   an existing local copy):
-   rm -rf /tmp/vibe-harness && git clone --depth 1 \
-     https://github.com/chrisdruta/vibe-devcontainer-submodule.git /tmp/vibe-harness
-1. Inspect the repo (lockfiles, README setup steps, any existing .devcontainer
-   or CI config) and pick the preset: python (uv.lock), bun (bun.lock),
-   roblox (rokit.toml), else minimal.
-2. Run: /tmp/vibe-harness/install.sh --preset <preset> .
-   (add --force if .devcontainer exists — it gets backed up automatically).
-3. Reconcile .devcontainer/devcontainer.json build args with the toolchain
+1. Inspect the repo (lockfiles, README setup steps, any existing container
+   config or CI) and pick the preset: python (uv.lock), bun (bun.lock),
+   roblox (rokit.toml), else minimal — plus any extras the toolchain needs
+   (codex, grok, node, playwright). If the repo has a legacy .devcontainer/
+   harness layout, follow the harness docs/updating.md -> "Migrating to the
+   compose engine" instead of steps 2-3.
+2. Run, from the repository top level:
+   git submodule add https://github.com/chrisdruta/vibe-devcontainer-submodule.git .vibe/harness
+   .vibe/harness/install.sh --preset <preset> [--extras <list>]
+3. Reconcile .vibe/compose.yaml build args with the toolchain
    (INSTALL_NODE, INSTALL_BUN, ...) and migrate anything still valuable from
-   the backup dir: extensions, containerEnv, mounts, features. Never reintroduce
-   sudo or docker-socket mounts. Published ports: keep loopback-only appPort
-   binds ("127.0.0.1:PORT:PORT") that host tooling needs to reach the container
-   without VS Code attached (e.g. Roblox Studio -> Rojo 34872) — forwardPorts
-   only works with a forwarding client connected. Never publish bare ports
-   (they bind 0.0.0.0); see docs/roblox.md.
-4. Fill .devcontainer/project/post-create.sh and post-start.sh from the
+   any old container setup: env vars, mounts, build steps. Never reintroduce
+   sudo or docker-socket mounts. Published ports: keep loopback-only binds
+   ("127.0.0.1:PORT:PORT") that host tooling needs to reach the container
+   (e.g. Roblox Studio -> Rojo 34872). Never publish bare ports (they bind
+   0.0.0.0); see docs/roblox.md.
+4. Fill .vibe/project/post-create.sh and post-start.sh from the
    project's documented setup steps (dependency installs for detected
    lockfiles are automatic — don't duplicate them). Keep hooks idempotent.
-5. Set DEV_REQUIRED_COMMANDS in .devcontainer/config.env to the commands this
+5. Set DEV_REQUIRED_COMMANDS in .vibe/config.env to the commands this
    project needs; ensure .env is gitignored.
-6. Add the line "@.devcontainer/AGENTS.md" to the root CLAUDE.md (create it if
+6. Add the line "@.vibe/AGENTS.md" to the root CLAUDE.md (create it if
    missing). If the repo already had .claude/settings.json, merge in the keys
-   from the harness templates/claude-settings.json without clobbering existing
+   from the harness src/templates/claude-settings.json without clobbering existing
    settings.
-7. Read .devcontainer/harness/docs/ and apply relevant recipes
+7. Read .vibe/harness/docs/ and apply relevant recipes
    (browser-automation for web projects, roblox, local-models).
-8. Verify: ./.devcontainer/vibe up, then vibe doctor, then run the project's
+8. Verify: ./vibe up, then vibe doctor, then run the project's
    build/test via vibe exec, then vibe rebuild. Fix what fails; constraints are
-   explained in .devcontainer/AGENTS.md (no sudo — OS packages need build args
-   or features plus a rebuild).
+   explained in .vibe/AGENTS.md (no sudo — OS packages need build args
+   plus a rebuild).
 9. Stage everything and report: preset chosen, args flipped, what was migrated
    or dropped from the old setup, and any setup steps you could not automate.
 ```
 
 Review the diff before committing — the agent is reconciling, but the
-`.devcontainer` files are project-owned and yours to keep opinionated.
+`.vibe` files are project-owned and yours to keep opinionated.

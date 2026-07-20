@@ -1,0 +1,5 @@
+# Build-context excludes for the project image extension (.vibe is the
+# build context). The harness submodule is never image content, and keeping
+# it out stops pin updates from invalidating the extension build cache.
+harness/
+*.backup.*

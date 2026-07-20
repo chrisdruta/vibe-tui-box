@@ -2,23 +2,36 @@
 
 ## Purpose
 
-This repository is a shared Dev Container harness consumed by other repositories as
-a pinned git submodule at `.devcontainer/harness`. Changes here can affect every
+This repository is a shared container harness consumed by other repositories as
+a pinned git submodule at `.vibe/harness`. Changes here can affect every
 consuming project — bias toward small, reviewable, backward-compatible commits.
 
 ## Invariants — do not break these
 
 - The runtime container ends as the non-root `vscode` user; passwordless sudo stays
-  removed; `--cap-drop=ALL` and `no-new-privileges` stay in the seeded runArgs.
+  removed; `cap_drop: [ALL]` and `no-new-privileges` stay in the base compose file.
 - Never mount the Docker socket, host home, or SSH directory by default.
 - Never auto-source project `.env` files into shells; secrets load only through
   `env-run.sh` / `vibe agent` / `vibe run`.
-- Everything under `scripts/`, `Dockerfile`, and `vibe` must remain repo-agnostic:
-  no project names, hardcoded paths, services, or published ports.
-- Project-specific behavior belongs in `templates/` (seeded once, project-owned
+- Everything under `src/` and the root `vibe`/`install.sh` must remain
+  repo-agnostic: no project names, hardcoded paths, services, or published ports.
+- Project-specific behavior belongs in `src/templates/` (seeded once, project-owned
   afterwards) or in project hooks — never in shared scripts.
-- Lifecycle scripts stay idempotent and honor `DEV_BOOTSTRAP_STRICT`.
-- `install.sh` never overwrites an existing `.devcontainer` without `--force`, and
+- The engine is docker compose + docker exec, driven by `vibe` — no devcontainer
+  CLI, no Node on the host. The container definition is `src/compose/base.yaml`
+  with the project's `.vibe/compose.yaml` merged on top; git + docker are the
+  entire host requirement. The image chain is build-only `base` service →
+  optional project extension (`.vibe/Dockerfile` FROM the base tag), sequenced
+  by the launcher — heavyweight optional tooling becomes an extension
+  (docs/extending.md), never another shared-Dockerfile flag.
+- The agent-state volume name (`agent-state-<workspace-basename>`) is an ABI:
+  changing it logs every consumer out of every agent. So are the `src/*` paths
+  seeded consumer files reference (`.vibe/harness/src/scripts/...` in
+  .claude/settings.json and seeded AGENTS.md).
+- Lifecycle scripts stay idempotent and honor `DEV_BOOTSTRAP_STRICT`; `vibe up`
+  runs post-create once per container (`/var/tmp/.vibe-post-created` marker)
+  and post-start on every actual start.
+- `install.sh` never overwrites an existing `.vibe` without `--force`, and
   `--force` always backs up first.
 - The `~/.agents` volume mountpoint must exist in the image owned by `vscode`
   (nothing in the running container can fix a root-owned volume).
@@ -28,24 +41,34 @@ consuming project — bias toward small, reviewable, backward-compatible commits
   at the per-project state volume — it never centralizes, brokers, or
   bind-mounts credentials (see `docs/positioning.md`).
 - Pin tool versions in Dockerfile ARGs where the upstream supports it; only
-  Claude Code (`stable`) and Grok Build (latest stable) are deliberately mutable.
-- Host-side scripts (`vibe`, `templates/vibe`, `install.sh`, `verify.sh`,
-  `scripts/host/`, and the dual-side `scripts/update.sh` / `scripts/repo-root.sh`)
+  Claude Code (`stable`) and Grok Build (latest stable) are deliberately
+  mutable. Small CLI tools may be `INSTALL_*` build args; large ecosystems
+  become project image extensions or project base images. Extension images
+  must end `USER vscode` (runtime hardening additionally enforces it).
+- Host-side scripts (`vibe`, `src/templates/vibe`, `install.sh`, `verify.sh`,
+  `examples/render.sh`, `src/scripts/host/`, and the dual-side
+  `src/scripts/update.sh` / `src/scripts/repo-root.sh`)
   must stay bash-3.2 compatible and avoid GNU-only flags — they
   run on stock macOS as well as WSL (`verify.sh` gates this under `bash:3.2`).
 - The container image must build for both linux/amd64 and linux/arm64
   (Apple Silicon); new installers must handle `aarch64`.
+- The legacy `.devcontainer/` layout stays recognized (read-only) by
+  `repo-root.sh`, `lib.sh`, `update.sh`, and the container-side walks until
+  every known consumer has migrated — `vibe update` running on the old layout
+  is how projects cross the engine swap.
 
 ## Before changing code
 
 - Read `docs/architecture.md` and `docs/security.md`.
-- Never edit files under `.devcontainer/harness/` — it is the pinned self-submodule
-  copy the container runs from; changes there land in the nested clone, not this
-  repository. Edit the real files at the repository root and sync the submodule
-  forward to test (see "Dogfooding" in `README.md`).
-- If touching `templates/` or `install.sh`, check every preset delta in
-  `install.sh` and the placeholder set (`@PRESET_NAME@`, `@BASE_IMAGE@`,
-  `@INSTALL_BUN@`, `@INSTALL_ROKIT@`, `@EXTRA_EXTENSIONS@`, `@EXTRA_COMMANDS@`).
+- Never edit files under the pinned self-submodule copy (`.vibe/harness/`, or
+  `.devcontainer/harness/` pre-migration) — it is the copy the container runs
+  from; changes there land in the nested clone, not this repository. Edit the
+  real files at the repository root and sync the submodule forward to test
+  (see "Dogfooding" in `README.md`).
+- If touching `src/templates/` or `install.sh`, check every preset delta in
+  `install.sh` (mirrored in `examples/render.sh` — verify.sh diffs the rendered
+  `examples/` against real installs) and the placeholder set (`@PRESET_NAME@`, `@BASE_IMAGE@`,
+  `@INSTALL_BUN@`, `@INSTALL_ROKIT@`, `@EXTRA_COMMANDS@`).
 - `install.sh` must not depend on tools absent from a stock WSL Ubuntu host
   (no `jq`; `sed`/`python3` are acceptable).
 
@@ -64,15 +87,16 @@ consuming project — bias toward small, reviewable, backward-compatible commits
 
 ## Important files
 
-- `Dockerfile` — shared image; optional tooling behind `INSTALL_*` build args
-- `vibe` — host-side launcher (runs from `.devcontainer/harness/vibe` in consumers)
+- `src/Dockerfile` — shared image; optional tooling behind `INSTALL_*` build args
+- `src/compose/base.yaml` — the container definition (mounts, hardening, env, label)
+- `vibe` — host-side launcher (runs from `.vibe/harness/vibe` in consumers)
 - `install.sh` — consumer installation: seeds templates, adds the submodule
-- `scripts/` — shared runtime lifecycle (`lib.sh` holds path discovery: the project
-  root is anchored on `.devcontainer/`, NOT `git rev-parse` inside the submodule)
-- `scripts/host/` — WSL-host helpers, not container code
-- `features/` — harness-shipped Dev Container Features (build-time root installs that
-  cannot happen post-create); consumed opt-in from project `devcontainer.json`
-- `templates/` — seeds for project-owned files; placeholder-rendered by `install.sh`
+- `src/scripts/` — shared runtime lifecycle (`lib.sh` holds path discovery: the
+  project root is anchored on the directory the harness lives under, NOT
+  `git rev-parse` inside the submodule)
+- `src/scripts/host/` — WSL-host helpers, not container code
+- `src/templates/` — seeds for project-owned files; placeholder-rendered by `install.sh`
+- `examples/` — rendered per-preset seeds; `examples/render.sh` + verify.sh keep them fresh
 - `verify.sh` — regression checks
 
 ## Documentation rules
