@@ -151,13 +151,24 @@ then pin it on the host — `export VIBE_OPEN_PROFILE="Ubuntu"` in your WSL
 `~/.bashrc` (set it empty to skip profile selection entirely).
 
 Windows Terminal bindings worth adding for pane-heavy layouts (all unbound
-by default; Settings → "Open JSON file", under `"actions"`):
+by default; Settings → "Open JSON file"). Recent WT splits these across two
+top-level arrays — actions declare what, keybindings declare the keys:
 
 ```json
-{ "command": "togglePaneZoom", "keys": "ctrl+shift+z" },
-{ "command": { "action": "moveFocus", "direction": "nextInOrder" }, "keys": "alt+pgdn" },
-{ "command": { "action": "moveFocus", "direction": "previousInOrder" }, "keys": "alt+pgup" }
+"actions": [
+  { "command": "togglePaneZoom", "id": "User.PaneZoom" },
+  { "command": { "action": "moveFocus", "direction": "nextInOrder" }, "id": "User.PaneNext" },
+  { "command": { "action": "moveFocus", "direction": "previousInOrder" }, "id": "User.PanePrev" }
+],
+"keybindings": [
+  { "keys": "ctrl+shift+z", "id": "User.PaneZoom" },
+  { "keys": "alt+pgdn", "id": "User.PaneNext" },
+  { "keys": "alt+pgup", "id": "User.PanePrev" }
+]
 ```
+
+(Merge into the arrays if they already exist. Older WT accepted `"keys"`
+inline in the action entry.)
 
 `togglePaneZoom` expands the focused pane to the whole tab and back (the
 on-demand "hide the side panes"); the two `moveFocus` actions are
