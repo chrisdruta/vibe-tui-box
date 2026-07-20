@@ -141,13 +141,30 @@ review pane):
 Panes adopt the Windows Terminal profile named after your WSL distro
 (`WSL_DISTRO_NAME`), so your distro's color scheme and font apply — without
 `-p`, wt would render commandline panes with the *default* profile's looks
-instead. Set the host env var `VIBE_OPEN_PROFILE` to pick a different
-profile (or to empty to skip profile selection).
+instead. `vibe open` prints which profile it pinned. **Wrong colors?** That
+printed name doesn't match the profile you actually theme: distros often
+register as `Ubuntu-24.04` while the themed profile is plain `Ubuntu`, or
+the distro-named profile is an auto-generated one still on default colors
+(wt silently falls back to the default profile's looks when the `-p` name
+matches nothing). Check the profile list in WT Settings for the real name,
+then pin it on the host — `export VIBE_OPEN_PROFILE="Ubuntu"` in your WSL
+`~/.bashrc` (set it empty to skip profile selection entirely).
 
-For hiding the side panes on demand within one tab, bind Windows Terminal's
-`togglePaneZoom` action (unbound by default — Settings → Actions, or
-`{ "command": "togglePaneZoom", "keys": "ctrl+shift+z" }` in its
-settings.json): it expands the focused pane to the whole tab and back.
+Windows Terminal bindings worth adding for pane-heavy layouts (all unbound
+by default; Settings → "Open JSON file", under `"actions"`):
+
+```json
+{ "command": "togglePaneZoom", "keys": "ctrl+shift+z" },
+{ "command": { "action": "moveFocus", "direction": "nextInOrder" }, "keys": "alt+pgdn" },
+{ "command": { "action": "moveFocus", "direction": "previousInOrder" }, "keys": "alt+pgup" }
+```
+
+`togglePaneZoom` expands the focused pane to the whole tab and back (the
+on-demand "hide the side panes"); the two `moveFocus` actions are
+Ctrl-Tab-style cycling but for panes, in creation order. If you live in
+panes rather than tabs, rebinding `ctrl+tab`/`ctrl+shift+tab` themselves to
+the moveFocus pair also works — direct tab switching stays reachable via
+`ctrl+alt+<number>`.
 
 Anywhere without `wt.exe` (macOS, WSL without Windows Terminal) it prints the
 per-pane commands instead — that fallback is the intended degraded mode, not

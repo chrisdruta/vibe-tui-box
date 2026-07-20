@@ -95,5 +95,12 @@ case "$layout" in
     ;;
 esac
 
-echo "Opening Windows Terminal — layout '$layout' (${#panes[@]} panes) for $ws_base"
+if [ -n "$profile" ]; then
+  # Say which profile got pinned: when the name doesn't exist in WT's
+  # settings, wt silently falls back to the default profile's looks — the
+  # mismatch is invisible unless we print the guess (docs/usage.md).
+  echo "Opening Windows Terminal — layout '$layout', profile '$profile', $ws_base"
+else
+  echo "Opening Windows Terminal — layout '$layout' (no profile pin), $ws_base"
+fi
 exec wt.exe "${wt_args[@]}"
