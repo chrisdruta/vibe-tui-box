@@ -72,6 +72,37 @@ for you at install time.
   inherited — `RUN curl | bash` pipelines fail loudly like they do in the
   harness Dockerfile.
 
+## Swapping the bottom of the chain: `BASE_IMAGE`
+
+Extensions chain onto the *top* of the shared image; the *bottom* is also
+project-swappable. `.vibe/compose.yaml` can override the `BASE_IMAGE` build
+arg on the `base` service (compose merges build-arg maps key-by-key, so
+overriding one arg keeps the others):
+
+```yaml
+services:
+  base:
+    build:
+      args:
+        BASE_IMAGE: mcr.microsoft.com/devcontainers/python:3.14
+```
+
+The presets default to `mcr.microsoft.com/devcontainers/*` images, but
+nothing in the harness requires that family — they are plain OCI images
+here; no VS Code or devcontainer CLI is involved. A custom `BASE_IMAGE`
+must provide:
+
+- **Debian-family userland with `apt-get`** — the shared Dockerfile installs
+  its own tooling (git, gh, curl, ripgrep, tmux, …) via apt and assumes
+  Debian conventions.
+- **A `vscode` user** (conventionally UID 1000; the build syncs the UID via
+  `usermod`) with its home at `/home/vscode` — the harness never creates
+  this user, and the name is load-bearing: the runtime `user:`, the
+  `~/.agents` volume paths, and the extension contract above all assume it.
+  A stock `debian:`/`python:*-bookworm` image works with a thin layer that
+  adds the user and UTF-8 locale first.
+- **amd64 and arm64 variants**, same as extensions.
+
 ## Image tags and rebuild semantics
 
 Per project (name derived from the workspace folder, sanitized):

@@ -64,13 +64,41 @@ consuming project — bias toward small, reviewable, backward-compatible commits
   `.devcontainer/harness/` pre-migration) — it is the copy the container runs
   from; changes there land in the nested clone, not this repository. Edit the
   real files at the repository root and sync the submodule forward to test
-  (see "Dogfooding" in `README.md`).
+  (see "Dogfooding" below).
 - If touching `src/templates/` or `install.sh`, check every preset delta in
   `install.sh` (mirrored in `examples/render.sh` — verify.sh diffs the rendered
   `examples/` against real installs) and the placeholder set (`@PRESET_NAME@`, `@BASE_IMAGE@`,
   `@INSTALL_BUN@`, `@INSTALL_ROKIT@`, `@EXTRA_COMMANDS@`).
 - `install.sh` must not depend on tools absent from a stock WSL Ubuntu host
   (no `jq`; `sed`/`python3` are acceptable).
+
+## Dogfooding — updating and testing the harness on itself
+
+This repository consumes itself: it carries its own project config with the
+harness as a **self-submodule** at `.vibe/harness`, so `./vibe up` and
+`vibe agent` work here like in any consumer.
+
+- The container runs the **pinned submodule copy** at `.vibe/harness`, not the
+  working tree. An uncommitted or unsynced change is invisible to the running
+  container — do not conclude a change "doesn't work" before syncing the copy
+  forward.
+- To test a harness change through the harness itself:
+
+  ```bash
+  git commit ...                                # your change, in the outer repo
+  git -C .vibe/harness fetch "$PWD" my-branch   # or HEAD's branch
+  git -C .vibe/harness checkout FETCH_HEAD
+  ./vibe rebuild   # only if Dockerfile/compose files changed
+  ```
+
+- Never edit files under `.vibe/harness/` — that is the nested clone; changes
+  there do not land in this repository (see "Before changing code").
+- The self-submodule is marked `update = none` so recursive clones skip it;
+  after a fresh clone, initialize it explicitly with
+  `git submodule update --init --checkout .vibe/harness`.
+- Syncing the pin as above only moves the local nested clone for testing; the
+  committed submodule pin (what consumers and fresh clones get) is a release
+  step the maintainer performs — never bump/commit it on your own.
 
 ## Required verification
 

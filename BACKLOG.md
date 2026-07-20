@@ -7,10 +7,20 @@ designed; entries here are one paragraph of intent, not a spec.
   exit.** Implemented as the pre-v1.0 engine swap: `vibe` drives docker
   compose + docker exec directly, the consumer layout is `.vibe/` with a
   root `./vibe` symlink, and the devcontainer CLI/Node host dependency is
-  gone (see CHANGELOG Unreleased). Remaining from this item: renaming the
-  REPOSITORY itself (the `-devcontainer-` in `vibe-devcontainer-submodule`
-  no longer describes it) — GitHub redirects old URLs, but seeded docs and
-  the onboarding prompt embed the name, so do it as its own release.
+  gone (see CHANGELOG Unreleased). Remaining from this item graduated to
+  its own entry below: renaming the repository.
+
+- **Rename the repository.** The `-devcontainer-` in
+  `vibe-devcontainer-submodule` no longer describes the project post-engine-swap
+  (candidate: `vibe-harness`). GitHub redirects old clone/submodule URLs
+  indefinitely, so existing consumers keep working, but the name is embedded in
+  places a redirect doesn't fix: the `install.sh` submodule-add URL and help
+  text, README title/badges, seeded docs, and the onboarding prompt. Do it as
+  its own release — ideally before v1.0 while the consumer count is small — and
+  walk known consumers' `.gitmodules` URLs forward afterwards. Explicitly out of
+  scope (decided 2026-07-20): renaming the in-container `vscode` user — it comes
+  from the devcontainers base images and is load-bearing ABI (extension
+  `USER vscode` contract, `/home/vscode/.agents` paths).
 
 - **RESOLVED (2026-07): interactive installer.** Implemented alongside the
   submodule-first install flow: `install.sh` with no arguments on a tty

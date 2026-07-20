@@ -3,7 +3,7 @@
 Project-owned configuration lives next to the harness submodule and is seeded by
 `install.sh`; edit it freely, it is never overwritten by harness updates.
 
-When changes apply (diagrams: [README → How it works](../README.md#how-it-works)):
+When changes apply (diagram: [README → How it works](../README.md#how-it-works)):
 
 | File                  | Read at                                            | Changes apply on            |
 | --------------------- | -------------------------------------------------- | --------------------------- |
@@ -88,6 +88,10 @@ services:
         INSTALL_BUN: "false"
         INSTALL_ROKIT: "false"
 ```
+
+`BASE_IMAGE` accepts any image satisfying the base-image contract
+(Debian-family apt, a `vscode` user, amd64+arm64) — see
+[extending.md](extending.md#swapping-the-bottom-of-the-chain-base_image).
 
 Versions are pinned as Dockerfile ARGs (`UV_VERSION`, `BUN_VERSION`, `ROKIT_VERSION`,
 `CODEX_VERSION`, `NODE_MAJOR`, `YAZI_VERSION`) and
