@@ -89,6 +89,10 @@ with the project.
    plus a rebuild).
 9. Stage everything and report: preset chosen, args flipped, what was migrated
    or dropped from the old setup, and any setup steps you could not automate.
+10. End with a FRICTION REPORT: every gap, ambiguity, missing doc, wrong doc,
+    or workaround you needed during this onboarding, as a paste-ready list —
+    the human feeds it back to the harness repo. An empty list is a finding
+    too; say so explicitly.
 ```
 
 Review the diff before committing — the agent is reconciling, but the

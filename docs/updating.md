@@ -177,6 +177,10 @@ the project-owned files with the new version.
 7. Commit the pin move and the reconciliations together. Report: old -> new
    version, each file changed and why, and anything in the changelog that
    needs a human decision.
+8. End with a FRICTION REPORT: every gap, ambiguity, missing doc, wrong doc,
+   or workaround you needed during this update, as a paste-ready list — the
+   human feeds it back to the harness repo. An empty list is a finding too;
+   say so explicitly.
 ```
 
 Review the diff before pushing — the seeded files are project-owned, and the
