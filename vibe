@@ -102,6 +102,37 @@ HELP
     ;;
 esac
 
+# Inside the container (a `vibe shell`, or the shell pane of `vibe open`)
+# the repo — and this launcher — are bind-mounted, so `./vibe show` is a
+# natural thing to type there. The lifecycle commands genuinely need the
+# host's docker, but the container-facing commands' implementations live
+# right here in the harness checkout: dispatch to them directly instead of
+# failing the docker probe.
+if [ -f /.dockerenv ]; then
+  case "$command_name" in
+    show)      exec bash "$self_dir/src/scripts/show-image.sh" "$@" ;;
+    review)    exec bash "$self_dir/src/scripts/review.sh" "$@" ;;
+    agent)     exec bash "$self_dir/src/scripts/agent-entry.sh" agent "$@" ;;
+    attach)    exec bash "$self_dir/src/scripts/agent-entry.sh" attach "$@" ;;
+    doctor)    exec bash "$self_dir/src/scripts/doctor.sh" "$@" ;;
+    bootstrap) exec bash "$self_dir/src/scripts/post-create.sh" "$@" ;;
+    run)
+      (($#)) || { echo "Usage: vibe run COMMAND [ARGUMENT ...]" >&2; exit 2; }
+      exec "$self_dir/src/scripts/env-run.sh" "$@"
+      ;;
+    exec)
+      (($#)) || { echo "Usage: vibe exec COMMAND [ARGUMENT ...]" >&2; exit 2; }
+      exec "$@"
+      ;;
+    shell) exec bash "$@" ;;
+    *)
+      echo "vibe $command_name needs docker and runs on the host — this is a container shell." >&2
+      echo "(container-side commands work from here: show review agent attach run exec doctor)" >&2
+      exit 1
+      ;;
+  esac
+fi
+
 command -v docker >/dev/null 2>&1 || {
   echo "vibe needs docker on the host (Docker Desktop, or docker in WSL)." >&2
   exit 1
