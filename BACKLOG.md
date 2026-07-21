@@ -159,11 +159,17 @@ designed; entries here are one paragraph of intent, not a spec.
   showed bare `chafa -f sixel` images PERSISTING through adjacent-pane TUI
   redraws, the exact 3.5a failure. Resizes (pane or host window) still
   clear images — upstream reflow behavior, acceptable. tmux 3.7b + chafa
-  1.18.2 are now pinned source builds in the Dockerfile; remaining
-  in-image validation after rebuild: prefix+i wiring (the spike's failure
-  was a socket mismatch, not 3.7b), whether `vibe show` can drop
-  `--passthrough tmux` for native ingest, and whether the review window
-  can become a split. The devcontainer boundary is a non-issue
+  1.18.2 are now pinned source builds in the Dockerfile; in-image
+  validation (2026-07-21, post-rebuild): `vibe show` in a native `vibe
+  open` pane renders pixel-exact and SURVIVES RESIZE (the vibe-open thesis
+  working as designed); prefix+i is correctly wired but yazi-inside-tmux
+  does not render images on 3.7b (its terminal detection through tmux
+  doesn't recognize the new ingest; deliberately NOT chased — the native
+  pane is the documented best review surface, and upstream yazi is more
+  likely to fix tmux detection than we are). Still open, low priority:
+  whether `vibe show`'s in-tmux path can drop `--passthrough tmux` for
+  native ingest, and review-as-split. The devcontainer boundary is a
+  non-issue
   (escapes pass through the `docker exec` TTY; DA1 probing already bails
   under `$TMUX` in preview-lib.sh).
   **NOT NOW — kitty-graphics Unicode-placeholder path.** The one real
