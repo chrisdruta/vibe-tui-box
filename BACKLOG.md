@@ -296,7 +296,14 @@ designed; entries here are one paragraph of intent, not a spec.
   (spawn/read/wait), real state fidelity for hookless agents, a
   cross-project fleet view, and dashboard-coupled worktrees. The trade: we
   keep ~2K LoC of bash and take the herdr headline (state at a glance,
-  attention on blocked), not the herdr platform.
+  attention on blocked), not the herdr platform. AMENDED 2026-07-21
+  (Chris's deliberate supersede at the spaces must-decide round — not a
+  side effect): "cross-project fleet view" leaves the ceded list in its
+  render-only form — a cross-project state GLANCE (the status-line-2
+  agents strip, across the socket's sessions) is in scope for the gated
+  spaces phase. The screens dashboard, control API, and hookless-agent
+  fidelity stay ceded; nothing that drives, schedules, or controls agents
+  entered scope.
 
 - **SUPERSEDED (2026-07-21, later same day): "REJECTED — tmux as the one
   true UI" is overturned; `vibe ui` (host-side riced tmux) shipped as
@@ -387,3 +394,24 @@ designed; entries here are one paragraph of intent, not a spec.
   contradicts the accepted "no fleet view" ledger line; scope it to the
   current project unless that ledger entry is deliberately superseded
   (Chris's call, not a side effect).
+  **RESOLVED 2026-07-21 (Chris's calls; spaces implementation itself is
+  DEMAND-GATED on roblox two-project dogfood — onboarding the roblox repo
+  gives real multi-project use within days; if switching pain shows, the
+  gated work builds, if choose-tree suffices, this closes as done-enough):**
+  (1) conf ownership = FIRST-OWNER-AUTHORITATIVE, SHIPPED (tui.sh no
+  longer overwrites VIBE_TUI_CONF: adopts only when unset or when the
+  owner's conf file vanished; content-identical confs join silently via
+  cmp so same-pin projects never warn; real skew warns with the owner
+  path + kill-server handover; scratch-socket tested, all four paths).
+  (2) picker = live-sessions-only `choose-tree` behind a palette entry
+  when the gate triggers; NO registry — dormant-checkout discovery
+  deliberately declined, so the rows/actions spec collapses to tmux's
+  own. (3) launcher decomposition only as far as the gated work actually
+  needs — not a refactor project. (4) agents strip = CROSS-PROJECT:
+  Chris deliberately superseded the no-fleet-view ledger line (amended
+  in place above) — render-only glance, control stays ceded. Still
+  required before coding it: the static format spec, plus two open
+  technical questions — cross-session aggregation in a status-format
+  (#{S:} loops over other sessions' options) and whether option writes
+  in session B trigger a status redraw of session A's clients under
+  `status-interval 0`.

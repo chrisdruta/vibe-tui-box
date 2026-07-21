@@ -5,6 +5,16 @@ Consumers pin a commit; tags mark intentional upgrade points
 
 ## Unreleased
 
+- **`vibe tui` conf ownership is now first-owner-authoritative (host-side,
+  no rebuild).** The UI server is styled by whichever project starts it
+  (tmux applies `-f` at server start only), but every later launch used to
+  overwrite the server-global `VIBE_TUI_CONF`, so prefix+R could reload
+  project A's pinned conf over project B's sessions. The launcher now
+  adopts the variable only when unset (or when the owner's conf file has
+  vanished — self-heal); a later project whose pinned conf is
+  content-identical joins silently (same-pin projects never warn), and
+  real skew prints a warning naming the owner's conf and the
+  `kill-server` handover path instead of silently taking over.
 - **Agent-state dots now track background sessions too.** Background/daemon
   fork-sessions of an agent (e.g. Claude background jobs) inherit the
   identity env but not `$TMUX`, so their hook events updated the state

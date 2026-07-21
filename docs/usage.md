@@ -119,8 +119,9 @@ work. One surface holds agent panes AND native host shells (host-side git,
 `vibe clip`) and works in any terminal on any OS. It scales to several
 projects as sessions, not dashboards: each project's `vibe tui` is its own
 session on the shared `vibe` socket, so moving between projects is a tmux
-session switch. There is no cross-project fleet view — that is a recorded
-non-goal (see [positioning.md](positioning.md)).
+session switch. There is no fleet management: the TUI renders agent state
+its hooks push out and never drives, schedules, or orchestrates agents
+(see [positioning.md](positioning.md)).
 
 ```bash
 ./vibe tui    # session per project on the dedicated "vibe" tmux socket:

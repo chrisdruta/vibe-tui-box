@@ -45,8 +45,10 @@ agent: no scheduler, no task queue, no spawn/wait API. Several projects are
 several sessions on one tmux socket — switching, not fleet management.
 Deliberately ceded to orchestrator-class tools, recorded here so reviews
 don't relitigate it: a unified live dashboard of agent screens, a
-programmatic agent-control API, state fidelity for hookless agents, a
-cross-project fleet view, and dashboard-coupled worktrees.
+programmatic agent-control API, state fidelity for hookless agents, and
+dashboard-coupled worktrees. A render-only cross-project *glance* — state
+dots for the projects on the socket — is in scope; anything that controls
+or schedules agents is not.
 
 ## Principles
 
