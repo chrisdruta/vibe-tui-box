@@ -428,3 +428,43 @@ designed; entries here are one paragraph of intent, not a spec.
   `session-created`/`session-closed` hooks running `refresh-client -S`
   over `list-clients` (xargs one-liner, no polling) — strip picked up
   the new and killed session immediately in the spike.
+  **STRIP FORMAT SPEC (2026-07-21, scratch-validated end-to-end — the
+  format string below rendered correctly under a nested observer:
+  colors, branches, truncation, auto-show; only CODING remains and it
+  stays demand-gated):**
+  - *Placement*: `status-format[1]` + `status 2` in tmux-tui.conf. The
+    line inherits `status-style` (do NOT lead with a bg token — every
+    `#[default]` resets to status-style, so an explicit bg fragments).
+  - *Visibility*: auto. Strip exists only while the socket has ≥2
+    sessions; with one project the UI is byte-identical to today.
+    Driven by the same `session-created`/`session-closed` hooks as the
+    refresh nudge (below) — no polling, no launcher logic.
+  - *Ordering*: tmux-native session order (alphabetical). Formats
+    cannot reorder; instead the CURRENT project renders bold theme-fg,
+    others dim. Stable order also makes narrow-width right-clipping
+    (tmux's native behavior, accepted for v1) predictable.
+  - *Per project*: `#{=12:session_name}` (truncation), then one dot
+    per window that HAS `@vibe_glyph`, window-index order, no labels —
+    identity/detail stays `vibe ps`'s job. Glyph vocabulary identical
+    to the tabs (`●` by color, `✗` exited, `◌` frontend-dead; dead
+    agents render as-is). EXCEPTION — attention: on tabs the dot_fg is
+    deliberately @thm_bg (blends into the flashing tab); the strip has
+    no flashing bg, so `#{?#{@vibe_attn},...}` overrides to a coral
+    `●`. Windows without `@vibe_glyph` (host shells, diff windows)
+    emit nothing; a stateful-window-less session renders name-only
+    (presence signal — also how non-vibe squatter sessions surface).
+  - *The format string* (validated; NOTE the spike comma gotcha — no
+    top-level commas inside `#{W:}`/`#{P:}` loops, style commas as
+    `#,`, and nested `#{==:a,b}`/`#{?a,b,c}` commas are safe):
+    `set -g status-format[1] "#[align=left]#{S: #{?#{==:#{session_name},#{client_session}},#[fg=#{@thm_fg}#,bold],#[fg=#{@thm_dim}]}#{=12:session_name}#[default]#{W:#{?#{@vibe_glyph}, #{?#{@vibe_attn},#[fg=#{@thm_coral}]●,#[fg=#{@vibe_dot_fg}]#{@vibe_glyph}}#[default],}} #[fg=#{@thm_border}]│}"`
+  - *The hooks* (visibility + create/kill redraw nudge in one; POSIX sh
+    `for` loop, NOT `xargs -r` — macOS xargs lacks `-r` and the conf
+    must stay mac-safe; plain `tmux` is correct inside run-shell, which
+    inherits the server's context):
+    `set-hook -g session-created 'run-shell -b "n=$(tmux list-sessions 2>/dev/null | wc -l); if [ \"$n\" -gt 1 ]; then tmux set -g status 2; else tmux set -g status on; fi; for c in $(tmux list-clients -F \"##{client_tty}\"); do tmux refresh-client -S -t \"$c\"; done"'`
+    plus the identical `session-closed` hook.
+  - *Acceptance* (rerun of the validation harness): nested observer on
+    a scratch socket; assert green/coral/red dots + dim name branches
+    via `capture-pane -e` SGR runs, 12-char truncation, no-glyph
+    windows silent, strip absent at 1 session / present at 2, create
+    and kill both propagate without any client action.
