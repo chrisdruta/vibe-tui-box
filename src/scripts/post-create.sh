@@ -30,6 +30,13 @@ if command -v claude >/dev/null 2>&1; then
   fi
 fi
 
+# A pin bump can introduce new harness hook registrations, but the
+# project-owned .claude/settings.json is seeded exactly once — merge in
+# whatever is missing (additive only, command-string identity, never
+# touching user entries; the change lands in the git diff for review
+# like the pin move itself). Rerunnable via `vibe bootstrap`.
+bash "$script_dir/settings-merge.sh" || warn "settings hook merge failed; rerun with: vibe bootstrap"
+
 # Codex plugin for Claude Code (/codex:review etc.) rides on the opt-in Codex CLI.
 # User scope keeps plugin state in the persistent ~/.agents volume, not the project.
 # The install needs the network, so a failure warns instead of failing bootstrap.

@@ -175,8 +175,11 @@ designed; entries here are one paragraph of intent, not a spec.
   — `working/attention/idle/exited`, with `blocked` reserved for events
   that reliably mean user intervention (Notification ≠ blocked,
   Stop ≠ session done); and the settings-template hook blocks need an
-  idempotent merge story (`vibe update`), not "consumers merge on pin
-  bump" hand-waving — until then the feature is fresh-installs-only.
+  idempotent merge story, not "consumers merge on pin bump" hand-waving
+  (RESOLVED with step 5: settings-merge.sh, run by post-create on every
+  container create — additive-only, command-string identity, user
+  placement wins, invalid JSON bails; the rebuild after a pin bump IS
+  the migration, and `vibe update` says so in its handoff).
   Standing guardrail restated: inner tmux gets NO dashboard logic (≤5-line
   budget), host tmux renders only pushed precomputed state, hookless
   agents stay `running/exited`.

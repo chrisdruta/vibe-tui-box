@@ -123,6 +123,8 @@ if [ -n "$templates_changed" ]; then
   echo
   echo "templates/ changed between these pins — review the project-owned files"
   echo "against them (docs/updating.md -> \"Agent-driven update\" covers the merge)."
+  echo "(.claude/settings.json hook registrations merge themselves on the next"
+  echo " rebuild/bootstrap — additive only; review that diff like this one.)"
 fi
 if [ "$rebuild" = "required" ]; then
   echo
