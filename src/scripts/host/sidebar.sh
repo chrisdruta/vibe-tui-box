@@ -45,9 +45,9 @@ sidebar_panes() { # sidebar pane ids in window $1, oldest first
     awk -F "$tab" '$2 == "sidebar" { print $1 }'
 }
 
-sidebar_w() { # the one width knob: @vibe_sidebar_w (conf), default 26
+sidebar_w() { # the one width knob: @vibe_sidebar_w (conf), default 30
   w="$(tmux show-options -gqv @vibe_sidebar_w 2>/dev/null)"
-  case "$w" in '' | *[!0-9]*) w=26 ;; esac
+  case "$w" in '' | *[!0-9]*) w=30 ;; esac
   printf '%s' "$w"
 }
 
@@ -188,7 +188,7 @@ branch_of() {
 
 frame() {
   width="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{pane_width}' 2>/dev/null)"
-  case "$width" in '' | *[!0-9]*) width=26 ;; esac
+  case "$width" in '' | *[!0-9]*) width=30 ;; esac
   here="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{session_name}' 2>/dev/null)" || here=""
   # Text budget: 2-col left gutter, keep 1 clear on the right.
   max=$((width - 3))
