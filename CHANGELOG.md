@@ -5,6 +5,16 @@ Consumers pin a commit; tags mark intentional upgrade points
 
 ## Unreleased
 
+- **`vibe tui` multi-project quit semantics fixed (two live reports from
+  the first two-project session).** Quitting a project's UI while
+  another project is on the socket used to teleport that terminal into
+  the other project (`detach-on-destroy off` — unobservable pre-spaces,
+  wrong ever since): now the client simply exits (`detach-on-destroy
+  on`); last-session behavior is unchanged (server exits). And the
+  strip's auto-hide/show transition now issues a FULL client refresh
+  instead of a status-only one — the status-line-count flip resizes
+  every pane, and the partial refresh left the resized region glitched
+  on nested TUI clients until a manual terminal resize.
 - **New: "switch project" in the `vibe tui` palette and on `prefix o`.**
   Both open tmux's session tree (`choose-tree -Zs`) — the project
   switcher for multi-project use, live-sessions-only by design (no
