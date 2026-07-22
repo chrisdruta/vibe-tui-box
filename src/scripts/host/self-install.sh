@@ -16,7 +16,7 @@ set -euo pipefail
 
 # Resolve this script's harness dir, then source the store library from it.
 self_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-harness_dir="$(cd -- "$self_dir/../.." && pwd)"
+harness_dir="$(cd -- "$self_dir/../../.." && pwd)"
 # shellcheck source=store.sh disable=SC1091
 . "$self_dir/store.sh"
 

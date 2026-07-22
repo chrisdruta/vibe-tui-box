@@ -31,7 +31,13 @@ services:
     profiles: ["build"]
     image: ${VIBE_PROJECT_NAME:-vibe}-base
     build:
-      context: ./.vibe/harness/src
+      # Build context is the TRUSTED, materialized harness src (an absolute
+      # host-store path exported by the launcher), NOT the workspace submodule
+      # — a container-writable ./.vibe/harness/src fed to the daemon was a
+      # host-escape vector (host root-of-trust). VIBE_HARNESS_SRC always has a
+      # value at build time; the :- default only keeps a bare `compose config`
+      # (no launcher) from erroring.
+      context: ${VIBE_HARNESS_SRC:-./.vibe/harness/src}
       dockerfile: Dockerfile
       args:
         # The project's compose.yaml overrides these per key; overriding
@@ -69,8 +75,26 @@ services:
       - no-new-privileges:true
 
     volumes:
-      # Workspace bind mount ('.' = --project-directory = repo root).
+      # Workspace bind mount ('.' = --project-directory = repo root). This is
+      # deliberately live and RW — the agent edits the workspace; the container
+      # does not protect the repo (docs/security.md).
       - .:/workspaces/${VIBE_WORKSPACE_BASENAME}
+      # The TRUSTED harness tree, RO-overmounted over the workspace's
+      # .vibe/harness. Every in-container script path (.vibe/harness/src/...)
+      # and seeded .claude hook keeps working verbatim, now reading the
+      # host-verified immutable version instead of the container-writable
+      # submodule — and in-container tampering with harness code can no longer
+      # propagate to host execution. Long syntax + create_host_path:false: the
+      # source is a real host-store dir, never auto-created; docker orders
+      # nested binds by target so this reliably overmounts the workspace bind.
+      # The structural compose gate REQUIRES this mount (read_only, exact
+      # target) before any `up`.
+      - type: bind
+        source: ${VIBE_HARNESS_DIR:-./.vibe/harness}
+        target: /workspaces/${VIBE_WORKSPACE_BASENAME}/.vibe/harness
+        read_only: true
+        bind:
+          create_host_path: false
       # Agent state; the top-level `name:` below keeps the volume name
       # identical to the devcontainer era, so logins survive migration.
       - agent-state:/home/vscode/.agents
@@ -80,6 +104,11 @@ services:
       CODEX_HOME: /home/vscode/.agents/codex
       GH_CONFIG_DIR: /home/vscode/.agents/gh
       DISABLE_AUTOUPDATER: "1"
+      # Host-controlled project identity, injected read-only for the
+      # container-side consumers (agent-state-hook.sh, ps.sh) — replaces the
+      # workspace .vibe/.project-id file, which a container could forge
+      # (M-1). The launcher exports the value it took from the trust record.
+      VIBE_PROJECT_NAME: ${VIBE_PROJECT_NAME:-vibe}
       # No credentials here: GitHub auth is `gh auth login` inside the
       # container, persisted in the agent-state volume (GH_CONFIG_DIR).
       # Container env is baked at create time and visible to every process,

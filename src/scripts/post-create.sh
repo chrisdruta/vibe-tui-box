@@ -8,6 +8,19 @@ source "$script_dir/lib.sh"
 cd -- "$REPO_ROOT"
 log "Bootstrapping $REPO_ROOT"
 
+# In-container `vibe` on PATH. The host root `./vibe` symlink is gone (host
+# root-of-trust: no host-executable workspace entry point); inside the
+# container the workspace is within the boundary, so provide the everyday
+# spelling here. It execs the RO-overmounted trusted launcher directly — no
+# workspace-relative dispatch. ~/.local/bin is on PATH and lives in the
+# agent-state volume (persists across rebuilds).
+mkdir -p -- "$HOME/.local/bin"
+cat >"$HOME/.local/bin/vibe" <<VIBE_SHIM
+#!/usr/bin/env bash
+exec bash "$REPO_ROOT/.vibe/harness/vibe" "\$@"
+VIBE_SHIM
+chmod +x "$HOME/.local/bin/vibe"
+
 # One subdir per agent CLI inside the shared state volume.
 mkdir -p -- \
   "${CLAUDE_CONFIG_DIR:-$HOME/.agents/claude}" \

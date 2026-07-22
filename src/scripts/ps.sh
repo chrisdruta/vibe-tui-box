@@ -91,7 +91,10 @@ row() { # NAME STATE WHEN EXTRA — pad plain text, colorize after, so the
 }
 
 proj=""
-[ -r "$VIBE_DIR/.project-id" ] && proj=" $c_dim($(cat "$VIBE_DIR/.project-id"))$c_off"
+# Identity from the launcher-injected env (host trust record), not a workspace
+# file (M-1). Sanitized: it decorates a status header.
+proj_name="$(printf '%s' "${VIBE_PROJECT_NAME:-}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
+[ -n "$proj_name" ] && proj=" $c_dim($proj_name)$c_off"
 printf '%sAGENTS%s%s\n' "$c_bold" "$c_off" "$proj"
 
 if [ "${#candidates[@]}" -eq 0 ]; then

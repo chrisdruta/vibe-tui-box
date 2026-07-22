@@ -86,7 +86,11 @@ command -v tmux >/dev/null 2>&1 || exit 0
 # stays hook-safe (no git, no config.env; lib.sh never belongs in hooks).
 # shellcheck source=lib-core.sh disable=SC1091
 . "$(dirname -- "${BASH_SOURCE[0]}")/lib-core.sh"
-proj="$({ tr -cd 'A-Za-z0-9._-' <"$VIBE_DIR/.project-id" | head -c 48; } 2>/dev/null)"
+# Identity is injected by the launcher as VIBE_PROJECT_NAME (host trust record,
+# base.yaml env) — the workspace .project-id file is gone (a container could
+# forge it, M-1). Sanitize + bound it: the title string transits terminals as
+# an OSC payload and is parsed host-side.
+proj="$(printf '%s' "${VIBE_PROJECT_NAME:-}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
 [ -n "$proj" ] || proj="$(basename "${CLAUDE_PROJECT_DIR:-$PWD}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
 
 # Plain -t name, no "=" prefix: 3.7b set-option -t takes a pane-style

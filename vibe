@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Host launcher. Normally runs as .vibe/harness/vibe inside a consuming
-# project (the seeded .vibe/vibe wrapper and the root-level ./vibe symlink
-# exec it), but also works from the host PATH (e.g. symlinked into
-# ~/.local/bin). The target project is the nearest ancestor of $PWD with a
-# .vibe/compose.yaml; when $PWD is outside any project, it falls back to
-# the project this script lives in (two levels up, after resolving
-# symlinks). Host may be stock macOS: keep this bash-3.2 compatible.
+# Host launcher (host root-of-trust). This file runs ONLY from a materialized,
+# manifest-verified store version (~/.vibe/versions/<sha>/vibe), reached through
+# the ~/.vibe/bin/vibe shim on the host PATH — never from the workspace. It
+# reads no workspace code; it treats project files (compose.yaml, config.env)
+# strictly as DATA. Host may be stock macOS: keep this bash-3.2 compatible.
+#
+# Inside the container, the trusted tree is RO-overmounted at .vibe/harness and
+# this same file is reached via a `vibe` on the container PATH (post-create.sh);
+# there the workspace is within the boundary, so the container-facing commands
+# dispatch directly (see the /.dockerenv block below).
 #
 # Engine: docker compose + docker exec, directly — no devcontainer CLI, no
-# Node on the host. The container definition is the harness base compose
-# file with the project's .vibe/compose.yaml merged on top; lifecycle
-# (post-create once per container, post-start per start) is run from here.
+# Node on the host. The container definition is the trusted base compose file
+# with the project's .vibe/compose.yaml SNAPSHOTTED and structurally enforced
+# before it ever reaches the daemon (src/scripts/host/store.sh).
 
-# Resolve symlinks with a loop (stock macOS readlink has no -f; review.sh
-# carries the same loop for its baked-vs-checkout self-resolve).
+# Resolve symlinks with a loop (stock macOS readlink has no -f).
 self_path="${BASH_SOURCE[0]}"
 while [ -L "$self_path" ]; do
   link_target="$(readlink "$self_path")"
@@ -26,23 +28,35 @@ while [ -L "$self_path" ]; do
 done
 self_dir="$(cd -- "$(dirname -- "$self_path")" && pwd)"
 
+# The store library + the project-root walk both live under this version dir.
 # shellcheck source=src/scripts/repo-root.sh disable=SC1091
 . "$self_dir/src/scripts/repo-root.sh"
+# shellcheck source=src/scripts/host/store.sh disable=SC1091
+. "$self_dir/src/scripts/host/store.sh"
+
+# Sanitize the environment before any trusted work (strips GIT_*/BASH_ENV/…,
+# fixes PATH). No-op inside the container dispatch, which runs before this
+# matters, but harmless there.
+if [ ! -f /.dockerenv ]; then
+  vibe_sanitize_env
+fi
+
 repo_root="$(find_repo_root_from_pwd || true)"
 if [[ -z "$repo_root" ]]; then
-  fallback_root="$(cd -- "$self_dir/../.." && pwd)"
-  if [[ -n "$(vibe_dir_name_for_root "$fallback_root")" ]]; then
-    repo_root="$fallback_root"
-  fi
+  # Outside any project: only project-less verbs (self-update, help) are valid.
+  case "${1:-}" in
+    self-update|help|-h|--help|"") ;;
+    *)
+      echo "No .vibe/compose.yaml (or legacy .devcontainer/) found above: $PWD" >&2
+      echo "Run from inside a project set up with install.sh." >&2
+      exit 1
+      ;;
+  esac
+  repo_root=""
 fi
 
-if [[ -z "$repo_root" ]]; then
-  echo "No .vibe/compose.yaml (or legacy .devcontainer/) found above: $PWD" >&2
-  echo "Run from inside a project set up with install.sh (or via its .vibe/vibe)." >&2
-  exit 1
-fi
-
-vibe_dirname="$(vibe_dir_name_for_root "$repo_root")"
+vibe_dirname=""
+[ -n "$repo_root" ] && vibe_dirname="$(vibe_dir_name_for_root "$repo_root")"
 
 # `vibe update` needs only git — dispatch before any docker/layout check so
 # it also works from inside the container and on the legacy layout.
@@ -61,11 +75,73 @@ if [ "${1:-}" = "__harness-dir" ]; then
   exit 0
 fi
 
-if [[ "$vibe_dirname" != ".vibe" ]]; then
+if [ -n "$repo_root" ] && [[ "$vibe_dirname" != ".vibe" ]]; then
   echo "This project is on the retired devcontainer layout ($vibe_dirname/)." >&2
   echo "Migrate it first: see the harness docs/updating.md ->" >&2
   echo "\"Migrating to the compose engine\" (one-time, ~5 minutes)." >&2
   exit 1
+fi
+
+# ── host: run as the project's TRUSTED, materialized version ───────────────
+# The shim resolves most invocations to the trusted version already; this block
+# closes the two cases where it runs a fallback version instead: no trust record
+# yet (first contact) and a trusted-but-not-materialized sha. Either way we end
+# up exec'ing the exact version this project trusts. project_name (compose
+# identity) comes from the record — never the workspace .project-id. Skipped in
+# the container (dispatch below) and for project-less/help invocations.
+project_name=""
+if [ ! -f /.dockerenv ] && [ -n "$repo_root" ]; then
+  case "${1:-}" in
+    help|-h|--help|"") ;;   # no trust decision needed to print help
+    provision)
+      # Explicit non-interactive trust; handled after arg parse below.
+      : ;;
+    *)
+      _digest="$(vibe_checkout_digest "$repo_root")" || { echo "vibe: could not key project path" >&2; exit 1; }
+      _record="$(vibe_record_path "$_digest")"
+      _running_sha="$(basename -- "$self_dir")"
+      if [ -f "$_record" ]; then
+        # Stale-record guard: the record's root must still be THIS checkout.
+        _rec_root="$(vibe_record_get "$_record" root 2>/dev/null || true)"
+        _canon_root="$(cd -- "$repo_root" && pwd -P)"
+        if [ -n "$_rec_root" ] && [ "$_rec_root" != "$_canon_root" ]; then
+          echo "vibe: trust record path mismatch (checkout replaced?). Re-trust:" >&2
+          echo "  rm $_record   # then re-run vibe here" >&2
+          exit 1
+        fi
+        project_name="$(vibe_record_get "$_record" project_name 2>/dev/null || true)"
+        _mode="$(vibe_record_get "$_record" mode 2>/dev/null || echo normal)"
+        if [ "$_mode" = "dev" ]; then
+          _trusted="$(vibe_record_get "$_record" dev_version 2>/dev/null || true)"
+        else
+          _trusted="$(vibe_record_get "$_record" sha 2>/dev/null || true)"
+          # Pin drift: the committed gitlink moved past the trusted sha.
+          _pin="$(vibe_read_pin "$repo_root" 2>/dev/null || true)"
+          if [ -n "$_pin" ] && [ "$_pin" != "$_trusted" ]; then
+            _dest="$(vibe_first_contact "$repo_root" "$self_dir" "$(basename -- "$repo_root")" "${project_name:-vibe}")" || exit 1
+            exec bash "$_dest/vibe" "$@"
+          fi
+        fi
+        if [ -n "$_trusted" ] && [ "$_trusted" != "$_running_sha" ]; then
+          _home="$(vibe_store_home)"
+          if [ -d "$_home/versions/$_trusted" ] && vibe_verify_exec_paths "$_home/versions/$_trusted" >/dev/null 2>&1; then
+            exec bash "$_home/versions/$_trusted/vibe" "$@"
+          fi
+          _dest="$(vibe_materialize "$_trusted" "$_home/repo.git" 2>/dev/null || true)"
+          [ -n "$_dest" ] || _dest="$(vibe_materialize "$_trusted" "$repo_root/.vibe/harness/.git" 2>/dev/null || true)"
+          [ -n "$_dest" ] || { echo "vibe: trusted version $_trusted is not available" >&2; exit 1; }
+          exec bash "$_dest/vibe" "$@"
+        fi
+      else
+        # First contact: prompt, materialize, record, then run as that version.
+        _dest="$(vibe_first_contact "$repo_root" "$self_dir" "$(basename -- "$repo_root")" "vibe")" || exit 1
+        if [ "$(basename -- "$_dest")" != "$_running_sha" ]; then
+          exec bash "$_dest/vibe" "$@"
+        fi
+        project_name="$(vibe_record_get "$_record" project_name 2>/dev/null || true)"
+      fi
+      ;;
+  esac
 fi
 
 command_name="${1:-help}"
@@ -178,22 +254,57 @@ workdir="/workspaces/$ws_base"
 # rejected above (the legacy-layout gate).
 cscripts=".vibe/harness/src/scripts"
 
-# Per-checkout project identity — resolution, legacy adoption, and
-# persistence live in repo-root.sh (vibe_resolve_project_name), where the
-# design is documented; verify.sh drives all five branches through this
-# call. vibe_dirname is ".vibe" by construction here (legacy gate above).
-project_name="$(vibe_resolve_project_name "$repo_root" "$vibe_dirname")"
+# Project identity comes from the host trust record (set in the trusted-version
+# block above); the workspace .project-id is no longer read or written. For the
+# verify.sh container dev-hatch (VIBE_SKIP_CONTAINER_DISPATCH) the block did not
+# run, so derive the deterministic identity as a fallback — never persisting it
+# into the bind.
+if [ -z "$project_name" ]; then
+  project_name="$(vibe_project_slug "$repo_root")-$(vibe_checkout_suffix "$repo_root")"
+fi
+
+# --unsafe (global): explicitly disable the compose boundary for ONE command.
+# Consume it out of argv so downstream parsing never sees it.
+unsafe_flag=""
+_args=()
+for _a in "$@"; do
+  if [ "$_a" = "--unsafe" ]; then unsafe_flag="--unsafe"; else _args+=("$_a"); fi
+done
+set -- ${_args[@]+"${_args[@]}"}
+
+# The trusted harness tree (this version dir) and its src — build contexts and
+# the RO overmount resolve from these absolute paths, never from the workspace.
+export VIBE_HARNESS_DIR="$self_dir"
+export VIBE_HARNESS_SRC="$self_dir/src"
+
+# Snapshot the project's compose control files, render them under a scrubbed
+# environment, and STRUCTURALLY enforce the container-boundary invariants before
+# anything reaches the daemon (store.sh). Runs once; sets VIBE_SNAPSHOT_COMPOSE
+# to the host-only frozen compose file every compose() call then feeds the
+# daemon. The workspace bind source (`.`) is deliberately live — the container
+# does not protect the repo; the gate protects the container's PRIVILEGES.
+compose_gated=0
+ensure_compose_gate() {
+  [ "$compose_gated" = 1 ] && return 0
+  local record; record="$(vibe_record_path "$(vibe_checkout_digest "$repo_root")")"
+  vibe_compose_gate "$repo_root" "$self_dir/src/compose/base.yaml" \
+    "$project_name" "$ws_base" "$self_dir" "$record" "$unsafe_flag" || exit 1
+  compose_gated=1
+}
 
 compose() {
+  ensure_compose_gate
   VIBE_PROJECT_NAME="$project_name" \
   VIBE_WORKSPACE_BASENAME="$ws_base" \
   VIBE_REPO_ROOT="$repo_root" \
   VIBE_USER_UID="$(id -u)" \
+  VIBE_HARNESS_DIR="$self_dir" \
+  VIBE_HARNESS_SRC="$self_dir/src" \
   "${compose_bin[@]}" \
     --project-name "$project_name" \
     --project-directory "$repo_root" \
     -f "$self_dir/src/compose/base.yaml" \
-    -f "$repo_root/.vibe/compose.yaml" \
+    -f "$VIBE_SNAPSHOT_COMPOSE" \
     "$@"
 }
 
