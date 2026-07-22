@@ -22,6 +22,43 @@ does not make running untrusted code safe.
 
 Root maintenance remains possible from the host: `docker exec -u root -it <c> bash`.
 
+## Inner agent sandboxes
+
+A consequence of `--cap-drop=ALL` + `no-new-privileges`: the container permits
+no unprivileged user namespaces, so namespace-based sandboxes cannot start
+**inside** it. `bwrap: No permissions to create new namespace` is this policy
+working, not a bug. Affected: Claude Code's `/sandbox` (bubblewrap), Codex's
+`read-only` / `workspace-write` modes, Chromium's own sandbox
+([browser-automation.md](browser-automation.md)).
+
+The container is the isolation boundary, so the harness defaults the inner
+layers to off-but-graceful instead of broken:
+
+- **Claude Code** — bash sandboxing stays off. The seeded
+  `.claude/settings.json` carries `sandbox.enableWeakerNestedSandbox: true`
+  and `sandbox.failIfUnavailable: false`, both inert until someone enables
+  `/sandbox`; from then on Claude Code warns and falls back to permission
+  rules instead of hard-failing (and would use the weaker nested mode if a
+  future runtime allows namespace creation).
+- **Codex** — bootstrap seeds `sandbox_mode = "danger-full-access"` into
+  `$CODEX_HOME/config.toml`, only when the key is absent (your own setting
+  wins). Codex documents the mode as "intended solely for running in
+  environments that are externally sandboxed" — this container is that
+  environment. Existing containers pick it up via `vibe bootstrap` or the
+  next rebuild.
+
+Do not weaken the outer container (added capabilities, user namespaces) to
+make an inner sandbox start — that inverts the model: it trades the real
+boundary for a redundant one. `cap_add: [SYS_ADMIN]` is root-shaped, and a
+userns-permissive seccomp profile exposes the kernel's user-namespace attack
+surface to everything the bootstrap runs.
+
+Workloads that genuinely want a different jail get a different OUTER
+container instead: a compose-profile sibling of the dev service with its own
+mount/network posture per trust level (see
+[Unattended / autonomous runs](#unattended--autonomous-runs) and the BACKLOG
+"Reduced-trust profile" entry). Same trusted mechanism, nothing widened.
+
 ## What it does NOT protect
 
 - **The repository itself.** The agent has full write access to the workspace —

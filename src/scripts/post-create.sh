@@ -30,6 +30,26 @@ if command -v claude >/dev/null 2>&1; then
   fi
 fi
 
+# Codex's own sandbox (bwrap) cannot start in this container — cap_drop ALL
+# plus no-new-privileges leaves no unprivileged namespaces, so every mode
+# except danger-full-access dies at its first shell command
+# (docs/security.md "Inner agent sandboxes"). The container IS the isolation
+# boundary; default the config accordingly. Key-absent only — a user-set
+# sandbox_mode always wins. Top-level TOML keys must precede any [table],
+# so a missing key is PREPENDED, never appended.
+if command -v codex >/dev/null 2>&1; then
+  codex_cfg="${CODEX_HOME:-$HOME/.agents/codex}/config.toml"
+  if [[ ! -f "$codex_cfg" ]]; then
+    printf 'sandbox_mode = "danger-full-access"\n' >"$codex_cfg"
+    chmod 600 "$codex_cfg"
+  elif ! grep -Eq '^sandbox_mode[[:space:]]*=' "$codex_cfg"; then
+    tmp="$(mktemp)"
+    { printf 'sandbox_mode = "danger-full-access"\n'; cat "$codex_cfg"; } >"$tmp"
+    mv -- "$tmp" "$codex_cfg"
+    chmod 600 "$codex_cfg"
+  fi
+fi
+
 # A pin bump can introduce new harness hook registrations, but the
 # project-owned .claude/settings.json is seeded exactly once — merge in
 # whatever is missing (additive only, command-string identity, never
