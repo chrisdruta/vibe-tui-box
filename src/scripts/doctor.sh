@@ -92,6 +92,26 @@ else
   check_ok "Docker socket is not mounted"
 fi
 
+# A Docker API reachable over TCP is as powerful as the socket, and the
+# structural compose gate can't see a host-level DOCKER_HOST (host root-of-
+# trust residual). Flag an off-box / tcp endpoint if one is set.
+case "${DOCKER_HOST:-}" in
+  ""|unix://*|"unix:"*) check_ok "no TCP Docker API endpoint (DOCKER_HOST)" ;;
+  *) check_miss "DOCKER_HOST points at a non-socket Docker API: ${DOCKER_HOST} (host control)" ;;
+esac
+
+# The harness tree must be the RO overmount (host root-of-trust): a writable
+# .vibe/harness means the trusted tree is NOT protected and in-container edits
+# could reach host execution. Probe by attempting a write.
+if [[ -d .vibe/harness ]]; then
+  if ( : >.vibe/harness/.vibe-rw-probe ) 2>/dev/null; then
+    rm -f .vibe/harness/.vibe-rw-probe 2>/dev/null || true
+    check_miss ".vibe/harness is WRITABLE — the trusted harness overmount is not active (rebuild on the host)"
+  else
+    check_ok ".vibe/harness is read-only (trusted overmount active)"
+  fi
+fi
+
 if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
   check_miss "passwordless sudo is available"
 else

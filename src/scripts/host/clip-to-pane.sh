@@ -4,23 +4,37 @@
 # the resulting container path into the agent pane — replaces the whole
 # switch-tab / clip / copy / paste dance with one chord.
 #
-# Runs as a tmux run-shell job on the HOST server, cwd = repo root (the
-# binding cd's to #{session_path} first); run-shell provides TMUX, so
+# Runs as a tmux run-shell job on the HOST server; run-shell provides TMUX, so
 # plain `tmux` is the right binary/socket (same rule as sidebar/dock).
-# $1 = window id.
+# $1 = trusted harness dir (a store version dir), $2 = window id.
+#
+# The session path is derived FROM tmux here rather than interpolated into the
+# binding's shell string (M-1): a repo path containing an apostrophe would
+# otherwise break the binding's quoting. The harness dir is a store path we
+# control (apostrophe-free by construction) and is used to invoke the trusted
+# launcher directly — the root ./vibe symlink is gone.
 
 set -euo pipefail
 
-window="${1:-}"
+harness_dir="${1:-}"
+window="${2:-}"
 
 note() {
   tmux display-message "$1" 2>/dev/null || true
 }
 
+# The invoking window's session path, straight from tmux (no shell-quoting risk).
+session_path="$(tmux display-message -p -t "$window" '#{session_path}' 2>/dev/null || true)"
+if [ -n "$session_path" ]; then
+  cd "$session_path" || { note "clip: bad session path"; exit 0; }
+fi
+vibe_launch="$harness_dir/vibe"
+[ -x "$vibe_launch" ] || vibe_launch="bash $harness_dir/vibe"
+
 # --path-only: on success the LAST stdout line is exactly the container
 # path (human chatter goes to stderr; 2>&1 folds it in only so a failure
 # toast can show the real error line).
-if ! out="$(./vibe clip --path-only 2>&1)"; then
+if ! out="$($vibe_launch clip --path-only 2>&1)"; then
   last_line="$(printf '%s\n' "$out" | tail -1)"
   note "vibe clip: ${last_line:-failed}"
   exit 0

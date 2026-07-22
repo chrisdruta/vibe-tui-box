@@ -36,6 +36,28 @@ socket="vibe"
 conf="$harness_dir/src/config/tmux-tui.conf"
 tmux_bin="${VIBE_TUI_TMUX:-tmux}"
 
+# harness_dir is the project's TRUSTED, materialized store version (the launcher
+# passes its own $self_dir). Sanity: it must live under the host store, never in
+# a workspace — otherwise the tui would run host code from the bind (C-1). A
+# path inside a workspace here means an old launcher; refuse.
+# shellcheck source=store.sh disable=SC1091
+. "$harness_dir/src/scripts/host/store.sh"
+_store_home="$(vibe_store_home 2>/dev/null || echo "$HOME/.vibe")"
+case "$harness_dir" in
+  "$_store_home"/versions/*) ;;
+  *)
+    echo "vibe tui: refusing to run — harness dir is not a trusted store version:" >&2
+    echo "  $harness_dir" >&2
+    echo "Reinstall the store: <checkout>/.vibe/harness/install.sh --self" >&2
+    exit 1
+    ;;
+esac
+
+# A path is a trusted store version dir (used to judge a running server's owner).
+vibe_is_trusted_dir() {
+  case "$1" in "$_store_home"/versions/*) return 0 ;; *) return 1 ;; esac
+}
+
 if ! command -v "$tmux_bin" >/dev/null 2>&1; then
   echo "vibe tui needs tmux on the host. Install the pinned 3.7b build:" >&2
   echo "  bash $harness_dir/src/scripts/host/install-tmux.sh" >&2
@@ -141,6 +163,22 @@ esac
 # pins the server, so closing your last session still stops the UI.
 vtmux start-server \; set-option -s exit-empty off
 
+# Refuse to attach to an UNSAFE running server (host root-of-trust, sol C-4).
+# A pre-upgrade server stamped @vibe_harness_dir with a WORKSPACE path — its
+# pane-title hook, palette, and prefix+R still execute container-writable code
+# from the bind. A doctor warning is not enough for an active exploit path:
+# require a fresh restart before this client attaches any container pane.
+# (--kill/--fresh already killed the server above, so this only trips on a
+# plain `vibe tui` meeting an old server.)
+existing_hdir="$("$tmux_bin" -L "$socket" show-option -gqv @vibe_harness_dir 2>/dev/null || true)"
+if [ -n "$existing_hdir" ] && ! vibe_is_trusted_dir "$existing_hdir"; then
+  echo "vibe tui: the running UI server is from a pre-upgrade harness and executes" >&2
+  echo "host code from the workspace bind (@vibe_harness_dir = $existing_hdir)." >&2
+  echo "Refusing to attach. Restart the UI on the trusted store first:" >&2
+  echo "  vibe tui --fresh    (container agents keep running)" >&2
+  exit 1
+fi
+
 # Conf ownership: FIRST-OWNER-AUTHORITATIVE (2026-07-21 decision). The
 # server was styled by whichever project's launch created it (-f applies
 # at server START only), so VIBE_TUI_CONF — the prefix+R reload target —
@@ -236,11 +274,17 @@ EOF2
   case "$size_w$size_h" in
     '' | *[!0-9]*) size_w="" ;;
   esac
+  # Pane commands run on the HOST — the root ./vibe symlink is gone, so invoke
+  # the project's TRUSTED launcher directly ($harness_dir is a store version
+  # dir). Also stamp @vibe_harness_dir PER SESSION (sol H-2): the shared server
+  # can host projects trusting different SHAs, and a session's hooks/bindings
+  # must resolve THIS project's harness dir, never another's global value.
   if [ -n "$size_w" ]; then
-    vtmux new-session -d -x "$size_w" -y "$size_h" -s "$session" -c "$repo_root" -e VIBE_NESTED=1 -n main "./vibe agent"
+    vtmux new-session -d -x "$size_w" -y "$size_h" -s "$session" -c "$repo_root" -e VIBE_NESTED=1 -n main "'$harness_dir/vibe' agent"
   else
-    vtmux new-session -d -s "$session" -c "$repo_root" -e VIBE_NESTED=1 -n main "./vibe agent"
+    vtmux new-session -d -s "$session" -c "$repo_root" -e VIBE_NESTED=1 -n main "'$harness_dir/vibe' agent"
   fi
+  vtmux set-option -t "$session" @vibe_harness_dir "$harness_dir"
 
   agent_pane="$(vtmux display-message -p -t "$session:main" '#{pane_id}')"
   vtmux set-option -p -t "$agent_pane" @vibe_role "agent"
@@ -273,6 +317,12 @@ fi
 # with exit-empty on the server (stamp and all) would evaporate before
 # the rebuild.
 vtmux set-option -s exit-empty on
+
+# Refresh THIS session's harness dir (sol H-2) whether it was just built or
+# reattached — an older session on a shared server picks up the current
+# project's trusted store version, so its hooks never resolve a stale/foreign
+# dir. The global stamp (owner-conf block) stays as the fallback.
+vtmux set-option -t "$session" @vibe_harness_dir "$harness_dir" 2>/dev/null || true
 
 # Nudge open sidebars: session build/heal has no title event to bump the
 # serial, and the render loops' forced full frame is up to 10s away —
