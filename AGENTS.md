@@ -61,6 +61,27 @@ consuming project — bias toward small, reviewable, backward-compatible commits
   every known consumer has migrated — `vibe update` running on the old layout
   is how projects cross the engine swap.
 
+## Shell conventions
+
+- Shebang is `#!/usr/bin/env bash` everywhere (no `#!/bin/bash`).
+- `set` flags are policy, not entropy — four sanctioned tiers, pick by role:
+  - `set -euo pipefail` — the default for every executable script. `lib.sh`
+    asserts this tier on behalf of the lifecycle scripts that source it.
+  - `set -uo pipefail` (no errexit) — deliberate best-effort paths where one
+    failing step must not abort the rest or pollute a caller: agent hooks
+    (`agent-state-hook.sh`, `preview-image-hook.sh`), `review.sh`, `doctor.sh`.
+  - `set -u` only — host tui renderers driven by tmux `run-shell`, where every
+    command is individually `|| true`/exit-0 guarded (`state-render.sh`,
+    `sidebar.sh`, `dock.sh`).
+  - none — sourced libraries that must not change the caller's options
+    (`preview-lib.sh`, `repo-root.sh`) and the Claude statuslines (cosmetic
+    hot path: an abort blanks the status line, a soft failure just renders
+    less).
+- `printf '%q '` command assembly is allowed ONLY at the tmux shell-string
+  boundary — the three existing sites (two in `agent-entry.sh`, one in
+  `svc.sh`). No command string crossing the docker boundary interpolates
+  data; pass values via `docker exec -e` instead.
+
 ## Before changing code
 
 - Read `docs/architecture.md` and `docs/security.md`.

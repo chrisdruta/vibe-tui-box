@@ -7,9 +7,7 @@
 # `docker exec`; the only quoting layer left is the tmux command
 # string, isolated at the bottom. Container-side only: bash 4+ is fine.
 
-set -o errexit
-set -o nounset
-set -o pipefail
+set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh disable=SC1091
@@ -151,6 +149,10 @@ cmd=(env "VIBE_AGENT_SESSION=$session" "VIBE_AGENT_INSTANCE=$$.$(date +%s)" "VIB
 # double-launching. `.env` still loads only inside the pane process via
 # env-run.sh — never into the tmux server or an interactive shell. tmux takes
 # the pane command as a shell string, hence the one remaining %q re-quote.
+# The two %q sites below plus svc.sh's are the sanctioned tmux shell-string
+# boundary — do not add another. (`new-session -e` was considered and
+# rejected: session env would leak the identity vars into every future pane,
+# letting a manually launched agent there impersonate this run's instance.)
 cmd+=("$script_dir/env-run.sh" "${agent_cmd[@]}" "$@")
 if [ "$carrier" = "tmux" ]; then
   # Under `vibe tui` (VIBE_NESTED=1, forwarded by cexec) an outer host tmux

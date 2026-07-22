@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 
-set -o errexit
-set -o nounset
-set -o pipefail
+set -euo pipefail
 
 # These scripts live at <vibe-dir>/harness/src/scripts/ inside a consuming
 # project, where <vibe-dir> is .vibe (current layout) or .devcontainer

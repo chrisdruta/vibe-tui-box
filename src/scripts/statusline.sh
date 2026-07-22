@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Claude Code statusLine — matches the container shell prompt style:
 #   <user> <arrow> <cwd (last 4 dirs)> (<git-branch>[ dirty-mark]) · <model> (<effort>) · <context%>
 # Wired via statusLine in the seeded .claude/settings.json; ships in the harness so

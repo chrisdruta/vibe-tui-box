@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Claude Code subagentStatusLine — one custom row per live subagent in the agent panel:
 #   <label> · <model>(<effort>) · <tokens>
 # Contract (wired via subagentStatusLine in the seeded .claude/settings.json): row
