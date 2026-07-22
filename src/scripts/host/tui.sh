@@ -198,6 +198,9 @@ if ! vtmux has-session -t "$session" 2>/dev/null; then
   host_pane="$(vtmux split-window -v -l '30%' -c "$repo_root" -t "$agent_pane" -P -F '#{pane_id}')"
   vtmux set-option -p -t "$host_pane" @vibe_role "host"
   vtmux set-option -p -t "$host_pane" @vibe_title "host"
+  # Empty pane-level glyph so the window's agent dot doesn't cascade onto
+  # the dock's border title (pane -> window user-option lookup).
+  vtmux set-option -p -t "$host_pane" @vibe_glyph ""
 
   vtmux select-pane -t "$agent_pane"
 

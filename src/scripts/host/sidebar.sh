@@ -52,8 +52,12 @@ create_in() {
   # can't type into the render loop; focus returns to where the user was.
   pane="$(tmux split-window -fhb -l 26 -t "$win" -P -F '#{pane_id}' \
     "exec bash '$self' render")"
+  # Empty pane-level @vibe_glyph: user-option lookup cascades pane ->
+  # window, so without this the window's agent dot bleeds onto the
+  # sidebar's border title (host bug, 2026-07-22 screenshot).
   tmux set-option -p -t "$pane" @vibe_role "sidebar" \; \
     set-option -p -t "$pane" @vibe_title "projects" \; \
+    set-option -p -t "$pane" @vibe_glyph "" \; \
     select-pane -d -t "$pane" \; \
     select-pane -l
 }
@@ -181,8 +185,10 @@ frame() {
     # coral (the tab-blend @vibe_dot_fg would vanish here), plain windows
     # (host shells, popups) emit nothing.
     dots=""
+    ndots=0
     while IFS="$tab" read -r glyph dfg attn; do
       [ -n "$glyph" ] || continue
+      ndots=$((ndots + 1))
       if [ "$attn" = "1" ]; then
         dots="$dots ${c_coral}●"
       else
@@ -196,8 +202,14 @@ EOF2
     else
       mark=" " name_c="$c_dim"
     fi
+    # The dots ride on the name line (2 cols each: space + glyph), so the
+    # name budget shrinks with them — otherwise a long name pushes the
+    # dots onto a wrapped line AND shifts the click map (host bug,
+    # 2026-07-22 screenshot).
+    nmax=$((max - ndots * 2))
+    [ "$nmax" -lt 8 ] && nmax=8
     shown="$name"
-    [ "${#shown}" -gt "$max" ] && shown="$(printf '%.*s' $((max - 1)) "$shown")…"
+    [ "${#shown}" -gt "$nmax" ] && shown="$(printf '%.*s' $((nmax - 1)) "$shown")…"
     buf="$buf
 ${mark}${reset} ${bold}${name_c}${shown}${reset}${dots}${reset}${eol}"
     row=$((row + 1)); map="$map $row:$sid"
