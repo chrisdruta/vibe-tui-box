@@ -20,8 +20,9 @@ set -euo pipefail
 repo_root="${1:-}"
 harness_dir="${2:-}"
 sub="${3:-status}"
-[ -n "$repo_root" ] && [ -n "$harness_dir" ] || {
-  echo "usage: dev-mode.sh REPO_ROOT HARNESS_DIR {on|sync|off|status}" >&2; exit 2; }
+if [ -z "$repo_root" ] || [ -z "$harness_dir" ]; then
+  echo "usage: dev-mode.sh REPO_ROOT HARNESS_DIR {on|sync|off|status}" >&2; exit 2
+fi
 
 # shellcheck source=store.sh disable=SC1091
 . "$harness_dir/src/scripts/host/store.sh"

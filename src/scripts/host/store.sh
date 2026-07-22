@@ -109,7 +109,7 @@ vibe_path_is_secure() {
         # Normalize to 4 digits: sticky/setuid, owner, group, other.
         while [ "${#perm}" -lt 4 ]; do perm="0$perm"; done
         local sticky group other
-        sticky="${perm%${perm#?}}"      # first char
+        sticky="${perm%"${perm#?}"}"    # first char
         group="$(printf '%s' "$perm" | cut -c3)"
         other="$(printf '%s' "$perm" | cut -c4)"
         case "$sticky" in 1) ;; *)  # sticky bit makes a writable dir safe enough
@@ -544,7 +544,9 @@ vibe_render_compose() {
   else printf 'vibe: docker compose not found\n' >&2; return 1; fi
   # env -i: an empty environment; re-add only what compose legitimately needs
   # and what the base/render themselves reference. PATH is required to find
-  # docker. No project .env, no inherited host vars.
+  # docker. No project .env, no inherited host vars. $compose_bin is
+  # deliberately word-split ("docker compose" is two words).
+  # shellcheck disable=SC2086
   env -i \
     PATH="$PATH" HOME="$HOME" \
     VIBE_PROJECT_NAME="$pname" \
@@ -553,7 +555,7 @@ vibe_render_compose() {
     VIBE_USER_UID="$(id -u)" \
     VIBE_HARNESS_DIR="$hdir" \
     VIBE_HARNESS_SRC="$hdir/src" \
-    $compose_bin `# intentional word-split: docker compose is two words` \
+    $compose_bin \
       --project-name "$pname" \
       --project-directory "$pdir" \
       -f "$base" \
@@ -688,7 +690,7 @@ vibe_compose_gate() {
       local ans; read -r ans
       case "$ans" in y|Y|yes|YES) ;; *) printf 'Aborted.\n' >&2; return 1 ;; esac
     else
-      printf 'Non-interactive: refusing to accept compose drift. Use `vibe provision`.\n' >&2
+      printf 'Non-interactive: refusing to accept compose drift. Use: vibe provision\n' >&2
       return 1
     fi
   fi
@@ -723,8 +725,10 @@ vibe_read_pin() {
 # UNVERIFIED), show the human what they are trusting, confirm, materialize,
 # record. TTY-only; non-interactive fails closed (use `vibe provision`).
 # Args: root harness_dir ws_base project_name  -> prints the version dir.
+# ($2 harness_dir is accepted for call-site symmetry with the launcher but is
+# unused: first contact resolves the version from the mirror, not the caller.)
 vibe_first_contact() {
-  local root="$1" harness_dir="$2" ws_base="$3" project_name="$4"
+  local root="$1" ws_base="$3" project_name="$4"
   local home; home="$(vibe_store_init)" || return 1
   local digest record pin trusted_sha desc verified
   digest="$(vibe_checkout_digest "$root")" || return 1
