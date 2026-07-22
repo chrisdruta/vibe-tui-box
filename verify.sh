@@ -19,6 +19,7 @@ shell_files=(
   "$repo_root/verify.sh"
   "$repo_root/vibe"
   "$repo_root/src/templates/vibe"
+  "$repo_root/src/config/theme.sh"
 )
 while IFS= read -r -d '' file; do
   shell_files+=("$file")
@@ -45,6 +46,7 @@ host_side_files=(
   src/scripts/host/dock.sh src/scripts/host/state-render.sh
   src/scripts/host/clip-image.sh src/scripts/host/clip-to-pane.sh
   src/scripts/host/install-tmux.sh src/scripts/host/start-ollama.sh
+  src/config/theme.sh
 )
 docker_ok=""
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then

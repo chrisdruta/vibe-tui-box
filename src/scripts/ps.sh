@@ -28,13 +28,17 @@ svc_session="${DEV_ATTACH_TMUX_SESSION:-services}"
 state_dir="${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-$(id -u)"
 now="$(date +%s)"
 
-# Theme colors (tmux-tui.conf palette) when stdout is a terminal.
+# Theme palette + state map: theme.sh beside the tmux conf (whose @thm
+# block is its lockstep twin). Colors only when stdout is a terminal.
+# shellcheck source=../config/theme.sh disable=SC1091
+source "$script_dir/../config/theme.sh"
+colors=""
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-  c_green=$'\e[38;2;158;206;106m' c_coral=$'\e[38;2;232;115;90m'
-  c_dim=$'\e[38;2;92;107;150m' c_red=$'\e[38;2;247;118;142m'
-  c_blue=$'\e[38;2;122;162;247m' c_bold=$'\e[1m' c_off=$'\e[0m'
+  colors=1
+  c_green="$(vibe_fg "$VIBE_THM_GREEN")" c_dim="$(vibe_fg "$VIBE_THM_DIM")"
+  c_red="$(vibe_fg "$VIBE_THM_RED")" c_bold=$'\e[1m' c_off=$'\e[0m'
 else
-  c_green="" c_coral="" c_dim="" c_red="" c_blue="" c_bold="" c_off=""
+  c_green="" c_dim="" c_red="" c_bold="" c_off=""
 fi
 
 age() { # seconds -> compact human age
@@ -69,16 +73,15 @@ if [ -d "$state_dir" ]; then
   done
 fi
 
+# shellcheck disable=SC2154  # vibe_glyph/vibe_state_hex: set by vibe_state_style
 set_style() { # state -> $glyph (colored char) + $label_c (state label color)
-  case "$1" in
-    working) glyph="$c_green●$c_off" label_c="$c_green" ;;
-    attention) glyph="$c_coral●$c_off" label_c="$c_coral" ;;
-    idle) glyph="$c_dim●$c_off" label_c="$c_dim" ;;
-    running) glyph="$c_blue●$c_off" label_c="$c_blue" ;;
-    exited*) glyph="$c_red✗$c_off" label_c="$c_red" ;;
-    gone) glyph="$c_dim◌$c_off" label_c="$c_dim" ;;
-    *) glyph="$c_dim●$c_off" label_c="" ;;
-  esac
+  if vibe_state_style "$1"; then # the shared map (theme.sh)
+    label_c=""
+    [ -n "$colors" ] && label_c="$(vibe_fg "$vibe_state_hex")"
+    glyph="${label_c}${vibe_glyph}${c_off}"
+  else
+    glyph="${c_dim}●${c_off}" label_c="" # unknown state: dim, no guessing
+  fi
 }
 
 row() { # NAME STATE WHEN EXTRA — pad plain text, colorize after, so the

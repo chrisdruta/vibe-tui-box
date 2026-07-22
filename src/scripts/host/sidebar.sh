@@ -164,17 +164,15 @@ esac
 once=0
 [ "${2:-}" = "--once" ] && once=1
 
-# One palette: read the theme off the server, conf defaults as fallback
-# (same rule as state-render.sh). Read once at launch — a palette change
-# lands on the next toggle, which is fine.
-thm() { v="$(tmux show-options -gv "$1" 2>/dev/null)"; [ -n "$v" ] && printf '%s' "$v" || printf '%s' "$2"; }
-fg() { # hex -> truecolor foreground escape
-  h="${1#\#}"
-  printf '\033[38;2;%d;%d;%dm' "0x$(printf '%.2s' "$h")" "0x$(printf '%.2s' "${h#??}")" "0x$(printf '%.2s' "${h#????}")"
-}
-c_fg="$(fg "$(thm @thm_fg '#a9b6d8')")"
-c_dim="$(fg "$(thm @thm_dim '#5c6b96')")"
-c_coral="$(fg "$(thm @thm_coral '#e8735a')")"
+# One palette: theme.sh, beside the tmux conf (whose @thm block is its
+# lockstep twin). Sourced once at launch — a palette change lands on the
+# next toggle, which is fine.
+case "$0" in */*) here="${0%/*}" ;; *) here="." ;; esac
+# shellcheck source=../../config/theme.sh disable=SC1091
+. "$here/../../config/theme.sh"
+c_fg="$(vibe_fg "$VIBE_THM_FG")"
+c_dim="$(vibe_fg "$VIBE_THM_DIM")"
+c_coral="$(vibe_fg "$VIBE_THM_CORAL")"
 bold="$(printf '\033[1m')"
 reset="$(printf '\033[0m')"
 eol="$(printf '\033[K')"
@@ -240,7 +238,7 @@ EOF0
       if [ "$attn" = "1" ]; then
         dotc="${c_coral}"
       else
-        dotc="$(fg "${dfg:-#5c6b96}")"
+        dotc="$(vibe_fg "${dfg:-$VIBE_THM_DIM}")"
       fi
       dots="$dots ${dotc}${glyph}"
       # roster row: the client's own active agent gets the coral mark +
