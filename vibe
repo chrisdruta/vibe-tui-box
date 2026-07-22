@@ -50,8 +50,11 @@ if [ "${1:-}" = "update" ]; then
   VIBE_REPO_ROOT="$repo_root" exec bash "$self_dir/src/scripts/update.sh" "$@"
 fi
 
-# Plumbing for host-side tooling (tmux-tui.conf bindings): where the harness
-# checkout lives, resolved the same way this launcher resolved itself.
+# DEPRECATED compat plumbing: pre-2026-07-22 tmux-tui.conf hooks resolve
+# scripts via `$(./vibe __harness-dir)` per event; current confs read the
+# @vibe_harness_dir option tui.sh stamps once. Live servers on older pins
+# still execute this from NEW checkouts (hooks are global, pins move per
+# project) — remove only after the fleet has relaunched on current confs.
 if [ "${1:-}" = "__harness-dir" ]; then
   printf '%s\n' "$self_dir"
   exit 0

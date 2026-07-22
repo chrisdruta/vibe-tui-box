@@ -130,6 +130,39 @@ case "$server_probe" in
     ;;
 esac
 
+# The server must exist before conf ownership can be decided: boot it here
+# (a no-op when one is already running) so the conf — applied at server
+# START only — and the option stamp below land before any session or hook
+# exists.
+vtmux start-server
+
+# Conf ownership: FIRST-OWNER-AUTHORITATIVE (2026-07-21 decision). The
+# server was styled by whichever project's launch created it (-f applies
+# at server START only), so VIBE_TUI_CONF — the prefix+R reload target —
+# must keep pointing at that owner's conf. The old unconditional
+# set-environment here was last-writer-wins: prefix+R could reload
+# project A's pinned conf over project B's sessions. Content-identical
+# confs (projects on the same pin) adopt silently; real skew warns and
+# leaves ownership alone; a vanished owner path self-heals to this
+# checkout's conf. @vibe_harness_dir rides the same rule: the conf's
+# hooks and bindings resolve their scripts through that option (stamped
+# once here, never per event), so it must keep matching the owner conf's
+# checkout.
+owner_conf="$(vtmux show-environment -g VIBE_TUI_CONF 2>/dev/null | cut -d= -f2-)" || owner_conf=""
+if [ -z "$owner_conf" ] || [ ! -f "$owner_conf" ]; then
+  vtmux set-environment -g VIBE_TUI_CONF "$conf" \; \
+    set-option -g @vibe_harness_dir "$harness_dir"
+elif ! cmp -s "$owner_conf" "$conf"; then
+  echo "vibe tui: the UI server's conf is owned by the project that started it:" >&2
+  echo "  $owner_conf" >&2
+  echo "This checkout pins a DIFFERENT tui conf — its changes are not active, and" >&2
+  echo "prefix+R keeps reloading the owner's. To hand ownership to this project:" >&2
+  echo "  tmux -L $socket kill-server   (container agents keep running), then relaunch." >&2
+  # Deliberate pause (a one-shot display-message was considered): the user
+  # is about to attach to a UI whose conf is not theirs — let it land.
+  sleep 3
+fi
+
 # Session per project. Friendly name first (basename); if a same-named
 # session belongs to a DIFFERENT checkout, fall back to the unique
 # per-checkout project name so two clones never share a session. Plain -t
@@ -226,27 +259,6 @@ EOF2
   # every later window is covered by the conf's hooks.
   main_win="$(vtmux display-message -p -t "$session:main" '#{window_id}')"
   vtmux run-shell -b "bash '$harness_dir/src/scripts/host/sidebar.sh' ensure '$main_win' 2>/dev/null || true"
-fi
-
-# Conf ownership: FIRST-OWNER-AUTHORITATIVE (2026-07-21 decision). The
-# server was styled by whichever project's launch created it (-f applies
-# at server START only), so VIBE_TUI_CONF — the prefix+R reload target —
-# must keep pointing at that owner's conf. The old unconditional
-# set-environment here was last-writer-wins: prefix+R could reload
-# project A's pinned conf over project B's sessions. Content-identical
-# confs (projects on the same pin) adopt silently; real skew warns and
-# leaves ownership alone; a vanished owner path self-heals to this
-# checkout's conf. The server exists by now (created or found above).
-owner_conf="$(vtmux show-environment -g VIBE_TUI_CONF 2>/dev/null | cut -d= -f2-)" || owner_conf=""
-if [ -z "$owner_conf" ] || [ ! -f "$owner_conf" ]; then
-  vtmux set-environment -g VIBE_TUI_CONF "$conf"
-elif ! cmp -s "$owner_conf" "$conf"; then
-  echo "vibe tui: the UI server's conf is owned by the project that started it:" >&2
-  echo "  $owner_conf" >&2
-  echo "This checkout pins a DIFFERENT tui conf — its changes are not active, and" >&2
-  echo "prefix+R keeps reloading the owner's. To hand ownership to this project:" >&2
-  echo "  tmux -L $socket kill-server   (container agents keep running), then relaunch." >&2
-  sleep 3
 fi
 
 # --detach: the session is built (or healed) on the server — stop short
