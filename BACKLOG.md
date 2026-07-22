@@ -48,6 +48,35 @@ designed; entries here are one paragraph of intent, not a spec.
   (2026-07-20): the `GH_TOKEN` create-time passthrough is gone entirely —
   GitHub auth is `gh auth login` with a fine-grained PAT, persisted in the
   per-project state volume, so the remaining scope is the DEV_AUTO_* posture.
+  Design direction (2026-07-22, out of the nested-sandbox discussion): a
+  compose-profile SIBLING SERVICE (`profiles: ["jailed"]`, the existing
+  `build`-profile pattern), same image, launched by a `vibe agent --jailed`
+  flag — read-only workspace bind (or a disposable worktree bind), scratch
+  agent-state volume so no OAuth tokens/session history ride along, no .env
+  loading, network `none` or routed through the egress sidecar (next entry).
+  One flag replaces the manual three-step recipe in security.md; doctor
+  verifies the reduced posture. This is the "different boundary per trust
+  level" answer to inner sandboxes — rejected alternatives recorded in
+  docs/security.md (cap_add SYS_ADMIN, userns-permissive seccomp).
+  Demand-gated on the first real unattended run.
+
+- **Per-project egress visibility (wanted 2026-07-22).** Chris wants a
+  per-project VIEW of what the container talks to — visibility first,
+  enforcement later, the guardrail-not-jail philosophy applied to the one
+  surface security.md admits is wide open. Sketch: (1) a DNS-forwarder
+  sidecar per project (compose service + `dns:` on the dev service) whose
+  query log IS the project's domain ledger — name-level, no MITM, no proxy
+  env vars for tools to ignore, catches every process; (2) an in-container
+  live-socket sampler (`ss`/proc-net — already works unprivileged; packet
+  capture is off the table by design, cap_drop ALL removes NET_RAW)
+  attributing current connections to processes; (3) surface it in the tui —
+  palette window / `vibe exec` trial first, NOT a top-level verb until it
+  earns harness logic (command surface is ABI). Accepted blind spots for a
+  visibility layer: direct-to-IP and DoH skip the DNS log (the sampler
+  still shows those IPs). Upgrade path: the sidecar position is exactly
+  where an L7 allowlist proxy would sit (2026-07 research: dynamic
+  allowlists > static iptables) — that enforcement half is what --jailed's
+  network posture consumes when it lands.
 
 - **RESOLVED (2026-07, differently): the "rewrite the preview subsystem in
   Go" item.** The trigger fired early — dogfooding judged the homegrown
