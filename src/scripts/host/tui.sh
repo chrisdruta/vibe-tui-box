@@ -261,6 +261,11 @@ EOF2
   vtmux run-shell -b "bash '$harness_dir/src/scripts/host/sidebar.sh' ensure '$main_win' 2>/dev/null || true"
 fi
 
+# Nudge open sidebars: session build/heal has no title event to bump the
+# serial, and the render loops' forced full frame is up to 10s away —
+# bump the same signal the dots ride so the fleet list updates in ≤2s.
+vtmux set-option -g @vibe_state_serial "tui$$$RANDOM" 2>/dev/null || true
+
 # --detach: the session is built (or healed) on the server — stop short
 # of attaching. From an open tui it shows up in the sidebar/prefix+o
 # within a poll tick; a later plain `vibe tui` here attaches to it.

@@ -16,6 +16,8 @@
 #                       raw encoding out of the pane border)
 #   pane+window @vibe_glyph / @vibe_dot_fg  the pre-chosen dot + its color
 #   window @vibe_attn   1 while the agent wants a human (tab flash)
+#   server @vibe_state_serial  bumped on every write, riding the same
+#                       server command — the sidebar's cheap change signal
 #
 # Host-side: must stay bash-3.2-safe (stock macOS). Runs under the vibe
 # server via run-shell, which provides TMUX pointing at that server.
@@ -51,7 +53,8 @@ if [ -n "$forced" ]; then
     set-option -p -t "$pane" @vibe_dot_fg "$vibe_state_hex" \; \
     set-option -w -t "$pane" @vibe_glyph "$vibe_glyph" \; \
     set-option -w -t "$pane" @vibe_dot_fg "$vibe_state_hex" \; \
-    set-option -w -t "$pane" @vibe_attn 0 2>/dev/null
+    set-option -w -t "$pane" @vibe_attn 0 \; \
+    set-option -g @vibe_state_serial "$$$RANDOM" 2>/dev/null
   exit 0
 fi
 
@@ -91,7 +94,8 @@ tmux set-option -p -t "$pane" @vibe_state "$state" \; \
   set-option -p -t "$pane" @vibe_dot_fg "$dot_fg" \; \
   set-option -w -t "$pane" @vibe_glyph "$vibe_glyph" \; \
   set-option -w -t "$pane" @vibe_dot_fg "$dot_fg" \; \
-  set-option -w -t "$pane" @vibe_attn "$attn" 2>/dev/null || exit 0
+  set-option -w -t "$pane" @vibe_attn "$attn" \; \
+  set-option -g @vibe_state_serial "$$$RANDOM" 2>/dev/null || exit 0
 
 # Human label for the pane border: the border format prefers @vibe_title,
 # so stamping the session name here keeps the raw vibe1|… encoding from

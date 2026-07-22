@@ -31,10 +31,16 @@
 #                      which render publishes each frame, so there is no
 #                      second copy of the layout arithmetic to drift
 #
-# Refresh is a 2s poll INSIDE each sidebar pane (the branch line has no
-# tmux event to hook anyway); the status line stays event-driven. If the
-# poll ever matters, move the dots to `tmux wait-for` nudges from
-# state-render.sh and keep the poll only as the branch fallback.
+# Refresh is a 2s poll INSIDE each sidebar pane, but an idle tick is ONE
+# display-message round trip: a full redraw happens only when
+# @vibe_state_serial moved (state-render.sh bumps it with every dot
+# write; tui.sh bumps it on session build/heal) or on every 5th tick —
+# the 10s forced frame covers what has no serial: the branch line,
+# renames, session create/destroy. The status line stays event-driven.
+# Why not events outright: tmux wait-for has a lost-signal race and no
+# timeout, bash 3.2 has no `wait -n` (so a fallback poll must exist
+# anyway), and signaling sidebars FROM state-render.sh would put
+# list-panes + kills on the hot path to save work on the cold one.
 #
 # Host-side: bash-3.2-safe (stock macOS). Runs under the vibe server
 # (run-shell provides TMUX for toggle/ensure; the pane's environment for
@@ -199,6 +205,18 @@ branch_of() {
   esac
 }
 
+put() { # LINE CLICK_TARGET — fleet-section appender: buffer + row counter
+  # + click map advance together (empty target = not clickable)
+  buf="$buf
+$1$eol"
+  row=$((row + 1))
+  [ -z "$2" ] || map="$map $row:$2"
+}
+put_at() { # ROW LINE CLICK_TARGET — absolute-row twin for the roster
+  out="$out$(printf '\033[%d;1H' "$(($1 + 1))")$2$eol"
+  [ -z "$3" ] || map="$map $1:$3"
+}
+
 frame() {
   info="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{pane_width} #{pane_height} #{session_id} #{session_name}' 2>/dev/null)" || info=""
   read -r width height sid_self here <<EOF0
@@ -213,8 +231,10 @@ EOF0
   buf="$(printf '\033[H')$eol"
   # Click map: pane row -> session id, published as @vibe_sidebar_map for
   # the click mode above. A session claims its name row, branch row, AND
-  # the blank row under it — click slop, and insurance against an
-  # off-by-one in mouse_y indexing across tmux versions.
+  # the blank row under it — deliberate click slop. put/put_at are the
+  # ONLY appenders: one call advances the buffer, the row counter, and
+  # the map together, so the drawn frame and the click targets cannot
+  # skew. (Map keys are 0-based mouse_y rows.)
   row=0
   map=""
   agent_lines=""
@@ -276,19 +296,13 @@ EOF2
     [ "$nmax" -lt 8 ] && nmax=8
     shown="$name"
     [ "${#shown}" -gt "$nmax" ] && shown="$(printf '%.*s' $((nmax - 1)) "$shown")…"
-    buf="$buf
-${mark}${reset} ${bold}${name_c}${shown}${reset}${dots}${reset}${eol}"
-    row=$((row + 1)); map="$map $row:$sid"
+    put "${mark}${reset} ${bold}${name_c}${shown}${reset}${dots}${reset}" "$sid"
     br="$(branch_of "$path")"
     if [ -n "$br" ]; then
       [ "${#br}" -gt $((max - 2)) ] && br="$(printf '%.*s' $((max - 3)) "$br")…"
-      buf="$buf
-   ${c_dim}⎇ ${br}${reset}${eol}"
-      row=$((row + 1)); map="$map $row:$sid"
+      put "   ${c_dim}⎇ ${br}${reset}" "$sid"
     fi
-    buf="$buf
-$eol"
-    row=$((row + 1)); map="$map $row:$sid"
+    put "" "$sid"
   done <<EOF
 $(tmux list-sessions -F "#{session_id}$tab#{session_name}$tab#{session_path}" 2>/dev/null | sort -t "$tab" -k2)
 EOF
@@ -306,19 +320,19 @@ EOF
     start="$min_start"
   fi
   if [ "$n_agents" -gt 0 ] && [ "$n_show" -ge 1 ]; then
-    out="$(printf '\033[%d;1H' $((start + 1)))${c_dim}agents${reset}${eol}"
+    out=""
+    put_at "$start" "${c_dim}agents${reset}" ""
     r=$((start + 1))
     i=0
     overflow=$((n_agents - n_show))
     while IFS="$tab" read -r target aline; do
       [ -n "$target" ] || continue
       if [ "$overflow" -gt 0 ] && [ "$i" -eq $((n_show - 1)) ]; then
-        out="$out$(printf '\033[%d;1H' $((r + 1)))   ${c_dim}… +$((overflow + 1)) more${reset}${eol}"
+        put_at "$r" "   ${c_dim}… +$((overflow + 1)) more${reset}" ""
         i=$((i + 1))
         break
       fi
-      out="$out$(printf '\033[%d;1H' $((r + 1)))${aline}${eol}"
-      map="$map $r:$target"
+      put_at "$r" "$aline" "$target"
       r=$((r + 1))
       i=$((i + 1))
       [ "$i" -ge "$n_show" ] && break
@@ -337,16 +351,27 @@ EOF3
 }
 
 last_map=""
+last_serial=""
+tick=0
 printf '\033[?25l'
 trap 'printf "\033[?25h"' EXIT
 frame
 [ "$once" = "1" ] && exit 0
 while :; do
   sleep 2
+  # ONE round trip per idle tick: die-check and change detection together.
+  poll="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{window_panes} #{@vibe_state_serial}' 2>/dev/null)" || exit 0
+  n="${poll%% *}"
+  serial="${poll#* }"
+  case "$n" in '' | *[!0-9]*) exit 0 ;; esac
   # Last real pane gone (shell exited, window would linger on just us):
   # let the window die with it. The main window's agent corpse still
   # counts as a pane (remain-on-exit), so it keeps its sidebar.
-  n="$(tmux list-panes -t "${TMUX_PANE:-}" 2>/dev/null | wc -l)" || exit 0
   [ "$n" -le 1 ] && exit 0
+  tick=$(((tick + 1) % 5))
+  if [ "$serial" = "$last_serial" ] && [ "$tick" -ne 0 ]; then
+    continue # nothing moved; the 10s forced frame covers serial-less bits
+  fi
+  last_serial="$serial"
   frame
 done
