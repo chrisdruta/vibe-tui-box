@@ -58,6 +58,68 @@ vibe_checkout_suffix() {
   printf '%s' "$digest" | tr -dc '0-9a-f' | cut -c1-8
 }
 
+# vibe_resolve_project_name ROOT VIBE_DIR_NAME prints the per-checkout
+# compose project identity (top finding of the 2026-07 external review):
+# a basename-only project name collides across same-named checkouts, and
+# the collision is the whole compose namespace — containers, sidecars,
+# network, image tags — not just the documented agent-state volume. The
+# identity is therefore
+#   vibe-<sanitized basename>-<8-hex canonical-path digest>
+# persisted in <vibe-dir>/.project-id on first use (per checkout, never
+# committed; git worktrees each get their own). The FILE is the identity:
+# moving a checkout keeps its containers; deleting the file regenerates
+# the same suffix for an unmoved checkout. Checkouts that already ran
+# under the unsuffixed name adopt it instead — probed via compose's own
+# project + working_dir labels (docker ANDs repeated label filters, which
+# is exactly right here), so another same-named repo's containers can
+# never trigger adoption. The agent-state volume name stays derived from
+# the bare basename: separate, documented ABI (AGENTS.md).
+vibe_resolve_project_name() {
+  local root="$1" vibe_dir="$2"
+  local project_slug project_id_file project_name legacy_probe_ok legacy_ids exclude_file
+  project_slug="$(vibe_project_slug "$root")"
+  project_id_file="$root/$vibe_dir/.project-id"
+  project_name=""
+  if [ -f "$project_id_file" ]; then
+    project_name="$(tr -d '[:space:]' <"$project_id_file")"
+    case "$project_name" in
+      "" | *[!a-z0-9_-]*) project_name="" ;; # corrupt/foreign content: reseed
+    esac
+  fi
+  if [ -z "$project_name" ]; then
+    legacy_probe_ok=1
+    legacy_ids="$(docker ps -aq \
+      --filter "label=com.docker.compose.project=$project_slug" \
+      --filter "label=com.docker.compose.project.working_dir=$root" \
+      2>/dev/null)" || legacy_probe_ok=0
+    if [ -n "$legacy_ids" ]; then
+      project_name="$project_slug"
+    else
+      project_name="$project_slug-$(vibe_checkout_suffix "$root")"
+    fi
+    if [ "$legacy_probe_ok" = 1 ]; then
+      # Persist only when the daemon answered — a down daemon could
+      # misclassify a pre-suffix checkout as fresh and strand its containers.
+      printf '%s\n' "$project_name" >"$project_id_file.tmp" \
+        && mv "$project_id_file.tmp" "$project_id_file"
+      # Per-checkout and never committed: park the ignore entry in
+      # .git/info/exclude (worktree-shared) instead of churning the
+      # consumer's .gitignore. Best-effort — a read-only or non-git tree
+      # just skips it.
+      exclude_file="$(git -C "$root" rev-parse --git-path info/exclude 2>/dev/null || true)"
+      if [ -n "$exclude_file" ]; then
+        case "$exclude_file" in /*) ;; *) exclude_file="$root/$exclude_file" ;; esac
+        if mkdir -p "$(dirname -- "$exclude_file")" 2>/dev/null; then
+          grep -qxF "$vibe_dir/.project-id" "$exclude_file" 2>/dev/null \
+            || printf '%s\n' "$vibe_dir/.project-id" >>"$exclude_file" 2>/dev/null \
+            || true
+        fi
+      fi
+    fi
+  fi
+  printf '%s\n' "$project_name"
+}
+
 find_repo_root_from_pwd() {
   local dir="$PWD"
   while [ "$dir" != "/" ]; do
