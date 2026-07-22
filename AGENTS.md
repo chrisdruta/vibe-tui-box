@@ -82,6 +82,27 @@ consuming project — bias toward small, reviewable, backward-compatible commits
   `svc.sh`). No command string crossing the docker boundary interpolates
   data; pass values via `docker exec -e` instead.
 
+## Path discovery — three sanctioned idioms
+
+How a script finds the harness/project is one of exactly three shapes; do
+not invent a fourth:
+
+1. **Positional anchor** (container lifecycle scripts): source
+   `src/scripts/lib-core.sh` — HARNESS_DIR/VIBE_DIR from the script's own
+   location, subprocess-light, hook-safe — or `lib.sh` on top of it when
+   REPO_ROOT/config.env/DEV_* defaults are needed (never from hooks: lib.sh
+   runs git and sources config).
+2. **Host $PWD walk** (`repo-root.sh`): PATH-installed entry points (`vibe`,
+   `update.sh`) resolve whichever project you stand in. The readlink
+   self-canonicalization loops (stock macOS readlink has no `-f`) and the
+   tmux conf's tui.sh-stamped `@vibe_harness_dir` option are this idiom's
+   plumbing.
+3. **Baked two-home self-resolution** (`review.sh`, `show-image.sh`,
+   `svc.sh`, `preview-lib.sh`): these also run as baked `/usr/local` copies
+   with no harness checkout, so they self-canonicalize, fall back from
+   checkout to `/usr/local/lib/vibe`, and read config via their own $PWD
+   walk. They can never source lib.sh.
+
 ## Before changing code
 
 - Read `docs/architecture.md` and `docs/security.md`.

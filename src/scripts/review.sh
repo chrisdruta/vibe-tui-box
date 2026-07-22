@@ -22,9 +22,9 @@ set -uo pipefail
 
 WINDOW_NAME=preview
 
-# Canonicalize our own path (readlink loop, not GNU-only `readlink -f`) so
-# --ensure/--focus relaunch the SAME copy: baked spawns baked, checkout
-# spawns checkout.
+# Canonicalize our own path (readlink loop, not GNU-only `readlink -f`;
+# the launcher `vibe` carries the same loop) so --ensure/--focus relaunch
+# the SAME copy: baked spawns baked, checkout spawns checkout.
 self_path="${BASH_SOURCE[0]}"
 while [ -L "$self_path" ]; do
   link_target="$(readlink "$self_path")"

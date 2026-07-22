@@ -44,10 +44,18 @@ fi
 path="${1:-}"
 if [ -z "$path" ]; then
   # Newest image by mtime across /tmp clips AND VIBE_PREVIEW_DIR/GLOB
-  # from config.env (where captures and generated images land).
-  for cfg in "$script_dir/../../../config.env" "$PWD/.vibe/config.env" "$PWD/.devcontainer/config.env"; do
-    # shellcheck disable=SC1090  # runtime project config, path known only here
-    if [ -f "$cfg" ]; then . "$cfg"; break; fi
+  # from config.env (where captures and generated images land). Nearest
+  # project config above $PWD — the same walk shape as svc.sh/review.sh
+  # (idiom 3, AGENTS.md "Path discovery"): panes live inside the project
+  # and `vibe show` cexecs at the repo root, while a script-relative
+  # guess breaks under the baked copy.
+  dir="$PWD"
+  while [ "$dir" != "/" ]; do
+    for cfg in "$dir/.vibe/config.env" "$dir/.devcontainer/config.env"; do
+      # shellcheck disable=SC1090  # runtime project config
+      if [ -f "$cfg" ]; then . "$cfg"; break 2; fi
+    done
+    dir="$(dirname -- "$dir")"
   done
   watch_dir="${VIBE_PREVIEW_DIR:-/tmp}"
   name_args=()

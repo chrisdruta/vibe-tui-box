@@ -82,7 +82,11 @@ command -v tmux >/dev/null 2>&1 || exit 0
 # Project field from the per-checkout identity, sanitized: the title string
 # transits terminals as an OSC payload and is parsed host-side — keep it to
 # a safe charset and bounded length. session/instance are harness-minted.
-proj="$(tr -cd 'A-Za-z0-9._-' <"${CLAUDE_PROJECT_DIR:-.}/.vibe/.project-id" 2>/dev/null | head -c 48)"
+# lib-core anchors VIBE_DIR on this script's location, not the cwd — and
+# stays hook-safe (no git, no config.env; lib.sh never belongs in hooks).
+# shellcheck source=lib-core.sh disable=SC1091
+. "$(dirname -- "${BASH_SOURCE[0]}")/lib-core.sh"
+proj="$({ tr -cd 'A-Za-z0-9._-' <"$VIBE_DIR/.project-id" | head -c 48; } 2>/dev/null)"
 [ -n "$proj" ] || proj="$(basename "${CLAUDE_PROJECT_DIR:-$PWD}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
 
 # Plain -t name, no "=" prefix: 3.7b set-option -t takes a pane-style

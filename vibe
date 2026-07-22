@@ -14,7 +14,8 @@ set -euo pipefail
 # file with the project's .vibe/compose.yaml merged on top; lifecycle
 # (post-create once per container, post-start per start) is run from here.
 
-# Resolve symlinks with a loop (stock macOS readlink has no -f).
+# Resolve symlinks with a loop (stock macOS readlink has no -f; review.sh
+# carries the same loop for its baked-vs-checkout self-resolve).
 self_path="${BASH_SOURCE[0]}"
 while [ -L "$self_path" ]; do
   link_target="$(readlink "$self_path")"
