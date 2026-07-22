@@ -50,10 +50,10 @@ if [ -n "$in_container" ]; then
   # Resolve a sha from the workspace submodule objects as DATA only (rev-parse
   # reads objects; it does not check out or run hooks).
   sub="$repo_root/$vd/harness"
-  new_sha="$(git -C "$sub" rev-parse -q --verify "$target^{commit}" 2>/dev/null || true)"
+  new_sha="$(vibe_git -C "$sub" rev-parse -q --verify "$target^{commit}" 2>/dev/null || true)"
   [ -n "$new_sha" ] || { echo "Not a known tag/ref in the harness objects: $target" >&2; exit 1; }
-  git -C "$repo_root" update-index --cacheinfo "160000,$new_sha,$vd/harness" 2>/dev/null \
-    || git -C "$repo_root" update-index --add --cacheinfo "160000,$new_sha,$vd/harness"
+  vibe_git -C "$repo_root" update-index --cacheinfo "160000,$new_sha,$vd/harness" 2>/dev/null \
+    || vibe_git -C "$repo_root" update-index --add --cacheinfo "160000,$new_sha,$vd/harness"
   echo "Staged gitlink $vd/harness -> $new_sha (in-container)."
   echo "On the host, run 'vibe update' or just 'vibe' here to review, trust, and rebuild."
   exit 0
@@ -131,8 +131,8 @@ else
 fi
 
 # Stage the gitlink directly — no submodule checkout, no hook surface.
-git -C "$repo_root" update-index --cacheinfo "160000,$new_sha,$vd/harness" 2>/dev/null \
-  || git -C "$repo_root" update-index --add --cacheinfo "160000,$new_sha,$vd/harness"
+vibe_git -C "$repo_root" update-index --cacheinfo "160000,$new_sha,$vd/harness" 2>/dev/null \
+  || vibe_git -C "$repo_root" update-index --add --cacheinfo "160000,$new_sha,$vd/harness"
 
 # Materialize + trust the new version now (review already happened above).
 dest="$(vibe_materialize "$new_sha" "$mirror" 2>/dev/null || true)"

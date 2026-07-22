@@ -55,7 +55,7 @@ fi
 #    --remote; else the harness checkout's own origin. NEVER derived from a
 #    project's .gitmodules.
 if [ -z "$remote" ]; then
-  remote="$(git -C "$harness_dir" remote get-url origin 2>/dev/null || true)"
+  remote="$(vibe_git -C "$harness_dir" remote get-url origin 2>/dev/null || true)"
 fi
 if [ -n "$remote" ]; then
   vibe_set_canonical_remote "$remote" || say "self-install: keeping existing canonical remote"
@@ -67,7 +67,7 @@ else
 fi
 
 # 3. Materialize the SHA this checkout is at (the version the shim will run).
-sha="$(git -C "$harness_dir" rev-parse HEAD 2>/dev/null || true)"
+sha="$(vibe_git -C "$harness_dir" rev-parse HEAD 2>/dev/null || true)"
 if [ -z "$sha" ]; then
   printf 'self-install: could not read the harness HEAD sha\n' >&2
   exit 1

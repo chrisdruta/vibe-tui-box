@@ -58,11 +58,11 @@ snapshot_worktree() {
   local tmpidx tree commit
   tmpidx="$(vibe_mktemp "$home/state/lock")" || return 1
   rm -f "$tmpidx"   # git wants to create it fresh
-  if ! GIT_INDEX_FILE="$tmpidx" git -C "$src" add -A 2>/dev/null; then
+  if ! GIT_INDEX_FILE="$tmpidx" vibe_git -C "$src" add -A 2>/dev/null; then
     rm -f "$tmpidx" "$tmpidx.lock"; return 1; fi
-  tree="$(GIT_INDEX_FILE="$tmpidx" git -C "$src" write-tree 2>/dev/null)" || { rm -f "$tmpidx" "$tmpidx.lock"; return 1; }
+  tree="$(GIT_INDEX_FILE="$tmpidx" vibe_git -C "$src" write-tree 2>/dev/null)" || { rm -f "$tmpidx" "$tmpidx.lock"; return 1; }
   rm -f "$tmpidx" "$tmpidx.lock"
-  commit="$(git -C "$src" \
+  commit="$(vibe_git -C "$src" \
     -c user.name='vibe dev' -c user.email='dev@vibe.local' \
     commit-tree "$tree" -m 'vibe dev snapshot' 2>/dev/null)" || return 1
   vibe_materialize "$commit" "$src/.git"

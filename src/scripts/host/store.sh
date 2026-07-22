@@ -760,6 +760,23 @@ vibe_compose_gate() {
   return 0
 }
 
+# ── hardened git for possibly-hostile repos ───────────────────────────────
+# A workspace/submodule .git/config is container-writable, and LOCAL config is
+# NOT disabled by GIT_CONFIG_NOSYSTEM. Several config knobs execute a command as
+# a side effect of otherwise-innocent plumbing — core.fsmonitor fires whenever
+# the index is refreshed (e.g. `ls-files -s`, `update-index`, `add`), and
+# hooks/pager/ext-protocol are further vectors. Run EVERY git command that
+# targets a workspace repo through this wrapper, which pins those knobs inert.
+vibe_git() {
+  git -c core.fsmonitor= \
+      -c core.hooksPath=/dev/null \
+      -c core.pager=cat \
+      -c core.askpass= \
+      -c protocol.ext.allow=never \
+      -c uploadpack.packObjectsHook= \
+      "$@"
+}
+
 # ── reading the project's pin as DATA (never porcelain on workspace .git) ──
 # The submodule gitlink SHA recorded in the superproject. Read via plumbing
 # against the superproject's object store as pure data — no checkout, no hook,
@@ -767,10 +784,11 @@ vibe_compose_gate() {
 # what the human is about to commit).
 vibe_read_pin() {
   local root="$1" sha
-  # Staged gitlink (index) first.
-  sha="$(git -C "$root" ls-files -s -- .vibe/harness 2>/dev/null | awk '$1==160000{print $2; exit}')"
+  # Staged gitlink (index) first. Hardened git: ls-files refreshes the index,
+  # which would fire a planted core.fsmonitor without the wrapper.
+  sha="$(vibe_git -C "$root" ls-files -s -- .vibe/harness 2>/dev/null | awk '$1==160000{print $2; exit}')"
   if [ -z "$sha" ]; then
-    sha="$(git -C "$root" ls-tree HEAD -- .vibe/harness 2>/dev/null | awk '$2=="commit"{print $3; exit}')"
+    sha="$(vibe_git -C "$root" ls-tree HEAD -- .vibe/harness 2>/dev/null | awk '$2=="commit"{print $3; exit}')"
   fi
   case "$sha" in
     *[!0-9a-f]* | "") return 1 ;;
