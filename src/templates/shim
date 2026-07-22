@@ -29,10 +29,9 @@ sh_sanitize_env() {
   done
   GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0
   export GIT_CONFIG_NOSYSTEM GIT_TERMINAL_PROMPT
-  case ":$PATH:" in
-    *:/usr/bin:*) ;;
-    *) PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"; export PATH ;;
-  esac
+  # System dirs FIRST (see store.sh vibe_sanitize_env, sol M10) — a workspace
+  # dir earlier in PATH must not supply git/sed/stat for the store lookup.
+  PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"; export PATH
 }
 
 sh_store_home() {
@@ -41,6 +40,23 @@ sh_store_home() {
   fi
   [ -n "${HOME:-}" ] || sh_die "HOME is unset — cannot locate the trust store"
   printf '%s/.vibe\n' "$HOME"
+}
+
+# Minimal store safety before we consume it (sol H6): no symlink components,
+# store dir owned by us and not group/world-writable. The trusted launcher does
+# the full vibe_path_is_secure walk; this is the shim's own guard.
+sh_store_secure() {
+  local home="$1" uid owner perm
+  case "$home" in /*) ;; *) sh_die "store path is not absolute: $home" ;; esac
+  [ -L "$home" ] && sh_die "store dir is a symlink: $home"
+  [ -d "$home" ] || return 0   # not created yet (first contact handles bootstrap)
+  uid="$(id -u)"
+  owner="$(stat -c '%u' "$home" 2>/dev/null || stat -f '%u' "$home" 2>/dev/null || echo -1)"
+  [ "$owner" = "$uid" ] || sh_die "store dir $home is not owned by you"
+  perm="$(stat -c '%a' "$home" 2>/dev/null || stat -f '%Lp' "$home" 2>/dev/null || echo '')"
+  case "$perm" in
+    *[2367][0-9] | *[2367]) sh_die "store dir $home is group/world-writable — chmod 700 it" ;;
+  esac
 }
 
 sh_sha256_file() {
@@ -80,20 +96,34 @@ sh_record_get() {
   return 1
 }
 
-# Verify the exec-critical scripts of a version dir against its manifest before
-# handing control to it. Cheap: a handful of files, not the whole tree.
+# Verify a version dir against its manifest before handing control to it. FULL
+# verification (every file, and no extra/removed files) — the launcher sources
+# store.sh and later runs other host scripts, so a hand-picked subset is not
+# enough (sol H7). Rejects symlinks/special files too.
 sh_verify_exec() {
-  local dest="$1" home sha manifest rel f hash want
+  local dest="$1" home sha manifest line hash mode rel f count=0 want
   home="$(sh_store_home)"; sha="$(basename -- "$dest")"
   manifest="$home/versions/$sha.manifest"
   [ -f "$manifest" ] || return 1
-  for rel in vibe src/scripts/repo-root.sh src/scripts/host/store.sh; do
-    f="$dest/$rel"; [ -f "$f" ] || continue
-    [ -L "$f" ] && return 1
-    hash="$(sh_sha256_file "$f")"
-    want="$(grep -E " $rel\$" "$manifest" | head -1 | cut -d' ' -f1)"
-    [ -n "$want" ] && [ "$hash" = "$want" ] || return 1
-  done
+  [ -d "$dest" ] || return 1
+  # Any symlink/special file in the tree is an immediate fail.
+  if find "$dest" -type l 2>/dev/null | grep -q . || \
+     find "$dest" ! -type f ! -type d 2>/dev/null | grep -q .; then
+    return 1
+  fi
+  # Every manifest entry must match (hash + mode).
+  while IFS=' ' read -r hash mode rel; do
+    [ -n "$rel" ] || continue
+    f="$dest/$rel"
+    [ -f "$f" ] && [ ! -L "$f" ] || return 1
+    want="$(sh_sha256_file "$f")"
+    [ "$want" = "$hash" ] || return 1
+    count=$((count + 1))
+  done <"$manifest"
+  # And there must be no EXTRA files beyond the manifest.
+  local actual
+  actual="$(find "$dest" -type f 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$actual" = "$count" ] || return 1
   return 0
 }
 
@@ -108,6 +138,7 @@ sh_newest_version() {
 sh_sanitize_env
 
 home="$(sh_store_home)"
+sh_store_secure "$home"
 [ -d "$home" ] || sh_die "no trust store at $home — run the installer's self-step (.vibe/harness/install.sh --self from a checkout you trust)"
 
 root="$(sh_repo_root || true)"

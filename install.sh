@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The installer runs git against the TARGET repository, whose local config is
+# container-writable in a live project. Wrap every git call so a planted
+# core.fsmonitor / hook / pager can't execute during the bootstrap ceremony.
+# (Custom clean/smudge filters on `git add` remain a documented bootstrap
+# residual — install.sh is run deliberately from a checkout you trust.)
+git() {
+  command git -c core.fsmonitor= -c core.hooksPath=/dev/null \
+    -c core.pager=cat -c protocol.ext.allow=never "$@"
+}
+
 usage() {
   cat <<'USAGE'
 Usage: install.sh [OPTIONS] [TARGET]

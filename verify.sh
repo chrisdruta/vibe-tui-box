@@ -106,6 +106,19 @@ chmod u+w "$st_dest/vibe"; printf 'x' >>"$st_dest/vibe"
 if vibe_verify_version "$st_sha" >/dev/null 2>&1; then
   echo "FAIL: tampered version still verifies" >&2; exit 1
 fi
+# Re-materialize clean, then an EXTRA file must fail full verification (H7).
+st_dest="$(vibe_materialize "$st_sha" "$repo_root/.git" 2>/dev/null)"
+chmod u+w "$st_dest"; : >"$st_dest/EXTRA-FILE"
+if vibe_verify_version "$st_sha" >/dev/null 2>&1; then
+  echo "FAIL: version with an extra file still verifies" >&2; exit 1
+fi
+rm -f "$st_dest/EXTRA-FILE"
+vibe_verify_version "$st_sha" >/dev/null 2>&1 || { echo "FAIL: clean re-verify after removing extra" >&2; exit 1; }
+# path security (H6): non-absolute and world-writable dirs are refused.
+if vibe_path_is_secure "relative/x" 2>/dev/null; then echo "FAIL: relative store path accepted" >&2; exit 1; fi
+st_ww="$store_tmp/ww"; mkdir -p "$st_ww"; chmod 777 "$st_ww"
+if vibe_path_is_secure "$st_ww" 2>/dev/null; then echo "FAIL: world-writable store path accepted" >&2; exit 1; fi
+chmod 700 "$st_ww"
 # Symlink in a source tree → materialize must refuse.
 sl_repo="$store_tmp/slrepo"; mkdir -p "$sl_repo"; git -C "$sl_repo" init -q
 ln -s /etc/passwd "$sl_repo/evil"; echo hi >"$sl_repo/ok"
@@ -186,6 +199,46 @@ services:
 YAML
 if vibe_enforce_compose "$enf_dir/rwharness.yaml" "$ws" "/nonexistent-repo" "$enf_store" >/dev/null 2>&1; then
   echo "FAIL: enforcement accepted a writable harness overmount" >&2; exit 1
+fi
+# A compliant DECOY service must not satisfy the dev requirements for an unsafe
+# dev, and user: vscodeevil must not pass the (end-anchored) user check.
+cat >"$enf_dir/decoy.yaml" <<YAML
+services:
+  dev:
+    user: root
+    volumes:
+      - type: bind
+        source: $enf_store/x
+        target: /workspaces/$ws/.vibe/harness
+        read_only: true
+  decoy:
+    user: vscode
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+YAML
+if vibe_enforce_compose "$enf_dir/decoy.yaml" "$ws" "/nonexistent-repo" "$enf_store" >/dev/null 2>&1; then
+  echo "FAIL: enforcement accepted an unsafe dev with a compliant decoy service" >&2; exit 1
+fi
+# RW bind of a store version at a decoy target (would let the container rewrite
+# the trusted tree) must be refused (C1).
+cat >"$enf_dir/rwstore.yaml" <<YAML
+services:
+  dev:
+    user: vscode
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - type: bind
+        source: $enf_store/x
+        target: /workspaces/$ws/.vibe/harness
+        read_only: true
+      - type: bind
+        source: $enf_store/x
+        target: /mnt/decoy
+        read_only: false
+YAML
+if vibe_enforce_compose "$enf_dir/rwstore.yaml" "$ws" "/nonexistent-repo" "$enf_store" >/dev/null 2>&1; then
+  echo "FAIL: enforcement accepted a RW store bind at a decoy target" >&2; exit 1
 fi
 # First contact must FAIL CLOSED without a tty (piped stdin here).
 fc_app="$store_tmp/fcapp"; mkdir -p "$fc_app/.vibe"; git -C "$fc_app" init -q

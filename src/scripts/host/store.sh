@@ -44,10 +44,13 @@ vibe_sanitize_env() {
   GIT_CONFIG_NOSYSTEM=1
   GIT_TERMINAL_PROMPT=0
   export GIT_CONFIG_NOSYSTEM GIT_TERMINAL_PROMPT
-  case ":$PATH:" in
-    *:/usr/bin:*) ;;
-    *) PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}" ;;
-  esac
+  # ALWAYS put the system dirs FIRST so the trusted-op tools (git, sed, stat,
+  # awk, sha256sum, tar, …) resolve from there — a workspace-controlled dir
+  # earlier in the inherited PATH must not be able to supply them. The inherited
+  # tail is kept so host tools like docker (Homebrew/Colima paths) still resolve.
+  # (The earlier guard skipped this whenever /usr/bin was already present, i.e.
+  # always — the reset never happened; sol M10.)
+  PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"
   export PATH
 }
 
@@ -77,15 +80,21 @@ vibe_store_home() {
   printf '%s/.vibe\n' "$HOME"
 }
 
-# A path is safe if no component is a symlink, and every EXISTING component is
-# a directory owned by us or by root, and no non-owned component is writable by
-# group/other (a world-writable ancestor a non-root attacker controls could
-# swap a component). Root-owned system ancestors (/, /home) are expected and
-# fine — a root that owns them can already do anything. Walks store root -> /.
+# A path is safe if it is absolute and no component is a symlink, every EXISTING
+# component is a directory owned by us or by root, and NO component is writable
+# by group/other without the sticky bit — regardless of owner (a dir you own but
+# left world-writable still lets another user swap children; sol H6). Root-owned
+# system ancestors (/, /home) are expected. Walks the path -> /.
 vibe_path_is_secure() {
   local dir="$1" uid
+  case "$dir" in
+    /*) ;;
+    *) printf 'vibe: refusing non-absolute store path: %s\n' "$dir" >&2; return 1 ;;
+  esac
   uid="$(id -u)"
-  while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+  local prev=""
+  while [ -n "$dir" ] && [ "$dir" != "/" ] && [ "$dir" != "$prev" ]; do
+    prev="$dir"
     if [ -L "$dir" ]; then
       printf 'vibe: refusing symlinked path component: %s\n' "$dir" >&2
       return 1
@@ -95,29 +104,25 @@ vibe_path_is_secure() {
         printf 'vibe: expected a directory: %s\n' "$dir" >&2
         return 1
       fi
-      # BSD stat (macOS) vs GNU stat (Linux) — try both spellings.
-      local owner perm
+      local owner perm sticky group other
       owner="$(vibe_stat_owner "$dir")"
       if [ "$owner" != "$uid" ] && [ "$owner" != "0" ]; then
         printf 'vibe: %s is owned by uid %s (not you or root)\n' "$dir" "$owner" >&2
         return 1
       fi
-      if [ "$owner" != "$uid" ]; then
-        # A root-owned ancestor is fine unless it is group/other-writable
-        # WITHOUT the sticky bit (a non-root attacker could swap the component).
-        perm="$(vibe_stat_mode "$dir")"
-        # Normalize to 4 digits: sticky/setuid, owner, group, other.
-        while [ "${#perm}" -lt 4 ]; do perm="0$perm"; done
-        local sticky group other
-        sticky="${perm%"${perm#?}"}"    # first char
-        group="$(printf '%s' "$perm" | cut -c3)"
-        other="$(printf '%s' "$perm" | cut -c4)"
-        case "$sticky" in 1) ;; *)  # sticky bit makes a writable dir safe enough
+      # Group/other-writability check for EVERY component, sticky excepted.
+      perm="$(vibe_stat_mode "$dir")"
+      while [ "${#perm}" -lt 4 ]; do perm="0$perm"; done
+      sticky="${perm%"${perm#?}"}"    # first char (setuid/setgid/sticky nibble)
+      group="$(printf '%s' "$perm" | cut -c3)"
+      other="$(printf '%s' "$perm" | cut -c4)"
+      case "$sticky" in
+        1) ;;  # sticky dir: others can't rename/replace your entries
+        *)
           case "$group" in 2|3|6|7) printf 'vibe: %s is group-writable and not sticky\n' "$dir" >&2; return 1 ;; esac
           case "$other" in 2|3|6|7) printf 'vibe: %s is world-writable and not sticky\n' "$dir" >&2; return 1 ;; esac
           ;;
-        esac
-      fi
+      esac
     fi
     dir="$(dirname -- "$dir")"
   done
@@ -144,6 +149,15 @@ vibe_store_init() {
   esac
   ( umask 077 && mkdir -p "$home/versions" "$home/state/projects" \
       "$home/state/snapshots" "$home/state/lock" "$home/bin" ) || return 1
+  # None of the internal dirs may be symlinks (defense in depth — ~/.vibe is
+  # 0700 so only we can write here, but never follow a link out of the store).
+  local d
+  for d in versions state state/projects state/snapshots state/lock bin; do
+    if [ -L "$home/$d" ]; then
+      printf 'vibe: store subdir is a symlink: %s\n' "$home/$d" >&2
+      return 1
+    fi
+  done
   printf '%s\n' "$home"
 }
 
@@ -334,33 +348,53 @@ vibe_materialize() {
     rm -rf "$work"; vibe_unlock "$lock"; return 1
   fi
 
-  # 4. Publish, freeze, THEN manifest. Order matters two ways: renaming a
-  #    directory that has subdirectories needs write on the directory itself
-  #    (the kernel rewrites child ".." links) so a-w must come after the move;
-  #    and the manifest records file modes, so it must be built from the FROZEN
-  #    tree (444), or verify's rebuild-from-frozen would mismatch the recorded
-  #    644.
-  local manifest="$work/manifest"
-  # Clear any prior (frozen) dir at this path before re-publishing.
-  if [ -d "$dest" ]; then chmod -R u+w "$dest" 2>/dev/null || true; rm -rf "$dest"; fi
-  if ! mv "$tree" "$dest"; then
+  # 4. Publish atomically and fail-closed. Stage inside versions/ (same
+  #    filesystem), freeze, manifest from the FROZEN tree (modes are recorded,
+  #    so the manifest must reflect 444), publish the MANIFEST FIRST, then
+  #    same-parent-rename the frozen staging dir to <sha> (a same-parent rename
+  #    does not rewrite child ".." links, so it works on a read-only dir). The
+  #    final <sha> dir therefore never exists without its manifest already in
+  #    place — no window where a verifier sees a tree with a stale/absent
+  #    manifest. Every chmod/hash step is checked; a failure aborts.
+  local stg="$home/versions/.stg.$sha.$$" manifest="$home/versions/.mf.$sha.$$"
+  rm -rf "$stg"
+  if ! mv "$tree" "$stg"; then
     rm -rf "$work"; vibe_unlock "$lock"; return 1
   fi
-  chmod -R a-w "$dest" 2>/dev/null || true
-  if ! vibe_build_manifest "$dest" >"$manifest"; then
-    chmod -R u+w "$dest" 2>/dev/null; rm -rf "$dest" "$work"; vibe_unlock "$lock"; return 1
+  if ! chmod -R a-w "$stg"; then
+    printf 'vibe: could not freeze %s\n' "$stg" >&2
+    chmod -R u+w "$stg" 2>/dev/null; rm -rf "$stg" "$work"; vibe_unlock "$lock"; return 1
   fi
-  mv -f "$manifest" "$home/versions/$sha.manifest"
+  if ! vibe_build_manifest "$stg" >"$manifest" || [ ! -s "$manifest" ]; then
+    printf 'vibe: manifest build failed for %s\n' "$sha" >&2
+    chmod -R u+w "$stg" 2>/dev/null; rm -rf "$stg" "$manifest" "$work"; vibe_unlock "$lock"; return 1
+  fi
+  # Clear any prior published version, then publish manifest before tree.
+  if [ -d "$dest" ]; then chmod -R u+w "$dest" 2>/dev/null || true; rm -rf "$dest"; fi
+  rm -f "$home/versions/$sha.manifest"
+  if ! mv -f "$manifest" "$home/versions/$sha.manifest" || ! mv "$stg" "$dest"; then
+    printf 'vibe: publish failed for %s\n' "$sha" >&2
+    rm -f "$home/versions/$sha.manifest"; chmod -R u+w "$stg" 2>/dev/null
+    rm -rf "$stg" "$dest" "$work"; vibe_unlock "$lock"; return 1
+  fi
   rm -rf "$work" 2>/dev/null || true
   vibe_unlock "$lock"
   printf '%s\n' "$dest"
 }
 
-# Walk a tree; fail if any entry is a symlink, gitlink dir, or non-regular /
-# non-dir special file. bash-3.2: no `find -print0 | while read -d` needed —
-# newlines in harness paths don't occur, and we control the input tree.
+# Walk a tree; fail if any entry is a symlink, gitlink dir, non-regular/non-dir
+# special file, or has a newline in its path (the line-oriented manifest can't
+# represent those unambiguously — reject rather than mis-verify; sol H8).
 vibe_tree_is_clean() {
   local tree="$1"
+  # Newline in any path: compare line count to NUL-delimited entry count.
+  local nlines nentries
+  nlines="$(find "$tree" 2>/dev/null | wc -l)"
+  nentries="$(find "$tree" -print0 2>/dev/null | tr -cd '\0' | wc -c)"
+  if [ "$nlines" != "$nentries" ]; then
+    printf 'vibe: refusing materialized tree: a path contains a newline\n' >&2
+    return 1
+  fi
   # Symlinks (files or dirs) first — find -type l catches both.
   if find "$tree" -type l 2>/dev/null | grep -q .; then
     printf 'vibe: refusing materialized tree: contains a symlink\n' >&2
@@ -407,29 +441,13 @@ vibe_verify_version() {
   printf '%s\n' "$sha"
 }
 
-# Cheap pre-exec check: verify only the handful of scripts the launcher is
-# about to run, not the whole tree (full check lives in doctor). $1 = version
-# dir. Verifies vibe + the host scripts against the manifest.
+# Pre-exec verification of a version dir ($1). A tampered store.sh or any other
+# host-executed/sourced file must be caught, so this verifies the WHOLE tree
+# against the manifest — not a hand-picked subset that omitted some scripts
+# (sol H7). A full rebuild+compare of ~100 small files is a few tens of ms,
+# acceptable before the (much slower) docker work that follows.
 vibe_verify_exec_paths() {
-  local dest="$1" manifest sha rel f mode hash want
-  sha="$(basename -- "$dest")"
-  local home; home="$(vibe_store_home)" || return 1
-  manifest="$home/versions/$sha.manifest"
-  [ -f "$manifest" ] || { printf 'vibe: no manifest for %s\n' "$sha" >&2; return 1; }
-  for rel in vibe src/scripts/host/tui.sh src/scripts/host/state-render.sh \
-             src/scripts/host/sidebar.sh src/scripts/host/clip-to-pane.sh \
-             src/scripts/repo-root.sh src/scripts/update.sh; do
-    f="$dest/$rel"
-    [ -f "$f" ] || continue
-    [ -L "$f" ] && { printf 'vibe: %s is a symlink in the version tree\n' "$rel" >&2; return 1; }
-    hash="$(vibe_sha256_file "$f")"
-    want="$(grep -E " $rel\$" "$manifest" | head -1 | cut -d' ' -f1)"
-    if [ -z "$want" ] || [ "$hash" != "$want" ]; then
-      printf 'vibe: %s fails manifest verification\n' "$rel" >&2
-      return 1
-    fi
-  done
-  return 0
+  vibe_verify_version "$(basename -- "$1")" >/dev/null
 }
 
 # ── canonical remote & host mirror (publisher authentication) ─────────────
@@ -668,8 +686,13 @@ vibe_enforce_compose() {
     if ! printf '%s\n' "$dev" | grep -Eq "^[[:space:]]*user:[[:space:]]*[\"']?vscode[\"']?[[:space:]]*$"; then
       violations="$violations user-not-vscode"
     fi
-    # cap_drop must include ALL, within the dev block.
-    if ! printf '%s\n' "$dev" | awk '/^[[:space:]]*cap_drop:/{f=1;next} f&&/(^|[[:space:]"'\''\[,-])ALL([[:space:]"'\'',\]]|$)/{e=1} f&&/^[[:space:]]*[a-zA-Z_]+:/{f=0} END{exit !e}'; then
+    # cap_drop must include ALL, within the dev block — inline (`cap_drop: [ALL]`)
+    # or block-style (`cap_drop:` then `- ALL`).
+    if ! printf '%s\n' "$dev" | awk '
+        /^[[:space:]]*cap_drop:/ { f=1; if ($0 ~ /ALL/) e=1; next }
+        f && /ALL/ { e=1 }
+        f && /^[[:space:]]*[a-zA-Z_]+:/ { f=0 }
+        END { exit !e }'; then
       violations="$violations cap_drop-not-ALL"
     fi
     # no-new-privileges:true in the dev block's security_opt.
