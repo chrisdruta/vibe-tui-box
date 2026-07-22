@@ -133,8 +133,13 @@ esac
 # The server must exist before conf ownership can be decided: boot it here
 # (a no-op when one is already running) so the conf — applied at server
 # START only — and the option stamp below land before any session or hook
-# exists.
-vtmux start-server
+# exists. A sessionless server self-exits the instant its last client
+# drops (exit-empty defaults on), so a bare start-server is already dead
+# by the next command — the cold-start / --fresh failure, live report
+# 2026-07-22. Chaining exit-empty off into the SAME client invocation
+# holds it open through the boot phase; restored below once a session
+# pins the server, so closing your last session still stops the UI.
+vtmux start-server \; set-option -s exit-empty off
 
 # Conf ownership: FIRST-OWNER-AUTHORITATIVE (2026-07-21 decision). The
 # server was styled by whichever project's launch created it (-f applies
@@ -261,6 +266,13 @@ EOF2
   main_win="$(vtmux display-message -p -t "$session:main" '#{window_id}')"
   vtmux run-shell -b "bash '$harness_dir/src/scripts/host/sidebar.sh' ensure '$main_win' 2>/dev/null || true"
 fi
+
+# Boot bracket closed: a session pins the server now, so restore the
+# die-with-last-session default. Waiting until here also covers the heal
+# path above — its kill-session may drop the server's LAST session, and
+# with exit-empty on the server (stamp and all) would evaporate before
+# the rebuild.
+vtmux set-option -s exit-empty on
 
 # Nudge open sidebars: session build/heal has no title event to bump the
 # serial, and the render loops' forced full frame is up to 10s away —
