@@ -36,7 +36,16 @@ else
 fi
 
 # Host-side scripts must stay bash-3.2 compatible (stock macOS bash).
-host_side_files=(install.sh verify.sh vibe src/templates/vibe src/scripts/update.sh src/scripts/repo-root.sh src/scripts/host/start-ollama.sh src/scripts/host/clip-image.sh)
+# EVERY script that can run on the host belongs here — the src/scripts/host/
+# tree in full, plus the launcher chain and the libs they source.
+host_side_files=(
+  install.sh verify.sh vibe src/templates/vibe
+  src/scripts/update.sh src/scripts/repo-root.sh
+  src/scripts/host/tui.sh src/scripts/host/sidebar.sh
+  src/scripts/host/dock.sh src/scripts/host/state-render.sh
+  src/scripts/host/clip-image.sh src/scripts/host/clip-to-pane.sh
+  src/scripts/host/install-tmux.sh src/scripts/host/start-ollama.sh
+)
 docker_ok=""
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   docker_ok=1
