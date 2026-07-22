@@ -182,7 +182,27 @@ if ! vtmux has-session -t "$session" 2>/dev/null; then
   # VIBE_NESTED rides the session environment into every pane: cexec
   # forwards it into docker exec, and agent-entry.sh turns the INNER
   # status bar off so only this server draws chrome.
-  vtmux new-session -d -s "$session" -c "$repo_root" -e VIBE_NESTED=1 -n main "./vibe agent"
+  #
+  # --detach births the session at a live client's size when one exists:
+  # detached sessions default to 80x24, and the first visiting client's
+  # window-size=latest resize stretches panes PROPORTIONALLY — the
+  # sidebar ballooned from 26/80 to ~half a real terminal (live report,
+  # 2026-07-22). The conf's window-resized fit hook is the backstop
+  # either way; this just makes the first visit seamless.
+  size_w="" size_h=""
+  if [ "$action" = "detach" ]; then
+    read -r size_w size_h <<EOF2
+$(vtmux list-clients -F '#{client_width} #{client_height}' 2>/dev/null | head -1)
+EOF2
+  fi
+  case "$size_w$size_h" in
+    '' | *[!0-9]*) size_w="" ;;
+  esac
+  if [ -n "$size_w" ]; then
+    vtmux new-session -d -x "$size_w" -y "$size_h" -s "$session" -c "$repo_root" -e VIBE_NESTED=1 -n main "./vibe agent"
+  else
+    vtmux new-session -d -s "$session" -c "$repo_root" -e VIBE_NESTED=1 -n main "./vibe agent"
+  fi
 
   agent_pane="$(vtmux display-message -p -t "$session:main" '#{pane_id}')"
   vtmux set-option -p -t "$agent_pane" @vibe_role "agent"

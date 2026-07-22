@@ -45,12 +45,18 @@ sidebar_panes() { # sidebar pane ids in window $1, oldest first
     awk -F "$tab" '$2 == "sidebar" { print $1 }'
 }
 
+sidebar_w() { # the one width knob: @vibe_sidebar_w (conf), default 26
+  w="$(tmux show-options -gqv @vibe_sidebar_w 2>/dev/null)"
+  case "$w" in '' | *[!0-9]*) w=26 ;; esac
+  printf '%s' "$w"
+}
+
 create_in() {
   win="$1"
   self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
   # Full-height split BEFORE the leftmost pane; input off so stray clicks
   # can't type into the render loop; focus returns to where the user was.
-  pane="$(tmux split-window -fhb -l 26 -t "$win" -P -F '#{pane_id}' \
+  pane="$(tmux split-window -fhb -l "$(sidebar_w)" -t "$win" -P -F '#{pane_id}' \
     "exec bash '$self' render")"
   # Empty pane-level @vibe_glyph: user-option lookup cascades pane ->
   # window, so without this the window's agent dot bleeds onto the
@@ -117,6 +123,22 @@ click)
   else
     tmux switch-client -t "$sid" 2>/dev/null
   fi
+  exit 0
+  ;;
+fit)
+  # Window resizes stretch panes PROPORTIONALLY, so a client visiting a
+  # window born at another size balloons/squeezes the sidebar (detached
+  # --detach sessions are born 80 cols wide; live report, 2026-07-22).
+  # The conf's window-resized hook calls this to snap the sidebar back to
+  # its fixed chrome width. Fires only on window-size changes — manual
+  # border drags don't resize the window, so they are never fought.
+  win="${2:-}"
+  [ -n "$win" ] || exit 0
+  want="$(sidebar_w)"
+  for p in $(sidebar_panes "$win"); do
+    cur="$(tmux display-message -p -t "$p" '#{pane_width}' 2>/dev/null)"
+    [ "$cur" = "$want" ] || tmux resize-pane -t "$p" -x "$want" 2>/dev/null
+  done
   exit 0
   ;;
 render) ;;
