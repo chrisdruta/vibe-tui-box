@@ -4,7 +4,7 @@
 # socket (-L vibe) for all vibe projects on this host; one session per
 # project. The default layout is the pre-`vibe open` workflow folded into
 # one surface: agent pane (docker exec -> container tmux, persistence as
-# ever) beside a native HOST shell pane (git on the host side, vibe clip).
+# ever) over a native HOST shell dock (git on the host side, vibe clip).
 # More windows come from the palette (prefix+Space) or the "+" tab.
 #
 # Host-side: keep bash-3.2 compatible (stock macOS).
@@ -191,7 +191,11 @@ if ! vtmux has-session -t "$session" 2>/dev/null; then
   # layout; prefix+r respawns it.
   vtmux set-option -p -t "$agent_pane" remain-on-exit on
 
-  host_pane="$(vtmux split-window -h -l '30%' -c "$repo_root" -t "$agent_pane" -P -F '#{pane_id}')"
+  # Host shell as a BOTTOM dock (IDE-terminal style, 2026-07-22 request):
+  # under the agent, not beside it. The sidebar splits full-height later,
+  # so the dock spans the area right of the sidebar — the VS Code shape.
+  # prefix+t (dock.sh) collapses it to a 1-row strip and back.
+  host_pane="$(vtmux split-window -v -l '30%' -c "$repo_root" -t "$agent_pane" -P -F '#{pane_id}')"
   vtmux set-option -p -t "$host_pane" @vibe_role "host"
   vtmux set-option -p -t "$host_pane" @vibe_title "host"
 

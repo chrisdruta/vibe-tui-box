@@ -160,6 +160,7 @@ them in WT settings or use `prefix+arrows` / `Alt+1..9` instead):
 | `prefix g` | host git popup in the repo root (lazygit when installed) |
 | `prefix o` | switch project — session tree of everything on the vibe socket |
 | `prefix b` | toggle the project sidebar everywhere (on by default) |
+| `prefix t` | collapse/expand the bottom host dock (IDE-terminal style) |
 | `prefix r` | respawn a dead agent pane (it stays visible on exit) |
 | `prefix d` | detach — everything keeps running; `vibe tui` reattaches |
 | `prefix Q` | quit the UI session (asks first; agents keep running) |

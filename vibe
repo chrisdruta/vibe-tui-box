@@ -100,7 +100,7 @@ Commands:
   exec        Run an arbitrary command in the container (no .env loading)
   clip        Save the host clipboard image for the container: /tmp, or DIR in the workspace
   tui         The workspace as a riced host-side tmux — THE front door:
-              agent pane | host shell pane, tabbed windows, palette on
+              agent pane over a host dock, tabbed windows, palette on
               prefix+Space (needs tmux >= 3.4 on the host; pinned 3.7b
               build: src/scripts/host/install-tmux.sh)
               (--kill: stop the UI server — all projects' tui sessions,
