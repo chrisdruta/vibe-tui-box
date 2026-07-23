@@ -8,6 +8,17 @@ records, not fences.
 
 ## Open
 
+- **v2: clean-slate Go engine.** Architecture in
+  [docs/architecture-v2.md](docs/architecture-v2.md) (2026-07-23; awaiting
+  sol adversarial review): single attested binary embedding the container
+  payload; projects author a closed `vibe.yaml` schema and the binary
+  *renders* compose (no user-authored compose, no scanner); release-based
+  distribution replaces the git-mirror/submodule machinery; tmux stays the
+  UI; container scripts stay bash. No migration — old installs reinstall,
+  projects re-init. Rationale for the retired strangler approach:
+  [docs/go-port-plan.md](docs/go-port-plan.md). Step 0 (Go toolchain,
+  module skeleton, CI) is in the tree.
+
 - **Reduced-trust profile for unattended runs (`vibe agent --jailed`).**
   Promised in docs/security.md ("planned but not implemented"). Design
   direction (2026-07-22): a compose-profile sibling service

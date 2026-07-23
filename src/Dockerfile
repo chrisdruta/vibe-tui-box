@@ -76,6 +76,10 @@ ARG INSTALL_BUN=false
 ARG BUN_VERSION=1.3.14
 ARG INSTALL_ROKIT=false
 ARG ROKIT_VERSION=1.2.0
+ARG INSTALL_GO=false
+ARG GO_VERSION=1.26.5
+ARG GO_SHA256_AMD64=5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053
+ARG GO_SHA256_ARM64=fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49
 # Match the host user's UID so bind-mount writes stay owned by the host
 # user (the devcontainer CLI used to sync this silently). WSL's default is
 # 1000 — a no-op; macOS file sharing does not need it.
@@ -94,7 +98,7 @@ ARG REVDIFF_SHA256_AMD64=7958a6bef723267fed18b0be96476bb767636afe966338ed7e370c0
 ARG REVDIFF_SHA256_ARM64=87c522516e2d0ef113b74ff729a1e9072aad9958f1aeb6836b90d2b8fa2e0762
 
 ENV LANG=C.UTF-8 \
-    PATH=/home/vscode/.local/bin:/home/vscode/.bun/bin:/home/vscode/.rokit/bin:${PATH}
+    PATH=/home/vscode/.local/bin:/home/vscode/.bun/bin:/home/vscode/.rokit/bin:/usr/local/go/bin:/home/vscode/go/bin:${PATH}
 
 USER root
 
@@ -185,6 +189,24 @@ RUN tmp="$(mktemp -d)" \
     && tar -xzf "$tmp/revdiff.tar.gz" -C "$tmp" \
     && install -m 0755 "$tmp/revdiff" /usr/local/bin/ \
     && rm -rf "$tmp"
+
+# Go toolchain (official tarball, pinned by version + per-arch checksum,
+# upstream layout under /usr/local/go — PATH above already carries
+# /usr/local/go/bin and ~/go/bin). Powers harness development (the host
+# engine port, docs/go-port-plan.md) and Go projects alike.
+RUN if [ "${INSTALL_GO}" = "true" ]; then \
+        tmp="$(mktemp -d)" \
+        && case "$(uname -m)" in \
+             x86_64)  arch=amd64; sha="${GO_SHA256_AMD64}" ;; \
+             aarch64) arch=arm64; sha="${GO_SHA256_ARM64}" ;; \
+             *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+           esac \
+        && curl -fsSL -o "$tmp/go.tar.gz" \
+            "https://go.dev/dl/go${GO_VERSION}.linux-${arch}.tar.gz" \
+        && echo "${sha}  $tmp/go.tar.gz" | sha256sum -c - \
+        && tar -C /usr/local -xzf "$tmp/go.tar.gz" \
+        && rm -rf "$tmp"; \
+    fi
 
 # Node is required by the npm-distributed Codex CLI and available standalone.
 RUN if [ "${INSTALL_NODE}" = "true" ] || [ "${INSTALL_CODEX}" = "true" ]; then \

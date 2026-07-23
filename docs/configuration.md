@@ -98,6 +98,7 @@ services:
         INSTALL_NODE: "false"
         INSTALL_BUN: "false"
         INSTALL_ROKIT: "false"
+        INSTALL_GO: "false"      # Go toolchain (official tarball, /usr/local/go)
 ```
 
 The seeded `compose.yaml` carries every toggle as a live line at its
@@ -109,7 +110,7 @@ Docker layer, so a flip rebuilds only from that layer down.
 [extending.md](extending.md#swapping-the-bottom-of-the-chain-base_image).
 
 Versions are pinned as Dockerfile ARGs (`UV_VERSION`, `BUN_VERSION`, `ROKIT_VERSION`,
-`CODEX_VERSION`, `NODE_MAJOR`, `YAZI_VERSION`) and
+`CODEX_VERSION`, `NODE_MAJOR`, `YAZI_VERSION`, `GO_VERSION`) and
 overridable per project without touching the submodule. `CLAUDE_CODE_VERSION`
 (default `stable`) and `GROK_VERSION` (default latest stable) are the
 consciously mutable components — set concrete versions to freeze them.

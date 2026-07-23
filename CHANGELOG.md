@@ -8,6 +8,13 @@ Consumers pin a commit; tags mark intentional upgrade points
 The delta since v0.7.3 is a re-founding: a new engine, a new front door, and
 a new host security architecture. Grouped by theme, breaking changes first.
 
+- **`INSTALL_GO` image toggle** (default `false`): official Go tarball,
+  pinned `GO_VERSION` + per-arch checksum, upstream layout under
+  `/usr/local/go`; image `PATH` gains `/usr/local/go/bin` and `~/go/bin`.
+  First consumer is the harness itself — the host-engine Go port
+  ([docs/go-port-plan.md](docs/go-port-plan.md)) develops inside the
+  dogfood container, which flips the toggle on.
+
 - **BREAKING: the devcontainer engine is gone — `vibe` drives docker
   compose + docker exec directly.** Host requirements drop to git + docker
   (no Node, no `@devcontainers/cli`). The container is defined by the

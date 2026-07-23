@@ -20,6 +20,7 @@ services:
         INSTALL_NODE: "false"
         INSTALL_BUN: "false"
         INSTALL_ROKIT: "false"
+        INSTALL_GO: "true" # harness host-engine port (docs/go-port-plan.md)
 
   # Dev-container deltas. Uncomment the whole block (comments may stay);
   # everything not set here comes from the harness base.

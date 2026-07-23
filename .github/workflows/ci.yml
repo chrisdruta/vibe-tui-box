@@ -27,6 +27,27 @@ jobs:
           docker run --rm -i hadolint/hadolint \
             hadolint --ignore DL3008 --ignore DL3003 - < src/Dockerfile
 
+  go:
+    # Host-engine port (docs/go-port-plan.md). Grows with the port; the
+    # shell suite above keeps gating what still runs as shell.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt (no diffs)
+        run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      # Default output name collides with the root bash launcher until
+      # step 1 retires it — build with -o (see cmd/vibe/main.go).
+      - run: go build -o bin/vibe ./cmd/vibe && bin/vibe version
+      - run: go test ./...
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+
   build-image:
     # Full image build of the minimal preset via the compose engine —
     # exercises the live installer pipelines that verify.sh cannot.
