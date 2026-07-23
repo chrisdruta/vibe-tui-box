@@ -1,12 +1,45 @@
 # Changelog
 
-Consumers pin a commit; tags mark intentional upgrade points
-(see [docs/updating.md](docs/updating.md)).
+Projects pin a release artifact by digest; tags mark intentional upgrade
+points (see [docs/installation.md](docs/installation.md)).
 
-## Unreleased
+## Unreleased — v2 cutover
 
-The delta since v0.7.3 is a re-founding: a new engine, a new front door, and
-a new host security architecture. Grouped by theme, breaking changes first.
+**BREAKING: the bash/compose harness is gone; `vibe` is one compiled Go
+binary.** Clean slate, no migration: v1 installs reinstall
+([docs/installation.md](docs/installation.md)), projects `vibe init` fresh.
+The v1 line and its history remain in git up to the cutover commit.
+
+- Removed: the root `vibe` launcher, `install.sh`, `verify.sh`, `src/`
+  (Dockerfile, compose base, host + container scripts, templates), the
+  `examples/` compose presets, and the `.vibe/harness` submodule
+  distribution. Presets now ship inside the binary (`payload/presets/`,
+  seeded by `vibe init`).
+- Replaced: project configuration is one closed `.vibe/vibe.yaml`
+  ([docs/configuration.md](docs/configuration.md)) — no user-authored
+  compose, no compose scanner; the engine compiles a canonical plan and
+  drives the Docker API directly, reconciling containers by candidate
+  digest.
+- New engine surface ([docs/usage.md](docs/usage.md)): immutable
+  content-addressed artifacts/candidates/snapshots under `~/.vibe`;
+  `provision`/`update` release flow with streamed checksum verification;
+  the rebuild-request broker (`vibe request`) with digest-addressed
+  approval; digest-approved image extensions; `vibe dev on/sync/off` for
+  engine development; doctor, tmux TUI, and hidden state renderers.
+- v1-era docs (architecture, usage, configuration, installation,
+  security, extending, updating, services, onboarding, agent-state,
+  browser-automation, local-models, roblox) were removed or rewritten for
+  v2; the v1 versions live in git history.
+- CI now gates the Go engine: fmt/vet/build/test, golangci-lint,
+  payload-manifest drift, ShellCheck on the container payload, and the
+  three-platform cross-compile matrix.
+
+## v1 final state (unreleased, superseded by the v2 cutover)
+
+The delta since v0.7.3 was a re-founding of the v1 line: a new engine, a
+new front door, and a new host security architecture; it was superseded
+by v2 before release and is retained here for the record. Grouped by
+theme, breaking changes first.
 
 - **`INSTALL_GO` image toggle** (default `false`): official Go tarball,
   pinned `GO_VERSION` + per-arch checksum, upstream layout under

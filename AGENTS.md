@@ -9,27 +9,21 @@ rebuild broker, dev-mode builds) and embeds the container payload it
 mounts into every project. Coding agents run *inside* the containers
 this engine manages; the engine itself is the host-side root of trust.
 
-The repository is mid-transition between two generations:
-
-- **v2 (primary — all new work goes here):** the Go engine under
-  `cmd/vibe` and `internal/`, specified by
-  [docs/architecture-v2.md](docs/architecture-v2.md) and
-  [docs/go-engine-design.md](docs/go-engine-design.md). All eight
-  implementation slices of the design are in the tree.
-- **v1 (legacy, maintenance only):** the bash harness under `src/`,
-  `install.sh`, and the root `vibe` launcher, consumed by existing
-  projects as a pinned submodule at `.vibe/harness`. Do not grow it.
-  It is removed at the v2 cutover (design slice 8's final step); until
-  then keep it working but route every feature to the Go engine.
-
-There is deliberately **no migration path**: v2 is clean-slate. Old
-installs reinstall; projects re-init. Never add v1-record importers.
+The engine is the Go code under `cmd/vibe` and `internal/`, specified by
+[docs/architecture-v2.md](docs/architecture-v2.md) and
+[docs/go-engine-design.md](docs/go-engine-design.md); all eight
+implementation slices of the design are in the tree. The v1 bash/compose
+harness was removed at the cutover and lives only in git history — do not
+resurrect pieces of it, and **never add v1-record importers or migration
+paths**: v1 installs reinstall, projects `vibe init` fresh. The
+repository dogfoods itself: `.vibe/vibe.yaml` makes this checkout a v2
+project, and `vibe dev on` builds the engine from it.
 
 ## Build, test, verify
 
 ```sh
-go build -o bin/vibe ./cmd/vibe   # root `vibe` launcher collides with the
-                                  # default output name — always use -o
+go build -o bin/vibe ./cmd/vibe   # use -o: the default output name `vibe`
+                                  # at the repo root is gitignored clutter
 go test ./...
 go vet ./...
 gofmt -l .                        # must print nothing
@@ -176,5 +170,6 @@ fake-backed tests asserting full request equality, not selected fields.
 Tracked in [BACKLOG.md](BACKLOG.md); the notable engine gaps: store GC,
 fuzz targets (schema/envfile/parsers/terminal), bounded plan diff in
 approval prompts, Sigstore verification behind the existing `Verifier`
-seam, real-daemon exercise of extension and dev builds, and the v1
-bash-harness removal at cutover.
+seam, real-daemon exercise of extension and dev builds, image layers
+consuming `image.agents`/`image.toolchains`, and the first tagged v2
+release.

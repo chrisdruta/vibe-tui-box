@@ -1,213 +1,79 @@
 # Security model
 
-## What the container is for
+The full architecture is in
+[architecture-v2.md](architecture-v2.md); this is the operator's view of
+what the engine does and does not protect.
 
-Reducing **accidental host damage** from an agent working at machine speed: a bad
-`rm`, a curl-piped installer, a runaway build. It is a guardrail, not a jail — it
-does not make running untrusted code safe.
+## The boundary
 
-The container is the isolation boundary, and the harness is built so a process
-**inside** the container cannot reach **host** execution or the docker daemon by
-tampering with the host-executed harness files it can write. That property is the
-**host root of trust** below.
+One container per project. The workload inside — agent CLIs, your code,
+anything they install — is untrusted by the host. The container runs as
+non-root `vscode` with all capabilities dropped and `no-new-privileges`;
+no Docker socket, no host home, no SSH agent, no host network. Published
+ports bind loopback only. The only live host path in the container is
+the registered project root at `/workspace`.
 
-**What is trusted.** The harness runs *your project's* own compose config,
-Dockerfile, and code, with your docker — deliberately. It is a guardrail against
-a **compromised container process** escaping to the host, not a jail that makes
-running **untrusted project code** safe. The `vibe up` compose gate hard-enforces
-the container-hardening invariants (so a compromised container that rewrites
-`.vibe/compose.yaml` toward `privileged`/a docker socket/a host bind is caught),
-and best-effort refuses compose features that read host files or run host
-binaries — but Docker itself documents compose as not a security boundary, so a
-*maliciously authored* compose file is not proven contained. Pointing the harness
-at code or a compose file you do not trust calls for a disposable clone, minimal
-credentials, and the planned `--jailed` profile — the installer and the
-first-contact prompt say so.
+## The host never executes container-writable bytes
 
-## Host root of trust
+Everything the host reads from the workspace — `vibe.yaml`, the env
+file, import sources, `.vibe/Dockerfile`, request JSON — is treated as
+data: parsed by bounded, strict parsers (size, depth, node, and entry
+limits; unknown fields rejected), then **frozen into an immutable
+content-addressed snapshot** before validation or use. Later stages read
+the snapshot, never the workspace, so what you approved cannot change
+under you. Snapshotting itself is symlink-rejecting and FD-confined to
+the project root, and aborts on concurrent mutation.
 
-The one rule the host-side code serves:
+Engine code and the container payload come from digest-addressed
+artifacts under `~/.vibe`, verified against a per-file manifest at
+extraction and install. Release downloads are hashed while streaming
+and checked against the release's `checksums.txt`; archives may contain
+only known entry types at known locations.
 
-> The host never executes, sources, evals, or feeds to the docker daemon any
-> byte a container could have written. Host code runs only from a materialized,
-> content-verified snapshot; host-consumed project inputs are snapshotted and
-> frozen before use; project identity and trust live outside every workspace
-> bind.
+## Environment values
 
-How it works:
+`env_file` entries and `runtime.env` values are opaque container data.
+They are assigned through Docker API fields and are never merged into a
+host process environment, never logged, and never included in the
+canonical plan or its digest. `vibe exec` passes only what you give it
+with `-e`.
 
-- **The store (`~/.vibe`, mode 0700).** Host-executed harness code lives only in
-  `~/.vibe/versions/<sha>/` — immutable trees materialized from git objects
-  (isolated fetch + `git fsck`, `git archive` rather than a checkout so no hooks
-  run, symlinks/gitlinks/special files rejected, an SHA-256 manifest, frozen
-  read-only). Nothing under a workspace bind is ever executed by the host.
-- **The shim.** `~/.vibe/bin/vibe` on your PATH is the only host entry point. It
-  reads no workspace code: it resolves the project you are in to the version it
-  trusts and execs that, after verifying it against its manifest. The root
-  `./vibe` symlink is gone — a workspace file cannot safely tell host from
-  container before it has already run. Inside the container a `vibe` on PATH is
-  the in-container spelling (there, the workspace is within the boundary).
-- **Trust is a human action.** First contact with a project prompts you with the
-  pin and whether it is reachable from a release in your host-owned mirror
-  (publisher authentication); a pin that moved re-prompts before the new code
-  runs. Non-interactive contexts fail closed (`vibe provision` records exact
-  trust for CI).
-- **The RO overmount.** The container gets the *same* trusted tree, read-only,
-  overmounted at `.vibe/harness` — so host and container run the identical SHA,
-  and in-container tampering with harness files cannot propagate to host
-  execution (`vibe doctor` verifies the mount is read-only).
-- **The compose gate.** `.vibe/compose.yaml` / `Dockerfile` are container-
-  writable, so they never reach the daemon directly. Every `vibe up`/`rebuild`/
-  `build`/`config` snapshots the control files host-side, renders the merged
-  config under a scrubbed environment (no project `.env` interpolation), and
-  **structurally enforces** the boundary invariants on the rendered model —
-  non-root `vscode`, `cap_drop: [ALL]`, `no-new-privileges`, the exact workspace
-  and RO-harness mounts, and NONE of: `privileged`, `cap_add`, `devices`, host
-  namespaces, a docker socket at any path, `use_api_socket`, SSH/host-secret
-  binds. A project that genuinely needs one of these must pass `--unsafe`, which
-  loudly disables the boundary for that one command. The build context is the
-  trusted store `src`, never the container-writable submodule.
-- **Update through the mirror only.** `vibe update` fetches and diffs from the
-  host-owned canonical mirror and stages the submodule gitlink with
-  `update-index` — it never fetches, checks out, or runs git porcelain against
-  the container-writable workspace submodule (which could carry a planted
-  `post-checkout` hook or credential helper).
-- **Dogfood / dev mode.** `vibe dev` develops the harness against the store:
-  host execution still runs a *materialized snapshot* of your working tree
-  (`vibe dev sync` re-snapshots after edits) — never the live bind.
+## Agent-initiated changes
 
-### Residual host exposure (not covered by the boundary)
+An agent cannot alter its own container. It can write a request file;
+`vibe request list` binds that request to an immutable candidate built
+from the *current* frozen inputs, and approval addresses the candidate
+digest — not the request file, which the agent could rewrite after you
+looked at it. Request text (and any other agent-authored string the
+engine displays) is rendered through an encoder that makes control
+characters, ANSI escapes, and bidi overrides visible, and interface
+chrome is kept structurally separate from that content.
 
-- **Manual execution of workspace content by a human.** Running
-  `bash .vibe/harness/vibe`, `git` with a repo-local `core.hooksPath`, `make`,
-  `direnv`, etc. by hand executes workspace code outside every guardrail. The
-  harness auto-runs none of it; it cannot stop a person who does.
-- **Terminal-emulator surface.** The container controls bytes reaching your host
-  tmux and terminal (escape sequences, clipboard). That is a terminal-hardening
-  concern, outside the mount boundary.
-- **A separately-exposed Docker API.** A `DOCKER_HOST` pointing at a TCP daemon
-  is as powerful as the socket; `vibe doctor` flags it, but the harness can only
-  see what compose renders, not your host docker configuration.
-- **Same-basename checkouts still share the agent-state volume**
-  (`agent-state-<basename>`) despite distinct host trust records — documented
-  ABI, not isolation.
-- **Compose is not a hard boundary.** The gate scans the project compose
-  *source* for host-file-read / host-exec features (`env_file`, `include`,
-  `extends`, `provider`, `volumes_from`, `label_file`, `configs`/`secrets`,
-  `driver_opts`, `additional_contexts`, `build.ssh`) and refuses them, and
-  structurally enforces the rendered `dev` service and its mounts; the default
-  image-extension context (`./.vibe`) is snapshotted and frozen. But Docker's
-  own compose trust-model documents compose as able to read host files and run
-  host binaries through an evolving set of features — a maliciously *authored*
-  compose file is caught on a best-effort basis, not proven contained. For
-  genuinely untrusted project code, use a disposable clone / the planned
-  `--jailed` profile rather than relying on the compose gate.
-- SHA-1 collision resistance of the pin is mitigated (sha1dc + fsck), not solved.
+## Image extensions widen the boundary
 
-## What the default container enforces
+`extension: true` sends a project-authored Dockerfile to the Docker
+builder. That expands the trusted surface, so the engine narrows it
+first — single `FROM ${VIBE_BASE_IMAGE}` (digest-pinned by the engine),
+no custom BuildKit frontends, no ADD/ONBUILD/multi-stage, must end as
+`vscode` — and then requires explicit operator approval of the frozen
+Dockerfile, per content digest. The build context is a restricted copy
+containing only the Dockerfile and `.vibe/build/`; the env file and
+manifest never reach it.
 
-- Runs as `vscode`, never root; passwordless sudo is removed from the image
-- All Linux capabilities dropped (`--cap-drop=ALL`) and `no-new-privileges`
-- No Docker socket (`/var/run/docker.sock` is never mounted — a mounted socket is
-  effectively root on the host; `vibe doctor` checks for it)
-- No SSH keys, no host home directory — only the workspace and the agent-state
-  volume are mounted
-- No published ports (documented exception: loopback-only binds —
-  `ports: ["127.0.0.1:PORT:PORT"]` — for host tooling that must reach the
-  container, e.g. Roblox Studio → Rojo; see [roblox.md](roblox.md))
-- `.env` is never auto-sourced; secrets reach a process only through explicit
-  `vibe agent` / `vibe run` / `env-run.sh` invocation
+## What is *not* protected
 
-Root maintenance remains possible from the host: `docker exec -u root -it <c> bash`.
-
-## Inner agent sandboxes
-
-A consequence of `--cap-drop=ALL` + `no-new-privileges`: the container permits
-no unprivileged user namespaces, so namespace-based sandboxes cannot start
-**inside** it. `bwrap: No permissions to create new namespace` is this policy
-working, not a bug. Affected: Claude Code's `/sandbox` (bubblewrap), Codex's
-`read-only` / `workspace-write` modes, Chromium's own sandbox
-([browser-automation.md](browser-automation.md)).
-
-The container is the isolation boundary, so the harness defaults the inner
-layers to off-but-graceful instead of broken:
-
-- **Claude Code** — bash sandboxing stays off. The seeded
-  `.claude/settings.json` carries `sandbox.enableWeakerNestedSandbox: true`
-  and `sandbox.failIfUnavailable: false`, both inert until someone enables
-  `/sandbox`; from then on Claude Code warns and falls back to permission
-  rules instead of hard-failing (and would use the weaker nested mode if a
-  future runtime allows namespace creation).
-- **Codex** — bootstrap seeds `sandbox_mode = "danger-full-access"` into
-  `$CODEX_HOME/config.toml`, only when the key is absent (your own setting
-  wins). Codex documents the mode as "intended solely for running in
-  environments that are externally sandboxed" — this container is that
-  environment. Existing containers pick it up via `vibe bootstrap` or the
-  next rebuild.
-
-Do not weaken the outer container (added capabilities, user namespaces) to
-make an inner sandbox start — that inverts the model: it trades the real
-boundary for a redundant one. `cap_add: [SYS_ADMIN]` is root-shaped, and a
-userns-permissive seccomp profile exposes the kernel's user-namespace attack
-surface to everything the bootstrap runs.
-
-Workloads that genuinely want a different jail get a different OUTER
-container instead: a compose-profile sibling of the dev service with its own
-mount/network posture per trust level (see
-[Unattended / autonomous runs](#unattended--autonomous-runs) and the BACKLOG
-"Reduced-trust profile" entry). Same trusted mechanism, nothing widened.
-
-## What it does NOT protect
-
-- **The repository itself.** The agent has full write access to the workspace —
-  including `.git`. Anything valuable in the repo is exposed to whatever runs inside.
-- **Credentials you load in.** The persisted `gh auth login` in the state
-  volume and any keys `.env` loads via `vibe agent` / `vibe run`
-  are readable by the agent and by any project code the bootstrap executes
-  (`npm ci` postinstall scripts, `uv sync` build hooks, etc.). The seeded
-  `.claude/settings.json` denies Claude Code direct reads of `./.env*` — a
-  guardrail against prompt-injected "read me your secrets", not a boundary;
-  the process env still carries whatever `env-run.sh` loaded. Project secrets
-  that agents never need (production credentials) don't belong in the
-  workspace at all; if tooling insists the file exist, bind `/dev/null` over
-  it read-only in `.vibe/compose.yaml` `volumes` so the container sees it empty.
-- **The network.** Outbound access is unrestricted by default.
-
-Per-project agent-state volumes compartmentalize what a compromise reaches: an
-agent run in one project cannot read another project's OAuth tokens or session
-history. Pointing multiple projects at one shared volume (the `source=` edit in
-[agent-state.md](agent-state.md)) extends any single project's compromise to
-every credential and session in it — see
-[positioning.md](positioning.md#why-logins-are-per-project).
-
-## The git-hooks host boundary leak
-
-`DEV_AUTO_GIT_HOOKS=1` runs `git config --local core.hooksPath .githooks` during
-bootstrap. `.git/config` lives on the **shared workspace mount**, so hooks wired up
-in-container also execute when you run git **on the host** — outside every container
-guardrail, with your real SSH keys and credentials.
-
-This is fine for repositories whose hooks you wrote. Before pointing the harness at
-cloned third-party code, set `DEV_AUTO_GIT_HOOKS=0` in `config.env` — and remember
-that `DEV_AUTO_INSTALL` runs that repo's lockfile installs (arbitrary code) inside
-the container regardless.
-
-## Unattended / autonomous runs
-
-A dedicated reduced-trust profile is planned but **not implemented**. Until then,
-for long unattended agent tasks:
-
-- work in a disposable clone or git worktree on a dedicated branch,
-- provide no push-capable credentials: `gh auth login` with a minimum-permission
-  fine-grained PAT, or don't log in at all,
-- review and push from the trusted host side.
-
-## Supply-chain notes
-
-- Consuming projects pin the harness to a commit SHA; a compromised upstream cannot
-  silently change what your existing projects execute. The exposure window is the
-  moment you move the pin — review the diff ([updating.md](updating.md)).
-- The Dockerfile pins tool versions where the upstream supports it (`uv`, Bun,
-  Rokit, Codex, Node major). Claude Code (`stable` channel) and Grok Build (latest
-  stable) are consciously mutable at image-build time; freeze them with build args
-  when reproducibility matters more than freshness.
+- **Egress.** The project network reaches the internet. An agent can
+  exfiltrate anything it can read — which includes `/workspace` and the
+  env values you configured. Give containers the minimum secrets that
+  make the project work.
+- **The workspace.** The agent can modify your code, including files
+  that influence *you* (hooks, scripts you might run on the host).
+  Review diffs; untrusted projects belong in disposable checkouts with
+  minimal credentials.
+- **Docker itself.** The engine trusts the daemon and the images you
+  name in `vibe.yaml`. Release attestation covers the engine, not your
+  base image or Dockerfile instructions.
+- **Approved extensions.** After you approve a Dockerfile, its `RUN`
+  lines execute in the builder with network access. Approval is the
+  security decision; the engine only makes sure you decide on exactly
+  what will run.

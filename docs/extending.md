@@ -1,131 +1,52 @@
-# Extending the image (project layers)
+# Extending the image
 
-The shared harness image carries agents and preset toolchains — the things
-every project wants. Everything else (apt packages, Blender, browser
-libraries, CUDA userlands, …) is a **project image extension**: an ordinary
-Dockerfile the project owns, chained onto the shared image. The shared
-Dockerfile never grows another flag for it.
+System-level additions the base image doesn't carry (apt packages,
+Blender, browser libraries, …) go in a project-owned Dockerfile built on
+top of the pinned base.
 
-```text
-src/Dockerfile ──build──► <project>-base ──FROM──► .vibe/Dockerfile ──build──► <project>-dev
-   (harness-owned,            (shared image,           (project-owned,            (what `dev` runs)
-    INSTALL_* args)            always built)            optional)
+## Setup
+
+1. In `vibe.yaml`, set `image.extension: true`.
+2. Create `.vibe/Dockerfile`:
+
+```dockerfile
+ARG VIBE_BASE_IMAGE
+FROM ${VIBE_BASE_IMAGE}
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libgl1 blender \
+    && rm -rf /var/lib/apt/lists/*
+USER vscode
 ```
 
-`vibe` sequences the two builds (base first, then the extension when one is
-declared), so the extension always chains onto the current base — after a
-pin update that changes the harness Dockerfile, `vibe rebuild` rebuilds the
-base and re-chains your extension automatically.
+3. `vibe up`. The engine freezes the Dockerfile (plus `.vibe/build/` if
+   present — that directory is the only extra COPY source), shows it to
+   you with its content digest, and asks for approval. The build runs
+   only after you approve; the resulting image is pinned by digest into
+   the candidate.
 
-## Adding an extension
-
-1. Create `.vibe/Dockerfile`:
-
-   ```dockerfile
-   ARG VIBE_BASE_IMAGE
-   FROM ${VIBE_BASE_IMAGE}
-
-   USER root          # root work happens HERE, at build time only
-   RUN apt-get update \
-       && apt-get install -y --no-install-recommends blender \
-       && apt-get clean && rm -rf /var/lib/apt/lists/*
-   USER vscode        # extension images must end non-root
-   ```
-
-2. Seed `.vibe/.dockerignore` from
-   `src/templates/extensions/dockerignore` (keeps the harness submodule out
-   of the build context and out of cache-key churn).
-
-3. Declare the build in `.vibe/compose.yaml` — `image:` and `build:` go
-   together (without `image:` the extension would overwrite the base tag):
-
-   ```yaml
-   services:
-     dev:
-       image: ${VIBE_PROJECT_NAME}-dev
-       build:
-         context: ./.vibe
-         args:
-           VIBE_BASE_IMAGE: ${VIBE_PROJECT_NAME}-base
-   ```
-
-4. `vibe rebuild`.
-
-Worked examples live in [`examples/extensions/`](../examples/extensions/)
-(playwright, blender); `install.sh --extras playwright` performs these steps
-for you at install time.
+Approval is **per changed digest**, not a standing trust in the file
+path: edit the Dockerfile and the next `up` asks again. Unchanged
+content never re-prompts.
 
 ## The contract
 
-- **Start** `ARG VIBE_BASE_IMAGE` / `FROM ${VIBE_BASE_IMAGE}` — the launcher
-  passes the base tag in; never hardcode an image name.
-- **Root only at build time, end `USER vscode`.** Belt and braces: the
-  compose base also forces `user: vscode`, `cap_drop: [ALL]`, and
-  `no-new-privileges` at runtime, so image content cannot weaken the
-  running container — but a well-formed extension ends non-root anyway.
-- **Multi-arch**: the image must build on amd64 and arm64 (Apple Silicon).
-  Prefer distro packages (like the Blender example) or arch-aware
-  installers; a bare x86_64 tarball breaks half the hosts.
-- **State**: anything for an agent CLI must survive the `~/.agents` volume
-  mount — binaries to `~/.local/bin`, never under `~/.agents`.
-- The base image's `SHELL` (bash + pipefail), `ENV`, and `PATH` are
-  inherited — `RUN curl | bash` pipelines fail loudly like they do in the
-  harness Dockerfile.
+The validator is deliberately narrow. Allowed: `RUN`, `COPY` (from the
+frozen context), `ENV`, `ARG`, `WORKDIR`, `LABEL`, `USER` (ending as
+`vscode`). Rejected: custom `# syntax` frontends, any `FROM` other than
+`${VIBE_BASE_IMAGE}` (declared with `ARG VIBE_BASE_IMAGE` first),
+multi-stage builds, `ADD`, `ONBUILD`, and a final user other than
+`vscode`. The engine supplies `VIBE_BASE_IMAGE` as the digest-pinned
+base — the Dockerfile cannot choose its own base.
 
-## Swapping the bottom of the chain: `BASE_IMAGE`
+`RUN` lines execute in Docker's builder with network access once
+approved — that is what the approval step is for; see
+[security.md](security.md).
 
-Extensions chain onto the *top* of the shared image; the *bottom* is also
-project-swappable. `.vibe/compose.yaml` can override the `BASE_IMAGE` build
-arg on the `base` service (compose merges build-arg maps key-by-key, so
-overriding one arg keeps the others):
+## Choosing base vs extension
 
-```yaml
-services:
-  base:
-    build:
-      args:
-        BASE_IMAGE: mcr.microsoft.com/devcontainers/python:3.14
-```
-
-The presets default to `mcr.microsoft.com/devcontainers/*` images, but
-nothing in the harness requires that family — they are plain OCI images
-here; no VS Code or devcontainer CLI is involved. A custom `BASE_IMAGE`
-must provide:
-
-- **Debian-family userland with `apt-get`** — the shared Dockerfile installs
-  its own tooling (git, gh, curl, ripgrep, tmux, …) via apt and assumes
-  Debian conventions.
-- **A `vscode` user** (conventionally UID 1000; the build syncs the UID via
-  `usermod`) with its home at `/home/vscode` — the harness never creates
-  this user, and the name is load-bearing: the runtime `user:`, the
-  `~/.agents` volume paths, and the extension contract above all assume it.
-  A stock `debian:`/`python:*-bookworm` image works with a thin layer that
-  adds the user and UTF-8 locale first.
-- **amd64 and arm64 variants**, same as extensions.
-
-## Image tags and rebuild semantics
-
-Per project (name derived from the workspace folder, sanitized):
-
-| Tag                       | Built from          | When                                  |
-| ------------------------- | ------------------- | ------------------------------------- |
-| `vibe-<name>-base`        | `src/Dockerfile`    | always (build-only `base` service)    |
-| `vibe-<name>-dev`         | `.vibe/Dockerfile`  | only when the project declares it     |
-
-- `vibe up` — builds only when an image is missing; otherwise fast no-op.
-  Editing a Dockerfile does **not** rebuild on `up` (same as before).
-- `vibe rebuild` — always rebuilds base then extension (cache-honoring:
-  unchanged layers are instant), then recreates the container. This is the
-  command after editing `.vibe/Dockerfile`, `.vibe/compose.yaml` build args,
-  or moving the harness pin.
-- `vibe build` — both builds, no container churn.
-- Old image layers accumulate like any docker workflow; `docker image prune`
-  reclaims them.
-
-## What still belongs in the shared image
-
-Agent CLIs (`INSTALL_CLAUDE_CODE`, `INSTALL_CODEX`, `INSTALL_GROK`) and
-preset toolchains (`INSTALL_NODE`, `INSTALL_BUN`, `INSTALL_ROKIT`) stay
-build args on the `base` service — they are the presets' identity and are
-version-pinned centrally. If an extension turns out to be universal, it can
-graduate into the shared Dockerfile; the default is that it doesn't.
+Toolchains with schema toggles (`image.toolchains`) belong in
+`vibe.yaml`. The extension is for everything else — one-off system
+dependencies a single project needs. Keep it small: a big extension is
+usually a sign the project wants a different `image.base`.

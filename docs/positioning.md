@@ -20,7 +20,8 @@ Agent tooling has settled into three layers:
    it can reach.
 
 This project is layer 3: a hardened, reproducible container that agent
-CLIs run *inside*, pinned into each project as a git submodule. It does not
+CLIs run *inside*, driven by one release-installed engine binary that pins
+each project to a digest-addressed artifact. It does not
 compete with the layers above. Minimal harnesses explicitly tell users to
 bring their own container for boundaries — this is that container — and an
 orchestrator could drive containers like this instead of bare worktrees.
@@ -55,18 +56,18 @@ or schedules agents is not.
 - **Isolate trust, not just work.** One container per project: non-root, all
   capabilities dropped, no Docker socket, no host home. Worktrees organize
   parallel work; they do not contain a misbehaving process.
-- **Explicit secret loading.** Secrets enter one process through
-  `env-run.sh`; nothing auto-sources `.env` into shells.
+- **Explicit secret loading.** Secrets enter one container process through
+  `vibe run` / `vibe agent`; nothing auto-sources `.env` into shells and the
+  host never exports project env values.
 - **Agent-native, per-project auth.** Each CLI manages its own login,
   persisted in that project's state volume. The harness points config dirs
   at the volume and otherwise stays out of credential handling.
-- **Repo-agnostic harness, thin project ownership.** Shared scripts carry no
-  project specifics; projects own their `compose.yaml`, `config.env`,
-  and hooks.
+- **Repo-agnostic harness, thin project ownership.** The engine carries no
+  project specifics; projects own one closed `vibe.yaml`.
 - **Opt-in over baked-in.** Codex, Grok, Features, `--cold`: additive and
   inert unless enabled.
-- **Reviewable supply chain.** Consumers pin a commit; updating the harness
-  is an explicit, diffable step.
+- **Reviewable supply chain.** Projects pin a release artifact by digest;
+  updating is an explicit, verified step.
 
 ## Non-goals
 

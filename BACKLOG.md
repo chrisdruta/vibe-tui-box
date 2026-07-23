@@ -8,16 +8,23 @@ records, not fences.
 
 ## Open
 
-- **v2: clean-slate Go engine.** Architecture in
-  [docs/architecture-v2.md](docs/architecture-v2.md) (2026-07-23; awaiting
-  sol adversarial review): single attested binary embedding the container
-  payload; projects author a closed `vibe.yaml` schema and the binary
-  *renders* compose (no user-authored compose, no scanner); release-based
-  distribution replaces the git-mirror/submodule machinery; tmux stays the
-  UI; container scripts stay bash. No migration — old installs reinstall,
-  projects re-init. Rationale for the retired strangler approach:
-  [docs/go-port-plan.md](docs/go-port-plan.md). Step 0 (Go toolchain,
-  module skeleton, CI) is in the tree.
+Note (2026-07-23): the v2 cutover landed — entries below this block were
+written against the v1 bash/compose engine and need reframing against the
+Go engine (docs/go-engine-design.md) before any work starts; their intent
+stands, their mechanisms ("compose profile", "seeded compose override",
+`DEV_AUTO_*`) do not.
+
+- **v2 engine: remaining gaps.** The engine
+  ([docs/go-engine-design.md](docs/go-engine-design.md), all eight slices
+  in tree) still owes: store garbage collection; fuzz targets (schema,
+  envfile, ID/digest parsers, request JSON, terminal encoder); a bounded
+  plan diff in approval prompts; Sigstore verification behind the existing
+  release `Verifier` seam (checksums.txt today); toolchain/agent install
+  layers consuming `image.agents`/`image.toolchains` (schema-validated
+  today, not yet baked into images); richer payload lifecycle
+  (post-create/post-start hooks; the entrypoint currently marks ready and
+  idles); real-daemon CI exercise of extension and dev builds; the first
+  tagged v2 release with the three-platform matrix.
 
 - **Reduced-trust profile for unattended runs (`vibe agent --jailed`).**
   Promised in docs/security.md ("planned but not implemented"). Design
