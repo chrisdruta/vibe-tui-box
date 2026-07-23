@@ -1,196 +1,180 @@
 # Agent instructions
 
-## Purpose
+## What this repository is
 
-This repository is a shared container harness consumed by other repositories as
-a pinned git submodule at `.vibe/harness`. Changes here can affect every
-consuming project — bias toward small, reviewable, backward-compatible commits.
+`vibe` is a containerized agent-development harness: one compiled Go
+binary that owns the host command surface (project registry, immutable
+artifact/candidate store, Docker lifecycle, release updates, tmux UI,
+rebuild broker, dev-mode builds) and embeds the container payload it
+mounts into every project. Coding agents run *inside* the containers
+this engine manages; the engine itself is the host-side root of trust.
+
+The repository is mid-transition between two generations:
+
+- **v2 (primary — all new work goes here):** the Go engine under
+  `cmd/vibe` and `internal/`, specified by
+  [docs/architecture-v2.md](docs/architecture-v2.md) and
+  [docs/go-engine-design.md](docs/go-engine-design.md). All eight
+  implementation slices of the design are in the tree.
+- **v1 (legacy, maintenance only):** the bash harness under `src/`,
+  `install.sh`, and the root `vibe` launcher, consumed by existing
+  projects as a pinned submodule at `.vibe/harness`. Do not grow it.
+  It is removed at the v2 cutover (design slice 8's final step); until
+  then keep it working but route every feature to the Go engine.
+
+There is deliberately **no migration path**: v2 is clean-slate. Old
+installs reinstall; projects re-init. Never add v1-record importers.
+
+## Build, test, verify
+
+```sh
+go build -o bin/vibe ./cmd/vibe   # root `vibe` launcher collides with the
+                                  # default output name — always use -o
+go test ./...
+go vet ./...
+gofmt -l .                        # must print nothing
+golangci-lint run ./...           # policy in .golangci.yml
+go generate ./internal/payload    # after editing payload/** (regenerates
+                                  # payload/manifest.json; CI fails on drift)
+go test ./internal/model -run TestCompileGolden -update   # after intended
+                                  # canonical-plan changes; review the diff
+```
+
+Every change must keep all three release targets compiling:
+`GOOS=linux GOARCH=amd64`, `GOOS=linux GOARCH=arm64`,
+`GOOS=darwin GOARCH=arm64`, each with `CGO_ENABLED=0`.
+
+Integration tests that need a Docker daemon (`internal/dockerapi`
+`TestSDKLifecycle`) skip themselves when no daemon is reachable — never
+convert that skip into a failure, and never mock around it: it is the
+only place SDK translation meets a real daemon.
+
+Manual smoke test without touching your real `~/.vibe`:
+
+```sh
+export HOME=$(mktemp -d)
+bin/vibe init && bin/vibe provision && bin/vibe config
+```
+
+## Architecture map
+
+`cmd/vibe/main.go` is wiring only. Business logic lives in `internal/`,
+with strictly inward dependencies:
+
+```text
+cli → app → { runtime → model → schema
+              dockerapi (only package importing Docker SDK types)
+              builder, broker, dev, initproject, doctor, release,
+              payload, registry, store, snapshot, tmuxui → tmux }
+shared leaves: domain, envfile, lock, paths, runner, terminal, version
+```
+
+- `domain` — digests, IDs, platforms, sentinel errors. Depends on nothing.
+- `schema` — bounded YAML load of `.vibe/vibe.yaml` (structural node
+  inspection → `KnownFields` decode → position-aware diagnostics). Knows
+  YAML, never Docker.
+- `model` — compiles manifest + frozen inputs into the canonical `Plan`
+  (deterministic JSON, golden-tested). Knows runtime semantics, never
+  SDK types.
+- `snapshot` — freezes workspace inputs into content-addressed trees via
+  `os.Root` (FD-relative, symlink-rejecting, re-stat-after-copy).
+- `store` — immutable objects (artifacts/candidates/snapshots) by
+  SHA-256 tree digest: staging → fsync → atomic rename; leases via
+  shared flock; versioned JSON records that reject unknown fields.
+- `registry` — project records with compare-and-swap revisions.
+- `dockerapi` — the narrow `Client` interface, its SDK adapter, and the
+  programmable fake (`dockerapi/fake`). **No other package may import
+  Docker SDK packages.**
+- `runtime` — label-driven reconciliation of a candidate plan against
+  live Docker state.
+- `release` / `payload` — release acquisition (stream-hash-verify-extract
+  against checksums.txt) and the embedded, manifest-verified payload.
+- `broker` / `builder` / `dev` — agent rebuild requests, extension image
+  builds, and dev-mode engine builds.
+- `terminal` / `tmux` / `tmuxui` — untrusted-text encoding, the typed
+  tmux client, and pure view renderers.
+
+The `payload/` directory at the repo root is the embedded container
+payload (entrypoint, presets); `payload/manifest.json` is generated,
+tracked, and authoritative for file modes and digests.
 
 ## Invariants — do not break these
 
-- The runtime container ends as the non-root `vscode` user; passwordless sudo stays
-  removed; `cap_drop: [ALL]` and `no-new-privileges` stay in the base compose file.
-- Never mount the Docker socket, host home, or SSH directory by default.
-- Never auto-source project `.env` files into shells; secrets load only through
-  `env-run.sh` / `vibe agent` / `vibe run`.
-- Everything under `src/` and the root `vibe`/`install.sh` must remain
-  repo-agnostic: no project names, hardcoded paths, services, or published ports.
-- Project-specific behavior belongs in `src/templates/` (seeded once, project-owned
-  afterwards) or in project hooks — never in shared scripts.
-- The engine is docker compose + docker exec, driven by `vibe` — no devcontainer
-  CLI, no Node on the host. The container definition is `src/compose/base.yaml`
-  with the project's `.vibe/compose.yaml` merged on top; git + docker are the
-  entire host requirement. The image chain is build-only `base` service →
-  optional project extension (`.vibe/Dockerfile` FROM the base tag), sequenced
-  by the launcher — heavyweight optional tooling becomes an extension
-  (docs/extending.md), never another shared-Dockerfile flag.
-- The agent-state volume name (`agent-state-<workspace-basename>`) is an ABI:
-  changing it logs every consumer out of every agent. So are the `src/*` paths
-  seeded consumer files reference (`.vibe/harness/src/scripts/...` in
-  .claude/settings.json and seeded AGENTS.md). The compose project identity is
-  per checkout (`vibe-<basename>-<suffix>`) and now lives in the HOST trust
-  record (`~/.vibe/state/projects/<digest>`), injected into the container as
-  `VIBE_PROJECT_NAME` — never the old workspace `.vibe/.project-id` file, which
-  a container could forge.
-- **Host root of trust (docs/security.md).** The host never executes, sources,
-  evals, or feeds to the docker daemon any byte a container could have written.
-  Host code runs only from a materialized, manifest-verified store version
-  (`~/.vibe/versions/<sha>/`, reached via the `~/.vibe/bin/vibe` shim on PATH);
-  the container gets that same tree RO-overmounted at `.vibe/harness`. There is
-  no host-executable workspace entry point (the root `./vibe` symlink is gone;
-  a `vibe` on the container PATH is the in-container spelling). The host may READ
-  project files (`config.env`, `compose.yaml`) strictly as DATA — never execute,
-  source, or eval them; project `compose.yaml` reaches the daemon only through
-  the snapshot → render-under-scrubbed-env → structural-enforce gate in
-  `src/scripts/host/store.sh`. `vibe update` operates on the host-owned mirror
-  only, never porcelain against the workspace submodule `.git`.
-- Lifecycle scripts stay idempotent and honor `DEV_BOOTSTRAP_STRICT`; `vibe up`
-  runs post-create once per container (`/var/tmp/.vibe-post-created` marker)
-  and post-start on every actual start.
-- `install.sh` never overwrites an existing `.vibe` without `--force`, and
-  `--force` always backs up first.
-- The `~/.agents` volume mountpoint must exist in the image owned by `vscode`
-  (nothing in the running container can fix a root-owned volume).
-- Anything installed for an agent CLI must survive the runtime volume mount at
-  `~/.agents` — binaries go to `~/.local/bin`, never under `~/.agents` or `~/.grok`.
-- Agents own their auth natively: the harness only points each CLI's config dir
-  at the per-project state volume — it never centralizes, brokers, or
-  bind-mounts credentials (see `docs/positioning.md`).
-- Pin tool versions in Dockerfile ARGs where the upstream supports it; only
-  Claude Code (`stable`) and Grok Build (latest stable) are deliberately
-  mutable. Small CLI tools may be `INSTALL_*` build args; large ecosystems
-  become project image extensions or project base images. Extension images
-  must end `USER vscode` (runtime hardening additionally enforces it).
-- Host-side scripts (`vibe`, `src/templates/vibe`, `install.sh`, `verify.sh`,
-  `examples/render.sh`, `src/scripts/host/`, and the dual-side
-  `src/scripts/update.sh` / `src/scripts/repo-root.sh`)
-  must stay bash-3.2 compatible and avoid GNU-only flags — they
-  run on stock macOS as well as WSL (`verify.sh` gates this under `bash:3.2`).
-- The container image must build for both linux/amd64 and linux/arm64
-  (Apple Silicon); new installers must handle `aarch64`.
-- The legacy `.devcontainer/` layout is recognized ONLY as a migration
-  sensor: `repo-root.sh` detects it so the launcher prints the migration
-  error and `vibe update` still runs on an unmigrated checkout — that is
-  how projects cross the engine swap. Container-side config walks and the
-  status/down docker-label fallbacks no longer know it (removed 2026-07-22
-  with all known consumers migrated).
+**Trust boundary.** The host never executes, sources, or evals any byte
+a container could have written. Workspace files (`vibe.yaml`, env files,
+Dockerfiles, request JSON) are read strictly as data through bounded,
+strict parsers, frozen into immutable snapshots *before* validation or
+use, and never re-read from the workspace by later stages. Env-file
+values are container data: they go into Docker API fields, never into a
+host process environment or the canonical plan.
 
-## Shell conventions
+**Closed container policy.** Every managed container gets
+`cap_drop: ALL`, `no-new-privileges`, and runs as `vscode`; published
+ports bind loopback only; mount targets are absolute, normalized,
+unique, non-nesting, and never collide with the engine-owned targets
+(`/workspace`, `/vibe/payload`, `/vibe/agent-state`, `/vibe/results`).
+The workspace bind is the exact registered root — never a subpath, never
+another live host path. There is no raw Docker/Compose/shell
+passthrough anywhere in the schema, and no command accepts a shell
+string: argv only, everywhere (`exec`, probes, tmux, builders).
 
-- Shebang is `#!/usr/bin/env bash` everywhere (no `#!/bin/bash`).
-- `set` flags are policy, not entropy — four sanctioned tiers, pick by role:
-  - `set -euo pipefail` — the default for every executable script. `lib.sh`
-    asserts this tier on behalf of the lifecycle scripts that source it.
-  - `set -uo pipefail` (no errexit) — deliberate best-effort paths where one
-    failing step must not abort the rest or pollute a caller: agent hooks
-    (`agent-state-hook.sh`, `preview-image-hook.sh`), `review.sh`, `doctor.sh`.
-  - `set -u` only — host tui renderers driven by tmux `run-shell`, where every
-    command is individually `|| true`/exit-0 guarded (`state-render.sh`,
-    `sidebar.sh`, `dock.sh`).
-  - none — sourced libraries that must not change the caller's options
-    (`preview-lib.sh`, `repo-root.sh`) and the Claude statuslines (cosmetic
-    hot path: an abort blanks the status line, a soft failure just renders
-    less).
-- `printf '%q '` command assembly is allowed ONLY at the tmux shell-string
-  boundary — the three existing sites (two in `agent-entry.sh`, one in
-  `svc.sh`). No command string crossing the docker boundary interpolates
-  data; pass values via `docker exec -e` instead.
+**Immutability and determinism.** Artifacts, candidates, and snapshots
+are addressed by tree digest, published by atomic rename, and never
+mutated. Identical inputs must produce identical digests — anything
+feeding a digest (canonical JSON field order, sorted slices, normalized
+file modes, merkle line format in `store.DigestTree`) is a compatibility
+surface; bump the relevant format number when its meaning changes.
+Persistent records are versioned JSON, decoded with
+`DisallowUnknownFields`, dispatched by `format`.
 
-## Path discovery — three sanctioned idioms
+**Ordering and safety.** Lock order is fixed: store-global →
+artifact/candidate → project → broker-request; never acquire earlier
+while holding later. Mutable records (registry `Approved`, pins) move
+only *after* the durable object they reference exists and its containers
+run — a failed `up` must not move the approved-candidate pointer.
+Reconciliation never removes a container it did not decide to replace,
+and refuses name-colliding containers that lack `dev.vibe.managed`.
 
-How a script finds the harness/project is one of exactly three shapes; do
-not invent a fourth:
+**Untrusted text.** Agent-authored strings (request reason/summary,
+statusline messages, Dockerfiles shown in prompts) reach a terminal only
+through `terminal.Encode`/`terminal.Line`, and prompt chrome stays
+structurally separate from encoded content. Extension builds require
+per-digest operator approval; the build context is a restricted copy
+that must never contain the env file or manifest.
 
-1. **Positional anchor** (container lifecycle scripts): source
-   `src/scripts/lib-core.sh` — HARNESS_DIR/VIBE_DIR from the script's own
-   location, subprocess-light, hook-safe — or `lib.sh` on top of it when
-   REPO_ROOT/config.env/DEV_* defaults are needed (never from hooks: lib.sh
-   runs git and sources config).
-2. **Host $PWD walk** (`repo-root.sh`): PATH-installed entry points (`vibe`,
-   `update.sh`) resolve whichever project you stand in. The readlink
-   self-canonicalization loops (stock macOS readlink has no `-f`) and the
-   tmux conf's tui.sh-stamped `@vibe_harness_dir` option are this idiom's
-   plumbing.
-3. **Baked two-home self-resolution** (`review.sh`, `show-image.sh`,
-   `svc.sh`, `preview-lib.sh`): these also run as baked `/usr/local` copies
-   with no harness checkout, so they self-canonicalize, fall back from
-   checkout to `/usr/local/lib/vibe`, and read config via their own $PWD
-   walk. They can never source lib.sh.
+**Error and exit discipline.** Wrap `domain.Err*` sentinels with `%w`;
+the CLI maps them to stable exit codes (0 ok, 1 failure, 2 usage,
+3 invalid config, 4 not registered, 5 conflict, 6 unavailable,
+130 interrupted). App methods return typed results and never print;
+only `cli`, `terminal`, and `tmuxui` produce user-facing text.
 
-## Before changing code
+**Construction discipline.** Dependencies are injected via
+`app.Dependencies`; no package globals, `init` side effects, or ambient
+environment reads in core packages. External processes go through
+`runner.Runner`; Docker goes through `dockerapi.Client`. Everything
+external is behind a fakeable interface — new features come with
+fake-backed tests asserting full request equality, not selected fields.
 
-- Read `docs/architecture.md` and `docs/security.md`.
-- Never edit files under the pinned self-submodule copy (`.vibe/harness/`) —
-  it is the copy the container runs
-  from; changes there land in the nested clone, not this repository. Edit the
-  real files at the repository root and sync the submodule forward to test
-  (see "Dogfooding" below).
-- If touching `src/templates/` or `install.sh`, check every preset delta in
-  `install.sh` (mirrored in `examples/render.sh` — verify.sh diffs the rendered
-  `examples/` against real installs) and the placeholder set (`@PRESET_NAME@`, `@BASE_IMAGE@`,
-  `@INSTALL_CLAUDE_CODE@`, `@INSTALL_CODEX@`, `@INSTALL_GROK@`, `@INSTALL_NODE@`,
-  `@INSTALL_BUN@`, `@INSTALL_ROKIT@`, `@EXTRA_COMMANDS@`).
-- `install.sh` must not depend on tools absent from a stock WSL Ubuntu host
-  (no `jq`; `sed`/`python3` are acceptable).
+## Conventions
 
-## Dogfooding — updating and testing the harness on itself
+- Table tests per package; failure and cancellation paths included.
+- `t.TempDir()` layouts via `paths.NewLayout`; never touch the real
+  `~/.vibe` in tests.
+- New commands: typed request structs parsed in `internal/cli`
+  (`commands_*.go` groups, one merge point in `commands.go`), an
+  `app.App` method returning a typed result, and a renderer in
+  `output.go` deriving human and `--json` output from the same model.
+- Standard library first. Current direct deps (yaml.v3, docker SDK,
+  x/sys, x/term) are pinned; adding one needs a reason the stdlib can't
+  answer. `gopkg.in/yaml.v3` is archived upstream — a swap candidate,
+  not a pattern to extend.
+- Comments state constraints the code can't show; match existing
+  density.
 
-This repository consumes itself: it carries its own project config with the
-harness as a **self-submodule** at `.vibe/harness`, so `./vibe up` and
-`vibe agent` work here like in any consumer.
+## Known open work
 
-- The container runs the **pinned submodule copy** at `.vibe/harness`, not the
-  working tree. An uncommitted or unsynced change is invisible to the running
-  container — do not conclude a change "doesn't work" before syncing the copy
-  forward.
-- To test a harness change through the harness itself:
-
-  ```bash
-  git commit ...                                # your change, in the outer repo
-  git -C .vibe/harness fetch "$PWD" my-branch   # or HEAD's branch
-  git -C .vibe/harness checkout FETCH_HEAD
-  ./vibe rebuild   # only if Dockerfile/compose files changed
-  ```
-
-- Never edit files under `.vibe/harness/` — that is the nested clone; changes
-  there do not land in this repository (see "Before changing code").
-- The self-submodule is marked `update = none` so recursive clones skip it;
-  after a fresh clone, initialize it explicitly with
-  `git submodule update --init --checkout .vibe/harness`.
-- Syncing the pin as above only moves the local nested clone for testing; the
-  committed submodule pin (what consumers and fresh clones get) is a release
-  step the maintainer performs — never bump/commit it on your own.
-
-## Required verification
-
-1. `./verify.sh` — must pass. It clones **committed HEAD** for the submodule test,
-   so commit before running it.
-2. ShellCheck every modified shell file (host may lack it; run it inside a built
-   container, which has it).
-3. For runtime-visible changes: install a preset into a scratch git repo,
-   `vibe up` with a real Docker build, `vibe doctor`, exercise the change, and
-   `vibe rebuild` to confirm agent state survives recreation. Clean up scratch
-   containers, images, and `agent-state-*` volumes afterwards.
-4. Update the affected docs (`README.md` stays task-oriented and short; reference
-   material lives in `docs/`).
-
-## Important files
-
-- `src/Dockerfile` — shared image; optional tooling behind `INSTALL_*` build args
-- `src/compose/base.yaml` — the container definition (mounts, hardening, env, label)
-- `vibe` — host-side launcher (runs from `.vibe/harness/vibe` in consumers)
-- `install.sh` — consumer installation: seeds templates, adds the submodule
-- `src/scripts/` — shared runtime lifecycle (`lib.sh` holds path discovery: the
-  project root is anchored on the directory the harness lives under, NOT
-  `git rev-parse` inside the submodule)
-- `src/scripts/host/` — WSL-host helpers, not container code
-- `src/templates/` — seeds for project-owned files; placeholder-rendered by `install.sh`
-- `examples/` — rendered per-preset seeds; `examples/render.sh` + verify.sh keep them fresh
-- `verify.sh` — regression checks
-
-## Documentation rules
-
-- Human setup and tasks: `README.md` (short) and `docs/`.
-- Agent-facing repository rules: this file only.
-- Do not duplicate configuration reference across files — `docs/configuration.md`
-  is the single source.
+Tracked in [BACKLOG.md](BACKLOG.md); the notable engine gaps: store GC,
+fuzz targets (schema/envfile/parsers/terminal), bounded plan diff in
+approval prompts, Sigstore verification behind the existing `Verifier`
+seam, real-daemon exercise of extension and dev builds, and the v1
+bash-harness removal at cutover.
