@@ -1,0 +1,211 @@
+package model
+
+import (
+	"fmt"
+	"path"
+	"sort"
+	"strconv"
+
+	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/registry"
+	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
+	"github.com/chrisdruta/vibe-tui-box/internal/store"
+)
+
+// Fixed locations inside a candidate input snapshot.
+const (
+	// SnapshotImportDir holds copied imports: imports/<index>/... in
+	// manifest order.
+	SnapshotImportDir = "imports"
+	// SnapshotManifestPath is the frozen project manifest.
+	SnapshotManifestPath = "vibe.yaml"
+	// SnapshotEnvFilePath is the frozen env file when the manifest
+	// declares one.
+	SnapshotEnvFilePath = "env-file"
+	// SnapshotDockerfilePath and SnapshotBuildDir hold the frozen
+	// extension build inputs when image.extension is enabled.
+	SnapshotDockerfilePath = "Dockerfile"
+	SnapshotBuildDir       = "build"
+)
+
+// CompileInput carries only resolved inputs; compilation never reads
+// the workspace or the network.
+type CompileInput struct {
+	Project      registry.Record
+	Artifact     store.Artifact
+	Manifest     schema.Manifest
+	Snapshot     snapshot.Result
+	ImageDigests map[string]domain.Digest
+	// BrokerResultsDir, when set, is mounted read-only at ResultsTarget
+	// so the container can read request results.
+	BrokerResultsDir string
+}
+
+// Compile turns a validated manifest plus frozen inputs into the
+// canonical plan. It generates names, labels, required mounts, volumes,
+// and defaults, then computes the canonical hash. Field errors mean the
+// manifest asked for something the runtime model refuses.
+func Compile(in CompileInput) (Plan, []domain.FieldError) {
+	var errs []domain.FieldError
+	m := &in.Manifest
+	id := in.Project.ID
+
+	plan := Plan{
+		Format: PlanFormat,
+		Project: Project{
+			ID:          id,
+			Root:        in.Project.Root,
+			DisplayName: in.Project.DisplayName,
+		},
+		Artifact: Artifact{
+			Digest:  in.Artifact.Record.Digest,
+			Version: in.Artifact.Record.Version,
+		},
+		Networks: []Network{{Name: NetworkName(id)}},
+		Volumes:  []Volume{{Name: AgentStateVolumeName(id)}},
+		Inputs: Inputs{
+			Snapshot: in.Snapshot.Digest,
+			EnvFile:  m.EnvFile,
+		},
+	}
+
+	resolve := func(ref string) ImageID {
+		return ImageID{Ref: ref, Digest: in.ImageDigests[ref]}
+	}
+
+	// Dev container.
+	devImage := resolve(m.Image.Base)
+	if m.Image.Extension {
+		devImage = resolve(ExtensionImageRef(id))
+		plan.Extension = &Extension{Dockerfile: "Dockerfile"}
+	}
+	dev := Container{
+		Name:  DevContainerName(id),
+		Image: devImage,
+		User:  "vscode",
+		// Without an artifact there is no payload entrypoint; keep the
+		// container alive on the image's own sleep.
+		Command: []string{"sleep", "infinity"},
+		Policy:  defaultPolicy(),
+		Mounts: []Mount{
+			{Kind: BindMount, Source: in.Project.Root, Target: WorkspaceTarget},
+			{Kind: VolumeMount, Source: AgentStateVolumeName(id), Target: AgentStateTarget},
+		},
+	}
+	if !in.Artifact.IsZero() {
+		dev.Command = []string{PayloadEntrypoint}
+		dev.Mounts = append(dev.Mounts, Mount{
+			Kind: BindMount, Source: in.Artifact.PayloadPath(), Target: PayloadTarget, ReadOnly: true,
+		})
+	}
+	if in.BrokerResultsDir != "" {
+		dev.Mounts = append(dev.Mounts, Mount{
+			Kind: BindMount, Source: in.BrokerResultsDir, Target: ResultsTarget, ReadOnly: true,
+		})
+	}
+	for i, imp := range m.Runtime.Imports {
+		dev.Mounts = append(dev.Mounts, Mount{
+			Kind:     BindMount,
+			Source:   path.Join(in.Snapshot.Path, SnapshotImportDir, strconv.Itoa(i)),
+			Target:   imp.Target,
+			ReadOnly: imp.Readonly,
+		})
+	}
+	dev.Ports, errs = compilePorts("runtime.ports", m.Runtime.Ports, errs)
+	dev.Environment = compileEnv(m.Runtime.Env)
+	if !in.Artifact.IsZero() {
+		// Engine-provided entries come last so they cannot be shadowed.
+		dev.Environment = append(dev.Environment,
+			Env{Key: "VIBE_PAYLOAD_DIGEST", Value: in.Artifact.Record.PayloadDigest.String()})
+	}
+	dev.Labels = commonLabels(id, "dev")
+	plan.Dev = dev
+
+	// Sidecars in deterministic name order.
+	for _, name := range m.ServiceNames() {
+		svc := m.Services[name]
+		c := Container{
+			Name:   SidecarContainerName(id, name),
+			Image:  resolve(svc.Image),
+			Policy: defaultPolicy(),
+			Labels: commonLabels(id, "sidecar:"+name),
+		}
+		c.Ports, errs = compilePorts("services."+name+".ports", svc.Ports, errs)
+		c.Environment = compileEnv(svc.Env)
+		for _, vol := range svc.Volumes {
+			volName := ServiceVolumeName(id, vol.Name)
+			c.Mounts = append(c.Mounts, Mount{Kind: VolumeMount, Source: volName, Target: vol.Target})
+			plan.Volumes = append(plan.Volumes, Volume{Name: volName})
+		}
+		plan.Services = append(plan.Services, c)
+	}
+
+	// Image inventory: unique references sorted for determinism.
+	refs := map[string]bool{devImage.Ref: true}
+	for _, c := range plan.Services {
+		refs[c.Image.Ref] = true
+	}
+	if m.Image.Extension {
+		refs[m.Image.Base] = true // extension builds still pull the base
+	}
+	for ref := range refs {
+		plan.Images = append(plan.Images, Image{Ref: ref, Digest: in.ImageDigests[ref]})
+	}
+	sort.Slice(plan.Images, func(i, j int) bool { return plan.Images[i].Ref < plan.Images[j].Ref })
+	sort.Slice(plan.Volumes, func(i, j int) bool { return plan.Volumes[i].Name < plan.Volumes[j].Name })
+
+	if verrs := Validate(plan); len(verrs) > 0 {
+		errs = append(errs, verrs...)
+	}
+	if len(errs) > 0 {
+		return Plan{}, errs
+	}
+
+	hash, err := Hash(plan)
+	if err != nil {
+		return Plan{}, []domain.FieldError{{Message: fmt.Sprintf("canonicalize plan: %v", err)}}
+	}
+	plan.CanonicalHash = hash
+	return plan, nil
+}
+
+func defaultPolicy() ContainerPolicy {
+	return ContainerPolicy{
+		DropAllCapabilities: true,
+		NoNewPrivileges:     true,
+		Network:             NetworkProject,
+	}
+}
+
+func compilePorts(fieldBase string, ports []schema.Port, errs []domain.FieldError) ([]PortBinding, []domain.FieldError) {
+	var out []PortBinding
+	for i, p := range ports {
+		parsed, err := schema.ParsePort(string(p))
+		if err != nil {
+			errs = append(errs, domain.FieldError{
+				Path:    fmt.Sprintf("%s[%d]", fieldBase, i),
+				Message: err.Error(),
+			})
+			continue
+		}
+		out = append(out, PortBinding(parsed))
+	}
+	return out, errs
+}
+
+func compileEnv(env schema.OrderedEnv) []Env {
+	out := make([]Env, 0, len(env))
+	for _, e := range env {
+		out = append(out, Env{Key: e.Key, Value: e.Value})
+	}
+	return out
+}
+
+func commonLabels(id domain.ProjectID, role string) []Label {
+	return []Label{
+		{Key: "dev.vibe.managed", Value: "true"},
+		{Key: "dev.vibe.project", Value: string(id)},
+		{Key: "dev.vibe.role", Value: role},
+	}
+}

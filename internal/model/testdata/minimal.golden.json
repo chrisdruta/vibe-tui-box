@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "project": {
+    "id": "abcdefghijklmnopqrstuvwxyz",
+    "root": "/home/user/project",
+    "display_name": "project"
+  },
+  "artifact": {},
+  "dev": {
+    "name": "vibe-abcdefghijkl-dev",
+    "image": {
+      "ref": "mcr.microsoft.com/devcontainers/base:debian"
+    },
+    "user": "vscode",
+    "command": [
+      "sleep",
+      "infinity"
+    ],
+    "mounts": [
+      {
+        "kind": "bind",
+        "source": "/home/user/project",
+        "target": "/workspace"
+      },
+      {
+        "kind": "volume",
+        "source": "vibe-abcdefghijkl-agent-state",
+        "target": "/vibe/agent-state"
+      }
+    ],
+    "labels": [
+      {
+        "key": "dev.vibe.managed",
+        "value": "true"
+      },
+      {
+        "key": "dev.vibe.project",
+        "value": "abcdefghijklmnopqrstuvwxyz"
+      },
+      {
+        "key": "dev.vibe.role",
+        "value": "dev"
+      }
+    ],
+    "policy": {
+      "drop_all_capabilities": true,
+      "no_new_privileges": true,
+      "readonly_root_fs": false,
+      "network": "project"
+    }
+  },
+  "services": null,
+  "networks": [
+    {
+      "name": "vibe-abcdefghijkl"
+    }
+  ],
+  "volumes": [
+    {
+      "name": "vibe-abcdefghijkl-agent-state"
+    }
+  ],
+  "images": [
+    {
+      "ref": "mcr.microsoft.com/devcontainers/base:debian"
+    }
+  ],
+  "inputs": {
+    "snapshot": "sha256:16a0eeb0791b6c92451fd284dd9f599e0a7dbe7f6ebea6e2d2d06c7f74aec112"
+  },
+  "canonical_hash": "sha256:a13f6eb5baf2bf08950d43b3ca3cb9db116f87fcaf70f7e8e9c8302dfc112258"
+}

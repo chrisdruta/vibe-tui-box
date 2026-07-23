@@ -1,0 +1,158 @@
+package app
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/chrisdruta/vibe-tui-box/internal/dev"
+	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/paths"
+	"github.com/chrisdruta/vibe-tui-box/internal/registry"
+	"github.com/chrisdruta/vibe-tui-box/internal/store"
+)
+
+// EngineModule identifies the engine repository for dev-mode source
+// verification.
+const EngineModule = "github.com/chrisdruta/vibe-tui-box"
+
+// DevOnRequest builds the engine from Source (default: the project
+// itself) and switches the project to the resulting dev artifact.
+type DevOnRequest struct {
+	Dir    string
+	Source string
+}
+
+type DevOnResult struct {
+	Record   dev.Record
+	Project  registry.Record
+	Artifact store.ArtifactRecord
+}
+
+func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) {
+	_, rec, err := a.resolveProject(ctx, req.Dir)
+	if err != nil {
+		return DevOnResult{}, &domain.OpError{Op: "dev on", Err: err}
+	}
+	sourceDir := req.Source
+	if sourceDir == "" {
+		sourceDir = req.Dir
+	}
+	sourceRoot, err := paths.Discover(sourceDir)
+	if err != nil {
+		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+	}
+	if err := dev.VerifyEngineRepo(sourceRoot.Path, EngineModule); err != nil {
+		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+	}
+	if err := a.deps.Docker.Ping(ctx); err != nil {
+		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+	}
+
+	devRecord, artifact, err := a.dev.Build(ctx, rec.ID, sourceRoot, a.deps.Progress)
+	if err != nil {
+		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+	}
+	updated, err := a.deps.Registry.Update(ctx, rec.ID, rec.Revision, func(r *registry.Record) error {
+		r.Mode = registry.ModeDev
+		r.Artifact = artifact.Record.Digest
+		r.ReleaseVersion = artifact.Record.Version
+		return nil
+	})
+	if err != nil {
+		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+	}
+	if err := a.writeDevRecord(devRecord); err != nil {
+		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+	}
+	return DevOnResult{Record: devRecord, Project: updated, Artifact: artifact.Record}, nil
+}
+
+// DevOffRequest reverts the project to release mode and the newest
+// release artifact.
+type DevOffRequest struct {
+	Dir string
+}
+
+type DevOffResult struct {
+	Project registry.Record
+}
+
+func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, error) {
+	_, rec, err := a.resolveProject(ctx, req.Dir)
+	if err != nil {
+		return DevOffResult{}, &domain.OpError{Op: "dev off", Err: err}
+	}
+	if rec.Mode != registry.ModeDev {
+		return DevOffResult{}, &domain.OpError{Op: "dev off", Project: rec.ID,
+			Err: fmt.Errorf("%w: project is not in dev mode", domain.ErrInvalid)}
+	}
+	var release *store.ArtifactRecord
+	if artifacts, err := a.deps.Store.ListArtifactRecords(); err == nil {
+		for i := range artifacts {
+			if artifacts[i].Release.Source != "dev-build" {
+				release = &artifacts[i]
+				break
+			}
+		}
+	}
+	updated, err := a.deps.Registry.Update(ctx, rec.ID, rec.Revision, func(r *registry.Record) error {
+		r.Mode = registry.ModeRelease
+		if release != nil {
+			r.Artifact = release.Digest
+			r.ReleaseVersion = release.Version
+		} else {
+			r.Artifact = domain.Digest{}
+			r.ReleaseVersion = ""
+		}
+		return nil
+	})
+	if err != nil {
+		return DevOffResult{}, &domain.OpError{Op: "dev off", Project: rec.ID, Err: err}
+	}
+	os.Remove(a.devRecordPath(rec.ID))
+	return DevOffResult{Project: updated}, nil
+}
+
+// DevStatusRequest reports the project's dev state.
+type DevStatusRequest struct {
+	Dir string
+}
+
+type DevStatusResult struct {
+	Project registry.Record
+	Record  *dev.Record
+}
+
+func (a *App) DevStatus(ctx context.Context, req DevStatusRequest) (DevStatusResult, error) {
+	_, rec, err := a.resolveProject(ctx, req.Dir)
+	if err != nil {
+		return DevStatusResult{}, &domain.OpError{Op: "dev status", Err: err}
+	}
+	result := DevStatusResult{Project: rec}
+	if data, err := os.ReadFile(a.devRecordPath(rec.ID)); err == nil {
+		var devRec dev.Record
+		if json.Unmarshal(data, &devRec) == nil {
+			result.Record = &devRec
+		}
+	}
+	return result, nil
+}
+
+func (a *App) devRecordPath(id domain.ProjectID) string {
+	return filepath.Join(a.deps.Layout.State, "dev", string(id)+".json")
+}
+
+func (a *App) writeDevRecord(rec dev.Record) error {
+	path := a.devRecordPath(rec.ProjectID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(rec, "", "  ")
+	if err != nil {
+		return err
+	}
+	return store.WriteFileAtomic(path, append(data, '\n'), 0o600)
+}

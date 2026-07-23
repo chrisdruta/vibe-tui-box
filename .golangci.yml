@@ -1,0 +1,16 @@
+# Lint policy for the Go engine (run in CI; see .github/workflows/ci.yml).
+version: "2"
+linters:
+  exclusions:
+    rules:
+      # Fire-and-forget by design: presentation writes, staging cleanup,
+      # and deferred lease/handle closes. Close errors are checked
+      # explicitly where durability depends on them (WriteFileAtomic,
+      # copyBinary, extraction).
+      - linters: [errcheck]
+        text: 'Error return value of `(fmt\.Fprint(f|ln)?|os\.Remove(All)?)` is not checked'
+      - linters: [errcheck]
+        text: 'Error return value of `.*\.(Close|Release)` is not checked'
+      # Test fixtures and deferred test cleanup.
+      - linters: [errcheck]
+        path: _test\.go

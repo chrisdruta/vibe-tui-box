@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "files": [
+    {
+      "path": "container/entrypoint.sh",
+      "mode": "0755",
+      "size": 441,
+      "digest": "sha256:4a5a0a3fb0c95bc102ad7c4712eca922609b781faa349d1370543ff4bf5e7985"
+    },
+    {
+      "path": "presets/minimal/vibe.yaml.tmpl",
+      "mode": "0644",
+      "size": 372,
+      "digest": "sha256:533ddd8db0f0f7ec129a526512194fe7bc7febe4f995242ef1aaaf7ddad0355c"
+    }
+  ],
+  "digest": "sha256:1b4d6f8b4b0a45b607fab4eab8192d53ca06a6024a9e49224e4211e70678e3a8"
+}

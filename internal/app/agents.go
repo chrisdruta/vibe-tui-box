@@ -1,0 +1,200 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
+	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
+	"github.com/chrisdruta/vibe-tui-box/internal/model"
+	"github.com/chrisdruta/vibe-tui-box/internal/registry"
+	"github.com/chrisdruta/vibe-tui-box/internal/store"
+)
+
+// ContainerCommand is the shared shape for commands that run inside the
+// dev container. Argv is preserved exactly; there is no shell-string
+// form anywhere in the engine.
+type ContainerCommand struct {
+	Dir     string
+	User    string
+	Workdir string
+	Env     []envfile.Entry
+	Argv    []string
+	TTY     bool
+	Stdin   bool
+	Streams dockerapi.Streams
+}
+
+type ExecResult struct {
+	ExitCode int
+}
+
+// devContainerUser is the fixed in-container account.
+const devContainerUser = "vscode"
+
+// Exec runs argv in the dev container with only the explicitly given
+// environment.
+func (a *App) Exec(ctx context.Context, cmd ContainerCommand) (ExecResult, error) {
+	rec, name, err := a.devContainer(ctx, cmd.Dir)
+	if err != nil {
+		return ExecResult{}, &domain.OpError{Op: "exec", Err: err}
+	}
+	res, err := a.execIn(ctx, name, cmd)
+	if err != nil {
+		return ExecResult{}, &domain.OpError{Op: "exec", Project: rec.ID, Err: err}
+	}
+	return res, nil
+}
+
+// Run behaves like Exec but additionally loads the env file frozen in
+// the approved candidate's snapshot, so workloads see the project
+// environment without the host ever exporting it.
+func (a *App) Run(ctx context.Context, cmd ContainerCommand) (ExecResult, error) {
+	rec, name, err := a.devContainer(ctx, cmd.Dir)
+	if err != nil {
+		return ExecResult{}, &domain.OpError{Op: "run", Err: err}
+	}
+	entries, err := a.approvedEnvFile(ctx, rec)
+	if err != nil {
+		return ExecResult{}, &domain.OpError{Op: "run", Project: rec.ID, Err: err}
+	}
+	cmd.Env = append(entries, cmd.Env...)
+	res, err := a.execIn(ctx, name, cmd)
+	if err != nil {
+		return ExecResult{}, &domain.OpError{Op: "run", Project: rec.ID, Err: err}
+	}
+	return res, nil
+}
+
+// shellCandidates is the fixed probe order for Shell.
+var shellCandidates = []string{"/bin/zsh", "/bin/bash", "/bin/sh"}
+
+// Shell opens an interactive login shell: the first candidate that
+// exists in the container wins.
+func (a *App) Shell(ctx context.Context, cmd ContainerCommand) (ExecResult, error) {
+	rec, name, err := a.devContainer(ctx, cmd.Dir)
+	if err != nil {
+		return ExecResult{}, &domain.OpError{Op: "shell", Err: err}
+	}
+	shell := ""
+	for _, candidate := range shellCandidates {
+		probe, err := a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
+			Container: name,
+			User:      devContainerUser,
+			Argv:      []string{"test", "-x", candidate},
+		})
+		if err != nil {
+			return ExecResult{}, &domain.OpError{Op: "shell", Project: rec.ID, Err: err}
+		}
+		if probe.ExitCode == 0 {
+			shell = candidate
+			break
+		}
+	}
+	if shell == "" {
+		return ExecResult{}, &domain.OpError{Op: "shell", Project: rec.ID,
+			Err: fmt.Errorf("%w: none of %s exist in the container", domain.ErrNotFound, strings.Join(shellCandidates, ", "))}
+	}
+	cmd.Argv = []string{shell, "-l"}
+	res, err := a.execIn(ctx, name, cmd)
+	if err != nil {
+		return ExecResult{}, &domain.OpError{Op: "shell", Project: rec.ID, Err: err}
+	}
+	return res, nil
+}
+
+// Attach connects to the dev container's main process.
+func (a *App) Attach(ctx context.Context, cmd ContainerCommand) error {
+	rec, name, err := a.devContainer(ctx, cmd.Dir)
+	if err != nil {
+		return &domain.OpError{Op: "attach", Err: err}
+	}
+	if err := a.deps.Docker.Attach(ctx, dockerapi.AttachRequest{
+		Container: name,
+		TTY:       cmd.TTY,
+		Streams:   cmd.Streams,
+	}); err != nil {
+		return &domain.OpError{Op: "attach", Project: rec.ID, Err: err}
+	}
+	return nil
+}
+
+// devContainer resolves the project and requires its dev container to
+// be running.
+func (a *App) devContainer(ctx context.Context, dir string) (registry.Record, dockerapi.ContainerName, error) {
+	_, rec, err := a.resolveProject(ctx, dir)
+	if err != nil {
+		return registry.Record{}, "", err
+	}
+	name := dockerapi.ContainerName(model.DevContainerName(rec.ID))
+	state, err := a.deps.Docker.InspectContainer(ctx, name)
+	if err != nil {
+		return registry.Record{}, "", fmt.Errorf("dev container: %w (run `vibe up`)", err)
+	}
+	if !state.Running {
+		return registry.Record{}, "", fmt.Errorf("%w: dev container %s is not running (run `vibe up`)", domain.ErrUnavailable, name)
+	}
+	return rec, name, nil
+}
+
+func (a *App) execIn(ctx context.Context, name dockerapi.ContainerName, cmd ContainerCommand) (ExecResult, error) {
+	if len(cmd.Argv) == 0 {
+		return ExecResult{}, fmt.Errorf("%w: no command given", domain.ErrInvalid)
+	}
+	user := cmd.User
+	if user == "" {
+		user = devContainerUser
+	}
+	env := make([]string, 0, len(cmd.Env))
+	for _, e := range cmd.Env {
+		env = append(env, e.Key+"="+e.Value)
+	}
+	res, err := a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
+		Container: name,
+		User:      user,
+		WorkDir:   cmd.Workdir,
+		Env:       env,
+		Argv:      cmd.Argv,
+		TTY:       cmd.TTY,
+		Stdin:     cmd.Stdin,
+		Streams:   cmd.Streams,
+	})
+	if err != nil {
+		return ExecResult{}, err
+	}
+	return ExecResult{ExitCode: res.ExitCode}, nil
+}
+
+// approvedEnvFile loads env entries from the approved candidate's
+// frozen snapshot; a project without an approved candidate or without
+// an env file yields none.
+func (a *App) approvedEnvFile(ctx context.Context, rec registry.Record) ([]envfile.Entry, error) {
+	if rec.Approved == nil {
+		return nil, nil
+	}
+	candRecord, err := a.deps.Store.ReadCandidateRecord(*rec.Approved)
+	if err != nil {
+		return nil, err
+	}
+	if candRecord.Snapshot.IsZero() {
+		return nil, nil
+	}
+	lease, err := a.deps.Store.Open(ctx, store.SnapshotObject, candRecord.Snapshot)
+	if err != nil {
+		return nil, err
+	}
+	defer lease.Close()
+	f, err := os.Open(filepath.Join(lease.Object.Path, model.SnapshotEnvFilePath))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+	return envfile.Parse(f, envfile.Limits{})
+}

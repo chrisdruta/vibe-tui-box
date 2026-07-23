@@ -1,0 +1,41 @@
+// Package runtime turns an immutable candidate plan into Docker state
+// and back: reconcile, tear down, and report. It coordinates the store,
+// locks, and the Docker API adapter; it never reads the workspace.
+package runtime
+
+import (
+	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+)
+
+// Engine-owned Docker labels. Every managed object carries them; the
+// engine never touches objects without ManagedLabel.
+const (
+	ManagedLabel   = "dev.vibe.managed"
+	ProjectLabel   = "dev.vibe.project"
+	CandidateLabel = "dev.vibe.candidate"
+	ArtifactLabel  = "dev.vibe.artifact"
+	RoleLabel      = "dev.vibe.role"
+)
+
+// objectLabels is the label set for networks and volumes, which exist
+// across candidates.
+func objectLabels(project domain.ProjectID) map[string]string {
+	return map[string]string{
+		ManagedLabel: "true",
+		ProjectLabel: string(project),
+	}
+}
+
+// containerLabels merges the plan's per-container labels with the
+// candidate and artifact pins.
+func containerLabels(planLabels map[string]string, candidate, artifact domain.Digest) map[string]string {
+	labels := make(map[string]string, len(planLabels)+2)
+	for k, v := range planLabels {
+		labels[k] = v
+	}
+	labels[CandidateLabel] = candidate.String()
+	if !artifact.IsZero() {
+		labels[ArtifactLabel] = artifact.String()
+	}
+	return labels
+}

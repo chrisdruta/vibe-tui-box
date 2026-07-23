@@ -1,0 +1,149 @@
+{
+  "format": 1,
+  "project": {
+    "id": "abcdefghijklmnopqrstuvwxyz",
+    "root": "/home/user/project",
+    "display_name": "project"
+  },
+  "artifact": {},
+  "dev": {
+    "name": "vibe-abcdefghijkl-dev",
+    "image": {
+      "ref": "mcr.microsoft.com/devcontainers/base:debian"
+    },
+    "user": "vscode",
+    "command": [
+      "sleep",
+      "infinity"
+    ],
+    "environment": [
+      {
+        "key": "A_FLAG",
+        "value": "1"
+      },
+      {
+        "key": "B_FLAG",
+        "value": "2"
+      }
+    ],
+    "mounts": [
+      {
+        "kind": "bind",
+        "source": "/home/user/project",
+        "target": "/workspace"
+      },
+      {
+        "kind": "volume",
+        "source": "vibe-abcdefghijkl-agent-state",
+        "target": "/vibe/agent-state"
+      },
+      {
+        "kind": "bind",
+        "source": "/home/user/.vibe/state/snapshots/deadbeef/imports/0",
+        "target": "/models",
+        "read_only": true
+      }
+    ],
+    "ports": [
+      {
+        "host_ip": "127.0.0.1",
+        "host_port": 34872,
+        "container_port": 34872
+      }
+    ],
+    "labels": [
+      {
+        "key": "dev.vibe.managed",
+        "value": "true"
+      },
+      {
+        "key": "dev.vibe.project",
+        "value": "abcdefghijklmnopqrstuvwxyz"
+      },
+      {
+        "key": "dev.vibe.role",
+        "value": "dev"
+      }
+    ],
+    "policy": {
+      "drop_all_capabilities": true,
+      "no_new_privileges": true,
+      "readonly_root_fs": false,
+      "network": "project"
+    }
+  },
+  "services": [
+    {
+      "name": "vibe-abcdefghijkl-svc-db",
+      "image": {
+        "ref": "postgres:16"
+      },
+      "environment": [
+        {
+          "key": "POSTGRES_PASSWORD",
+          "value": "x"
+        }
+      ],
+      "mounts": [
+        {
+          "kind": "volume",
+          "source": "vibe-abcdefghijkl-vol-data",
+          "target": "/var/lib/postgresql/data"
+        }
+      ],
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 5432,
+          "container_port": 5432
+        }
+      ],
+      "labels": [
+        {
+          "key": "dev.vibe.managed",
+          "value": "true"
+        },
+        {
+          "key": "dev.vibe.project",
+          "value": "abcdefghijklmnopqrstuvwxyz"
+        },
+        {
+          "key": "dev.vibe.role",
+          "value": "sidecar:db"
+        }
+      ],
+      "policy": {
+        "drop_all_capabilities": true,
+        "no_new_privileges": true,
+        "readonly_root_fs": false,
+        "network": "project"
+      }
+    }
+  ],
+  "networks": [
+    {
+      "name": "vibe-abcdefghijkl"
+    }
+  ],
+  "volumes": [
+    {
+      "name": "vibe-abcdefghijkl-agent-state"
+    },
+    {
+      "name": "vibe-abcdefghijkl-vol-data"
+    }
+  ],
+  "images": [
+    {
+      "ref": "mcr.microsoft.com/devcontainers/base:debian"
+    },
+    {
+      "ref": "postgres:16"
+    }
+  ],
+  "inputs": {
+    "snapshot": "sha256:16a0eeb0791b6c92451fd284dd9f599e0a7dbe7f6ebea6e2d2d06c7f74aec112",
+    "env_file": ".env"
+  },
+  "canonical_hash": "sha256:229267c80690ac063e93ffe26ff5f8a5c6435769b3a549acda5fe5720652c4d1"
+}

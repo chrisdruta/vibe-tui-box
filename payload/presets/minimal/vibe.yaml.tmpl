@@ -1,0 +1,13 @@
+# Project manifest for the vibe harness (schema 1). Seeded by
+# `vibe init` from the "minimal" preset; edit freely, then `vibe up`.
+schema: 1
+harness: {{.HarnessVersion}}
+image:
+  base: "mcr.microsoft.com/devcontainers/base:debian"
+  agents: [claude]
+agent:
+  cmd: claude
+  tmux: true
+bootstrap:
+  required: [git]
+  auto: {install: true, git_hooks: false, git_lfs: false}

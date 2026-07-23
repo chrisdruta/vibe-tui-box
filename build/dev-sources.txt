@@ -1,0 +1,9 @@
+# Source allowlist for `vibe dev on` builds (internal/dev). Paths are
+# workspace-relative; directories are copied recursively. Excludes .git,
+# .vibe, docs, examples, and the v1 bash harness by omission.
+go.mod
+go.sum
+assets.go
+cmd
+internal
+payload
