@@ -5,31 +5,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  schedule:
-    # Weekly canary: the image pulls live installers (claude.ai, bun.sh,
-    # nodesource); this catches upstream drift with no repo change.
-    - cron: "0 6 * * 1"
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      # Shell syntax, ShellCheck, bash-3.2 host gate, preset installs into
-      # scratch repos, seeded-file and placeholder assertions.
-      - run: ./verify.sh
-      - name: hadolint (Dockerfile)
-        # DL3008: apt packages deliberately track the base image (policy in
-        # docs/configuration.md); DL3003: cd into a mktemp dir — WORKDIR would
-        # wrongly persist it in image metadata.
-        run: |
-          docker run --rm -i hadolint/hadolint \
-            hadolint --ignore DL3008 --ignore DL3003 - < src/Dockerfile
-
   go:
-    # Host-engine port (docs/go-port-plan.md). Grows with the port; the
-    # shell suite above keeps gating what still runs as shell.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -40,31 +18,55 @@ jobs:
       - name: gofmt (no diffs)
         run: test -z "$(gofmt -l .)"
       - run: go vet ./...
-      # Default output name collides with the root bash launcher until
-      # step 1 retires it — build with -o (see cmd/vibe/main.go).
+      - name: payload manifest drift
+        # payload/manifest.json is generated but tracked (it carries the
+        # file modes go:embed drops); editing payload/** without
+        # regenerating it must fail here.
+        run: |
+          go generate ./internal/payload
+          git diff --exit-code payload/
+      - name: ShellCheck (container payload)
+        run: shellcheck payload/container/*.sh
+      # Default output collides with the gitignored dev-build name at the
+      # repo root — always build with -o (see AGENTS.md).
       - run: go build -o bin/vibe ./cmd/vibe && bin/vibe version
       - run: go test ./...
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
 
-  build-image:
-    # Full image build of the minimal preset via the compose engine —
-    # exercises the live installer pipelines that verify.sh cannot.
+  cross-compile:
+    # The release matrix must always build (AGENTS.md); CGO stays off so
+    # artifacts are static.
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        include:
+          - {goos: linux, goarch: amd64}
+          - {goos: linux, goarch: arm64}
+          - {goos: darwin, goarch: arm64}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+
+  docker-integration:
+    # The one place SDK translation meets a real daemon
+    # (internal/dockerapi TestSDKLifecycle self-skips without one; the
+    # ubuntu runner has one).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - name: Install preset into a scratch repo and build
-        run: |
-          target="$(mktemp -d)"
-          git -C "$target" init -q -b main
-          git -C "$target" -c user.name=ci -c user.email=ci@localhost \
-            commit -q --allow-empty -m init
-          ./install.sh --preset minimal --url "$PWD" "$target"
-          cd "$target"
-          # install.sh --self bootstrapped ~/.vibe (store + shim) and recorded
-          # trust for the target; there is no root ./vibe anymore — the shim
-          # is the host entry point, exactly as on a real host.
-          "$HOME/.vibe/bin/vibe" build
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test -v -run TestSDKLifecycle ./internal/dockerapi/

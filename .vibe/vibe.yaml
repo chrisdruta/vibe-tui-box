@@ -1,0 +1,14 @@
+# Dogfood manifest: this repository developed inside its own v2 engine.
+# `vibe dev on` builds the engine from this checkout; `vibe up` runs it.
+schema: 1
+harness: v2.0.0
+image:
+  base: "mcr.microsoft.com/devcontainers/go:1-bookworm"
+  agents: [claude]
+  toolchains: [go]
+agent:
+  cmd: claude
+  tmux: true
+bootstrap:
+  required: [git, go]
+  auto: {install: true, git_hooks: false, git_lfs: false}

@@ -1,5 +1,9 @@
 *.log
 /bin/
+# `go build ./cmd/vibe` output at the repo root
+/vibe
+# residual v1 container mountpoint on old dev hosts
+.vibe/harness/
 .vibe.backup.*
 docs/initial-gpt-log.md
 .claude/settings.local.json

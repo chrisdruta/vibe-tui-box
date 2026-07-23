@@ -1,9 +1,0 @@
-# Project-owned keybindings, merged in front of the harness's review keymap
-# (A = approve, R = reject with optional note; project entries win on
-# conflict). prepend_keymap entries only — the merge is a concatenation.
-# Examples:
-#
-# [[mgr.prepend_keymap]]
-# on = "A"
-# run = "shell -- my-custom-approve %h"
-# desc = "Project-specific approve"
