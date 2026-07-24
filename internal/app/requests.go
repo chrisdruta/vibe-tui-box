@@ -51,6 +51,7 @@ func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestL
 
 	raws, problems := broker.ReadRequests(root)
 	var result RequestListResult
+	adopted := false
 	for _, p := range problems {
 		result.Problems = append(result.Problems, p.Error())
 	}
@@ -101,6 +102,7 @@ func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestL
 			return RequestListResult{}, &domain.OpError{Op: "request list", Project: rec.ID, Err: err}
 		}
 		known[id] = p
+		adopted = true
 	}
 
 	final, err := bs.ListPending()
@@ -108,6 +110,11 @@ func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestL
 		return RequestListResult{}, &domain.OpError{Op: "request list", Project: rec.ID, Err: err}
 	}
 	result.Pending = final
+	// Adoption is the moment a request becomes visible engine truth
+	// (the sidebar's pending count reads adopted requests only).
+	if adopted {
+		a.bumpTuiSerial(ctx)
+	}
 	return result, nil
 }
 
@@ -275,6 +282,7 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 		if err := bs.DeletePending(match.RequestID); err != nil {
 			return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
 		}
+		a.bumpTuiSerial(ctx)
 		return RequestDecideResult{Result: result}, nil
 	}
 
@@ -324,6 +332,7 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 	if err := bs.DeletePending(match.RequestID); err != nil {
 		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
 	}
+	a.bumpTuiSerial(ctx)
 	return RequestDecideResult{Result: result, State: &state}, nil
 }
 

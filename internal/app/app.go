@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"sync/atomic"
 	"time"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/builder"
@@ -77,6 +78,9 @@ type App struct {
 	runtime *runtime.Service
 	builder *builder.Service
 	dev     *dev.Service
+	// tuiSerial keeps same-process @vibe_engine_serial bumps distinct
+	// even under a frozen test clock (notify.go).
+	tuiSerial atomic.Uint64
 }
 
 func New(deps Dependencies) (*App, error) {

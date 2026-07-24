@@ -137,6 +137,7 @@ func (a *App) Update(ctx context.Context, req UpdateRequest) (UpdateResult, erro
 	if err != nil {
 		return UpdateResult{}, &domain.OpError{Op: "update", Err: err}
 	}
+	a.bumpTuiSerial(ctx)
 	return UpdateResult{Artifact: artifact.Record, Pinned: pinned, BinaryPath: binPath}, nil
 }
 

@@ -208,6 +208,7 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 	for i := range state.Containers {
 		state.Containers[i].InSync = state.Containers[i].Candidate == cand.Record.Digest
 	}
+	a.bumpTuiSerial(ctx)
 	return UpResult{Record: updated, Candidate: cand.Record.Digest, State: state}, nil
 }
 
@@ -233,6 +234,7 @@ func (a *App) Down(ctx context.Context, req DownRequest) (DownResult, error) {
 	if err := a.runtime.Down(ctx, rec, runtime.DownOptions{RemoveVolumes: req.RemoveVolumes}); err != nil {
 		return DownResult{}, &domain.OpError{Op: "down", Project: rec.ID, Err: err}
 	}
+	a.bumpTuiSerial(ctx)
 	return DownResult{Record: rec}, nil
 }
 

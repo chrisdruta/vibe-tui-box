@@ -77,6 +77,7 @@ func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) 
 	if err != nil {
 		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
 	}
+	a.bumpTuiSerial(ctx)
 	return DevOnResult{Record: devRecord, Project: updated, Artifact: artifact.Record, BinaryPath: binPath}, nil
 }
 
@@ -138,6 +139,7 @@ func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, erro
 			result.BinaryPath = binPath
 		}
 	}
+	a.bumpTuiSerial(ctx)
 	return result, nil
 }
 

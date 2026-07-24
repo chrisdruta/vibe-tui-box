@@ -44,6 +44,7 @@ func (a *App) Register(ctx context.Context, req RegisterRequest) (RegisterResult
 	if err != nil {
 		return RegisterResult{}, &domain.OpError{Op: "register", Err: err}
 	}
+	a.bumpTuiSerial(ctx)
 	return RegisterResult{Record: rec}, nil
 }
 
@@ -176,5 +177,6 @@ func (a *App) Forget(ctx context.Context, req ForgetRequest) (ForgetResult, erro
 	if err := a.deps.Registry.Delete(ctx, rec.ID, rec.Revision); err != nil {
 		return ForgetResult{}, &domain.OpError{Op: "forget", Project: rec.ID, Err: err}
 	}
+	a.bumpTuiSerial(ctx)
 	return ForgetResult{Record: rec}, nil
 }
