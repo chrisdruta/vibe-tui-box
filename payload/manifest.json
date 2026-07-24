@@ -34,8 +34,8 @@
     {
       "path": "container/lifecycle.sh",
       "mode": "0644",
-      "size": 5071,
-      "digest": "sha256:e62cdd8a9d861c7656ac5cbf3bb3a10d1f8fb1aa4ab0d4b6d9c1ed9864d6baa6"
+      "size": 6023,
+      "digest": "sha256:f4a4eed4d62c221cd166fe7802ea1ab89c4a061a2563b0aea27972b32ff9bedd"
     },
     {
       "path": "container/statusline.sh",
@@ -106,8 +106,8 @@
     {
       "path": "presets/bun/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 419,
-      "digest": "sha256:340232c48cb8686308379276566480361c50a29db5cba06d67160044c787acb7"
+      "size": 426,
+      "digest": "sha256:ba0ee2a4ba1037ae578cbb9552443f36581a644fd8ce5e5ae3ccecab06a2b2d3"
     },
     {
       "path": "presets/common/AGENTS.md",
@@ -130,20 +130,20 @@
     {
       "path": "presets/go/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 416,
-      "digest": "sha256:f46eee202c3f0330082b640c31398a917cb515920e1f5060d478456df7a88b29"
+      "size": 423,
+      "digest": "sha256:5679f1283254c3e30247da064c39e82f36decb312337d76373f98b852c6c9c29"
     },
     {
       "path": "presets/minimal/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 398,
-      "digest": "sha256:81172d9218c7a0cc7ed85985dd62b88426f46a35543d8ec1c10fdec9eac5b962"
+      "size": 405,
+      "digest": "sha256:55e2f631ce84a370dcf2987207091e0492f9a407db9b1637b549e09f022cf6ec"
     },
     {
       "path": "presets/node/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 427,
-      "digest": "sha256:238ef305c34f0592f2eed8b79dabb4be2c6b934a63c74792a60ebfb5c541ae96"
+      "size": 434,
+      "digest": "sha256:92f5d0687c31b8e9114dc06a31bd8ac6dbb071993555d325a6ac8b8eaa3a4af3"
     },
     {
       "path": "presets/playwright/Dockerfile",
@@ -160,9 +160,9 @@
     {
       "path": "presets/playwright/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 615,
-      "digest": "sha256:51a7ea164117a54218a470f3986030fdf50799f7060d70265810bb6e1c9365ea"
+      "size": 622,
+      "digest": "sha256:cd890404eb7bdebc123ab94392dbfdc54b23221d287079f98506d7ee32720e92"
     }
   ],
-  "digest": "sha256:ef34b95dd92bdec4448404790898e1a41b4d3421affe877523d21acd74760629"
+  "digest": "sha256:129854008ae9e1e98f7bfe0642f4c6686a8050adac676567101f7ec59dfa0c8e"
 }

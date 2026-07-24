@@ -11,7 +11,7 @@ schema: 1
 harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
-  agents: [claude]            # claude | codex | grok
+  agents: [claude, codex]     # claude | codex | grok (presets seed both)
   toolchains: [go]            # node | bun | go | rokit
   extension: true             # opt into .vibe/Dockerfile (see extending.md)
 runtime:
@@ -139,3 +139,10 @@ config cannot reach, to the same. Two caveats: a `claude plugin
 update` reverts that rewrite until the next `vibe up` re-applies it,
 and patched review threads gain workspace write access — the
 container plus git history remain the boundary and the undo.
+
+When the image ships `gopls` beside claude (the go preset's base
+does), post-create likewise installs and enables Claude Code's
+official `gopls-lsp` plugin at user scope, so Go code intelligence
+works in a fresh container without the recommendation popup. Same
+contract as the codex plugin: best-effort, marker-guarded on the
+volume, retried on a later `up`.

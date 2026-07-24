@@ -97,6 +97,22 @@ if [ "$mode" = "post-create" ] && command -v codex >/dev/null 2>&1; then
   fi
 fi
 
+# Go code intelligence: when the image ships gopls beside claude (the
+# go preset's base does), install+enable the official gopls-lsp plugin
+# at user scope so the recommendation popup never gates a fresh
+# container. The marketplace add must precede the install — a fresh
+# config dir knows no marketplaces at all (verified; both steps are
+# idempotent re-run). Same contract as the codex block: best-effort,
+# marker on the volume, a failed attempt retries on a later up.
+gopls_plugin_marker="/vibe/agent-state/.vibe-gopls-plugin.done"
+if [ "$mode" = "post-create" ] && [ ! -e "$gopls_plugin_marker" ] &&
+  command -v claude >/dev/null 2>&1 && command -v gopls >/dev/null 2>&1; then
+  if timeout 60 claude plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 &&
+    timeout 60 claude plugin install gopls-lsp@claude-plugins-official --scope user >/dev/null 2>&1; then
+    : >"$gopls_plugin_marker" 2>/dev/null || true
+  fi
+fi
+
 if [ "$mode" = "post-create" ]; then
   # The marker lives in container-local state: it survives stop/start,
   # dies with the container — exactly "once per container". It is only
