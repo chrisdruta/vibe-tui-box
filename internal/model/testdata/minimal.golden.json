@@ -16,6 +16,12 @@
       "sleep",
       "infinity"
     ],
+    "environment": [
+      {
+        "key": "CLAUDE_CONFIG_DIR",
+        "value": "/vibe/agent-state/claude"
+      }
+    ],
     "mounts": [
       {
         "kind": "bind",
@@ -76,5 +82,5 @@
       "claude"
     ]
   },
-  "canonical_hash": "sha256:574d99f0ef465c77bb5246e873f02ccd4f40f015ea8b56bae602b041276135f6"
+  "canonical_hash": "sha256:c76a6535c24973e4524b2da9e69c3d2fd20c9af65b80be5556b2a7834fd84652"
 }

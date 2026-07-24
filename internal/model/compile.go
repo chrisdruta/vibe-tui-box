@@ -123,6 +123,15 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 	}
 	dev.Ports, errs = compilePorts("runtime.ports", m.Runtime.Ports, errs)
 	dev.Environment = compileEnv(m.Runtime.Env)
+	for _, agent := range m.Image.Agents {
+		// Claude relocates all its state (including .claude.json) under
+		// CLAUDE_CONFIG_DIR, so logins land in the agent-state volume and
+		// survive rebuilds. Engine-provided: comes last, cannot be shadowed.
+		if agent == schema.AgentClaude {
+			dev.Environment = append(dev.Environment,
+				Env{Key: "CLAUDE_CONFIG_DIR", Value: path.Join(AgentStateTarget, "claude")})
+		}
+	}
 	if !in.Artifact.IsZero() {
 		// Engine-provided entries come last so they cannot be shadowed.
 		dev.Environment = append(dev.Environment,

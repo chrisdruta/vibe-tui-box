@@ -24,6 +24,10 @@
       {
         "key": "B_FLAG",
         "value": "2"
+      },
+      {
+        "key": "CLAUDE_CONFIG_DIR",
+        "value": "/vibe/agent-state/claude"
       }
     ],
     "mounts": [
@@ -153,5 +157,5 @@
       "claude"
     ]
   },
-  "canonical_hash": "sha256:c9e780a8780d07620afce06c6cfd8250589984f51f70a964a3026e8a85e99ffd"
+  "canonical_hash": "sha256:0d7d67b7028a501f529abc8bd1b77c4f41b57cbf706294d48b7eb0a7b37e58d4"
 }

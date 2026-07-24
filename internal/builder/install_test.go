@@ -73,8 +73,9 @@ func TestGenerateInstallContent(t *testing.T) {
 			want: []string{
 				"claude.ai/install.sh",
 				"ENV PATH=/home/vscode/.local/bin:${PATH}",
+				"chown vscode:vscode /vibe/agent-state",
 			},
-			absent: []string{"USER root", "nodesource", "bun.sh", "rokit", "go.dev"},
+			absent: []string{"nodesource", "bun.sh", "rokit", "go.dev"},
 		},
 		{
 			name:   "codex drags node in",

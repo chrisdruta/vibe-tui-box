@@ -29,6 +29,10 @@ The v1 line and its history remain in git up to the cutover commit.
   base. Engine-authored, so no per-digest approval — no project bytes
   enter the build; the manifest only selects recipes. The dogfood
   manifest drops its hand-rolled claude-install extension Dockerfile.
+- New: claude logins persist across rebuilds. With `claude` in
+  `image.agents` the plan sets `CLAUDE_CONFIG_DIR` to the agent-state
+  volume, and the generated tools image bakes the mount point
+  vscode-owned so fresh volumes are writable by the agent.
 - New engine surface ([docs/usage.md](docs/usage.md)): immutable
   content-addressed artifacts/candidates/snapshots under `~/.vibe`;
   `provision`/`update` release flow with streamed checksum verification;

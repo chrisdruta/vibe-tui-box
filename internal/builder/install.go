@@ -92,10 +92,17 @@ func pathEntries(want map[string]bool) []string {
 	return out
 }
 
-// rootLayers renders the layers that need root: system toolchains and
-// apt dependencies. Fixed order: go, node, rokit's unzip guard.
+// rootLayers renders the layers that need root: the agent-state mount
+// point, system toolchains, and apt dependencies. Fixed order:
+// agent-state, go, node, rokit's unzip guard.
 func rootLayers(want map[string]bool) []string {
 	var out []string
+	// The agent-state named volume mounts here; Docker initializes a
+	// fresh volume from the image path, so baking the directory
+	// vscode-owned is what makes the volume writable by the agent.
+	out = append(out, `# Agent-state mount point: fresh named volumes inherit this ownership.
+RUN mkdir -p /vibe/agent-state && chown vscode:vscode /vibe/agent-state
+`)
 	if want[string(schema.ToolchainGo)] {
 		out = append(out, `# Go toolchain: official tarball pinned by version + per-arch checksum,
 # upstream layout under /usr/local/go (PATH above carries its bin dirs).

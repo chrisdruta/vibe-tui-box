@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,14 +45,15 @@ func TestUpStatusRunDown(t *testing.T) {
 		t.Fatal("images not resolved")
 	}
 
-	// Container env carries the frozen env file plus manifest env.
+	// Container env carries the frozen env file, manifest env, then the
+	// engine-provided claude state relocation.
 	creates := docker.CallsTo("CreateContainer")
 	if len(creates) != 1 {
 		t.Fatalf("want 1 container, got %d", len(creates))
 	}
 	created := creates[0].Request.(dockerapi.CreateRequest)
-	wantEnv := []string{"SECRET=s3cret", "FLAG=1"}
-	if len(created.Env) != 2 || created.Env[0] != wantEnv[0] || created.Env[1] != wantEnv[1] {
+	wantEnv := []string{"SECRET=s3cret", "FLAG=1", "CLAUDE_CONFIG_DIR=/vibe/agent-state/claude"}
+	if fmt.Sprint(created.Env) != fmt.Sprint(wantEnv) {
 		t.Fatalf("container env wrong: %v", created.Env)
 	}
 
