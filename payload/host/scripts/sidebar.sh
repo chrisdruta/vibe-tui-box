@@ -342,8 +342,13 @@ EOF0
       else
         amark=" " acol="$c_fg"
       fi
+      # Width-derived (docs/tui-layout.md): window names get up to a
+      # third of the text budget (min 12 — exactly the old fixed cut at
+      # the default 30-col width), so a widened sidebar shows more.
+      nbudget=$((max / 3))
+      [ "$nbudget" -lt 12 ] && nbudget=12
       wn="$wname"
-      [ "${#wn}" -gt 12 ] && wn="$(printf '%.11s' "$wn")…"
+      [ "${#wn}" -gt "$nbudget" ] && wn="$(printf '%.*s' $((nbudget - 1)) "$wn")…"
       pmax=$((max - ${#wn} - 6))
       pj=" ${c_dim}· $name"
       if [ "$pmax" -lt 4 ]; then

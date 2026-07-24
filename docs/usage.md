@@ -96,6 +96,13 @@ The prefix is `C-Space` (`C-a` also works). The keys that matter:
 | `prefix+o` | switch project (live sessions tree) |
 | `prefix+r` | respawn a dead pane (reattaches the agent session) |
 
+Layout knobs (tmux user options on the vibe socket; see
+[tui-layout.md](tui-layout.md)): `@vibe_sidebar_on` (default 1),
+`@vibe_sidebar_w` (30 cols), `@vibe_dock_size` (30%),
+`@vibe_engine_refresh` (30s). Deeper customization — bar position,
+accents, extra binds — goes in `~/.config/vibe/tui.conf`, sourced last
+by the materialized conf so it always wins and survives updates.
+
 ## Rebuild requests (the broker)
 
 Agents cannot change the container they run in. Instead they write

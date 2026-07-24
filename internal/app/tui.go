@@ -262,7 +262,15 @@ func (a *App) materializeTuiConf(ctx context.Context, rec registry.Record) (stri
 	prologue := fmt.Sprintf("# Materialized by `vibe tui` from artifact %s; regenerated every run.\n"+
 		"set-environment -g VIBE_TUI_CONF \"%s\"\nset -g @vibe_exe \"%s\"\nset -g @vibe_payload_dir \"%s\"\n\n",
 		artifact.Record.Digest, path, a.deps.Executable, hostDir)
-	if err := store.WriteFileAtomic(path, append([]byte(prologue), src...), 0o600); err != nil {
+	// The sanctioned customization point (docs/tui-layout.md): the user
+	// conf loads after the payload body so it wins, -q keeps a missing
+	// file silent, and the store-owned conf is never forked. Home is the
+	// layout root's parent — the app reads no ambient environment.
+	userConf := filepath.Join(filepath.Dir(a.deps.Layout.Root), ".config", "vibe", "tui.conf")
+	epilogue := fmt.Sprintf("\n# User overrides, applied last (docs/tui-layout.md).\nsource-file -q %q\n", userConf)
+	body := append([]byte(prologue), src...)
+	body = append(body, []byte(epilogue)...)
+	if err := store.WriteFileAtomic(path, body, 0o600); err != nil {
 		return "", "", err
 	}
 	return path, hostDir, nil

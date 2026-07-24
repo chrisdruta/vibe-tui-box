@@ -40,6 +40,16 @@ win="${1:-}"
 [ -n "$win" ] || exit 0
 tab="$(printf '\t')"
 
+dock_size() { # expanded height knob: @vibe_dock_size (conf), rows or NN%
+  s="$(tmux show-options -gqv @vibe_dock_size 2>/dev/null)"
+  case "$s" in
+    [0-9] | [0-9][0-9] | [0-9][0-9][0-9]) ;;
+    [0-9]% | [0-9][0-9]% | 100%) ;;
+    *) s="30%" ;;
+  esac
+  printf '%s' "$s"
+}
+
 pane=""
 h=0
 while IFS="$tab" read -r id role height; do
@@ -58,7 +68,7 @@ if [ -z "$pane" ]; then
   # ensure (the session-created hook) parks it collapsed as the slim
   # chrome bar. The path comes from tmux directly, never interpolated
   # into a shell string.
-  size="30%"
+  size="$(dock_size)"
   [ "$mode" = "ensure" ] && size=1
   sp="$(tmux display-message -p -t "$win" '#{session_path}' 2>/dev/null)"
   pane="$(tmux split-window -d -v -l "$size" -t "$win" -c "${sp:-$HOME}" -P -F '#{pane_id}' 2>/dev/null)" || exit 0
@@ -88,9 +98,9 @@ if [ "$h" -gt 2 ]; then
 else
   prev="$(tmux show-options -pqv -t "$pane" @vibe_dock_h 2>/dev/null)"
   case "$prev" in
-    # Never expanded before (or junk): the layout default — keep in sync
-    # with the toggle-create split-window -l '30%' above.
-    '' | *[!0-9]*) prev="30%" ;;
+    # Never expanded before (or junk): the @vibe_dock_size knob, the
+    # same default the toggle-create split-window above opens with.
+    '' | *[!0-9]*) prev="$(dock_size)" ;;
   esac
   tmux set-option -p -t "$pane" @vibe_dock_min 0 \; \
     resize-pane -t "$pane" -y "$prev"
