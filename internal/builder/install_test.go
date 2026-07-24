@@ -74,6 +74,7 @@ func TestGenerateInstallContent(t *testing.T) {
 				"claude.ai/install.sh",
 				"ENV PATH=/home/vscode/.local/bin:${PATH}",
 				"chown vscode:vscode /vibe/agent-state",
+				"apt-get install -y --no-install-recommends tmux",
 			},
 			absent: []string{"nodesource", "bun.sh", "rokit", "go.dev"},
 		},
@@ -97,7 +98,7 @@ func TestGenerateInstallContent(t *testing.T) {
 				"rm -rf /usr/local/go",
 				"ENV PATH=/usr/local/go/bin:/home/vscode/go/bin:${PATH}",
 			},
-			absent: []string{"/home/vscode/.local/bin"},
+			absent: []string{"/home/vscode/.local/bin", "tmux"},
 		},
 		{
 			name:       "rokit gets the unzip guard",

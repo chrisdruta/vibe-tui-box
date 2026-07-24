@@ -2,10 +2,22 @@
   "format": 1,
   "files": [
     {
+      "path": "container/agent-session.sh",
+      "mode": "0755",
+      "size": 4401,
+      "digest": "sha256:9f1bfb27373af08868e8a6f5fc013048e912bbc12862112f087541c83456811f"
+    },
+    {
       "path": "container/entrypoint.sh",
       "mode": "0755",
       "size": 441,
       "digest": "sha256:4a5a0a3fb0c95bc102ad7c4712eca922609b781faa349d1370543ff4bf5e7985"
+    },
+    {
+      "path": "container/tmux-agent.conf",
+      "mode": "0644",
+      "size": 791,
+      "digest": "sha256:de4d444e83cc8737330b1732c32cfc6ad8022cd7cbd7ff8a130fba213c0b0a58"
     },
     {
       "path": "host/scripts/clip-image.sh",
@@ -50,5 +62,5 @@
       "digest": "sha256:533ddd8db0f0f7ec129a526512194fe7bc7febe4f995242ef1aaaf7ddad0355c"
     }
   ],
-  "digest": "sha256:6324f45e63df7153d594c300fe784a400a134702faaa506069b94d34f006c10a"
+  "digest": "sha256:2f38b73ee18a0a4e6185b5f78d1a1e8e2653aa7db6a8330b7a1559ea88ff09f1"
 }

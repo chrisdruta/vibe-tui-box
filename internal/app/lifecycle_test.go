@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
+	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 )
 
@@ -140,6 +142,112 @@ func TestShellProbesCandidates(t *testing.T) {
 	last := execs[len(execs)-1].Request.(dockerapi.ExecRequest)
 	if len(last.Argv) != 2 || last.Argv[0] != "/bin/bash" || last.Argv[1] != "-l" {
 		t.Fatalf("shell argv wrong: %v", last.Argv)
+	}
+}
+
+func lastExecArgv(t *testing.T, docker *dockerfake.Client) dockerapi.ExecRequest {
+	t.Helper()
+	execs := docker.CallsTo("Exec")
+	if len(execs) == 0 {
+		t.Fatal("no exec calls recorded")
+	}
+	return execs[len(execs)-1].Request.(dockerapi.ExecRequest)
+}
+
+var agentProbeKey = dockerfake.ExecKey([]string{"test", "-x", "/usr/bin/tmux", "-a", "-r", model.PayloadAgentSession})
+
+func TestAgentSessionWrapping(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// tmux and the payload probe fine (fake execs default to exit 0):
+	// the agent CLI is wrapped in the session carrier, with the frozen
+	// env file and the engine identity.
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}}); err != nil {
+		t.Fatal(err)
+	}
+	last := lastExecArgv(t, docker)
+	wantArgv := []string{"bash", model.PayloadAgentSession, "agent", "--", "claude"}
+	if fmt.Sprint(last.Argv) != fmt.Sprint(wantArgv) {
+		t.Fatalf("agent argv wrong: %v", last.Argv)
+	}
+	wantEnv := []string{
+		"SECRET=s3cret",
+		"VIBE_PROJECT=" + string(reg.Record.ID),
+		"VIBE_PROJECT_NAME=" + reg.Record.DisplayName,
+	}
+	if fmt.Sprint(last.Env) != fmt.Sprint(wantEnv) {
+		t.Fatalf("agent env wrong: %v", last.Env)
+	}
+
+	// Flag pass-throughs keep script order: --cold, -a marker, -s NAME.
+	if _, err := a.Agent(ctx, AgentRequest{
+		ContainerCommand: ContainerCommand{Dir: dir},
+		Cold:             true,
+		Agent:            "claude",
+		Session:          "review",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	last = lastExecArgv(t, docker)
+	wantArgv = []string{"bash", model.PayloadAgentSession, "agent", "--cold", "-a", "-s", "review", "--", "claude"}
+	if fmt.Sprint(last.Argv) != fmt.Sprint(wantArgv) {
+		t.Fatalf("agent flag argv wrong: %v", last.Argv)
+	}
+
+	// -a must name an installed agent.
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Agent: "codex"}); err == nil {
+		t.Fatal("-a outside image.agents should fail")
+	}
+
+	// A container without tmux or the payload falls back to direct exec —
+	// identity still rides along, the cold/session variants do not exist.
+	docker.ExecResults[agentProbeKey] = dockerapi.ExecResult{ExitCode: 1}
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}}); err != nil {
+		t.Fatal(err)
+	}
+	last = lastExecArgv(t, docker)
+	if fmt.Sprint(last.Argv) != fmt.Sprint([]string{"claude"}) {
+		t.Fatalf("fallback argv wrong: %v", last.Argv)
+	}
+	if fmt.Sprint(last.Env) != fmt.Sprint(wantEnv) {
+		t.Fatalf("fallback env wrong: %v", last.Env)
+	}
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Cold: true}); err == nil {
+		t.Fatal("--cold without the carrier should fail")
+	}
+}
+
+func TestAgentTmuxOptOut(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	writeManifest(t, dir, strings.Replace(testManifest, "tmux: true", "tmux: false", 1))
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}}); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(lastExecArgv(t, docker).Argv) != fmt.Sprint([]string{"claude"}) {
+		t.Fatalf("opt-out argv wrong: %v", lastExecArgv(t, docker).Argv)
+	}
+	// The opt-out never probes.
+	for _, call := range docker.CallsTo("Exec") {
+		if dockerfake.ExecKey(call.Request.(dockerapi.ExecRequest).Argv) == agentProbeKey {
+			t.Fatal("agent.tmux: false must not probe for the carrier")
+		}
 	}
 }
 

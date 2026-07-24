@@ -5,31 +5,128 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
+	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
+	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
+	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
 	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
 	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
 )
 
-// Agent runs the manifest's agent CLI in the dev container with the
-// frozen env file — the tmux session's main window command.
-func (a *App) Agent(ctx context.Context, cmd ContainerCommand) (ExecResult, error) {
-	root, rec, err := a.resolveProject(ctx, cmd.Dir)
+// AgentRequest runs the agent CLI in the dev container. Agent
+// overrides the manifest's agent.cmd for this invocation (it must
+// still be listed in image.agents); Cold and Session pass through to
+// the container-side session script.
+type AgentRequest struct {
+	ContainerCommand
+	Cold    bool
+	Agent   string
+	Session string
+}
+
+// agentTmuxPath is the probe target for the session carrier: the tools
+// recipe installs distro tmux, so apt's path is deterministic.
+const agentTmuxPath = "/usr/bin/tmux"
+
+// Agent runs the agent CLI in the dev container with the frozen env
+// file — the tmux session's main window command. With agent.tmux set
+// and a tmux-capable image, the CLI is wrapped in the payload's
+// agent-session.sh so the conversation survives its viewer
+// (docs/agent-session-design.md); otherwise it execs directly, exactly
+// the pre-session behavior. The engine passes real argv throughout —
+// the one tmux shell-string quoting layer lives at the bottom of the
+// script.
+func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
+	root, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
 		return ExecResult{}, &domain.OpError{Op: "agent", Err: err}
 	}
-	doc, err := loadManifestFile(filepath.Join(root.Path, paths.ManifestRelPath))
-	if err != nil {
+	fail := func(err error) (ExecResult, error) {
 		return ExecResult{}, &domain.OpError{Op: "agent", Project: rec.ID, Err: err}
 	}
-	if ferrs := doc.Validate(); len(ferrs) > 0 {
-		return ExecResult{}, &domain.OpError{Op: "agent", Project: rec.ID, Err: fieldErrs(ferrs)}
+	doc, err := loadManifestFile(filepath.Join(root.Path, paths.ManifestRelPath))
+	if err != nil {
+		return fail(err)
 	}
-	cmd.Argv = []string{string(doc.Manifest.Agent.Cmd)}
-	return a.Run(ctx, cmd)
+	if ferrs := doc.Validate(); len(ferrs) > 0 {
+		return fail(fieldErrs(ferrs))
+	}
+	agentCmd := string(doc.Manifest.Agent.Cmd)
+	if req.Agent != "" {
+		if !slices.Contains(doc.Manifest.Image.Agents, schema.AgentKind(req.Agent)) {
+			return fail(fmt.Errorf("%w: agent %q is not listed in image.agents", domain.ErrInvalid, req.Agent))
+		}
+		agentCmd = req.Agent
+	}
+	name, err := a.requireDevContainer(ctx, rec)
+	if err != nil {
+		return fail(err)
+	}
+	session := doc.Manifest.Agent.Tmux
+	if session {
+		ok, err := a.probeAgentSession(ctx, name)
+		if err != nil {
+			return fail(err)
+		}
+		session = ok
+	}
+	cmd := req.ContainerCommand
+	if session {
+		cmd.Argv = []string{"bash", model.PayloadAgentSession, "agent"}
+		if req.Cold {
+			cmd.Argv = append(cmd.Argv, "--cold")
+		}
+		if req.Agent != "" {
+			cmd.Argv = append(cmd.Argv, "-a")
+		}
+		if req.Session != "" {
+			cmd.Argv = append(cmd.Argv, "-s", req.Session)
+		}
+		cmd.Argv = append(cmd.Argv, "--", agentCmd)
+	} else {
+		// The cold/session variants only exist inside the carrier.
+		if req.Cold || req.Session != "" {
+			return fail(fmt.Errorf("%w: --cold and -s need agent.tmux and a tmux-capable image", domain.ErrUnavailable))
+		}
+		cmd.Argv = []string{agentCmd}
+	}
+	entries, err := a.approvedEnvFile(ctx, rec)
+	if err != nil {
+		return fail(err)
+	}
+	// Identity for container-side scripts, which never parse workspace
+	// files for it: appended after the env file so it cannot be shadowed.
+	cmd.Env = append(append(entries, cmd.Env...),
+		envfile.Entry{Key: "VIBE_PROJECT", Value: string(rec.ID)},
+		envfile.Entry{Key: "VIBE_PROJECT_NAME", Value: rec.DisplayName},
+	)
+	res, err := a.execIn(ctx, name, cmd)
+	if err != nil {
+		return fail(err)
+	}
+	return res, nil
+}
+
+// probeAgentSession reports whether the dev container can carry the
+// agent session: tmux in the image and the payload mounted. One
+// fixed-argv exec covers both; base-image projects and pre-tmux tools
+// images fail it and get today's direct exec.
+func (a *App) probeAgentSession(ctx context.Context, name dockerapi.ContainerName) (bool, error) {
+	res, err := a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
+		Container: name,
+		User:      devContainerUser,
+		Argv:      []string{"test", "-x", agentTmuxPath, "-a", "-r", model.PayloadAgentSession},
+	})
+	if err != nil {
+		return false, err
+	}
+	return res.ExitCode == 0, nil
 }
 
 // TuiRequest opens (or joins) the project's tmux session: one window

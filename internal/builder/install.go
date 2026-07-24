@@ -72,12 +72,17 @@ func GenerateInstall(agents []schema.AgentKind, toolchains []schema.Toolchain) [
 	return []byte(b.String())
 }
 
+// wantsAgent reports whether the selection includes any agent CLI.
+func wantsAgent(want map[string]bool) bool {
+	return want[string(schema.AgentClaude)] || want[string(schema.AgentCodex)] || want[string(schema.AgentGrok)]
+}
+
 // pathEntries lists the bin directories the selection installs into,
 // in fixed v1 PATH order. Node needs none: nodesource installs to
 // /usr/bin.
 func pathEntries(want map[string]bool) []string {
 	var out []string
-	if want[string(schema.AgentClaude)] || want[string(schema.AgentCodex)] || want[string(schema.AgentGrok)] {
+	if wantsAgent(want) {
 		out = append(out, "/home/vscode/.local/bin")
 	}
 	if want[string(schema.ToolchainBun)] {
@@ -94,7 +99,7 @@ func pathEntries(want map[string]bool) []string {
 
 // rootLayers renders the layers that need root: the agent-state mount
 // point, system toolchains, and apt dependencies. Fixed order:
-// agent-state, go, node, rokit's unzip guard.
+// agent-state, tmux, go, node, rokit's unzip guard.
 func rootLayers(want map[string]bool) []string {
 	var out []string
 	// The agent-state named volume mounts here; Docker initializes a
@@ -103,6 +108,16 @@ func rootLayers(want map[string]bool) []string {
 	out = append(out, `# Agent-state mount point: fresh named volumes inherit this ownership.
 RUN mkdir -p /vibe/agent-state && chown vscode:vscode /vibe/agent-state
 `)
+	if wantsAgent(want) {
+		// Distro tmux, no pin (version-lock machinery deferred by decision
+		// record). Apt's /usr/bin/tmux is the fixed path App.Agent probes.
+		out = append(out, `# tmux carries the persistent agent session (docs/agent-session-design.md).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tmux \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+`)
+	}
 	if want[string(schema.ToolchainGo)] {
 		out = append(out, `# Go toolchain: official tarball pinned by version + per-arch checksum,
 # upstream layout under /usr/local/go (PATH above carries its bin dirs).

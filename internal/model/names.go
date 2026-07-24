@@ -63,3 +63,8 @@ func ReservedTargets() []string {
 // PayloadEntrypoint is the dev container command when an artifact's
 // payload is mounted.
 const PayloadEntrypoint = PayloadTarget + "/container/entrypoint.sh"
+
+// PayloadAgentSession is the container-side session carrier `vibe
+// agent` wraps the agent CLI in when the payload is mounted and the
+// image has tmux (docs/agent-session-design.md).
+const PayloadAgentSession = PayloadTarget + "/container/agent-session.sh"

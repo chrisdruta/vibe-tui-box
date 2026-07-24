@@ -130,15 +130,25 @@ func (a *App) devContainer(ctx context.Context, dir string) (registry.Record, do
 	if err != nil {
 		return registry.Record{}, "", err
 	}
+	name, err := a.requireDevContainer(ctx, rec)
+	if err != nil {
+		return registry.Record{}, "", err
+	}
+	return rec, name, nil
+}
+
+// requireDevContainer requires an already-resolved project's dev
+// container to be running.
+func (a *App) requireDevContainer(ctx context.Context, rec registry.Record) (dockerapi.ContainerName, error) {
 	name := dockerapi.ContainerName(model.DevContainerName(rec.ID))
 	state, err := a.deps.Docker.InspectContainer(ctx, name)
 	if err != nil {
-		return registry.Record{}, "", fmt.Errorf("dev container: %w (run `vibe up`)", err)
+		return "", fmt.Errorf("dev container: %w (run `vibe up`)", err)
 	}
 	if !state.Running {
-		return registry.Record{}, "", fmt.Errorf("%w: dev container %s is not running (run `vibe up`)", domain.ErrUnavailable, name)
+		return "", fmt.Errorf("%w: dev container %s is not running (run `vibe up`)", domain.ErrUnavailable, name)
 	}
-	return rec, name, nil
+	return name, nil
 }
 
 func (a *App) execIn(ctx context.Context, name dockerapi.ContainerName, cmd ContainerCommand) (ExecResult, error) {

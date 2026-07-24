@@ -53,13 +53,18 @@ var uiCommands = map[string]Command{
 	"agent": {
 		Name:    "agent",
 		Summary: "run the manifest's agent CLI in the dev container",
-		Usage:   "vibe agent [-u USER]",
-		Parse:   parseExecStyle("agent", false),
+		Usage:   "vibe agent [-u USER] [--cold] [-a|--agent CMD] [-s|--session NAME]",
+		Parse:   parseAgentCmd,
 		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			r := req.(*ExecRequest)
+			r := req.(*AgentCmdRequest)
 			cmd, restore := r.containerCommand()
 			defer restore()
-			res, err := a.Agent(ctx, cmd)
+			res, err := a.Agent(ctx, app.AgentRequest{
+				ContainerCommand: cmd,
+				Cold:             r.Cold,
+				Agent:            r.Agent,
+				Session:          r.Session,
+			})
 			if err != nil {
 				return nil, err
 			}
@@ -123,6 +128,38 @@ var uiCommands = map[string]Command{
 	"_state":      renderCommand("_state", (*app.App).RenderState),
 	"_fleet":      renderCommand("_fleet", (*app.App).RenderFleet),
 	"_statusline": renderCommand("_statusline", (*app.App).RenderStatusline),
+}
+
+// AgentCmdRequest is the exec-shaped agent command plus its session
+// pass-throughs: --cold (no repo instruction files), -a/--agent (run a
+// different installed agent in its own session), -s/--session (a named
+// parallel instance).
+type AgentCmdRequest struct {
+	ExecRequest
+	Cold    bool
+	Agent   string
+	Session string
+}
+
+func parseAgentCmd(args []string) (Request, error) {
+	var req AgentCmdRequest
+	fs := flag.NewFlagSet("agent", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.BoolVar(&req.JSON, "json", false, "emit versioned JSON")
+	fs.BoolVar(&req.Quiet, "quiet", false, "suppress nonessential output")
+	fs.StringVar(&req.User, "u", "", "container user (default vscode)")
+	fs.BoolVar(&req.Cold, "cold", false, "start without repo instruction files")
+	fs.StringVar(&req.Agent, "a", "", "run this installed agent instead of the manifest's")
+	fs.StringVar(&req.Agent, "agent", "", "alias for -a")
+	fs.StringVar(&req.Session, "s", "", "named parallel session")
+	fs.StringVar(&req.Session, "session", "", "alias for -s")
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+	if fs.NArg() > 0 {
+		return nil, fmt.Errorf("unexpected argument %q", fs.Arg(0))
+	}
+	return &req, nil
 }
 
 // usageError maps to the usage exit code.
