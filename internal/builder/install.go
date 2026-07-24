@@ -109,11 +109,14 @@ func rootLayers(want map[string]bool) []string {
 RUN mkdir -p /vibe/agent-state && chown vscode:vscode /vibe/agent-state
 `)
 	if wantsAgent(want) {
-		// Distro tmux, no pin (version-lock machinery deferred by decision
-		// record). Apt's /usr/bin/tmux is the fixed path App.Agent probes.
-		out = append(out, `# tmux carries the persistent agent session (docs/agent-session-design.md).
+		// Distro packages, no pin (version-lock machinery deferred by
+		// decision record). Apt's /usr/bin/tmux is the fixed path
+		// App.Agent probes; jq feeds the statusline glue (never the
+		// hot-path state hook).
+		out = append(out, `# tmux carries the persistent agent session (docs/agent-session-design.md);
+# jq parses the Claude statusline JSON.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tmux \
+    && apt-get install -y --no-install-recommends tmux jq \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 `)

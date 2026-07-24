@@ -150,7 +150,7 @@ func TestRegisterConfigForget(t *testing.T) {
 		t.Fatal("config is not deterministic")
 	}
 
-	ps, err := a.PS(ctx)
+	ps, err := a.PS(ctx, PSRequest{})
 	if err != nil || len(ps.Projects) != 1 {
 		t.Fatalf("ps: %+v, %v", ps, err)
 	}
@@ -161,7 +161,7 @@ func TestRegisterConfigForget(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, paths.ManifestRelPath)); err != nil {
 		t.Fatal("forget must not touch the workspace")
 	}
-	ps, err = a.PS(ctx)
+	ps, err = a.PS(ctx, PSRequest{})
 	if err != nil || len(ps.Projects) != 0 {
 		t.Fatalf("ps after forget: %+v, %v", ps, err)
 	}

@@ -22,12 +22,15 @@ import (
 // AgentRequest runs the agent CLI in the dev container. Agent
 // overrides the manifest's agent.cmd for this invocation (it must
 // still be listed in image.agents); Cold and Session pass through to
-// the container-side session script.
+// the container-side session script. Nested marks the exec as spawned
+// under `vibe tui` (the conf exports VIBE_NESTED=1) so the inner tmux
+// client is reapable when the UI dies.
 type AgentRequest struct {
 	ContainerCommand
 	Cold    bool
 	Agent   string
 	Session string
+	Nested  bool
 }
 
 // agentTmuxPath is the probe target for the session carrier: the tools
@@ -106,6 +109,9 @@ func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
 		envfile.Entry{Key: "VIBE_PROJECT", Value: string(rec.ID)},
 		envfile.Entry{Key: "VIBE_PROJECT_NAME", Value: rec.DisplayName},
 	)
+	if req.Nested {
+		cmd.Env = append(cmd.Env, envfile.Entry{Key: "VIBE_NESTED", Value: "1"})
+	}
 	res, err := a.execIn(ctx, name, cmd)
 	if err != nil {
 		return fail(err)
@@ -187,7 +193,30 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 	if err := a.deps.Tmux.Attach(ctx, session); err != nil {
 		return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
 	}
+	// Attach returns on detach AND on quit. Only a quit (the session is
+	// gone, so every nested docker-exec client is dead by definition)
+	// reaps the ghost viewers left inside the container — on a plain
+	// detach the panes still run and their inner clients are live.
+	if ok, err := a.deps.Tmux.HasSession(ctx, session); err == nil && !ok {
+		a.reapAgentClients(ctx, rec)
+	}
 	return nil
+}
+
+// reapAgentClients detaches VIBE_NESTED ghost tmux clients inside the
+// dev container after the tui died (docs/agent-session-design.md reap
+// mode). Best-effort by contract: no container, no payload, no tmux —
+// nothing to reap, nothing to report. Agents keep running.
+func (a *App) reapAgentClients(ctx context.Context, rec registry.Record) {
+	name, err := a.requireDevContainer(ctx, rec)
+	if err != nil {
+		return
+	}
+	_, _ = a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
+		Container: name,
+		User:      devContainerUser,
+		Argv:      []string{"bash", model.PayloadAgentSession, "reap"},
+	})
 }
 
 // materializeTuiConf copies the pinned artifact's tmux conf into engine

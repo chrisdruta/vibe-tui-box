@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
@@ -248,6 +249,81 @@ func TestAgentTmuxOptOut(t *testing.T) {
 		if dockerfake.ExecKey(call.Request.(dockerapi.ExecRequest).Argv) == agentProbeKey {
 			t.Fatal("agent.tmux: false must not probe for the carrier")
 		}
+	}
+}
+
+func TestPSAgentRows(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// No running dev container: the fleet listing stands alone.
+	res, err := a.PS(ctx, PSRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.AgentProject != "" || len(res.Agents) != 0 {
+		t.Fatalf("agent rows without a container: %+v", res)
+	}
+
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	// Container-controlled bytes: control characters are stripped, rows
+	// are decoded, ages rendered against the engine clock (fixed at
+	// 2026-07-23T12:00Z).
+	psKey := dockerfake.ExecKey([]string{"bash", model.PayloadAgentPS})
+	base := time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC).Unix()
+	docker.ExecOutputs[psKey] = fmt.Sprintf(
+		"agent|working|%d|\nagent-codex|exited(3)|%d|detached\nbad line\nevil|id\x1ble|%d|\n",
+		base-90, base-7200, base-5)
+	res, err = a.PS(ctx, PSRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.AgentProject == "" || len(res.Agents) != 3 {
+		t.Fatalf("agent rows wrong: %+v", res)
+	}
+	if res.Agents[0].Name != "agent" || res.Agents[0].State != "working" || res.Agents[0].Age != "1m" {
+		t.Fatalf("row 0 wrong: %+v", res.Agents[0])
+	}
+	if res.Agents[1].State != "exited(3)" || res.Agents[1].Age != "2h" || res.Agents[1].Detail != "detached" {
+		t.Fatalf("row 1 wrong: %+v", res.Agents[1])
+	}
+	if res.Agents[2].State != "idle" {
+		t.Fatalf("escape byte not stripped: %q", res.Agents[2].State)
+	}
+
+	// A feeder failure (no payload, older image) drops the section.
+	docker.ExecResults[psKey] = dockerapi.ExecResult{ExitCode: 127}
+	res, err = a.PS(ctx, PSRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.AgentProject != "" || len(res.Agents) != 0 {
+		t.Fatalf("agent rows despite feeder failure: %+v", res)
+	}
+}
+
+func TestReapAgentClients(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	a.reapAgentClients(ctx, reg.Record)
+	last := lastExecArgv(t, docker)
+	want := []string{"bash", model.PayloadAgentSession, "reap"}
+	if fmt.Sprint(last.Argv) != fmt.Sprint(want) {
+		t.Fatalf("reap argv wrong: %v", last.Argv)
 	}
 }
 

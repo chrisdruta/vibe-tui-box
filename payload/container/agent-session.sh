@@ -23,11 +23,30 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
   echo "Usage: agent-session.sh agent [--cold] [-a] [-s NAME] -- COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh run COMMAND [ARGUMENT ...]" >&2
+  echo "       agent-session.sh reap" >&2
   exit 2
 }
 
 mode="${1:-}"
 shift || true
+
+# `vibe tui` kill cleanup, not a user surface: a host-side pane death
+# orphans its docker-exec tmux client in here (docker never kills the
+# exec'd process with its client), leaving ghost viewers that inflate
+# attached counts and outlive the UI. At kill time every VIBE_NESTED
+# client is dead by definition — the UI that spawned them is gone — and
+# plain `vibe agent` clients never carry the marker, so they are never
+# touched. Only detaches clients: agents keep running.
+if [ "$mode" = "reap" ]; then
+  tmux list-clients -F '#{client_pid} #{client_tty}' 2>/dev/null |
+    while read -r cpid ctty; do
+      [ -n "$cpid" ] || continue
+      if tr '\0' '\n' <"/proc/$cpid/environ" 2>/dev/null | grep -qx 'VIBE_NESTED=1'; then
+        tmux detach-client -t "$ctty" 2>/dev/null || true
+      fi
+    done
+  exit 0
+fi
 
 # run mode is the pane-side wrapper agent mode launches: it trades the
 # zero-cost exec for an EXIT trap that records process death — the one

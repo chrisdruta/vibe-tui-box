@@ -68,3 +68,7 @@ const PayloadEntrypoint = PayloadTarget + "/container/entrypoint.sh"
 // agent` wraps the agent CLI in when the payload is mounted and the
 // image has tmux (docs/agent-session-design.md).
 const PayloadAgentSession = PayloadTarget + "/container/agent-session.sh"
+
+// PayloadAgentPS is the container-side feeder for `vibe ps` agent rows:
+// it joins the inner tmux server with the agent-state records.
+const PayloadAgentPS = PayloadTarget + "/container/agent-ps.sh"

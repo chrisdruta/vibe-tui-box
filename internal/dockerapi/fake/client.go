@@ -36,6 +36,7 @@ type Client struct {
 	StartErr    error
 	WaitCodes   map[dockerapi.ContainerID]int
 	ExecResults map[string]dockerapi.ExecResult // keyed by argv joined with \x00
+	ExecOutputs map[string]string               // stdout written to Streams.Out, same key
 	ExecErr     error
 	BuildResult dockerapi.BuiltImage
 	BuildErr    error
@@ -56,6 +57,7 @@ func New() *Client {
 		ResolveErrs:    map[dockerapi.ImageRef]error{},
 		PullErrs:       map[dockerapi.ImageRef]error{},
 		ExecResults:    map[string]dockerapi.ExecResult{},
+		ExecOutputs:    map[string]string{},
 		WaitCodes:      map[dockerapi.ContainerID]int{},
 		Containers:     map[dockerapi.ContainerName]*dockerapi.ContainerState{},
 		Volumes:        map[string]dockerapi.VolumeSpec{},
@@ -232,6 +234,9 @@ func (c *Client) Exec(ctx context.Context, req dockerapi.ExecRequest) (dockerapi
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if out, ok := c.ExecOutputs[ExecKey(req.Argv)]; ok && req.Streams.Out != nil {
+		_, _ = req.Streams.Out.Write([]byte(out))
+	}
 	if res, ok := c.ExecResults[ExecKey(req.Argv)]; ok {
 		return res, nil
 	}

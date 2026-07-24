@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
@@ -64,6 +65,10 @@ var uiCommands = map[string]Command{
 				Cold:             r.Cold,
 				Agent:            r.Agent,
 				Session:          r.Session,
+				// The tui conf exports VIBE_NESTED=1 server-wide; the
+				// marker rides into the container so its inner tmux
+				// client is reapable when the UI dies.
+				Nested: os.Getenv("VIBE_NESTED") == "1",
 			})
 			if err != nil {
 				return nil, err

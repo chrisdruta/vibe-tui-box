@@ -1,4 +1,12 @@
 {
+  "statusLine": {
+    "type": "command",
+    "command": "bash /vibe/payload/container/statusline.sh"
+  },
+  "subagentStatusLine": {
+    "type": "command",
+    "command": "bash /vibe/payload/container/subagent-statusline.sh"
+  },
   "hooks": {
     "SessionStart": [
       {

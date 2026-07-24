@@ -74,7 +74,7 @@ func TestGenerateInstallContent(t *testing.T) {
 				"claude.ai/install.sh",
 				"ENV PATH=/home/vscode/.local/bin:${PATH}",
 				"chown vscode:vscode /vibe/agent-state",
-				"apt-get install -y --no-install-recommends tmux",
+				"apt-get install -y --no-install-recommends tmux jq",
 			},
 			absent: []string{"nodesource", "bun.sh", "rokit", "go.dev"},
 		},

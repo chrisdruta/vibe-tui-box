@@ -70,14 +70,14 @@ var commandTable = map[string]Command{
 	},
 	"ps": {
 		Name:    "ps",
-		Summary: "list registered projects",
+		Summary: "list registered projects and the current project's agents",
 		Usage:   "vibe ps [--json]",
 		Parse: func(args []string) (Request, error) {
 			var req PSRequest
 			return parseInto(args, "ps", &req.Options, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.PS(ctx)
+			res, err := a.PS(ctx, app.PSRequest{Dir: mustCwd()})
 			if err != nil {
 				return nil, err
 			}

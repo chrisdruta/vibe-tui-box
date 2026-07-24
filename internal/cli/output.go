@@ -78,6 +78,16 @@ func (r *psResult) RenderHuman(w io.Writer) error {
 			return err
 		}
 	}
+	if r.Result.AgentProject != "" {
+		if _, err := fmt.Fprintf(w, "\nagents (%s)\n", r.Result.AgentProject); err != nil {
+			return err
+		}
+		for _, row := range r.Result.Agents {
+			if _, err := fmt.Fprintf(w, "  %-18s %-12s %-5s %s\n", row.Name, row.State, row.Age, row.Detail); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -86,7 +96,15 @@ func (r *psResult) RenderJSON(w io.Writer) error {
 	if projects == nil {
 		projects = []registry.Record{}
 	}
-	return writeJSON(w, "ps", projects)
+	agents := r.Result.Agents
+	if agents == nil {
+		agents = []app.AgentPSRow{}
+	}
+	return writeJSON(w, "ps", struct {
+		Projects     []registry.Record `json:"projects"`
+		AgentProject string            `json:"agentProject,omitempty"`
+		Agents       []app.AgentPSRow  `json:"agents"`
+	}{projects, r.Result.AgentProject, agents})
 }
 
 type upResult struct {

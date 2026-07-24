@@ -2,10 +2,16 @@
   "format": 1,
   "files": [
     {
+      "path": "container/agent-ps.sh",
+      "mode": "0755",
+      "size": 4022,
+      "digest": "sha256:831b822cce41876cab939dbfde85852f40197077b451e034d99aab30be363395"
+    },
+    {
       "path": "container/agent-session.sh",
       "mode": "0755",
-      "size": 5890,
-      "digest": "sha256:e8014ffe961ddcf432402f3e4ed06eba73f22be357442193bf9fcdeb592f632c"
+      "size": 6754,
+      "digest": "sha256:7544efed200dbe34217dafb3118dd653ac66960231fe52bb19768b7f094e3c6a"
     },
     {
       "path": "container/agent-state-hook.sh",
@@ -16,14 +22,26 @@
     {
       "path": "container/claude-settings.json",
       "mode": "0644",
-      "size": 1302,
-      "digest": "sha256:734dea941b589237c1331cf22617b39d20949557ba8414d1da9a6f58bfe82e4c"
+      "size": 1531,
+      "digest": "sha256:b86cef0615af009c0e3e81d39d30b876f310a7d2debec4f0bf26055fa8cd88fe"
     },
     {
       "path": "container/entrypoint.sh",
       "mode": "0755",
       "size": 441,
       "digest": "sha256:4a5a0a3fb0c95bc102ad7c4712eca922609b781faa349d1370543ff4bf5e7985"
+    },
+    {
+      "path": "container/statusline.sh",
+      "mode": "0755",
+      "size": 3109,
+      "digest": "sha256:2a077ea1d6bd552a2a60ab39f6739602ccc20339f9c13808af3fb1c82862545e"
+    },
+    {
+      "path": "container/subagent-statusline.sh",
+      "mode": "0755",
+      "size": 2252,
+      "digest": "sha256:ad60287be95f9508036d2099aab065b112172355fd065e13856ca3043e8f8933"
     },
     {
       "path": "container/tmux-agent.conf",
@@ -70,8 +88,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 16794,
-      "digest": "sha256:ebdb742c124e3d2ac173ab8528d93112bd76fd3589160aceb939d5279de1521f"
+      "size": 17080,
+      "digest": "sha256:9891276f3e47e8c379c7077c17bc143568b6973d8a4029590ebe2f56e0c64ffa"
     },
     {
       "path": "presets/minimal/vibe.yaml.tmpl",
@@ -80,5 +98,5 @@
       "digest": "sha256:533ddd8db0f0f7ec129a526512194fe7bc7febe4f995242ef1aaaf7ddad0355c"
     }
   ],
-  "digest": "sha256:50ac210f24fac8b6515fa8f7cc6cd6cdfa4bb09c8e46eca8d267ebff6ff74dc1"
+  "digest": "sha256:fbcbc8c875ba22d2da21d5b3f8100156b169359ddf39593839b5d75ec15af71d"
 }
