@@ -443,16 +443,23 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 	}
 	rec := mustResolve(t, a, dir)
 
+	// _state is display form (glyph, ▲n only when pending); the running
+	// project with no pending requests renders the bare glyph.
 	state, err := a.RenderState(ctx, RenderRequest{Project: rec.ID})
-	if err != nil || len(state.Lines) != 1 || !strings.HasPrefix(state.Lines[0], "1 ") {
+	if err != nil || len(state.Lines) != 1 || state.Lines[0] != "●" {
 		t.Fatalf("state render: %+v, %v", state, err)
 	}
 	sidebar, err := a.RenderSidebar(ctx, RenderRequest{Project: rec.ID, Width: 40})
 	if err != nil || len(sidebar.Lines) < 2 {
 		t.Fatalf("sidebar render: %+v, %v", sidebar, err)
 	}
+	// _fleet porcelain: US-separated, version 1, project ID as join key.
 	fleet, err := a.RenderFleet(ctx, RenderRequest{Width: 80})
 	if err != nil || len(fleet.Lines) != 1 {
 		t.Fatalf("fleet render: %+v, %v", fleet, err)
+	}
+	fields := strings.Split(fleet.Lines[0], "\x1f")
+	if len(fields) != 7 || fields[0] != "1" || fields[1] != string(rec.ID) {
+		t.Fatalf("fleet porcelain fields: %q", fields)
 	}
 }
