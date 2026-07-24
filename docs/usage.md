@@ -10,7 +10,7 @@ result, and exits with a stable code: 0 ok, 1 failure, 2 usage,
 
 | Command | Effect |
 | --- | --- |
-| `vibe init [--preset NAME]` | Seed `.vibe/` from an embedded preset, register, pin the newest artifact |
+| `vibe init [--preset NAME]` | Seed `.vibe/` from an embedded preset (`minimal`, `go`, `node`, `bun`, `playwright`), register, pin the newest artifact |
 | `vibe register [--name NAME]` | Register an existing project |
 | `vibe up` | Freeze inputs → compile candidate → reconcile containers → mark approved |
 | `vibe rebuild` | Same, but recreate containers even when already in sync |
@@ -32,13 +32,35 @@ a failed `up` never moves the approved-candidate pointer.
 | `vibe run -- CMD ARGS…` | the env file frozen in the approved candidate, then `-e` |
 | `vibe agent [--cold] [-a CMD] [-s NAME]` | the manifest's agent CLI, with the frozen env file |
 | `vibe shell` | first of zsh/bash/sh found in the container, as a login shell |
-| `vibe attach` | the container's main process |
+| `vibe attach [SESSION]` | the main process; with SESSION, that in-container tmux session (default target: `services`) |
+| `vibe logs [SERVICE] [-f] [--tail N]` | container logs — the dev container, or a named sidecar |
 | `vibe bootstrap` | verify `bootstrap.required` tools exist in the container |
 
 Argv is preserved exactly — there is no shell-string form. The container
 process's exit code becomes `vibe`'s exit code. Interactive sessions get
 a raw TTY with resize forwarding; container commands run from
 `/workspace`.
+
+### Lifecycle hooks and the services session
+
+Projects may ship `.vibe/hooks/post-create.sh` (runs once per
+container) and `.vibe/hooks/post-start.sh` (runs after every actual
+start). The engine executes them inside the container as the container
+user, cwd `/workspace`, during `vibe up`/`rebuild` — output streams to
+your terminal and a nonzero exit fails the command. No env file is
+loaded (secrets enter one process via `vibe run`, never ambiently).
+Presets seed inert `.sample` files; rename to activate.
+
+A post-start hook stands up long-running dev processes with the
+idempotent payload helper — each becomes a window in the in-container
+`services` tmux session:
+
+```sh
+bash "$VIBE_PAYLOAD/container/svc.sh" web npm run dev
+```
+
+`vibe attach services` joins that session; logs live in each window's
+scrollback.
 
 ### Agent sessions persist
 

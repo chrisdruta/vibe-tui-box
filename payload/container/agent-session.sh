@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Container-side session carrier for `vibe agent` — the v2 port of v1's
-# agent-entry.sh (docs/agent-session-design.md). The engine execs this
+# agent-entry.sh (docs/architecture.md (agent sessions)). The engine execs this
 # with real argv (`agent [FLAGS…] -- CMD [ARGS…]`) whenever the payload
 # is mounted and the image has tmux; the agent CLI runs inside an inner
 # tmux session so it survives its viewer, and a rerun reattaches (-A)
@@ -22,6 +22,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   echo "Usage: agent-session.sh agent [--cold] [-a] [-s NAME] -- COMMAND [ARGUMENT ...]" >&2
+  echo "       agent-session.sh attach [SESSION]" >&2
   echo "       agent-session.sh run COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh reap" >&2
   exit 2
@@ -46,6 +47,26 @@ if [ "$mode" = "reap" ]; then
       fi
     done
   exit 0
+fi
+
+# attach mode is the door into an arbitrary inner session — by default
+# `services`, the session post-start hooks populate via svc.sh. -A
+# attaches or creates: attaching to a not-yet-started services session
+# just yields an empty session with a shell, which is also the right
+# place to start one by hand.
+if [ "$mode" = "attach" ]; then
+  session="${1:-services}"
+  case "$session" in
+    ""|*[!A-Za-z0-9_-]*)
+      echo "agent-session.sh attach: SESSION must be letters, digits, '_' or '-': $session" >&2
+      exit 2
+      ;;
+  esac
+  if [ -n "${TMUX:-}" ]; then
+    echo "agent-session.sh attach: already inside the inner tmux; use tmux switch-client" >&2
+    exit 2
+  fi
+  exec tmux -u -f "$script_dir/tmux-agent.conf" new-session -A -s "$session"
 fi
 
 # run mode is the pane-side wrapper agent mode launches: it trades the

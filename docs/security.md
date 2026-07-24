@@ -19,7 +19,9 @@ Everything the host reads from the workspace — `vibe.yaml`, the env
 file, import sources, `.vibe/Dockerfile`, request JSON — is treated as
 data: parsed by bounded, strict parsers (size, depth, node, and entry
 limits; unknown fields rejected), then **frozen into an immutable
-content-addressed snapshot** before validation or use. Later stages read
+content-addressed snapshot** before validation or use. Project
+lifecycle hooks (`.vibe/hooks/`) execute only *inside* the container,
+as workload code; the host never reads or runs them. Later stages read
 the snapshot, never the workspace, so what you approved cannot change
 under you. Snapshotting itself is symlink-rejecting and FD-confined to
 the project root, and aborts on concurrent mutation.

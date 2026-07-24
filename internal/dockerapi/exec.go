@@ -79,6 +79,42 @@ func (s *SDK) Attach(ctx context.Context, req AttachRequest) error {
 	return pumpStreams(ctx, hijack, req.TTY, req.Streams)
 }
 
+// Logs streams container logs into the caller's writers, demultiplexed
+// (engine containers never allocate a TTY). In follow mode the copy
+// runs until the container stops or ctx is canceled.
+func (s *SDK) Logs(ctx context.Context, req LogsRequest) error {
+	tail := "all"
+	if req.Tail > 0 {
+		tail = fmt.Sprintf("%d", req.Tail)
+	}
+	rc, err := s.cli.ContainerLogs(ctx, string(req.Container), container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     req.Follow,
+		Tail:       tail,
+	})
+	if err != nil {
+		return mapErr("logs of "+string(req.Container), err)
+	}
+	defer rc.Close()
+
+	out := req.Streams.Out
+	if out == nil {
+		out = io.Discard
+	}
+	errOut := req.Streams.Err
+	if errOut == nil {
+		errOut = io.Discard
+	}
+	if _, err := stdcopy.StdCopy(out, errOut, rc); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("%w: %v", domain.ErrCanceled, context.Cause(ctx))
+		}
+		return fmt.Errorf("logs of %s: %w", req.Container, err)
+	}
+	return nil
+}
+
 func (s *SDK) forwardExecResize(ctx context.Context, execID string, resize <-chan WindowSize) {
 	for {
 		select {

@@ -77,9 +77,7 @@ section at the bottom — as revisable records, not fences.
 - **tui follow-ups (low priority).** Event-driven sidebar refresh
   (replacing the serial-gated tick); a richer sidebar agent roster backed
   by `vibe ps` (covers container sessions without windows — deferred from
-  agent-session slice 3 pending that refresh); agent-session.sh's attach
-  mode for the in-container services session (its target doesn't exist
-  until the payload-lifecycle work on the roadmap lands); review-as-split
+  agent-session slice 3 pending that refresh); review-as-split
   — images in a tmux split survive redraws only via kitty-graphics Unicode
   placeholders, which need the OUTER terminal to speak kitty graphics
   (Windows Terminal is sixel-only), so the revisit trigger is a

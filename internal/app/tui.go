@@ -41,7 +41,7 @@ const agentTmuxPath = "/usr/bin/tmux"
 // file — the tmux session's main window command. With agent.tmux set
 // and a tmux-capable image, the CLI is wrapped in the payload's
 // agent-session.sh so the conversation survives its viewer
-// (docs/agent-session-design.md); otherwise it execs directly, exactly
+// (docs/architecture.md (agent sessions)); otherwise it execs directly, exactly
 // the pre-session behavior. The engine passes real argv throughout —
 // the one tmux shell-string quoting layer lives at the bottom of the
 // script.
@@ -204,7 +204,7 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 }
 
 // reapAgentClients detaches VIBE_NESTED ghost tmux clients inside the
-// dev container after the tui died (docs/agent-session-design.md reap
+// dev container after the tui died (docs/architecture.md (agent sessions) reap
 // mode). Best-effort by contract: no container, no payload, no tmux —
 // nothing to reap, nothing to report. Agents keep running.
 func (a *App) reapAgentClients(ctx context.Context, rec registry.Record) {

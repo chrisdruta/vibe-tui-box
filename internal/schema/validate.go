@@ -59,6 +59,11 @@ func parsePortNumber(s string) (int, error) {
 // harness field; init uses it to render only valid versions.
 func ValidHarnessVersion(v string) bool { return harnessRe.MatchString(v) }
 
+// ValidServiceName reports whether s is a legal sidecar service name;
+// commands taking a service argument gate on it before deriving
+// container names.
+func ValidServiceName(s string) bool { return serviceNameRe.MatchString(s) }
+
 var (
 	harnessRe     = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$`)
 	serviceNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)

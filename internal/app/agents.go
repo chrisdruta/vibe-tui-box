@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
@@ -12,6 +13,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
+	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
 )
 
@@ -107,20 +109,55 @@ func (a *App) Shell(ctx context.Context, cmd ContainerCommand) (ExecResult, erro
 	return res, nil
 }
 
-// Attach connects to the dev container's main process.
-func (a *App) Attach(ctx context.Context, cmd ContainerCommand) error {
-	rec, name, err := a.devContainer(ctx, cmd.Dir)
+// AttachRequest connects to the dev container: without Session, the
+// container's main process; with one, the named in-container tmux
+// session (default target: the `services` session lifecycle hooks
+// populate).
+type AttachRequest struct {
+	ContainerCommand
+	Session string
+}
+
+// sessionNameRe matches the shared inner-session charset (tmux session
+// names, state-file names, the title channel).
+var sessionNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error) {
+	rec, name, err := a.devContainer(ctx, req.Dir)
 	if err != nil {
-		return &domain.OpError{Op: "attach", Err: err}
+		return ExecResult{}, &domain.OpError{Op: "attach", Err: err}
 	}
-	if err := a.deps.Docker.Attach(ctx, dockerapi.AttachRequest{
-		Container: name,
-		TTY:       cmd.TTY,
-		Streams:   cmd.Streams,
-	}); err != nil {
-		return &domain.OpError{Op: "attach", Project: rec.ID, Err: err}
+	fail := func(err error) (ExecResult, error) {
+		return ExecResult{}, &domain.OpError{Op: "attach", Project: rec.ID, Err: err}
 	}
-	return nil
+	if req.Session == "" {
+		if err := a.deps.Docker.Attach(ctx, dockerapi.AttachRequest{
+			Container: name,
+			TTY:       req.TTY,
+			Streams:   req.Streams,
+		}); err != nil {
+			return fail(err)
+		}
+		return ExecResult{}, nil
+	}
+
+	if !sessionNameRe.MatchString(req.Session) {
+		return fail(fmt.Errorf("%w: session name %q", domain.ErrInvalid, req.Session))
+	}
+	ok, err := a.probeAgentSession(ctx, name)
+	if err != nil {
+		return fail(err)
+	}
+	if !ok {
+		return fail(fmt.Errorf("%w: attaching a session needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
+	}
+	cmd := req.ContainerCommand
+	cmd.Argv = []string{"bash", model.PayloadAgentSession, "attach", req.Session}
+	res, err := a.execIn(ctx, name, cmd)
+	if err != nil {
+		return fail(err)
+	}
+	return res, nil
 }
 
 // devContainer resolves the project and requires its dev container to
@@ -184,6 +221,42 @@ func (a *App) execIn(ctx context.Context, name dockerapi.ContainerName, cmd Cont
 		return ExecResult{}, err
 	}
 	return ExecResult{ExitCode: res.ExitCode}, nil
+}
+
+// LogsRequest streams container logs: the dev container by default, a
+// named sidecar with Service. Log bytes are container output and reach
+// the terminal raw — the same residual as exec and attach, never part
+// of an approval surface.
+type LogsRequest struct {
+	Dir     string
+	Service string
+	Follow  bool
+	Tail    int
+	Streams dockerapi.Streams
+}
+
+func (a *App) Logs(ctx context.Context, req LogsRequest) error {
+	_, rec, err := a.resolveProject(ctx, req.Dir)
+	if err != nil {
+		return &domain.OpError{Op: "logs", Err: err}
+	}
+	name := model.DevContainerName(rec.ID)
+	if req.Service != "" {
+		if !schema.ValidServiceName(req.Service) {
+			return &domain.OpError{Op: "logs", Project: rec.ID,
+				Err: fmt.Errorf("%w: service name %q", domain.ErrInvalid, req.Service)}
+		}
+		name = model.SidecarContainerName(rec.ID, req.Service)
+	}
+	if err := a.deps.Docker.Logs(ctx, dockerapi.LogsRequest{
+		Container: dockerapi.ContainerName(name),
+		Follow:    req.Follow,
+		Tail:      req.Tail,
+		Streams:   req.Streams,
+	}); err != nil {
+		return &domain.OpError{Op: "logs", Project: rec.ID, Err: err}
+	}
+	return nil
 }
 
 // approvedEnvFile loads env entries from the approved candidate's

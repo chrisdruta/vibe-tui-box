@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Playwright browsers install per-user (they land under your home, not
+# the image); run once per container. Activate by renaming to
+# post-create.sh.
+set -euo pipefail
+
+# Keep the major in lockstep with .vibe/Dockerfile's install-deps line.
+npx --yes playwright@1 install chromium

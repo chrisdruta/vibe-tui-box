@@ -3,8 +3,12 @@ package cli
 import (
 	"context"
 	"flag"
+	"fmt"
+	"io"
+	"os"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
+	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 )
 
 // lifecycleCommands covers container lifecycle and in-container
@@ -78,6 +82,44 @@ var lifecycleCommands = map[string]Command{
 			return &statusResult{Result: res}, nil
 		},
 	},
+	"logs": {
+		Name:    "logs",
+		Summary: "stream container logs (dev container, or a named sidecar)",
+		Usage:   "vibe logs [SERVICE] [-f] [--tail N]",
+		Parse: func(args []string) (Request, error) {
+			var req LogsRequest
+			fs := flag.NewFlagSet("logs", flag.ContinueOnError)
+			fs.SetOutput(io.Discard)
+			fs.BoolVar(&req.JSON, "json", false, "")
+			fs.BoolVar(&req.Quiet, "quiet", false, "")
+			fs.BoolVar(&req.Follow, "f", false, "follow new output")
+			fs.BoolVar(&req.Follow, "follow", false, "alias for -f")
+			fs.IntVar(&req.Tail, "tail", 0, "last N lines only (default: everything)")
+			if err := fs.Parse(args); err != nil {
+				return nil, err
+			}
+			rest := fs.Args()
+			switch len(rest) {
+			case 0:
+			case 1:
+				req.Service = rest[0]
+			default:
+				return nil, fmt.Errorf("at most one SERVICE argument")
+			}
+			return &req, nil
+		},
+		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+			r := req.(*LogsRequest)
+			err := a.Logs(ctx, app.LogsRequest{
+				Dir:     mustCwd(),
+				Service: r.Service,
+				Follow:  r.Follow,
+				Tail:    r.Tail,
+				Streams: dockerapi.Streams{Out: os.Stdout, Err: os.Stderr},
+			})
+			return nil, err
+		},
+	},
 	"exec": {
 		Name:    "exec",
 		Summary: "run a command in the dev container (explicit env only)",
@@ -128,17 +170,36 @@ var lifecycleCommands = map[string]Command{
 	},
 	"attach": {
 		Name:    "attach",
-		Summary: "attach to the dev container's main process",
-		Usage:   "vibe attach",
-		Parse:   parseExecStyle("attach", false),
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			r := req.(*ExecRequest)
-			cmd, restore := r.containerCommand()
-			defer restore()
-			if err := a.Attach(ctx, cmd); err != nil {
+		Summary: "attach to the main process, or a named in-container session",
+		Usage:   "vibe attach [SESSION] [-u USER]",
+		Parse: func(args []string) (Request, error) {
+			var req AttachCmdRequest
+			fs := flag.NewFlagSet("attach", flag.ContinueOnError)
+			fs.SetOutput(io.Discard)
+			fs.BoolVar(&req.JSON, "json", false, "")
+			fs.BoolVar(&req.Quiet, "quiet", false, "")
+			fs.StringVar(&req.User, "u", "", "container user (default vscode)")
+			if err := fs.Parse(args); err != nil {
 				return nil, err
 			}
-			return nil, nil
+			switch rest := fs.Args(); len(rest) {
+			case 0:
+			case 1:
+				req.Session = rest[0]
+			default:
+				return nil, fmt.Errorf("at most one SESSION argument")
+			}
+			return &req, nil
+		},
+		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+			r := req.(*AttachCmdRequest)
+			cmd, restore := r.containerCommand()
+			defer restore()
+			res, err := a.Attach(ctx, app.AttachRequest{ContainerCommand: cmd, Session: r.Session})
+			if err != nil {
+				return nil, err
+			}
+			return &execResult{Code: res.ExitCode}, nil
 		},
 	},
 }

@@ -38,6 +38,8 @@ type Client struct {
 	ExecResults map[string]dockerapi.ExecResult // keyed by argv joined with \x00
 	ExecOutputs map[string]string               // stdout written to Streams.Out, same key
 	ExecErr     error
+	LogsOutputs map[dockerapi.ContainerName]string
+	LogsErr     error
 	BuildResult dockerapi.BuiltImage
 	BuildErr    error
 
@@ -58,6 +60,7 @@ func New() *Client {
 		PullErrs:       map[dockerapi.ImageRef]error{},
 		ExecResults:    map[string]dockerapi.ExecResult{},
 		ExecOutputs:    map[string]string{},
+		LogsOutputs:    map[dockerapi.ContainerName]string{},
 		WaitCodes:      map[dockerapi.ContainerID]int{},
 		Containers:     map[dockerapi.ContainerName]*dockerapi.ContainerState{},
 		Volumes:        map[string]dockerapi.VolumeSpec{},
@@ -257,6 +260,22 @@ func ExecKey(argv []string) string {
 
 func (c *Client) Attach(ctx context.Context, req dockerapi.AttachRequest) error {
 	c.record("Attach", req)
+	return nil
+}
+
+func (c *Client) Logs(ctx context.Context, req dockerapi.LogsRequest) error {
+	c.record("Logs", req)
+	if c.LogsErr != nil {
+		return c.LogsErr
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.Containers[req.Container]; !ok {
+		return fmt.Errorf("%w: container %s", domain.ErrNotFound, req.Container)
+	}
+	if out, ok := c.LogsOutputs[req.Container]; ok && req.Streams.Out != nil {
+		_, _ = req.Streams.Out.Write([]byte(out))
+	}
 	return nil
 }
 

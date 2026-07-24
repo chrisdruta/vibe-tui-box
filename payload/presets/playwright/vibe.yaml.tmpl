@@ -1,0 +1,18 @@
+# Project manifest for the vibe harness (schema 1). Seeded by
+# `vibe init` from the "playwright" preset: node toolchain plus a
+# digest-approved image extension installing the browser system
+# dependencies. The first `vibe up` shows you .vibe/Dockerfile and asks
+# for approval before building it.
+schema: 1
+harness: {{.HarnessVersion}}
+image:
+  base: "mcr.microsoft.com/devcontainers/base:debian"
+  agents: [claude]
+  toolchains: [node]
+  extension: true
+agent:
+  cmd: claude
+  tmux: true
+bootstrap:
+  required: [git, node, npx]
+  auto: {install: true, git_hooks: false, git_lfs: false}

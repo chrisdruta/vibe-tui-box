@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Runs on EVERY container start (as the container user, cwd
+# /workspace). Activate by renaming to post-start.sh. Stand up
+# long-running dev processes as windows in the in-container `services`
+# tmux session via svc.sh — idempotent, so unconditional calls are
+# safe; `vibe attach services` is the door in.
+set -euo pipefail
+
+# bash "$VIBE_PAYLOAD/container/svc.sh" web npm run dev
+# bash "$VIBE_PAYLOAD/container/svc.sh" worker go run ./cmd/worker

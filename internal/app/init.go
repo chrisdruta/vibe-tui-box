@@ -10,6 +10,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/initproject"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
+	"github.com/chrisdruta/vibe-tui-box/internal/payload"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 )
@@ -42,9 +43,22 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 	if presetName == "" {
 		presetName = "minimal"
 	}
+	if presetName == payload.CommonPreset {
+		return InitResult{}, &domain.OpError{Op: "init",
+			Err: fmt.Errorf("%w: %q is the shared overlay, not a preset", domain.ErrInvalid, presetName)}
+	}
 	preset, err := a.deps.Payload.Preset(presetName)
 	if err != nil {
 		return InitResult{}, &domain.OpError{Op: "init", Err: err}
+	}
+	// Every preset renders on top of the shared overlay (AGENTS.md, hook
+	// samples); the preset's own files win on collision.
+	if common, err := a.deps.Payload.Preset(payload.CommonPreset); err == nil {
+		for name, content := range common.Files {
+			if _, ok := preset.Files[name]; !ok {
+				preset.Files[name] = content
+			}
+		}
 	}
 
 	abs, err := filepath.Abs(req.Dir)

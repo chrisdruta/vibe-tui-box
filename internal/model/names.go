@@ -66,9 +66,14 @@ const PayloadEntrypoint = PayloadTarget + "/container/entrypoint.sh"
 
 // PayloadAgentSession is the container-side session carrier `vibe
 // agent` wraps the agent CLI in when the payload is mounted and the
-// image has tmux (docs/agent-session-design.md).
+// image has tmux (docs/architecture.md (agent sessions)).
 const PayloadAgentSession = PayloadTarget + "/container/agent-session.sh"
 
 // PayloadAgentPS is the container-side feeder for `vibe ps` agent rows:
 // it joins the inner tmux server with the agent-state records.
 const PayloadAgentPS = PayloadTarget + "/container/agent-ps.sh"
+
+// PayloadLifecycle runs the project's post-create/post-start hooks
+// (workspace files, workload trust) inside the container; the engine
+// execs it after reconcile when the payload is mounted.
+const PayloadLifecycle = PayloadTarget + "/container/lifecycle.sh"

@@ -89,8 +89,10 @@ shared leaves: domain, envfile, lock, paths, runner, terminal, version
   tmux client, and pure view renderers.
 
 The `payload/` directory at the repo root is the embedded payload:
-`container/` (entrypoint, agent session/state/statusline scripts),
-`host/` (tui conf + host scripts), and `presets/`;
+`container/` (entrypoint, lifecycle/services runners, agent
+session/state/statusline scripts), `host/` (tui conf + host scripts),
+and `presets/` (including the shared `common` overlay every preset
+renders on top of);
 `payload/manifest.json` is generated, tracked, and authoritative for
 file modes and digests. The language split is deliberate: the Go
 engine is the trusted custodian (image content, exec argv, identity

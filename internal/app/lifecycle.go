@@ -188,8 +188,9 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 		return UpResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
 	}
 	state, err := a.runtime.Up(ctx, cand, runtime.UpOptions{
-		Force:    req.Force,
-		Progress: a.deps.Progress,
+		Force:        req.Force,
+		Progress:     a.deps.Progress,
+		LifecycleOut: a.deps.LifecycleOut,
 	})
 	if err != nil {
 		return UpResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}

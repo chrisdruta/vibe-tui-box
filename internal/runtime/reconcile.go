@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,7 +24,19 @@ type UpOptions struct {
 	Force bool
 	// Progress receives pull/start events; nil discards them.
 	Progress dockerapi.ProgressSink
+	// LifecycleOut receives project hook output (raw container bytes,
+	// same residual as exec); nil discards it.
+	LifecycleOut io.Writer
 }
+
+// containerAction reports what reconciliation did to one container.
+type containerAction int
+
+const (
+	actionNone    containerAction = iota // already running the candidate
+	actionStarted                        // existing container started
+	actionCreated                        // created (fresh or replacement)
+)
 
 // Up reconciles the project to the candidate's plan: ensure network and
 // volumes, then compare each desired container against what exists and
@@ -82,12 +95,21 @@ func (s *Service) Up(ctx context.Context, cand Candidate, opts UpOptions) (State
 
 	// Sidecars first, dev last, so the agent container starts into a
 	// working service topology.
+	devAction := actionNone
 	desired := append(append([]model.Container{}, plan.Services...), plan.Dev)
 	for _, c := range desired {
 		req := s.createRequest(plan, cand.Record, c, envEntries)
-		if err := s.reconcileContainer(ctx, req, opts); err != nil {
+		action, err := s.reconcileContainer(ctx, req, opts)
+		if err != nil {
 			return State{}, fmt.Errorf("container %s: %w", c.Name, err)
 		}
+		if c.Name == plan.Dev.Name {
+			devAction = action
+		}
+	}
+
+	if err := s.runLifecycle(ctx, plan, devAction, opts); err != nil {
+		return State{}, err
 	}
 
 	containers, err := s.docker.ListProjectContainers(ctx, project)
@@ -95,6 +117,73 @@ func (s *Service) Up(ctx context.Context, cand Candidate, opts UpOptions) (State
 		return State{}, err
 	}
 	return summarize(project, cand.Record.Digest, containers), nil
+}
+
+// runLifecycle executes the payload lifecycle hooks in the dev
+// container: post-create on every reconcile (the script marker-guards
+// itself, which also self-heals a previously failed run), post-start
+// only after an actual create or start. Plans without a payload mount
+// — no artifact installed — have no hooks to run, and payloads
+// predating the lifecycle script are probed and skipped. A failing
+// hook fails the reconcile; the approved-candidate pointer has not
+// moved yet.
+func (s *Service) runLifecycle(ctx context.Context, plan model.Plan, action containerAction, opts UpOptions) error {
+	if !mountsPayload(plan.Dev) {
+		return nil
+	}
+	name := dockerapi.ContainerName(plan.Dev.Name)
+	probe, err := s.docker.Exec(ctx, dockerapi.ExecRequest{
+		Container: name,
+		User:      plan.Dev.User,
+		Argv:      []string{"test", "-r", model.PayloadLifecycle},
+	})
+	if err != nil {
+		return fmt.Errorf("lifecycle probe: %w", err)
+	}
+	if probe.ExitCode != 0 {
+		return nil
+	}
+
+	out := opts.LifecycleOut
+	if out == nil {
+		out = io.Discard
+	}
+	run := func(mode string) error {
+		res, err := s.docker.Exec(ctx, dockerapi.ExecRequest{
+			Container: name,
+			User:      plan.Dev.User,
+			WorkDir:   model.WorkspaceTarget,
+			Env: []string{
+				"VIBE_PROJECT=" + string(plan.Project.ID),
+				"VIBE_PROJECT_NAME=" + plan.Project.DisplayName,
+			},
+			Argv:    []string{"bash", model.PayloadLifecycle, mode},
+			Streams: dockerapi.Streams{Out: out, Err: out},
+		})
+		if err != nil {
+			return fmt.Errorf("%s hook: %w", mode, err)
+		}
+		if res.ExitCode != 0 {
+			return fmt.Errorf("%s hook failed with exit code %d", mode, res.ExitCode)
+		}
+		return nil
+	}
+	if err := run("post-create"); err != nil {
+		return err
+	}
+	if action == actionCreated || action == actionStarted {
+		return run("post-start")
+	}
+	return nil
+}
+
+func mountsPayload(c model.Container) bool {
+	for _, m := range c.Mounts {
+		if m.Target == model.PayloadTarget {
+			return true
+		}
+	}
+	return false
 }
 
 // loadEnvFile parses the snapshotted env file; its entries are handed
@@ -185,52 +274,53 @@ func pinnedRef(ref string, digest domain.Digest) string {
 	return repo + "@" + digest.String()
 }
 
-// reconcileContainer brings one container to its desired specification.
-func (s *Service) reconcileContainer(ctx context.Context, req dockerapi.CreateRequest, opts UpOptions) error {
+// reconcileContainer brings one container to its desired specification
+// and reports what it had to do.
+func (s *Service) reconcileContainer(ctx context.Context, req dockerapi.CreateRequest, opts UpOptions) (containerAction, error) {
 	existing, err := s.docker.InspectContainer(ctx, req.Name)
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		return s.createAndStart(ctx, req, opts)
 	case err != nil:
-		return err
+		return actionNone, err
 	}
 
 	if existing.Labels[ManagedLabel] != "true" {
-		return fmt.Errorf("%w: container %s exists but is not managed by vibe", domain.ErrConflict, req.Name)
+		return actionNone, fmt.Errorf("%w: container %s exists but is not managed by vibe", domain.ErrConflict, req.Name)
 	}
 	sameCandidate := existing.Labels[CandidateLabel] == req.Labels[CandidateLabel]
 	if sameCandidate && !opts.Force {
 		if existing.Running {
-			return nil
+			return actionNone, nil
 		}
-		return s.docker.StartContainer(ctx, existing.ID)
+		return actionStarted, s.docker.StartContainer(ctx, existing.ID)
 	}
 
 	// Replacement decided: stop and remove, then create fresh.
 	if existing.Running {
 		if err := s.docker.StopContainer(ctx, existing.ID, dockerapi.StopTimeout); err != nil {
-			return err
+			return actionNone, err
 		}
 	}
 	if err := s.docker.RemoveContainer(ctx, existing.ID, dockerapi.RemoveOptions{Force: true}); err != nil && !errors.Is(err, domain.ErrNotFound) {
-		return err
+		return actionNone, err
 	}
 	return s.createAndStart(ctx, req, opts)
 }
 
 // createAndStart creates and starts one container, pulling the image
 // once if creation reports it missing.
-func (s *Service) createAndStart(ctx context.Context, req dockerapi.CreateRequest, opts UpOptions) error {
+func (s *Service) createAndStart(ctx context.Context, req dockerapi.CreateRequest, opts UpOptions) (containerAction, error) {
 	id, err := s.docker.CreateContainer(ctx, req)
 	if errors.Is(err, domain.ErrNotFound) {
 		pullErr := s.docker.PullImage(ctx, dockerapi.ResolvedImage{Ref: dockerapi.ImageRef(req.Image)}, opts.Progress)
 		if pullErr != nil {
-			return pullErr
+			return actionNone, pullErr
 		}
 		id, err = s.docker.CreateContainer(ctx, req)
 	}
 	if err != nil {
-		return err
+		return actionNone, err
 	}
-	return s.docker.StartContainer(ctx, id)
+	return actionCreated, s.docker.StartContainer(ctx, id)
 }

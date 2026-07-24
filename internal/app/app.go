@@ -5,6 +5,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/builder"
@@ -66,6 +67,9 @@ type Dependencies struct {
 	Executable string
 	// Progress receives pull/build events for presentation; nil discards.
 	Progress dockerapi.ProgressSink
+	// LifecycleOut receives project hook output during up/rebuild (raw
+	// container bytes, like exec); nil discards.
+	LifecycleOut io.Writer
 }
 
 type App struct {

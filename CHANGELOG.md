@@ -59,6 +59,23 @@ The v1 line and its history remain in git up to the cutover commit.
   (engine-rendered; container-controlled bytes are sanitized), the tui
   reaps ghost inner viewers after a quit, and v1's
   statusline/subagent-statusline glue returns via `claude --settings`.
+- New: project lifecycle hooks and the services session (roadmap R5,
+  2026-07-24). The engine runs `.vibe/hooks/post-create.sh` (once per
+  container, marker-guarded so a failed first run self-heals) and
+  `post-start.sh` (after every actual start) inside the container after
+  reconcile — workload trust, container user, `/workspace` cwd, no env
+  file; a failing hook fails `vibe up` before the approved pointer
+  moves. Post-start hooks stand up long-running processes as windows in
+  the in-container `services` tmux session via the idempotent payload
+  helper `svc.sh`; `vibe attach [SESSION]` (agent-session.sh's attach
+  mode) is the door in. Also new: `vibe logs [SERVICE] [-f] [--tail N]`
+  streams dev-container or sidecar logs without raw docker.
+- New: presets `go`, `node`, `bun`, and `playwright` (extension
+  Dockerfile + browser-install hook sample) beside `minimal`; every
+  preset now also seeds a shared overlay — `.vibe/AGENTS.md` teaching
+  agents the environment and the rebuild-request protocol, plus inert
+  `.vibe/hooks/*.sample` templates. All presets render and
+  schema-validate in tests.
 - New: engine hardening (roadmap R4, 2026-07-24). `vibe gc [--dry-run]
   [--min-age DUR]` — the store's only deletion path — removes
   unreferenced artifacts/candidates/snapshots (never registry pins,

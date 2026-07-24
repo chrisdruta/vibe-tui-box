@@ -1,5 +1,5 @@
 // Command vibe is the compiled host engine of the vibe harness
-// (docs/go-engine-design.md). main performs wiring only: signal-aware
+// (docs/engine-internals.md). main performs wiring only: signal-aware
 // context, host layout, dependency construction, and dispatch through
 // the CLI. Business logic lives under internal/.
 //
@@ -145,6 +145,9 @@ func construct() (*app.App, error) {
 		Release:     releases,
 		Executable:  executable,
 		Progress:    stderrProgress(),
+		// Hook output is diagnostic side-band like progress; stdout stays
+		// reserved for command results.
+		LifecycleOut: os.Stderr,
 	})
 }
 

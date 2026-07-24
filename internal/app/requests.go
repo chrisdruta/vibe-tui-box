@@ -302,7 +302,10 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
 	}
 	defer lease.Close()
-	state, err := a.runtime.Up(ctx, cand, runtime.UpOptions{Progress: a.deps.Progress})
+	state, err := a.runtime.Up(ctx, cand, runtime.UpOptions{
+		Progress:     a.deps.Progress,
+		LifecycleOut: a.deps.LifecycleOut,
+	})
 	if err != nil {
 		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
 	}

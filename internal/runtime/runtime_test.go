@@ -48,7 +48,7 @@ type fixture struct {
 	rec    registry.Record
 }
 
-func newFixture(t *testing.T, manifest string) *fixture {
+func newFixture(t *testing.T, manifest string, opts ...func(*store.Store, *model.CompileInput)) *fixture {
 	t.Helper()
 	layout, err := paths.NewLayout(t.TempDir())
 	if err != nil {
@@ -96,7 +96,7 @@ func newFixture(t *testing.T, manifest string) *fixture {
 		t.Fatalf("manifest: %v", errs)
 	}
 	rec := registry.Record{ID: testProjectID, Root: "/home/user/project", DisplayName: "project", Revision: 1}
-	plan, ferrs := model.Compile(model.CompileInput{
+	input := model.CompileInput{
 		Project:  rec,
 		Manifest: doc.Manifest,
 		Snapshot: snapshot.Result{Digest: snapDigest, Path: snapObj.Path},
@@ -105,7 +105,11 @@ func newFixture(t *testing.T, manifest string) *fixture {
 		ImageDigests: map[string]domain.Digest{
 			model.ToolsImageRef(testProjectID): testToolsDigest,
 		},
-	})
+	}
+	for _, opt := range opts {
+		opt(st, &input)
+	}
+	plan, ferrs := model.Compile(input)
 	if len(ferrs) > 0 {
 		t.Fatalf("compile: %v", ferrs)
 	}

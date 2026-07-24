@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Claude Code hook: agent state for the vibe tui dots and `vibe ps`
-# (docs/agent-session-design.md; the v2 port of v1's hook). Wired via
+# (docs/architecture.md (agent sessions); the v2 port of v1's hook). Wired via
 # claude-settings.json with the EVENT NAME AS ARGV — every registration
 # knows its own event, so the hot path (this fires on every tool use)
 # never spawns jq. agent-session.sh's run mode also calls it directly

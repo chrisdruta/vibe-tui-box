@@ -123,6 +123,10 @@ func writeExclusive(path string, content []byte, perm fs.FileMode) error {
 // presetDir is where presets live inside the payload.
 const presetDir = "presets"
 
+// CommonPreset is the shared overlay every preset renders on top of
+// (AGENTS.md, hook samples). It is not a selectable preset.
+const CommonPreset = "common"
+
 // Preset is one project template set: slash-relative file paths (within
 // the preset) to contents. Rendering is the initproject package's job.
 type Preset struct {
@@ -141,6 +145,7 @@ func (b *Bundle) Names() []string {
 			}
 		}
 	}
+	delete(seen, CommonPreset)
 	names := make([]string, 0, len(seen))
 	for n := range seen {
 		names = append(names, n)

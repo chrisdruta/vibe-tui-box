@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # vibe tui host renderer for the agent-state title channel
-# (docs/agent-session-design.md). Invoked by the vibe server's hooks as:
+# (docs/architecture.md (agent sessions)). Invoked by the vibe server's hooks as:
 #   state-render.sh PANE_ID                 (pane-title-changed)
 #   state-render.sh PANE_ID frontend-dead   (pane-died: mark the corpse)
 # SECURITY: only the server-controlled pane id and a conf-supplied

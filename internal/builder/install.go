@@ -113,7 +113,7 @@ RUN mkdir -p /vibe/agent-state && chown vscode:vscode /vibe/agent-state
 		// decision record). Apt's /usr/bin/tmux is the fixed path
 		// App.Agent probes; jq feeds the statusline glue (never the
 		// hot-path state hook).
-		out = append(out, `# tmux carries the persistent agent session (docs/agent-session-design.md);
+		out = append(out, `# tmux carries the persistent agent session (docs/architecture.md (agent sessions));
 # jq parses the Claude statusline JSON.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends tmux jq \

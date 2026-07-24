@@ -138,6 +138,13 @@ flowchart LR
   replaces only what it decided to replace, and refuses name-colliding
   containers it does not manage. `up` is idempotent; a failed `up` never
   moves the approved-candidate pointer.
+- **Lifecycle hooks.** After reconcile, the engine execs the payload's
+  lifecycle runner in the dev container: `.vibe/hooks/post-create.sh`
+  once per container (marker-guarded in the container, so a failed
+  first run self-heals), `.vibe/hooks/post-start.sh` after each actual
+  create or start. Hooks are workspace files — workload trust, executed
+  in-container only — and a failing hook fails the `up` before the
+  approved pointer moves.
 
 ## Container policy
 
@@ -291,7 +298,10 @@ only store-owned bytes, never workspace files.
 The agent itself runs inside a *container-side* tmux session
 (`agent-session.sh`), so it survives its viewer: killing the pane, the
 TUI server, or the terminal never kills the conversation, and the next
-`vibe agent` reattaches. Agent state (working / attention / idle /
+`vibe agent` reattaches. The same inner tmux server carries the
+`services` session — long-running dev processes a post-start hook
+stands up via the idempotent `svc.sh` helper, joined from the host with
+`vibe attach services`. Agent state (working / attention / idle /
 exited) flows out with no polling:
 
 ```mermaid
@@ -322,10 +332,10 @@ control APIs — is recorded in [positioning.md](positioning.md).
 
 ```text
 init [--preset P] / register [--name N] / forget / ps
-up / rebuild / down / status / config / doctor / bootstrap
-agent [--cold] [-a CMD] [-s NAME] / run -- CMD / exec -- CMD / shell / attach
-tui / request {list|show|approve|reject}
-provision / update --version vX.Y.Z / version
+up / rebuild / down / status / logs [SVC] / config / doctor / bootstrap
+agent [--cold] [-a CMD] [-s NAME] / run -- CMD / exec -- CMD / shell
+attach [SESSION] / tui / request {list|show|approve|reject}
+provision / update --version vX.Y.Z / gc / version
 dev {on|sync|off|status}
 _sidebar / _state / _fleet / _statusline   (hidden renderers)
 ```

@@ -26,6 +26,7 @@ type Client interface {
 
 	Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 	Attach(ctx context.Context, req AttachRequest) error
+	Logs(ctx context.Context, req LogsRequest) error
 
 	EnsureVolume(ctx context.Context, spec VolumeSpec) error
 	RemoveVolume(ctx context.Context, name VolumeName) error

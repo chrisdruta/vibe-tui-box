@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Container-side feeder for `vibe ps` agent rows (the v1 ps.sh port,
-# docs/agent-session-design.md). Read-only: joins the inner tmux
+# docs/architecture.md (agent sessions)). Read-only: joins the inner tmux
 # server's agent sessions (naming convention agent(-cmd)(-name)(-cold),
 # from agent-session.sh) with the state records agent-state-hook.sh
 # writes. Rendering moved engine-side with the v2 language split — this

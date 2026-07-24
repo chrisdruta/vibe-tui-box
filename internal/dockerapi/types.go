@@ -120,6 +120,16 @@ type AttachRequest struct {
 	Streams   Streams
 }
 
+// LogsRequest streams a container's log history (and optionally its
+// future) into Streams. Engine containers are created without a TTY, so
+// output always demultiplexes into Out and Err.
+type LogsRequest struct {
+	Container ContainerName
+	Follow    bool
+	Tail      int // last N lines; 0 means everything
+	Streams   Streams
+}
+
 type VolumeSpec struct {
 	Name   string
 	Labels map[string]string

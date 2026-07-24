@@ -79,6 +79,22 @@ won't do it — that is the point. The one escape hatch is the image
 extension (`extension: true` + `.vibe/Dockerfile`), which is
 digest-approved per change (see [extending.md](extending.md)).
 
+## The rest of `.vibe/`
+
+Beyond the manifest, the engine knows these project files:
+
+| Path | Role |
+| --- | --- |
+| `.vibe/Dockerfile` + `.vibe/build/` | image extension inputs (digest-approved; [extending.md](extending.md)) |
+| `.vibe/requests/` | agent rebuild requests ([usage.md](usage.md)) |
+| `.vibe/hooks/post-create.sh` | runs in-container once per container |
+| `.vibe/hooks/post-start.sh` | runs in-container after every actual start |
+| `.vibe/AGENTS.md` | seeded instructions teaching agents this environment |
+
+Hooks are workload code: they execute inside the container only, as the
+container user, with no env file loaded. The host never reads or runs
+them.
+
 ## Mount layout inside the container
 
 | Target | Content | Mode |

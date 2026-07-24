@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Runs ONCE per container (as the container user, cwd /workspace) when
+# `vibe up` creates it — dependency installs, generated files, one-time
+# setup. Activate by renaming to post-create.sh; a nonzero exit fails
+# `vibe up`. No project env file is loaded here (secrets enter one
+# process via `vibe run`, never ambiently).
+set -euo pipefail
+
+# npm ci
+# uv sync

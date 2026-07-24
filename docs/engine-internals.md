@@ -130,11 +130,13 @@ Reconcile order (`runtime`): project lock → lease artifact and candidate
 → resolve/pull images → ensure volumes and network → build extension if
 present → compare existing objects by label and normalized spec →
 replace changed containers in dependency order → start sidecars, then
-the dev container → update the approved-candidate revision → release
-leases and lock. Rollback removes only objects the failed transaction
-created; reconciliation never removes a container it did not decide to
-replace, and refuses name-colliding containers lacking
-`dev.vibe.managed`.
+the dev container → run lifecycle hooks (post-create marker-guarded on
+every reconcile, post-start only after an actual create or start; only
+when the payload is mounted and carries `lifecycle.sh`) → update the
+approved-candidate revision → release leases and lock. Rollback removes
+only objects the failed transaction created; reconciliation never
+removes a container it did not decide to replace, and refuses
+name-colliding containers lacking `dev.vibe.managed`.
 
 Garbage collection is app-orchestrated (`app.GC` gathers roots:
 registry pins, approved candidates, pending broker bindings, the

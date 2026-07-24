@@ -29,7 +29,7 @@ flowchart LR
     R1["R1 · release pipeline"] --> R2["R2 · install & first run"]
     R1 --> R3["R3 · provenance"]
     R4["R4 · hardening debt ✅"] --> G
-    R5["R5 · lifecycle & presets"] --> G
+    R5["R5 · lifecycle & presets ✅"] --> G
     R2 --> G["v1.0"]
     R3 --> G
 ```
@@ -132,27 +132,33 @@ Known gaps in the shipped engine, independent of the release work.
 **Exit met:** `~/.vibe` can't grow without bound, hostile-input surfaces
 have fuzz coverage, and approvals show a trusted diff.
 
-## R5 — Payload lifecycle and presets
+## R5 — Payload lifecycle and presets ✅ (shipped 2026-07-24)
 
-The container side is behind the engine: the entrypoint marks ready and
-idles, and only the `minimal` preset ships.
+The container side was behind the engine: the entrypoint marked ready
+and idled, and only the `minimal` preset shipped.
 
-- [ ] Project lifecycle hooks: post-create / post-start (payload-side,
-      workload-trust like the rest of the workspace), plus the in-container
-      services session they stand up; `agent-session.sh attach` mode joins
-      it (deferred from agent-session slice 3).
-- [ ] Presets beyond `minimal` **(proposed: node, bun, go — nearly free,
-      the toolchain recipes already exist)**; the playwright extension
-      example; an AGENTS.md template teaching agents the broker protocol;
-      hook templates once hooks land.
-- [ ] `vibe logs [SERVICE]` **(proposed, small)**: container/sidecar logs
-      without raw docker incantations — same rationale that earned `status`
-      and `down` their seats in v1.
+- [x] Project lifecycle hooks: `.vibe/hooks/post-create.sh` (once per
+      container, marker-guarded and self-healing) and `post-start.sh`
+      (after every actual start), executed in-container by the engine
+      after reconcile — workload trust, no env file, failure fails `up`.
+      The `services` inner tmux session rides the same server via the
+      idempotent `svc.sh` helper; `vibe attach [SESSION]` (and
+      `agent-session.sh attach`, deferred from agent-session slice 3)
+      joins it.
+- [x] Presets beyond `minimal`: `go`, `node`, `bun`, and the `playwright`
+      extension example (digest-approved Dockerfile + browser-install hook
+      sample); a shared overlay seeds `.vibe/AGENTS.md` (teaching agents
+      the environment and the broker protocol) and inert hook samples into
+      every preset. All presets render and validate in tests against the
+      real schema and Dockerfile contract.
+- [x] `vibe logs [SERVICE] [-f] [--tail N]`: container/sidecar logs
+      without raw docker incantations — same rationale that earned
+      `status` and `down` their seats in v1.
 
-**Exit:** a preset-initialized project can stand up a dev server on start
-and attach to it; "add Playwright to this project" typed at the agent
-produces an approval prompt and a rebuilt container (the original v1.0
-story from the port plan).
+**Exit met:** a preset-initialized project can stand up a dev server on
+start and attach to it; "add Playwright to this project" typed at the
+agent produces an approval prompt (with a trusted plan diff) and a
+rebuilt container — the original v1.0 story from the port plan.
 
 ## The v1.0 gate
 

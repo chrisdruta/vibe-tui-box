@@ -15,7 +15,7 @@ import (
 
 var commandOrder = []string{
 	"version", "init", "register", "config", "up", "rebuild", "down", "status",
-	"exec", "run", "shell", "attach", "ps", "forget",
+	"logs", "exec", "run", "shell", "attach", "ps", "forget",
 	"provision", "update", "doctor", "bootstrap", "gc",
 	"tui", "agent", "request", "dev",
 }
@@ -163,6 +163,13 @@ type DownRequest struct {
 
 type StatusRequest struct{ Options }
 
+type LogsRequest struct {
+	Options
+	Service string
+	Follow  bool
+	Tail    int
+}
+
 // ExecRequest is shared by exec/run/shell/attach.
 type ExecRequest struct {
 	Options
@@ -170,6 +177,12 @@ type ExecRequest struct {
 	Workdir string
 	Env     envList
 	Argv    []string
+}
+
+// AttachCmdRequest adds attach's optional session target.
+type AttachCmdRequest struct {
+	ExecRequest
+	Session string
 }
 
 // containerCommand wires terminal streams into an app request. The
