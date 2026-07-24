@@ -56,7 +56,8 @@ section at the bottom — as revisable records, not fences.
   the cutover: `vibe show` (sixel preview), `vibe review` (locked
   read-only yazi browser with A/R verdicts), the preview window, and the
   sixel pipeline (show-image.sh, preview-image-hook.sh, yazi plugin).
-  The clipboard half is back (tui `prefix+v`); the rest is gated on the
+  The clipboard half is fully back (tui `prefix+v`, and the `vibe clip`
+  verb restored 2026-07-24); the rest is gated on the
   revdiff trial verdict and the kitty-graphics trigger (entries below).
   The v1 implementations in git history are the reference — this is a
   revival against the v2 payload/toolchain model, not a design from

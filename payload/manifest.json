@@ -64,8 +64,8 @@
     {
       "path": "host/scripts/clip-image.sh",
       "mode": "0755",
-      "size": 7438,
-      "digest": "sha256:b180954d9202570f17651d9ac998f01ab9244f6ba13b96464cd2dfdbccbf7df7"
+      "size": 7574,
+      "digest": "sha256:932a01afe4a8d438936e50c4432567728e92ccb2d7ae708db7444cf62b08897f"
     },
     {
       "path": "host/scripts/clip-to-pane.sh",
@@ -164,5 +164,5 @@
       "digest": "sha256:5cf55370b186c53fbece05d3ed6ec5f68e5f9fecfd316e1599bc0d3df23db087"
     }
   ],
-  "digest": "sha256:9acacf36cda357332dc6435c60c4ca6adf850a34bca496c3d6c0cb9d17bf612b"
+  "digest": "sha256:7ca2d9dff402908d2590b1529c900bba8cccc3890d1b29146f192008d30f3f84"
 }

@@ -36,6 +36,14 @@ type RenderRequest struct {
 	Width   int
 }
 
+// ClipCmdRequest saves the host clipboard image for the agent: into the
+// dev container's /tmp by default, or a workspace-relative DestDir.
+type ClipCmdRequest struct {
+	Options
+	DestDir  string
+	PathOnly bool
+}
+
 var uiCommands = map[string]Command{
 	"tui": {
 		Name:    "tui",
@@ -67,6 +75,27 @@ var uiCommands = map[string]Command{
 				// marker rides into the container so its inner tmux
 				// client is reapable when the UI dies.
 				Nested: os.Getenv("VIBE_NESTED") == "1",
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &execResult{Code: res.ExitCode}, nil
+		},
+	},
+	"clip": {
+		Name:    "clip",
+		Summary: "save the host clipboard image where the agent can read it",
+		Usage:   "vibe clip [DIR] [--path-only]",
+		Parse:   parseClipCmd,
+		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+			r := req.(*ClipCmdRequest)
+			res, err := a.Clip(ctx, app.ClipRequest{
+				Dir:      mustCwd(),
+				DestDir:  r.DestDir,
+				PathOnly: r.PathOnly,
+				Env:      clipEnv(),
+				Stdout:   os.Stdout,
+				Stderr:   os.Stderr,
 			})
 			if err != nil {
 				return nil, err
@@ -162,6 +191,52 @@ func parseAgentCmd(args []string) (Request, error) {
 		return nil, fmt.Errorf("unexpected argument %q", fs.Arg(0))
 	}
 	return &req, nil
+}
+
+// parseClipCmd accepts flags before or after the optional DIR — the v1
+// verb allowed `vibe clip shots --path-only`, and stdlib flag parsing
+// stops at the first positional, so the trailing form is folded in here.
+func parseClipCmd(args []string) (Request, error) {
+	var req ClipCmdRequest
+	fs := flag.NewFlagSet("clip", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.BoolVar(&req.JSON, "json", false, "emit versioned JSON")
+	fs.BoolVar(&req.Quiet, "quiet", false, "suppress nonessential output")
+	fs.BoolVar(&req.PathOnly, "path-only", false, "print only the container path on stdout")
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+	for _, arg := range fs.Args() {
+		switch {
+		case arg == "--path-only" || arg == "-path-only":
+			req.PathOnly = true
+		case len(arg) > 0 && arg[0] == '-':
+			return nil, fmt.Errorf("unknown flag %q", arg)
+		case req.DestDir != "":
+			return nil, fmt.Errorf("unexpected argument %q", arg)
+		default:
+			req.DestDir = arg
+		}
+	}
+	return &req, nil
+}
+
+// clipEnv curates the host environment clip-image.sh needs: tool
+// discovery (powershell.exe / osascript / docker / clip.exe / pbcopy),
+// the WSL interop variables without which Windows executables cannot
+// launch from WSL, and the docker CLI's connection overrides.
+func clipEnv() []string {
+	var env []string
+	for _, key := range []string{
+		"PATH", "HOME", "TMPDIR",
+		"WSLENV", "WSL_INTEROP", "WSL_DISTRO_NAME",
+		"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "DOCKER_CERT_PATH", "DOCKER_TLS_VERIFY",
+	} {
+		if v := os.Getenv(key); v != "" {
+			env = append(env, key+"="+v)
+		}
+	}
+	return env
 }
 
 // usageError maps to the usage exit code.

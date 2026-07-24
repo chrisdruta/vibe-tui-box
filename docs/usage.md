@@ -35,6 +35,7 @@ a failed `up` never moves the approved-candidate pointer.
 | `vibe attach [SESSION]` | the main process; with SESSION, that in-container tmux session (default target: `services`) |
 | `vibe logs [SERVICE] [-f] [--tail N]` | container logs — the dev container, or a named sidecar |
 | `vibe bootstrap` | verify `bootstrap.required` tools exist in the container |
+| `vibe clip [DIR] [--path-only]` | host clipboard image → container `/tmp` (or workspace `DIR`, no daemon needed); prints the container path |
 
 Argv is preserved exactly — there is no shell-string form. The container
 process's exit code becomes `vibe`'s exit code. Interactive sessions get

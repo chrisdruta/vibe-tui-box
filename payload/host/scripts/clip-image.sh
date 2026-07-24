@@ -9,7 +9,9 @@
 # clipboard is unreachable — no terminal or tmux setting can fix that (the
 # terminal only ever sends TEXT down the pty).
 #
-# Invoked by `vibe clip [DIR]` on the host (WSL or macOS). By default the PNG is
+# Two host-side (WSL or macOS) entry points share this script: the engine's
+# `vibe clip [DIR] [--path-only]` verb, and the tui's prefix+v binding via
+# clip-to-pane.sh (which uses --path-only). By default the PNG is
 # streamed into the running container's /tmp over `docker exec` (nothing
 # lands in the repo, gone on rebuild). With DIR — a workspace-relative directory
 # — it is written straight into the bind-mounted repo instead (persists; no

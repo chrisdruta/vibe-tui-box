@@ -95,6 +95,17 @@ The v1 line and its history remain in git up to the cutover commit.
   request JSON, and the terminal encoder/diff, with a CI fuzz-burst
   job; the first run caught a width-underflow crash in the diff
   renderer (fixed; crasher committed as a regression seed).
+- New: `vibe clip [DIR] [--path-only]` is back (2026-07-24) — the v1
+  clipboard-image verb, now a thin engine wrapper over the pinned
+  artifact's hardened `clip-image.sh` (the same script behind the tui's
+  `prefix+v`). Default mode streams the host clipboard PNG into the
+  running dev container's `/tmp`; `DIR` writes through the bind mount
+  and needs no daemon. The tmux binding keeps calling the script
+  directly, so the two entry points stay version-independent.
+- Changed: statuslines render in constant jq (2026-07-24) —
+  `statusline.sh` one pass (was six), `subagent-statusline.sh` two
+  processes total under its 5s cap (was one plus four per task), output
+  byte-identical.
 - New: dev-mode ergonomics — `vibe dev on/sync` atomically repoints
   `~/.vibe/bin/vibe` at the fresh dev build (`dev off` hands back to
   the newest release artifact), and dev binaries are stamped

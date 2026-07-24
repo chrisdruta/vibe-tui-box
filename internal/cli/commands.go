@@ -17,7 +17,7 @@ var commandOrder = []string{
 	"version", "init", "register", "config", "up", "rebuild", "down", "status",
 	"logs", "exec", "run", "shell", "attach", "ps", "forget",
 	"provision", "update", "doctor", "bootstrap", "gc",
-	"tui", "agent", "request", "dev",
+	"tui", "agent", "clip", "request", "dev",
 }
 
 var commandTable = map[string]Command{
