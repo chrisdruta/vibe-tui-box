@@ -294,7 +294,32 @@ strand a session; the full ID is stamped as `@vibe_project` for host
 scripts). The Go engine implements the `_sidebar`, `_state`, and
 `_fleet` renderers; tmux configuration and UI mechanics are static
 trusted payload shell — host-side scripts execute only store-owned
-bytes, never workspace files.
+bytes, never workspace files. Colors and glyphs single-source from
+`internal/tmuxui/theme.go`, which payload generation renders into
+`theme.sh` and the conf's `@thm` block; layout decisions and the knob
+surface live in [tui-layout.md](tui-layout.md), and a user conf
+(`~/.config/vibe/tui.conf`) is sourced last for everything a knob
+doesn't cover.
+
+Two serials drive refresh, deliberately separate. `@vibe_state_serial`
+means "agent dots moved — redraw cheaply from tmux-local data";
+`@vibe_engine_serial`, bumped by state-mutating engine commands
+(`up`/`down`, request adoption and decisions, `dev on/off`,
+register/forget, update), means "engine truth moved — a refetch is
+worth its Docker round trips". On a bump (or a slow tick,
+`@vibe_engine_refresh`) the sidebar double-forks a background fetch of
+the `_fleet` porcelain (US-separated, project ID as the join key
+against `@vibe_project`) and the own-project `_sidebar` detail block
+into a cache beside the socket; frames only ever read the cache, a
+failed fetch keeps last-good, and a missing engine degrades to the
+shell-only sidebar. The engine never runs on the 2s frame path — the
+one `#(vibe _state)` status-line splice at interval 5 is the whole
+format-string budget.
+
+The two glyph vocabularies stay distinct on purpose: agent-session
+dots (working/attention/idle/… — the title channel below) and
+container/project state (`● ○ ◐ ·` from Docker truth vs the approved
+candidate) share a glyph, not a meaning; both render from `theme.go`.
 
 The agent itself runs inside a *container-side* tmux session
 (`agent-session.sh`), so it survives its viewer: killing the pane, the
@@ -335,7 +360,7 @@ control APIs — is recorded in [positioning.md](positioning.md).
 init [--preset P] / register [--name N] / forget / ps
 up / rebuild / down / status / logs [SVC] / config / doctor / bootstrap
 agent [--cold] [-a CMD] [-s NAME] / run -- CMD / exec -- CMD / shell
-attach [SESSION] / tui / request {list|show|approve|reject}
+attach [SESSION] / tui / clip [DIR] / request {list|show|approve|reject}
 provision / update --version vX.Y.Z / gc / version
 dev {on|sync|off|status}
 _sidebar / _state / _fleet   (hidden renderers)

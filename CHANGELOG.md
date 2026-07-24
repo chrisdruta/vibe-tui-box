@@ -95,6 +95,21 @@ The v1 line and its history remain in git up to the cutover commit.
   request JSON, and the terminal encoder/diff, with a CI fuzz-burst
   job; the first run caught a width-underflow crash in the diff
   renderer (fixed; crasher committed as a regression seed).
+- New: the sidebar consumes the engine renderers (2026-07-24) —
+  `_fleet` became a US-separated porcelain and `_sidebar` a detail
+  block; state-mutating commands bump `@vibe_engine_serial`, and the
+  sidebar fetches engine truth (stale/stopped vs approved, pending
+  requests, dev marker, cold projects) in a double-forked background
+  cache that never touches the 2s frame and degrades to the shell-only
+  view without the engine. CI ShellCheck now covers the host scripts.
+- New: TUI layout pass (2026-07-24, spec-first —
+  [docs/tui-layout.md](docs/tui-layout.md)): `_state` renders display
+  form (no more protocol prefix in the status bar), `@vibe_dock_size`
+  and `@vibe_engine_refresh` knobs, width-derived sidebar truncation,
+  and `~/.config/vibe/tui.conf` sourced last as the sanctioned
+  customization point. Palette + glyph maps single-source from
+  `internal/tmuxui/theme.go`; payload generation renders `theme.sh`
+  and the conf's `@thm` block, so the drift gate catches palette skew.
 - Fix: codex logins now actually persist (2026-07-24) — with `codex` in
   `image.agents` the plan sets `CODEX_HOME` to the agent-state volume,
   matching what the docs promised and what claude already did via

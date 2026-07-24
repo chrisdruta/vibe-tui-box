@@ -59,9 +59,12 @@ section at the bottom — as revisable records, not fences.
   The clipboard half is fully back (tui `prefix+v`, and the `vibe clip`
   verb restored 2026-07-24); the rest is gated on the
   revdiff trial verdict and the kitty-graphics trigger (entries below).
-  The v1 implementations in git history are the reference — this is a
-  revival against the v2 payload/toolchain model, not a design from
-  scratch.
+  Revival verdict (2026-07-24, Chris): a REDESIGN, not a port — the v1
+  layering (bash wrapping yazi wrapping a Lua verdict plugin over
+  layered configs) is explicitly not wanted back. The v1 git history
+  remains the reference for the A/R verdict *flow* and the decisions
+  JSONL contract; the next design should put verdict capture at an
+  engine-owned layer and keep the viewer replaceable.
 
 - **revdiff trial verdict (pending dogfood).** revdiff was the v1 trial
   diff-review surface; it gets a top-level verb only if it earns harness
@@ -75,47 +78,27 @@ section at the bottom — as revisable records, not fences.
 - **Host conveniences.** v1's install-tmux.sh (pinned tmux source build
   for hosts below 3.4) and start-ollama.sh. Revive on demand.
 
-- **TUI: consume the engine renderers (reframed 2026-07-24).** Of the
-  hidden renderers only `_state` has a consumer (the status line polls
-  it). `_sidebar`/`_fleet` render engine truth the shell sidebar
-  cannot see — container running/stale vs the approved candidate, the
-  dev-mode marker, pending-request count, cold registered projects —
-  and two pieces are missing before sidebar.sh can afford to call
-  them: (1) an engine→tui event channel: state-mutating commands
-  (up/down/rebuild/request decisions, broker poll) bump a serial option
-  on the vibe socket the way state-render.sh bumps
-  `@vibe_state_serial`, so engine data gets a freshness signal (a
-  docker-events watcher can later cover out-of-band container deaths —
-  this subsumes the old "event-driven sidebar refresh" item); (2) a
-  refresh policy: engine calls run on serial change or the slow tick,
-  never the 2s frame. (Session→project identity landed 2026-07-24:
-  `vibe tui` stamps `@vibe_project` with the full ID, so the render
-  loop can address `_sidebar --project` directly. `_statusline` was
-  pruned the same day — the container-side statusline won its seat.)
-  The same channel unlocks the richer roster — container-side agent
-  sessions without host windows via `vibe ps` (deferred from
-  agent-session slice 3). Product call still open: does the sidebar's
-  fleet section list COLD registered projects (that is `_fleet`'s real
-  consumer — a render-only glance whose click could dispatch `up`;
-  brushes the live-sessions-only picker record).
+- **TUI: consume the engine renderers — SHIPPED 2026-07-24.** The
+  sidebar now renders engine truth through the `@vibe_engine_serial`
+  channel + cached background fetches (`_fleet` porcelain,
+  `_sidebar` detail block; docs/architecture.md "TUI and agent
+  sessions"). Surviving deferred bits, in order of pull: (1) a
+  docker-events watcher for out-of-band container deaths — today the
+  `@vibe_engine_refresh` slow tick (30s) covers them; (2) cold
+  registered projects render as dim non-clickable rows — the product
+  call whether their click dispatches `up` stays open (brushes the
+  live-sessions-only picker record); (3) the richer roster —
+  container-side agent sessions without host windows via `vibe ps`
+  (deferred from agent-session slice 3) — can now ride the same fetch
+  cache.
 
-- **TUI layout pass (wanted 2026-07-24; Chris).** A deliberate
-  make-it-comfy pass over the whole tui chrome, with the status
-  bars/statusline as first-class scope: move and remake them (where
-  they live — top/bottom, per-window vs server-wide, whether the tab
-  strip and the state/status information share a bar or split), grow
-  their functionality, and make the result customizable — user-level
-  knobs in the spirit of `@vibe_sidebar_w` (bar position, segment
-  selection/order, theme accents) rather than a fork-the-conf story.
-  Same pass covers the rest of the layout: default arrangement (agent
-  pane / bottom dock / sidebar proportions, collapse behavior), what
-  information lives where (agent dots and roster vs engine state such
-  as stale-candidate and pending requests — decide together with the
-  renderer-consumption entry above), and the resize story (fit-mode
-  snapping vs proportional stretch). Write the layout spec first, mock
-  it in tmux second, wire scripts last — layout arithmetic is where
-  the sidebar bugs have lived (click-map skew, dot wrapping, resize
-  ballooning).
+- **TUI layout pass — SHIPPED 2026-07-24.** Spec written first as
+  demanded ([docs/tui-layout.md](docs/tui-layout.md)), then wired:
+  `_state` display form, `@vibe_dock_size` + `@vibe_engine_refresh`
+  knobs, width-derived sidebar truncation, and the
+  `~/.config/vibe/tui.conf` user hook instead of per-property options.
+  Palette/glyphs single-source from `internal/tmuxui/theme.go` via
+  payload generation. Layout disagreements start by editing the spec.
 
 - **tui follow-ups (low priority).** Review-as-split
   — images in a tmux split survive redraws only via kitty-graphics Unicode

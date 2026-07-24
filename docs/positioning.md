@@ -29,11 +29,12 @@ orchestrator could drive containers like this instead of bare worktrees.
 "The environment" includes the terminal the agent lives in, so the harness
 also owns the affordances that make an agent workable *inside* that
 environment: getting a host clipboard image through the boundary (the
-TUI's `prefix+v`), the agent-state dots the agent's own hooks push out,
-and — in the v1 line, pending revival ([BACKLOG](../BACKLOG.md)) —
-rendering pixels a TUI cannot (`vibe show`) and reviewing what an agent
-produced without leaving the terminal (`vibe review`). The line stays
-where it always was:
+TUI's `prefix+v`, or `vibe clip`), the agent-state dots the agent's own
+hooks push out, and — v1-only features whose post-1.0 revival is a
+redesign, not a port ([BACKLOG](../BACKLOG.md)) — rendering pixels a
+TUI cannot (`vibe show`) and reviewing what an agent produced without
+leaving the terminal (`vibe review`). The line stays where it always
+was:
 anything that *drives* the agent — loops, schedulers, task state machines,
 multi-agent review pipelines — belongs to layers 1–2 and is a non-goal;
 project skills may build such flows *on top of* these affordances.
