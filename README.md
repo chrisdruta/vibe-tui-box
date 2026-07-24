@@ -62,8 +62,9 @@ approved is exactly what runs. Containers get a closed policy: non-root,
 all capabilities dropped, `no-new-privileges`, no Docker socket, no host
 home.
 
-The engine is specified in [docs/architecture-v2.md](docs/architecture-v2.md)
-and [docs/go-engine-design.md](docs/go-engine-design.md); the day-to-day
+The architecture (with diagrams) is in
+[docs/architecture.md](docs/architecture.md), the contributor internals in
+[docs/engine-internals.md](docs/engine-internals.md); the day-to-day
 docs are:
 
 - [installation](docs/installation.md) — releases, `vibe provision`, updates
@@ -75,8 +76,9 @@ docs are:
 
 ## Status
 
-The v2 Go engine replaced the original bash/compose harness in this tree
-(the v1 line lives in git history up to tag `v0.7.x`). There is no
-migration: v1 installs reinstall, projects `vibe init` fresh. See
-[CHANGELOG.md](CHANGELOG.md) for the cutover details and
-[BACKLOG.md](BACKLOG.md) for what's next.
+The Go engine replaced the original bash/compose harness in this tree
+(that line lives in git history up to tag `v0.7.3`). There is no
+migration: old installs reinstall, projects `vibe init` fresh. No release
+is tagged yet — [ROADMAP.md](ROADMAP.md) lays out the path to v1.0,
+[CHANGELOG.md](CHANGELOG.md) has the cutover details, and
+[BACKLOG.md](BACKLOG.md) holds the unscheduled ideas.

@@ -22,7 +22,8 @@ Two zoom levels of one brand, sharing the box + tmux-panel DNA:
 - **Rejected**: variation D (generic shipping-carton badge — lost the
   takeout story); virtue-adjective naming (see BACKLOG rename record).
 
-Palette = the product's own (`src/config/tmux-tui.conf` theme block):
+Palette = the product's own (theme block in `payload/host/tmux-tui.conf`,
+v1 path was `src/config/tmux-tui.conf`):
 bg `#0e1421`, periwinkle `#7aa2f7`, coral `#e8735a`, green `#9ece6a`,
 fg `#a9b6d8`.
 

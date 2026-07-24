@@ -43,7 +43,8 @@ The v1 line and its history remain in git up to the cutover commit.
   v1 rule that the host executes only store-owned bytes. The palette
   gains a broker `requests` entry.
 - New: the agent session layer
-  ([docs/agent-session-design.md](docs/agent-session-design.md))
+  (as-built: [docs/architecture.md](docs/architecture.md), agent
+  sessions; design record in git history)
   restores the two v1 properties the cutover dropped. Persistence:
   `vibe agent` runs the CLI inside a container-side tmux session
   (`agent-session.sh`) that survives its viewer — killing the pane, the
@@ -73,6 +74,14 @@ The v1 line and its history remain in git up to the cutover commit.
   security, extending, updating, services, onboarding, agent-state,
   browser-automation, local-models, roblox) were removed or rewritten for
   v2; the v1 versions live in git history.
+- Docs remastered as-built (2026-07-24): `architecture-v2.md` →
+  `docs/architecture.md` and `go-engine-design.md` →
+  `docs/engine-internals.md` (compacted, mermaid diagrams); the port
+  plan, adversarial review, and agent-session design records retired to
+  git history with pointers; `ROADMAP.md` added — the sequenced path to
+  the first tagged release, **v1.0** (decision: tags continue this
+  repo's own `v0.x` line; "v2" stays the architecture generation's name,
+  not a tag).
 - CI now gates the Go engine: fmt/vet/build/test, golangci-lint,
   payload-manifest drift, ShellCheck on the container payload, and the
   three-platform cross-compile matrix.

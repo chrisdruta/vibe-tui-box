@@ -28,19 +28,19 @@ orchestrator could drive containers like this instead of bare worktrees.
 
 "The environment" includes the terminal the agent lives in, so the harness
 also owns the affordances that make an agent workable *inside* that
-environment: getting a host clipboard image through the boundary
-(`vibe clip`), rendering pixels a TUI cannot (`vibe show`, the tmux preview
-window), and looking at what an agent produced without leaving the terminal
-(`vibe review` — yazi with project-owned config; verdict recording is a
-seeded keybinding the project owns, not harness code). The line stays where
-it always was:
+environment: getting a host clipboard image through the boundary (the
+TUI's `prefix+v`), the agent-state dots the agent's own hooks push out,
+and — in the v1 line, pending revival ([BACKLOG](../BACKLOG.md)) —
+rendering pixels a TUI cannot (`vibe show`) and reviewing what an agent
+produced without leaving the terminal (`vibe review`). The line stays
+where it always was:
 anything that *drives* the agent — loops, schedulers, task state machines,
 multi-agent review pipelines — belongs to layers 1–2 and is a non-goal;
 project skills may build such flows *on top of* these affordances.
 
 The bundled TUI (`vibe tui`) sits on the layer-3 side of that line: a
 host-side tmux cockpit for the project you are running — agent pane, host
-shell, palette verbs (review, doctor, clip). It *renders* state the agent's
+dock, palette verbs (requests, doctor, clip). It *renders* state the agent's
 own hooks push out (tab dots via the title channel) and never drives the
 agent: no scheduler, no task queue, no spawn/wait API. Several projects are
 several sessions on one tmux socket — switching, not fleet management.
@@ -64,8 +64,8 @@ or schedules agents is not.
   at the volume and otherwise stays out of credential handling.
 - **Repo-agnostic harness, thin project ownership.** The engine carries no
   project specifics; projects own one closed `vibe.yaml`.
-- **Opt-in over baked-in.** Codex, Grok, Features, `--cold`: additive and
-  inert unless enabled.
+- **Opt-in over baked-in.** Codex, Grok, toolchains, extensions, `--cold`:
+  additive and inert unless enabled.
 - **Reviewable supply chain.** Projects pin a release artifact by digest;
   updating is an explicit, verified step.
 
@@ -87,7 +87,8 @@ user, so all workspaces share the machine-level credential state. This
 harness's per-project logins are likewise not a missing feature: they are the
 price of the per-project trust boundary that is its whole point.
 
-Each project's [state volume](agent-state.md) is a blast-radius cell. A
+Each project's agent-state volume ([configuration.md](configuration.md),
+mount layout) is a blast-radius cell. A
 compromised or misbehaving agent run in one project cannot read another
 project's OAuth tokens or session history. Centralizing would trade that
 away: one token, valid everywhere, readable from any project; cross-project
@@ -106,7 +107,9 @@ Mechanisms considered and rejected:
   volume) is fragile: a CLI that writes credentials via atomic rename
   silently replaces the symlink and forks the state.
 
-The escape hatch already exists and is deliberately manual: a project can
-point its volume `source=` at a shared name to pool logins across projects —
-see [agent-state.md](agent-state.md) and the trade-off note in
-[security.md](security.md).
+There is deliberately no escape hatch today: volumes are engine-named from
+the project ID and the schema cannot reference another project's volume
+([configuration.md](configuration.md)). If pooled logins ever return, it
+will be as an explicit, recorded opt-in scoped to worktrees of one
+repository — the contract sketch lives in the worktrees entry of
+[BACKLOG.md](../BACKLOG.md).

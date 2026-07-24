@@ -1,7 +1,7 @@
 # Security model
 
 The full architecture is in
-[architecture-v2.md](architecture-v2.md); this is the operator's view of
+[architecture.md](architecture.md); this is the operator's view of
 what the engine does and does not protect.
 
 ## The boundary
@@ -28,7 +28,10 @@ Engine code and the container payload come from digest-addressed
 artifacts under `~/.vibe`, verified against a per-file manifest at
 extraction and install. Release downloads are hashed while streaming
 and checked against the release's `checksums.txt`; archives may contain
-only known entry types at known locations.
+only known entry types at known locations. Know the limit: checksums
+from the same origin are corruption detection, not publisher
+authentication — native provenance verification (Sigstore, fail-closed)
+is a release blocker on the [roadmap](../ROADMAP.md).
 
 ## Environment values
 

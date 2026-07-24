@@ -17,7 +17,7 @@ result, and exits with a stable code: 0 ok, 1 failure, 2 usage,
 | `vibe down [--volumes]` | Stop and remove containers and network; volumes survive unless asked |
 | `vibe status` | Containers vs the approved candidate (running / stopped / stale) |
 | `vibe config` | Print the canonical plan JSON compiled from current inputs |
-| `vibe ps` | All registered projects |
+| `vibe ps` | All registered projects, plus this project's agent sessions |
 | `vibe forget` | Remove the registration; the workspace is untouched |
 
 `up` is idempotent: unchanged inputs produce the identical candidate
@@ -30,14 +30,27 @@ a failed `up` never moves the approved-candidate pointer.
 | --- | --- |
 | `vibe exec [-u USER] [-w DIR] [-e K=V]… -- CMD ARGS…` | explicit `-e` entries only |
 | `vibe run -- CMD ARGS…` | the env file frozen in the approved candidate, then `-e` |
-| `vibe agent` | the manifest's agent CLI, with the frozen env file |
+| `vibe agent [--cold] [-a CMD] [-s NAME]` | the manifest's agent CLI, with the frozen env file |
 | `vibe shell` | first of zsh/bash/sh found in the container, as a login shell |
 | `vibe attach` | the container's main process |
 | `vibe bootstrap` | verify `bootstrap.required` tools exist in the container |
 
 Argv is preserved exactly — there is no shell-string form. The container
 process's exit code becomes `vibe`'s exit code. Interactive sessions get
-a raw TTY with resize forwarding.
+a raw TTY with resize forwarding; container commands run from
+`/workspace`.
+
+### Agent sessions persist
+
+`vibe agent` runs the CLI inside a tmux session *inside the container*,
+so the agent survives its viewer: kill the pane, the TUI, or the whole
+terminal and the conversation keeps running — the next `vibe agent`
+reattaches to it. Flags: `--cold` starts without repo instruction files;
+`-a`/`--agent CMD` runs a different installed agent in its own session;
+`-s`/`--session NAME` runs a named parallel instance with its own
+identity and state dot. `vibe ps` lists the current project's agent
+sessions alongside the registered projects. (Containers whose image
+lacks tmux fall back to direct exec: no persistence, no dot.)
 
 ## The TUI
 
@@ -45,7 +58,20 @@ a raw TTY with resize forwarding.
 in the main window and the engine state in the status line: `●` running,
 `◐` running but stale candidate, `○` stopped, plus a pending-request
 count. Sessions are named from the project ID, so display renames never
-strand a session.
+strand a session. Agent state (working / attention / idle / exited) is
+pushed by the agent's own hooks into tab, border, and sidebar dots — a
+permission prompt flashes the tab even from another window.
+
+The prefix is `C-Space` (`C-a` also works). The keys that matter:
+
+| Key | Action |
+| --- | --- |
+| `prefix+Space` | palette: agent/shell windows, git, requests, ps, doctor |
+| `prefix+b` | toggle the project sidebar |
+| `prefix+t` | toggle the bottom host dock |
+| `prefix+v` | host clipboard image → agent prompt |
+| `prefix+o` | switch project (live sessions tree) |
+| `prefix+r` | respawn a dead pane (reattaches the agent session) |
 
 ## Rebuild requests (the broker)
 

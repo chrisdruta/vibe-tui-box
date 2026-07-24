@@ -5,6 +5,17 @@ The engine is one static binary per platform (`linux-amd64`,
 Host requirements: git, docker (a reachable daemon), and tmux for
 `vibe tui`.
 
+> **Pre-release note:** no release has been tagged yet
+> ([ROADMAP](../ROADMAP.md)). Until then, install from source:
+>
+> ```sh
+> go build -o bin/vibe ./cmd/vibe
+> bin/vibe provision        # installs binary + payload under ~/.vibe
+> ```
+>
+> and put `~/.vibe/bin/vibe` on your PATH. The release flow below is
+> what ships at v1.0.
+
 ## From a release
 
 Download the archive for your platform from the releases page, unpack,

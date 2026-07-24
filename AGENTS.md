@@ -9,10 +9,10 @@ rebuild broker, dev-mode builds) and embeds the container payload it
 mounts into every project. Coding agents run *inside* the containers
 this engine manages; the engine itself is the host-side root of trust.
 
-The engine is the Go code under `cmd/vibe` and `internal/`, specified by
-[docs/architecture-v2.md](docs/architecture-v2.md) and
-[docs/go-engine-design.md](docs/go-engine-design.md); all eight
-implementation slices of the design are in the tree. The v1 bash/compose
+The engine is the Go code under `cmd/vibe` and `internal/`, documented
+as-built in [docs/architecture.md](docs/architecture.md) and
+[docs/engine-internals.md](docs/engine-internals.md); all eight
+implementation slices of the original design are in the tree. The v1 bash/compose
 harness was removed at the cutover and lives only in git history — do not
 resurrect pieces of it, and **never add v1-record importers or migration
 paths**: v1 installs reinstall, projects `vibe init` fresh. The
@@ -174,8 +174,7 @@ fake-backed tests asserting full request equality, not selected fields.
 
 ## Known open work
 
-Tracked in [BACKLOG.md](BACKLOG.md); the notable engine gaps: store GC,
-fuzz targets (schema/envfile/parsers/terminal), bounded plan diff in
-approval prompts, Sigstore verification behind the existing `Verifier`
-seam, real-daemon exercise of tools, extension, and dev builds, and the
-first tagged v2 release.
+Scheduled work lives in [ROADMAP.md](ROADMAP.md) (release pipeline,
+install story, Sigstore provenance, store GC, fuzz targets, bounded plan
+diff, payload lifecycle — the path to the first tagged release);
+unscheduled ideas and decision records in [BACKLOG.md](BACKLOG.md).
