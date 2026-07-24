@@ -25,8 +25,11 @@ jobs:
         run: |
           go generate ./internal/payload
           git diff --exit-code payload/
-      - name: ShellCheck (container payload)
-        run: shellcheck payload/container/*.sh
+      - name: ShellCheck (payload, both sides)
+        # Host scripts must additionally stay bash-3.2-clean (stock
+        # macOS) — ShellCheck can't version-gate that, so bashisms past
+        # 3.2 are a review concern; this still catches the usual classes.
+        run: shellcheck payload/container/*.sh payload/host/scripts/*.sh
       # Default output collides with the gitignored dev-build name at the
       # repo root — always build with -o (see AGENTS.md).
       - run: go build -o bin/vibe ./cmd/vibe && bin/vibe version

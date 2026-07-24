@@ -42,6 +42,17 @@
 # anyway), and signaling sidebars FROM state-render.sh would put
 # list-panes + kills on the hot path to save work on the cold one.
 #
+# ENGINE truth (container state vs approved candidate, pending requests,
+# dev marker, cold registered projects) comes from the hidden renderers
+# `vibe _fleet` / `vibe _sidebar` — but NEVER on the frame path. A
+# second serial, @vibe_engine_serial (bumped by state-mutating engine
+# commands, internal/app/notify.go), or the @vibe_engine_refresh slow
+# tick (default 30s) triggers a double-forked background fetch into a
+# socket-derived cache; frames only ever READ the cache, so a slow or
+# dead engine costs nothing and the last good truth keeps rendering.
+# No engine binary, no cache: the sidebar degrades to exactly the
+# shell-only view it was before the renderers existed.
+#
 # Host-side: bash-3.2-safe (stock macOS). Runs under the vibe server
 # (run-shell provides TMUX for toggle/ensure; the pane's environment for
 # render), so plain `tmux` is always the right binary/socket.
@@ -180,6 +191,71 @@ bold="$(printf '\033[1m')"
 reset="$(printf '\033[0m')"
 eol="$(printf '\033[K')"
 
+# ── engine cache ─────────────────────────────────────────────────────────
+# Lifetime- and user-matched to the tmux server: beside its socket
+# (/tmp/tmux-UID is already 0700). Empty cache_dir disables the whole
+# engine layer — every consumer guards on it.
+cache_dir=""
+sock="$(tmux display-message -p '#{socket_path}' 2>/dev/null)"
+if [ -n "$sock" ]; then
+  cache_dir="${sock%/*}/vibe-tui-cache"
+  if ! mkdir -p "$cache_dir" 2>/dev/null || ! chmod 700 "$cache_dir" 2>/dev/null; then
+    cache_dir=""
+  fi
+fi
+
+# fetch_engine — refresh the fleet + own-project detail caches in the
+# background. Double-forked (the inner job reparents to init; this loop
+# never waits and never accumulates zombies), tmp+mv so a failed run
+# keeps the last good cache, and stamp-guarded so concurrent sidebars
+# (one per window) don't stampede: the stamp holds a start epoch — no
+# pid, bash 3.2 has no BASHPID — and ages out after 30s so a fetch that
+# died mid-write can't wedge fetching forever. Never called from
+# frame(); only the loop and startup trigger it.
+fetch_engine() {
+  [ -n "$cache_dir" ] || return 0
+  exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null)"
+  { [ -n "$exe" ] && [ -x "$exe" ]; } || return 0
+  if [ -f "$cache_dir/fetch.stamp" ]; then
+    fepoch=""
+    IFS= read -r fepoch <"$cache_dir/fetch.stamp" 2>/dev/null || :
+    case "$fepoch" in
+      '' | *[!0-9]*) ;;
+      *) [ $(($(date +%s) - fepoch)) -lt 30 ] && return 0 ;;
+    esac
+  fi
+  # The project id resolves through the pane's session (@vibe_project is
+  # a session option; format lookup walks the chain).
+  proj="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{@vibe_project}' 2>/dev/null)"
+  fw="$(sidebar_w)"
+  (
+    (
+      date +%s >"$cache_dir/fetch.stamp" 2>/dev/null
+      if "$exe" _fleet --width "$fw" >"$cache_dir/fleet.tmp" 2>/dev/null; then
+        mv -f "$cache_dir/fleet.tmp" "$cache_dir/fleet" 2>/dev/null
+      else
+        rm -f "$cache_dir/fleet.tmp" 2>/dev/null
+      fi
+      if [ -n "$proj" ]; then
+        # Width leaves room for the dim gutter frame() adds; a pane
+        # narrower than the knob is transient (the fit hook snaps back).
+        if "$exe" _sidebar --project "$proj" --width $((fw - 4)) >"$cache_dir/detail.tmp" 2>/dev/null; then
+          mv -f "$cache_dir/detail.tmp" "$cache_dir/detail.$proj" 2>/dev/null
+        else
+          rm -f "$cache_dir/detail.tmp" 2>/dev/null
+        fi
+      fi
+      rm -f "$cache_dir/fetch.stamp" 2>/dev/null
+    ) &
+  )
+}
+
+engine_facts() { # PROJECT_ID → "token mode version pending" from the fleet cache
+  { [ -n "$1" ] && [ -n "$cache_dir" ] && [ -f "$cache_dir/fleet" ]; } || return 0
+  awk -F "$us" -v id="$1" '$1 == "1" && $2 == id { print $3, $4, $5, $6; exit }' \
+    "$cache_dir/fleet" 2>/dev/null
+}
+
 # .git/HEAD read directly — no git subprocess per tick. Handles the .git
 # FILE indirection (worktrees, submodule checkouts); detached HEAD shows
 # the short sha.
@@ -236,6 +312,7 @@ EOF0
   map=""
   agent_lines=""
   n_agents=0
+  seen_projects=""
   while IFS="$tab" read -r sid name path; do
     [ -n "$sid" ] || continue
     # Dots: window order, same semantics as the tabs — attention renders
@@ -299,10 +376,61 @@ EOF2
       [ "${#br}" -gt $((max - 2)) ] && br="$(printf '%.*s' $((max - 3)) "$br")…"
       put "   ${c_dim}⎇ ${br}${reset}" "$sid"
     fi
+    # Engine truth, cache-only. The client's own session gets its full
+    # detail block; other sessions get one dim facts line when anything
+    # is interesting (stale/stopped container, pending requests, dev
+    # mode) — and so does the own session while its detail cache hasn't
+    # landed yet. Rows flow through put, so the click map stays honest:
+    # click slop onto the same session, like the branch row.
+    proj_id="$(tmux show-options -qv -t "$sid" @vibe_project 2>/dev/null)"
+    [ -n "$proj_id" ] && seen_projects="$seen_projects $proj_id "
+    if [ "$sid" = "$sid_self" ] && [ -n "$proj_id" ] &&
+      [ -n "$cache_dir" ] && [ -f "$cache_dir/detail.$proj_id" ]; then
+      while IFS= read -r dline; do
+        [ -n "$dline" ] || continue
+        # The engine already budgets to the fetch width; this guard only
+        # matters when a stale cache meets a narrower pane — a wrapped
+        # row would skew every click target below it.
+        [ "${#dline}" -gt $((max - 1)) ] && dline="$(printf '%.*s' $((max - 2)) "$dline")…"
+        put " ${c_dim}${dline}${reset}" "$sid"
+      done <"$cache_dir/detail.$proj_id"
+    else
+      facts="$(engine_facts "$proj_id")"
+      if [ -n "$facts" ]; then
+        read -r etoken emode eversion epending <<EOF4
+$facts
+EOF4
+        : "$eversion" # version stays status-line territory; unused here
+        parts=""
+        case "$etoken" in
+          "◐") parts="◐ stale" ;;
+          "○") parts="○ stopped" ;;
+        esac
+        case "$epending" in
+          '' | *[!0-9]* | 0) ;;
+          *) parts="${parts:+$parts · }▲$epending" ;;
+        esac
+        [ "$emode" = "dev" ] && parts="${parts:+$parts · }dev"
+        [ -z "$parts" ] || put "   ${c_dim}${parts}${reset}" "$sid"
+      fi
+    fi
     put "" "$sid"
   done <<EOF
 $(tmux list-sessions -F "#{session_id}$tab#{?#{@vibe_name},#{@vibe_name},#{session_name}}$tab#{session_path}" 2>/dev/null | sort -t "$tab" -k2)
 EOF
+  # Cold registered projects — fleet entries with no live session; the
+  # names are engine-sanitized. Render-only dim rows for now: click
+  # dispatching `up` is a recorded product call, not half-shipped here.
+  if [ -n "$cache_dir" ] && [ -f "$cache_dir/fleet" ]; then
+    while IFS="$us" read -r fver fid ftoken fmode fversion fpending fname; do
+      { [ "$fver" = "1" ] && [ -n "$fid" ]; } || continue
+      : "$ftoken$fmode$fversion$fpending" # cold rows stay minimal
+      case "$seen_projects" in *" $fid "*) continue ;; esac
+      fn="$fname"
+      [ "${#fn}" -gt $((max - 2)) ] && fn="$(printf '%.*s' $((max - 3)) "$fn")…"
+      put " ${c_dim}· ${fn}${reset}" ""
+    done <"$cache_dir/fleet"
+  fi
   printf '%s\033[J' "$buf"
 
   # ── agents: the aggregate roster, anchored to the pane bottom ─────────
@@ -349,25 +477,52 @@ EOF3
 
 last_map=""
 last_serial=""
+last_eserial=""
 tick=0
+etick=0
+frames_due=0
+# Slow-tick cadence for unprompted engine refetches (covers out-of-band
+# container deaths and engine runs from other terminals): the knob is
+# seconds, the loop runs on a 2s frame.
+er="$(tmux show-options -gqv @vibe_engine_refresh 2>/dev/null)"
+case "$er" in '' | *[!0-9]* | 0) er=30 ;; esac
+eticks=$((er / 2))
+[ "$eticks" -lt 1 ] && eticks=1
 printf '\033[?25l'
 trap 'printf "\033[?25h"' EXIT
+fetch_engine # warm the cache so engine rows appear within a tick or two
 frame
 while :; do
   sleep 2
-  # ONE round trip per idle tick: die-check and change detection together.
-  poll="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{window_panes} #{@vibe_state_serial}' 2>/dev/null)" || exit 0
-  n="${poll%% *}"
-  serial="${poll#* }"
+  # ONE round trip per idle tick: die-check and change detection
+  # together. '/' separates because either serial may be empty and
+  # whitespace splitting would collapse the hole.
+  poll="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{window_panes}/#{@vibe_state_serial}/#{@vibe_engine_serial}' 2>/dev/null)" || exit 0
+  IFS=/ read -r n serial eserial <<EOF5
+$poll
+EOF5
   case "$n" in '' | *[!0-9]*) exit 0 ;; esac
   # Last real pane gone (shell exited, window would linger on just us):
   # let the window die with it. The main window's agent corpse still
   # counts as a pane (remain-on-exit), so it keeps its sidebar.
   [ "$n" -le 1 ] && exit 0
+  # Engine serial moved → background refetch now, frame this tick (last
+  # good) AND the next (the refreshed cache — frames_due covers both).
+  # The slow tick refetches regardless; its result rides the next forced
+  # frame. The 2s frame itself never invokes the engine.
+  etick=$(((etick + 1) % eticks))
+  if [ "$eserial" != "$last_eserial" ]; then
+    last_eserial="$eserial"
+    frames_due=2
+    fetch_engine
+  elif [ "$etick" -eq 0 ]; then
+    fetch_engine
+  fi
   tick=$(((tick + 1) % 5))
-  if [ "$serial" = "$last_serial" ] && [ "$tick" -ne 0 ]; then
+  if [ "$serial" = "$last_serial" ] && [ "$frames_due" -eq 0 ] && [ "$tick" -ne 0 ]; then
     continue # nothing moved; the 10s forced frame covers serial-less bits
   fi
+  [ "$frames_due" -gt 0 ] && frames_due=$((frames_due - 1))
   last_serial="$serial"
   frame
 done
