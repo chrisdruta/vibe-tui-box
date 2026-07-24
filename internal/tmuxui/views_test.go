@@ -68,17 +68,12 @@ func TestFleet(t *testing.T) {
 	}
 }
 
-func TestStatuslineSanitizesAgentText(t *testing.T) {
+func TestSidebarSanitizesDisplayName(t *testing.T) {
 	v := runningView()
-	hostile := "done\x1b]0;pwned\afor you\nnew line"
-	line := Statusline(v, "claude", hostile, 100)
-	if strings.ContainsAny(line, "\x1b\a\n") {
-		t.Fatalf("statusline leaked control bytes: %q", line)
-	}
-	if !strings.Contains(line, "myproj") || !strings.Contains(line, "claude") {
-		t.Fatalf("statusline chrome missing: %q", line)
-	}
-	if got := Statusline(v, "claude", strings.Repeat("m", 500), 60); len([]rune(got)) > 60 {
-		t.Fatalf("statusline exceeds width: %q", got)
+	v.Name = "evil\x1b]0;pwned\aname"
+	for _, line := range Sidebar(v, 80) {
+		if strings.ContainsAny(line, "\x1b\a\n") {
+			t.Fatalf("sidebar leaked control bytes: %q", line)
+		}
 	}
 }

@@ -33,8 +33,6 @@ type DevCmdRequest struct {
 type RenderRequest struct {
 	Options
 	Project string
-	Agent   string
-	Message string
 	Width   int
 }
 
@@ -129,10 +127,9 @@ var uiCommands = map[string]Command{
 			}
 		},
 	},
-	"_sidebar":    renderCommand("_sidebar", (*app.App).RenderSidebar),
-	"_state":      renderCommand("_state", (*app.App).RenderState),
-	"_fleet":      renderCommand("_fleet", (*app.App).RenderFleet),
-	"_statusline": renderCommand("_statusline", (*app.App).RenderStatusline),
+	"_sidebar": renderCommand("_sidebar", (*app.App).RenderSidebar),
+	"_state":   renderCommand("_state", (*app.App).RenderState),
+	"_fleet":   renderCommand("_fleet", (*app.App).RenderFleet),
 }
 
 // AgentCmdRequest is the exec-shaped agent command plus its session
@@ -262,8 +259,6 @@ func renderCommand(name string, fn func(*app.App, context.Context, app.RenderReq
 			var req RenderRequest
 			return parseInto(args, name, &req.Options, func(fs *flag.FlagSet) any {
 				fs.StringVar(&req.Project, "project", "", "project ID")
-				fs.StringVar(&req.Agent, "agent", "", "agent name")
-				fs.StringVar(&req.Message, "message", "", "status message")
 				fs.IntVar(&req.Width, "width", 0, "width budget")
 				return &req
 			})
@@ -273,8 +268,6 @@ func renderCommand(name string, fn func(*app.App, context.Context, app.RenderReq
 			res, err := fn(a, ctx, app.RenderRequest{
 				Dir:     mustCwd(),
 				Project: domain.ProjectID(r.Project),
-				Agent:   r.Agent,
-				Message: r.Message,
 				Width:   r.Width,
 			})
 			if err != nil {

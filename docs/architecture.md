@@ -290,10 +290,11 @@ state, exposed through the read-only results mount.
 
 One host tmux server on the `vibe-engine` socket owns one session per
 project (session IDs derive from project IDs, so display renames never
-strand a session). The Go engine implements the `_sidebar`, `_state`,
-`_fleet`, and `_statusline` renderers; tmux configuration and UI
-mechanics are static trusted payload shell — host-side scripts execute
-only store-owned bytes, never workspace files.
+strand a session; the full ID is stamped as `@vibe_project` for host
+scripts). The Go engine implements the `_sidebar`, `_state`, and
+`_fleet` renderers; tmux configuration and UI mechanics are static
+trusted payload shell — host-side scripts execute only store-owned
+bytes, never workspace files.
 
 The agent itself runs inside a *container-side* tmux session
 (`agent-session.sh`), so it survives its viewer: killing the pane, the
@@ -337,7 +338,7 @@ agent [--cold] [-a CMD] [-s NAME] / run -- CMD / exec -- CMD / shell
 attach [SESSION] / tui / request {list|show|approve|reject}
 provision / update --version vX.Y.Z / gc / version
 dev {on|sync|off|status}
-_sidebar / _state / _fleet / _statusline   (hidden renderers)
+_sidebar / _state / _fleet   (hidden renderers)
 ```
 
 Full semantics: [usage.md](usage.md). Exit codes are stable (0 ok,

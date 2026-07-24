@@ -6,7 +6,6 @@ package tmuxui
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
@@ -109,18 +108,4 @@ func Fleet(views []ProjectView, width int) []string {
 			fmt.Sprintf("%s %-24s %-8s %s%s", v.Token(), v.Name, v.Mode, v.Version, attention), width))
 	}
 	return lines
-}
-
-// Statusline renders the single agent status row. Agent-supplied text
-// is untrusted and is sanitized to one bounded cell.
-func Statusline(v ProjectView, agent, message string, width int) string {
-	if width <= 0 {
-		width = 80
-	}
-	head := fmt.Sprintf("%s %s · %s", v.Token(), v.Name, agent)
-	budget := width - len([]rune(head)) - 3
-	if budget < 8 || message == "" {
-		return terminal.Line(head, width)
-	}
-	return terminal.Line(head+" · "+strings.TrimSpace(terminal.Line(message, budget)), width)
 }

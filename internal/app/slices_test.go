@@ -455,8 +455,4 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 	if err != nil || len(fleet.Lines) != 1 {
 		t.Fatalf("fleet render: %+v, %v", fleet, err)
 	}
-	status, err := a.RenderStatusline(ctx, RenderRequest{Project: rec.ID, Agent: "claude", Message: "evil\x1b]0;x\a", Width: 80})
-	if err != nil || strings.ContainsAny(status.Lines[0], "\x1b\a") {
-		t.Fatalf("statusline render: %+v, %v", status, err)
-	}
 }

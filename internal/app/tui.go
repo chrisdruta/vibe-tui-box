@@ -184,6 +184,12 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_name", rec.DisplayName); err != nil {
 			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
 		}
+		// The FULL project ID (session names carry a truncated one), so
+		// host scripts can address the engine renderers per session
+		// (`vibe _sidebar --project …`) without a reverse lookup.
+		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_project", string(rec.ID)); err != nil {
+			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+		}
 		// The v1 prefix/copy indicators ahead of the engine state.
 		status = "#{?client_prefix,#[fg=#{@thm_coral}#,bold]⌨  ,}#{?pane_in_mode,#[fg=#{@thm_yellow}#,bold]copy ,}#[default]" + status + " "
 	}
@@ -284,8 +290,6 @@ func (a *App) projectView(ctx context.Context, rec registry.Record) tmuxui.Proje
 type RenderRequest struct {
 	Dir     string
 	Project domain.ProjectID
-	Agent   string
-	Message string
 	Width   int
 }
 
@@ -327,13 +331,4 @@ func (a *App) RenderFleet(ctx context.Context, req RenderRequest) (RenderResult,
 		views = append(views, a.projectView(ctx, rec))
 	}
 	return RenderResult{Lines: tmuxui.Fleet(views, req.Width)}, nil
-}
-
-func (a *App) RenderStatusline(ctx context.Context, req RenderRequest) (RenderResult, error) {
-	rec, err := a.renderProject(ctx, req)
-	if err != nil {
-		return RenderResult{}, &domain.OpError{Op: "_statusline", Err: err}
-	}
-	line := tmuxui.Statusline(a.projectView(ctx, rec), req.Agent, req.Message, req.Width)
-	return RenderResult{Lines: []string{line}}, nil
 }

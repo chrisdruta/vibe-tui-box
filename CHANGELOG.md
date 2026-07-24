@@ -59,6 +59,12 @@ The v1 line and its history remain in git up to the cutover commit.
   (engine-rendered; container-controlled bytes are sanitized), the tui
   reaps ghost inner viewers after a quit, and v1's
   statusline/subagent-statusline glue returns via `claude --settings`.
+- Changed: `vibe tui` stamps each session with `@vibe_project` (the
+  full project ID; session names carry a truncated one) so host
+  scripts can address the engine renderers per session. The unconsumed
+  `_statusline` renderer is removed — the container-side Claude
+  statusline (`claude --settings` glue) won that seat; `_sidebar`,
+  `_state`, and `_fleet` remain.
 - New: project lifecycle hooks and the services session (roadmap R5,
   2026-07-24). The engine runs `.vibe/hooks/post-create.sh` (once per
   container, marker-guarded so a failed first run self-heals) and
