@@ -33,10 +33,13 @@ func TestTokens(t *testing.T) {
 	}
 }
 
-func TestStateProtocol(t *testing.T) {
+func TestStateDisplayForm(t *testing.T) {
 	v := runningView()
+	if got := State(v); got != "●" {
+		t.Fatalf("state line %q, want bare glyph", got)
+	}
 	v.Pending = 2
-	if got := State(v); got != "1 ● 2" {
+	if got := State(v); got != "● ▲2" {
 		t.Fatalf("state line %q", got)
 	}
 }

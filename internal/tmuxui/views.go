@@ -56,13 +56,16 @@ func (v ProjectView) Token() StateToken {
 	return StateRunning
 }
 
-// State renders the protocol line for `vibe _state`:
-//
-//	1 <token> <attention-count>
-//
-// The leading field is the protocol version.
+// State renders the display line for `vibe _state`. Its one consumer
+// is the status bar, which splices the output verbatim — so this is
+// display form, not protocol (the old version-prefixed line leaked
+// "1 ● 2" into the bar): the state glyph, then ▲n only while requests
+// are pending.
 func State(v ProjectView) string {
-	return fmt.Sprintf("1 %s %d", v.Token(), v.Pending)
+	if v.Pending > 0 {
+		return fmt.Sprintf("%s ▲%d", v.Token(), v.Pending)
+	}
+	return string(v.Token())
 }
 
 // Sidebar renders one project's detail block for `vibe _sidebar`: the
