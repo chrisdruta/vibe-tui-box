@@ -81,10 +81,23 @@ func (b *Binary) exec(ctx context.Context, interactive bool, args ...string) (ru
 	if b.conf != "" {
 		global = append(global, "-f", b.conf)
 	}
+	env := []string{"TERM=" + os.Getenv("TERM"), "HOME=" + os.Getenv("HOME"), "PATH=" + os.Getenv("PATH")}
+	// Locale carries through or tmux treats the client terminal as
+	// non-UTF-8 and renders every non-ASCII glyph as "_".
+	locale := false
+	for _, key := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
+		if v := os.Getenv(key); v != "" {
+			env = append(env, key+"="+v)
+			locale = true
+		}
+	}
+	if !locale {
+		env = append(env, "LANG=C.UTF-8")
+	}
 	inv := runner.Invocation{
 		Path: b.path,
 		Args: append(global, args...),
-		Env:  []string{"TERM=" + os.Getenv("TERM"), "HOME=" + os.Getenv("HOME"), "PATH=" + os.Getenv("PATH")},
+		Env:  env,
 	}
 	if interactive {
 		inv.Stdin = os.Stdin
