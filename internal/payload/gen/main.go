@@ -24,6 +24,10 @@ func main() {
 func run() error {
 	// go generate runs in internal/payload; the tree is two levels up.
 	root := filepath.Join("..", "..", "payload")
+	// Theme renderings first, so the walk digests the fresh bytes.
+	if err := renderTheme(root); err != nil {
+		return err
+	}
 	var files []payload.File
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {

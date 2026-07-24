@@ -1,10 +1,13 @@
 # shellcheck shell=bash
 #
+# GENERATED from internal/tmuxui/theme.go — do not edit. Change the Go
+# source and run `go generate ./internal/payload`; CI fails on
+# a stale rendering (payload manifest drift). The @thm_* block in
+# tmux-tui.conf renders from the same source.
+#
 # vibe theme — the ONE palette + state map for every script renderer:
 # today sidebar.sh (fleet + agent roster); state-render.sh and ps.sh
-# rejoin it when their feeders return (BACKLOG). The @thm_* block in
-# tmux-tui.conf is the only deliberate second copy — tmux can't source
-# bash — keep the two in lockstep.
+# rejoin it when their feeders return (BACKLOG).
 #
 # Sourced, never executed. Pure definitions: no subprocesses, no output,
 # no set-option mutation; bash-3.2-safe (host + container). Callers may
@@ -43,11 +46,11 @@ vibe_fg() {
 #   frontend-dead  the docker-exec viewer died; the run may live (host UI)
 vibe_state_style() {
   case "$1" in
-    working)   vibe_glyph="●" vibe_state_hex="$VIBE_THM_GREEN" ;;
+    working) vibe_glyph="●" vibe_state_hex="$VIBE_THM_GREEN" ;;
     attention) vibe_glyph="●" vibe_state_hex="$VIBE_THM_CORAL" ;;
-    idle)      vibe_glyph="●" vibe_state_hex="$VIBE_THM_DIM" ;;
-    running)   vibe_glyph="●" vibe_state_hex="$VIBE_THM_BLUE" ;;
-    exited*)   vibe_glyph="✗" vibe_state_hex="$VIBE_THM_RED" ;;
+    idle) vibe_glyph="●" vibe_state_hex="$VIBE_THM_DIM" ;;
+    running) vibe_glyph="●" vibe_state_hex="$VIBE_THM_BLUE" ;;
+    exited*) vibe_glyph="✗" vibe_state_hex="$VIBE_THM_RED" ;;
     gone | frontend-dead) vibe_glyph="◌" vibe_state_hex="$VIBE_THM_DIM" ;;
     *) return 1 ;;
   esac
