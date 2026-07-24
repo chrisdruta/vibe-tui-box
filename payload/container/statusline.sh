@@ -7,7 +7,24 @@
 # recipe beside tmux — the carrier only runs where both exist).
 
 input=$(cat)
-cwd=$(echo "$input" | jq -r '.workspace.current_dir // empty')
+
+# One jq pass for every payload field (line protocol, empty line = absent) —
+# this renders on every statusline tick, so process count is the budget.
+{
+  IFS= read -r cwd
+  IFS= read -r model
+  IFS= read -r effort
+  IFS= read -r used_pct
+  IFS= read -r total_in
+  IFS= read -r ctx_size
+} < <(jq -r '
+  .workspace.current_dir // "",
+  .model.display_name // "",
+  .effort.level // "",
+  (.context_window.used_percentage // ""),
+  (.context_window.total_input_tokens // ""),
+  (.context_window.context_window_size // "")
+' <<<"$input" 2>/dev/null)
 [ -z "$cwd" ] && cwd="$PWD"
 
 GREEN=$'\033[0;32m'
@@ -31,14 +48,13 @@ dir=$(awk -F'/' -v full="$cwd" 'BEGIN {
   print out
 }')
 
-branch=""
+# HEAD resolution doubles as the are-we-in-a-repo probe; the branch guard
+# keeps `diff --quiet` (and its dirty mark) inside real repos only.
+branch=$(git -C "$cwd" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null ||
+  git -C "$cwd" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
 dirty=""
-if git -C "$cwd" --no-optional-locks rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  branch=$(git -C "$cwd" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null ||
-    git -C "$cwd" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
-  if [ -n "$branch" ] && ! git -C "$cwd" --no-optional-locks diff --quiet 2>/dev/null; then
-    dirty=" ${YELLOW}✗"
-  fi
+if [ -n "$branch" ] && ! git -C "$cwd" --no-optional-locks diff --quiet 2>/dev/null; then
+  dirty=" ${YELLOW}✗"
 fi
 
 out="${GREEN}${user}${RESET} ${RESET}➜${RESET} ${BLUE}${dir}${RESET}"
@@ -48,8 +64,6 @@ fi
 
 # Model name (dim magenta) + effort level (dim gray). `.effort.level` is the LIVE
 # per-turn value — present only on effort-capable models, so it degrades cleanly.
-model=$(echo "$input" | jq -r '.model.display_name // empty')
-effort=$(echo "$input" | jq -r '.effort.level // empty')
 if [ -n "$model" ]; then
   out="${out} ${GRAY}·${RESET} ${MAGENTA}${model}${RESET}"
   [ -n "$effort" ] && out="${out} ${GRAY}(${effort})${RESET}"
@@ -64,7 +78,6 @@ fmt_tokens() {
   }'
 }
 
-used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 if [ -n "$used_pct" ]; then
   pct=$(awk -v p="$used_pct" 'BEGIN { printf "%.0f", p }')
   if [ "$pct" -ge 80 ]; then
@@ -75,12 +88,8 @@ if [ -n "$used_pct" ]; then
     ctx_color="$GREEN"
   fi
   out="${out} ${GRAY}·${RESET} ${ctx_color}${pct}%${RESET}"
-else
-  total_in=$(echo "$input" | jq -r '.context_window.total_input_tokens // empty')
-  ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
-  if [ -n "$total_in" ] && [ -n "$ctx_size" ]; then
-    out="${out} ${GRAY}·${RESET} ${GRAY}$(fmt_tokens "$total_in")/$(fmt_tokens "$ctx_size")${RESET}"
-  fi
+elif [ -n "$total_in" ] && [ -n "$ctx_size" ]; then
+  out="${out} ${GRAY}·${RESET} ${GRAY}$(fmt_tokens "$total_in")/$(fmt_tokens "$ctx_size")${RESET}"
 fi
 
 printf "%s" "$out"

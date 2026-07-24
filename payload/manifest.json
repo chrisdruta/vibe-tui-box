@@ -40,14 +40,14 @@
     {
       "path": "container/statusline.sh",
       "mode": "0755",
-      "size": 3109,
-      "digest": "sha256:2a077ea1d6bd552a2a60ab39f6739602ccc20339f9c13808af3fb1c82862545e"
+      "size": 3250,
+      "digest": "sha256:8adc0710b742856e855826e7b9f1eedbab73037e9a4deb35426efb789542a858"
     },
     {
       "path": "container/subagent-statusline.sh",
       "mode": "0755",
-      "size": 2252,
-      "digest": "sha256:ad60287be95f9508036d2099aab065b112172355fd065e13856ca3043e8f8933"
+      "size": 3117,
+      "digest": "sha256:d69630ddb2d43d22ff3d31270c224581c7a8cd50410bbdab70f446c8dfae6488"
     },
     {
       "path": "container/svc.sh",
@@ -164,5 +164,5 @@
       "digest": "sha256:5cf55370b186c53fbece05d3ed6ec5f68e5f9fecfd316e1599bc0d3df23db087"
     }
   ],
-  "digest": "sha256:7f63f72a58d1541eac78555e14ed89c33f97f3b9e6b18d08c2782939e6332d68"
+  "digest": "sha256:9acacf36cda357332dc6435c60c4ca6adf850a34bca496c3d6c0cb9d17bf612b"
 }
