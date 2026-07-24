@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
 	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
@@ -15,7 +16,7 @@ import (
 var commandOrder = []string{
 	"version", "init", "register", "config", "up", "rebuild", "down", "status",
 	"exec", "run", "shell", "attach", "ps", "forget",
-	"provision", "update", "doctor", "bootstrap",
+	"provision", "update", "doctor", "bootstrap", "gc",
 	"tui", "agent", "request", "dev",
 }
 
@@ -145,6 +146,12 @@ type BootstrapRequest struct{ Options }
 type UpdateRequest struct {
 	Options
 	Version string
+}
+
+type GCRequest struct {
+	Options
+	DryRun bool
+	MinAge time.Duration
 }
 
 type RebuildRequest struct{ Options }

@@ -414,11 +414,29 @@ func (r *requestShowResult) RenderHuman(w io.Writer) error {
 			return err
 		}
 	}
+	if r.Result.DiffLabel != "" {
+		if _, err := fmt.Fprintln(w, r.Result.DiffLabel); err != nil {
+			return err
+		}
+		for _, line := range r.Result.Diff.Lines {
+			if _, err := fmt.Fprintf(w, "  │ %s\n", line); err != nil {
+				return err
+			}
+		}
+		if r.Result.Diff.Truncated {
+			if _, err := fmt.Fprintln(w, "  │ … (truncated)"); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
 func (r *requestShowResult) RenderJSON(w io.Writer) error {
-	return writeJSON(w, "request-show", r.Result.Pending)
+	return writeJSON(w, "request-show", struct {
+		Pending  any      `json:"pending"`
+		PlanDiff []string `json:"plan_diff,omitempty"`
+	}{Pending: r.Result.Pending, PlanDiff: r.Result.Diff.Lines})
 }
 
 type requestDecideResult struct {
@@ -502,4 +520,69 @@ func (r *devStatusResult) RenderJSON(w io.Writer) error {
 		Project any `json:"project"`
 		Record  any `json:"record,omitempty"`
 	}{r.Result.Project, r.Result.Record})
+}
+
+type gcResult struct {
+	Result app.GCResult
+}
+
+func (r *gcResult) RenderHuman(w io.Writer) error {
+	verb := "removed"
+	if r.Result.DryRun {
+		verb = "would remove"
+	}
+	counts := map[string]int{}
+	for _, e := range r.Result.Removed {
+		counts[e.Kind]++
+	}
+	if len(r.Result.Removed) == 0 && r.Result.StagingEntries == 0 {
+		_, err := fmt.Fprintln(w, "nothing to collect")
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "%s %d item(s), %s\n", verb, len(r.Result.Removed), humanBytes(r.Result.TotalBytes)); err != nil {
+		return err
+	}
+	for _, kind := range []string{"artifact", "candidate", "snapshot", "record", "binary", "broker", "state"} {
+		if counts[kind] > 0 {
+			if _, err := fmt.Fprintf(w, "  %-9s %d\n", kind, counts[kind]); err != nil {
+				return err
+			}
+		}
+	}
+	if r.Result.StagingEntries > 0 {
+		if _, err := fmt.Fprintf(w, "  staging   %d entr%s (%s)\n", r.Result.StagingEntries,
+			pluralY(r.Result.StagingEntries), humanBytes(r.Result.StagingBytes)); err != nil {
+			return err
+		}
+	}
+	for _, s := range r.Result.Skipped {
+		if _, err := fmt.Fprintf(w, "  skipped %s %s: %s\n", s.Kind, s.ID, s.Reason); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *gcResult) RenderJSON(w io.Writer) error {
+	return writeJSON(w, "gc", r.Result)
+}
+
+func humanBytes(n int64) string {
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%.1f GiB", float64(n)/(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MiB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.1f KiB", float64(n)/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
+}
+
+func pluralY(n int) string {
+	if n == 1 {
+		return "y"
+	}
+	return "ies"
 }

@@ -204,6 +204,12 @@ Artifacts are published by staging → fsync → atomic rename and never
 mutated; an existing digest directory is never replaced. Shared-flock
 leases keep an artifact or candidate alive while in use; persistent
 records are versioned JSON decoded with `DisallowUnknownFields`.
+Collection is explicit and only explicit: `vibe gc` removes objects no
+registry pin, approved-candidate pointer, or pending broker binding
+references — refusing live leases (the exclusive flock loses to any
+shared one) and anything younger than its age floor — plus stale
+staging, superseded binary copies, and forgotten projects' broker/state
+leftovers.
 
 Release acquisition (`vibe update`) streams the archive while hashing,
 verifies against the release's `checksums.txt`, extracts only known entry
@@ -256,7 +262,7 @@ sequenceDiagram
     E->>W: bounded poll (size/entry/rate-capped, data only)
     E->>E: freeze current inputs → immutable candidate
     O->>E: vibe request show ID
-    E-->>O: sanitized reason/summary + candidate digest
+    E-->>O: sanitized reason/summary + candidate digest<br/>+ plan diff, approved → candidate
     O->>E: vibe request approve sha256:…
     E->>E: build exactly that frozen candidate
     E-->>A: decision record at /vibe/results (ro mount)
@@ -266,9 +272,12 @@ The load-bearing properties: the candidate is snapshotted *before*
 anything is shown, and approval names its digest — later workspace edits
 become a different pending candidate, so what you approved is exactly
 what runs. Request text renders only through the control-character-
-escaping encoder, structurally separated from trusted chrome. The host
-never writes into the workspace: decisions land in host-owned state,
-exposed through the read-only results mount.
+escaping encoder, structurally separated from trusted chrome; beside it
+the engine renders its own bounded diff of the two canonical plans
+(approved → pending), so the decision surface always contains a trusted
+statement of what will actually change, not only the agent's claim. The
+host never writes into the workspace: decisions land in host-owned
+state, exposed through the read-only results mount.
 
 ## TUI and agent sessions
 

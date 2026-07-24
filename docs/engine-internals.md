@@ -136,6 +136,15 @@ created; reconciliation never removes a container it did not decide to
 replace, and refuses name-colliding containers lacking
 `dev.vibe.managed`.
 
+Garbage collection is app-orchestrated (`app.GC` gathers roots:
+registry pins, approved candidates, pending broker bindings, the
+newest release artifact, and their snapshots) over store primitives
+(`ListObjects` / `ObjectStat` / `RemoveObject` / `CleanStaging`).
+`RemoveObject` takes the object's exclusive flock non-blocking — any
+live shared lease defeats it — then leaves the published path in one
+rename before deleting. GC holds the store-global lock; an age floor
+shields in-flight publishes that are not yet referenced.
+
 ## Concurrency
 
 Lock order is fixed — never acquire an earlier lock while holding a
@@ -163,13 +172,19 @@ project.
   a real daemon and self-skips without one — never convert that skip to
   a failure or mock around it; it is the only place SDK translation
   meets a real daemon. CI runs it on push.
+- **Fuzz**: native fuzz targets cover the hostile-input surfaces —
+  schema load (`FuzzLoad`), envfile (`FuzzParse`), digest/ID parsers
+  (`FuzzParsers`), broker request JSON (`FuzzParseRequest`), and the
+  terminal encoder and diff (`FuzzEncode`/`FuzzDiff`). Seeds run in
+  every `go test`; CI adds short live bursts. Found crashers are saved
+  under `testdata/fuzz/` and committed as permanent regression seeds.
 - **CI** (`.github/workflows/ci.yml`): gofmt, vet, build, test,
   golangci-lint, payload-manifest drift (`go generate
   ./internal/payload` must be clean), ShellCheck on the container
-  payload, and the three-platform cross-compile matrix with
-  `CGO_ENABLED=0`.
-- **Owed** (tracked in [../ROADMAP.md](../ROADMAP.md)): fuzz targets for
-  the hostile-input surfaces and real-daemon CI for the build paths.
+  payload, the three-platform cross-compile matrix with
+  `CGO_ENABLED=0`, and the fuzz-burst job.
+- **Owed** (tracked in [../ROADMAP.md](../ROADMAP.md)): real-daemon CI
+  for the tools/extension/dev build paths.
 
 New commands follow one shape: a typed request struct parsed in
 `internal/cli` (`commands_*.go` groups, one merge point in

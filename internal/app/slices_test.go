@@ -70,10 +70,15 @@ func TestBrokerRequestFlow(t *testing.T) {
 		t.Fatalf("re-poll changed binding: %+v, %v", list2.Pending, err)
 	}
 
-	// Show renders sanitized text.
+	// Show renders sanitized text. Unchanged inputs bind to the already
+	// approved candidate, and the diff surface says so.
 	show, err := a.RequestShow(ctx, RequestShowRequest{Dir: dir, ID: "req-1"})
 	if err != nil || len(show.Summary.Lines) == 0 {
 		t.Fatalf("show: %+v, %v", show, err)
+	}
+	if show.DiffLabel == "" || len(show.Diff.Lines) == 0 ||
+		!strings.Contains(show.Diff.Lines[0], "already the approved") {
+		t.Fatalf("show diff for unchanged candidate: label=%q diff=%q", show.DiffLabel, show.Diff.Lines)
 	}
 
 	// Reject writes a result the container can read and clears pending.
@@ -103,11 +108,33 @@ func TestBrokerRequestFlow(t *testing.T) {
 	if err != nil || len(list4.Pending) != 1 {
 		t.Fatalf("second request: %+v, %v", list4.Pending, err)
 	}
+	// A changed candidate shows a real plan diff (the snapshot digest
+	// line moves), both in show and in the approval confirmation.
+	show2, err := a.RequestShow(ctx, RequestShowRequest{Dir: dir, ID: "req-2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(show2.DiffLabel, "plan diff (approved sha256:") {
+		t.Fatalf("show2 diff label: %q", show2.DiffLabel)
+	}
+	var plus, minus bool
+	for _, line := range show2.Diff.Lines {
+		plus = plus || strings.HasPrefix(line, "+ ")
+		minus = minus || strings.HasPrefix(line, "- ")
+	}
+	if !plus || !minus {
+		t.Fatalf("show2 diff has no +/- lines: %q", show2.Diff.Lines)
+	}
+	capture := &capturingPrompt{approve: true}
+	a.deps.Prompt = capture
 	decide, err := a.RequestDecide(ctx, RequestDecideRequest{
-		Dir: dir, Candidate: list4.Pending[0].Candidate, Approve: true, Yes: true,
+		Dir: dir, Candidate: list4.Pending[0].Candidate, Approve: true,
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if capture.last.DiffLabel == "" || len(capture.last.Diff.Lines) == 0 {
+		t.Fatalf("approval confirmation carried no plan diff: %+v", capture.last)
 	}
 	if decide.Result.Status != broker.StatusApproved || decide.State == nil || !decide.State.Running() {
 		t.Fatalf("approve result: %+v", decide)
@@ -116,6 +143,17 @@ func TestBrokerRequestFlow(t *testing.T) {
 	if err != nil || status.Record.Approved == nil || *status.Record.Approved != list4.Pending[0].Candidate {
 		t.Fatalf("approved pointer not moved: %+v, %v", status.Record, err)
 	}
+}
+
+// capturingPrompt records the last confirmation for assertion.
+type capturingPrompt struct {
+	approve bool
+	last    terminal.Confirmation
+}
+
+func (p *capturingPrompt) Confirm(_ context.Context, c terminal.Confirmation) (bool, error) {
+	p.last = c
+	return p.approve, nil
 }
 
 func mustResolve(t *testing.T, a *App, dir string) registry.Record {

@@ -89,6 +89,7 @@ On the host:
 vibe request list             # poll; each new request is bound to an
                               # immutable candidate built from current inputs
 vibe request show add-port    # sanitized reason/summary + candidate digest
+                              # + a bounded plan diff vs the approved candidate
 vibe request approve sha256:… [--yes]
 vibe request reject  sha256:… [-m "why"]
 ```
@@ -97,7 +98,10 @@ Approval addresses the candidate digest — what was frozen at poll time —
 never a filename an agent could rewrite afterwards. Decisions land in a
 read-only results mount at `/vibe/results` inside the container. Request
 text is untrusted: it renders through the control-character-escaping
-encoder everywhere.
+encoder everywhere. The plan diff is the trusted half of the decision:
+computed from the immutable candidates themselves, it shows what will
+actually change beside whatever the agent *claims* will change (both
+`show` and the approve confirmation include it).
 
 ## Releases and health
 
@@ -106,7 +110,12 @@ encoder everywhere.
 | `vibe provision` | Install this binary + embedded payload as an artifact; pin the project |
 | `vibe update --version vX.Y.Z` | Download, verify, install a release; swap the host binary |
 | `vibe doctor` | Layout, registration, artifact integrity, daemon, containers, lifecycle marker, tmux |
+| `vibe gc [--dry-run] [--min-age DUR]` | Remove unreferenced artifacts/candidates/snapshots, stale staging, binaries, and forgotten-project state |
 | `vibe version` | Engine version |
+
+`gc` is the only thing that ever deletes store state, and it refuses
+anything pinned by a project, approved, bound to a pending request, held
+by a live lease, or younger than `--min-age` (default one hour).
 
 ## Dev mode (hacking on the engine itself)
 

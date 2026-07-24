@@ -19,6 +19,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
 	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
+	"github.com/chrisdruta/vibe-tui-box/internal/store"
 	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
 
@@ -117,9 +118,11 @@ type RequestShowRequest struct {
 }
 
 type RequestShowResult struct {
-	Pending broker.Pending
-	Reason  terminal.Encoded
-	Summary terminal.Encoded
+	Pending   broker.Pending
+	Reason    terminal.Encoded
+	Summary   terminal.Encoded
+	DiffLabel string           // trusted heading for Diff
+	Diff      terminal.Encoded // bounded plan diff, approved → candidate
 }
 
 func (a *App) RequestShow(ctx context.Context, req RequestShowRequest) (RequestShowResult, error) {
@@ -137,15 +140,77 @@ func (a *App) RequestShow(ctx context.Context, req RequestShowRequest) (RequestS
 	}
 	for _, p := range pending {
 		if p.RequestID == req.ID {
+			label, diff := a.planDiff(ctx, rec, p.Candidate, terminal.DiffLimits{})
 			return RequestShowResult{
-				Pending: p,
-				Reason:  terminal.Encode(p.Reason, terminal.Limits{}),
-				Summary: terminal.Encode(p.Summary, terminal.Limits{MaxLines: 4}),
+				Pending:   p,
+				Reason:    terminal.Encode(p.Reason, terminal.Limits{}),
+				Summary:   terminal.Encode(p.Summary, terminal.Limits{MaxLines: 4}),
+				DiffLabel: label,
+				Diff:      diff,
 			}, nil
 		}
 	}
 	return RequestShowResult{}, &domain.OpError{Op: "request show", Project: rec.ID,
 		Err: fmt.Errorf("%w: pending request %s", domain.ErrNotFound, req.ID)}
+}
+
+// planDiff renders the bounded plan diff between the project's approved
+// candidate and a pending one — the trusted half of every approval:
+// what will actually change, computed from immutable candidates, beside
+// the agent's own untrusted summary. Failures degrade to a note rather
+// than blocking the decision surface.
+func (a *App) planDiff(ctx context.Context, rec registry.Record, pending domain.Digest, limits terminal.DiffLimits) (string, terminal.Encoded) {
+	next, err := a.candidatePlanJSON(ctx, pending)
+	if err != nil {
+		return "plan diff:", terminal.Encoded{Lines: []string{fmt.Sprintf("(candidate plan unavailable: %v)", err)}}
+	}
+	if rec.Approved == nil {
+		return "plan (no approved candidate yet — everything below is new):",
+			terminal.Diff("", next, limits)
+	}
+	if *rec.Approved == pending {
+		return "plan diff:", terminal.Encoded{Lines: []string{"(candidate is already the approved one)"}}
+	}
+	prev, err := a.candidatePlanJSON(ctx, *rec.Approved)
+	if err != nil {
+		return "plan diff:", terminal.Encoded{Lines: []string{fmt.Sprintf("(approved plan unavailable: %v)", err)}}
+	}
+	label := fmt.Sprintf("plan diff (approved %s → this candidate):", shortDigest(*rec.Approved))
+	diff := terminal.Diff(prev, next, limits)
+	if len(diff.Lines) == 0 {
+		diff = terminal.Encoded{Lines: []string{"(no plan changes)"}}
+	}
+	return label, diff
+}
+
+// candidatePlanJSON reads a leased candidate's canonical plan, verified
+// against its record digest.
+func (a *App) candidatePlanJSON(ctx context.Context, digest domain.Digest) (string, error) {
+	rec, err := a.deps.Store.ReadCandidateRecord(digest)
+	if err != nil {
+		return "", err
+	}
+	lease, err := a.deps.Store.Open(ctx, store.CandidateObject, digest)
+	if err != nil {
+		return "", err
+	}
+	defer lease.Close()
+	data, err := os.ReadFile(filepath.Join(lease.Object.Path, runtime.PlanFileName))
+	if err != nil {
+		return "", err
+	}
+	if got := domain.SHA256(data); got != rec.Plan {
+		return "", fmt.Errorf("%w: candidate %s plan digest mismatch", domain.ErrConflict, digest)
+	}
+	return string(data), nil
+}
+
+func shortDigest(d domain.Digest) string {
+	hex := d.Hex()
+	if len(hex) > 12 {
+		hex = hex[:12]
+	}
+	return "sha256:" + hex
 }
 
 // RequestDecideRequest approves or rejects a pending request. Approval
@@ -214,11 +279,14 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 	}
 
 	if !req.Yes && a.deps.Prompt != nil {
+		diffLabel, diff := a.planDiff(ctx, rec, match.Candidate, terminal.DiffLimits{MaxLines: 40})
 		ok, err := a.deps.Prompt.Confirm(ctx, terminal.Confirmation{
-			Title:   fmt.Sprintf("Apply rebuild request %s?", match.RequestID),
-			Digest:  match.Candidate,
-			Chrome:  []string{"summary (agent-authored):"},
-			Content: terminal.Encode(match.Summary, terminal.Limits{MaxLines: 8}),
+			Title:     fmt.Sprintf("Apply rebuild request %s?", match.RequestID),
+			Digest:    match.Candidate,
+			Chrome:    []string{"summary (agent-authored):"},
+			Content:   terminal.Encode(match.Summary, terminal.Limits{MaxLines: 8}),
+			DiffLabel: diffLabel,
+			Diff:      diff,
 		})
 		if err != nil {
 			return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}

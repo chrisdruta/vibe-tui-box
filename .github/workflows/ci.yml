@@ -70,3 +70,30 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test -v -run TestSDKLifecycle ./internal/dockerapi/
+
+  fuzz:
+    # Short bursts over every hostile-input surface. Found crashers land
+    # in testdata/fuzz/ and become permanent regression seeds — commit
+    # them.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: fuzz every target briefly
+        run: |
+          set -eu
+          while read -r target pkg; do
+            echo "== $target $pkg"
+            go test -run '^$' -fuzz "^${target}\$" -fuzztime 20s "$pkg"
+          done <<'EOF'
+          FuzzLoad ./internal/schema/
+          FuzzParse ./internal/envfile/
+          FuzzParsers ./internal/domain/
+          FuzzParseRequest ./internal/broker/
+          FuzzEncode ./internal/terminal/
+          FuzzDiff ./internal/terminal/
+          EOF

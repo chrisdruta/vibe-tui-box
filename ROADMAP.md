@@ -28,7 +28,7 @@ fate (below).
 flowchart LR
     R1["R1 · release pipeline"] --> R2["R2 · install & first run"]
     R1 --> R3["R3 · provenance"]
-    R4["R4 · hardening debt"] --> G
+    R4["R4 · hardening debt ✅"] --> G
     R5["R5 · lifecycle & presets"] --> G
     R2 --> G["v1.0"]
     R3 --> G
@@ -111,21 +111,26 @@ store section) is settled; the implementation is owed.
 **Exit:** a tampered or unattested release archive cannot become an
 installed artifact without an explicit, recorded unsafe override.
 
-## R4 — Engine hardening debt
+## R4 — Engine hardening debt ✅ (shipped 2026-07-24)
 
 Known gaps in the shipped engine, independent of the release work.
 
-- [ ] Store garbage collection: explicit command, lease-respecting, never
-      removes an artifact/candidate under a shared lease or a registry pin.
-- [ ] Fuzz targets in CI: schema/YAML inspection, envfile parser, ID and
-      digest parsers, request JSON, terminal encoder.
-- [ ] Bounded plan diff in approval prompts — show *what changes* between
-      the approved and pending candidates, not just the digest and the
-      agent's own (untrusted) summary. This is the last piece of the
-      "approve exactly what you saw" story.
+- [x] Store garbage collection: `vibe gc [--dry-run] [--min-age]` —
+      lease-respecting, never removes a registry-pinned artifact, an
+      approved or pending-bound candidate, their snapshots, or anything
+      younger than the age floor; also collects stale staging, superseded
+      binary copies, and forgotten projects' broker/approval/dev state.
+- [x] Fuzz targets in CI: schema/YAML inspection, envfile parser, ID and
+      digest parsers, request JSON, terminal encoder + diff. (The first
+      fuzz run found and fixed a width-underflow crash in the diff
+      renderer; the crasher is a committed regression seed.)
+- [x] Bounded plan diff in approval prompts — `request show` and the
+      approve confirmation render the engine's own diff of the approved →
+      pending canonical plans, sanitized and bounded, beside the agent's
+      untrusted summary.
 
-**Exit:** `~/.vibe` can't grow without bound, hostile-input surfaces have
-fuzz coverage, and approvals show a trusted diff.
+**Exit met:** `~/.vibe` can't grow without bound, hostile-input surfaces
+have fuzz coverage, and approvals show a trusted diff.
 
 ## R5 — Payload lifecycle and presets
 

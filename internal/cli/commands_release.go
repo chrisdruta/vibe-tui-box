@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"flag"
+	"time"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
 )
@@ -75,6 +76,27 @@ var releaseCommands = map[string]Command{
 				return nil, err
 			}
 			return &provisionResult{Result: res}, nil
+		},
+	},
+	"gc": {
+		Name:    "gc",
+		Summary: "remove unreferenced artifacts, candidates, and snapshots",
+		Usage:   "vibe gc [--dry-run] [--min-age DURATION] [--json]",
+		Parse: func(args []string) (Request, error) {
+			var req GCRequest
+			return parseInto(args, "gc", &req.Options, func(fs *flag.FlagSet) any {
+				fs.BoolVar(&req.DryRun, "dry-run", false, "report what would be removed, remove nothing")
+				fs.DurationVar(&req.MinAge, "min-age", time.Hour, "never touch objects younger than this")
+				return &req
+			})
+		},
+		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+			r := req.(*GCRequest)
+			res, err := a.GC(ctx, app.GCRequest{DryRun: r.DryRun, MinAge: r.MinAge})
+			if err != nil {
+				return nil, err
+			}
+			return &gcResult{Result: res}, nil
 		},
 	},
 	"update": {

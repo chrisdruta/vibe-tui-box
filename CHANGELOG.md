@@ -59,6 +59,19 @@ The v1 line and its history remain in git up to the cutover commit.
   (engine-rendered; container-controlled bytes are sanitized), the tui
   reaps ghost inner viewers after a quit, and v1's
   statusline/subagent-statusline glue returns via `claude --settings`.
+- New: engine hardening (roadmap R4, 2026-07-24). `vibe gc [--dry-run]
+  [--min-age DUR]` — the store's only deletion path — removes
+  unreferenced artifacts/candidates/snapshots (never registry pins,
+  approved or pending-bound candidates, live leases, or young objects)
+  plus stale staging, superseded `bin/` copies, and forgotten projects'
+  broker/approval/dev state. `vibe request show` and the approve
+  confirmation now render a bounded, sanitized plan diff (approved →
+  pending candidate) computed from the immutable candidates — the
+  trusted half of the decision beside the agent's untrusted summary.
+  Native fuzz targets cover schema load, envfile, digest/ID parsers,
+  request JSON, and the terminal encoder/diff, with a CI fuzz-burst
+  job; the first run caught a width-underflow crash in the diff
+  renderer (fixed; crasher committed as a regression seed).
 - New: dev-mode ergonomics — `vibe dev on/sync` atomically repoints
   `~/.vibe/bin/vibe` at the fresh dev build (`dev off` hands back to
   the newest release artifact), and dev binaries are stamped

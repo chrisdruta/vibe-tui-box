@@ -13,10 +13,12 @@ import (
 // Confirmation separates trusted chrome from encoded untrusted content
 // so the prompt renderer cannot be spoofed by request text.
 type Confirmation struct {
-	Title   string
-	Digest  domain.Digest
-	Chrome  []string // trusted lines from the engine
-	Content Encoded  // sanitized untrusted lines
+	Title     string
+	Digest    domain.Digest
+	Chrome    []string // trusted lines from the engine
+	Content   Encoded  // sanitized untrusted lines
+	DiffLabel string   // trusted heading for Diff; "" hides the section
+	Diff      Encoded  // sanitized plan diff (terminal.Diff output)
 }
 
 // Prompt asks the operator for decisions.
@@ -44,6 +46,15 @@ func (p *StdioPrompt) Confirm(ctx context.Context, c Confirmation) (bool, error)
 	}
 	if c.Content.Truncated {
 		fmt.Fprintln(p.Out, "  │ … (truncated)")
+	}
+	if c.DiffLabel != "" {
+		fmt.Fprintf(p.Out, "%s\n", c.DiffLabel)
+		for _, line := range c.Diff.Lines {
+			fmt.Fprintf(p.Out, "  │ %s\n", line)
+		}
+		if c.Diff.Truncated {
+			fmt.Fprintln(p.Out, "  │ … (truncated)")
+		}
 	}
 	fmt.Fprint(p.Out, "approve? [y/N] ")
 
