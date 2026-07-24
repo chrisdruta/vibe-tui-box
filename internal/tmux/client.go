@@ -13,6 +13,12 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/runner"
 )
 
+// Socket is the engine's dedicated tmux server socket (tmux -L). A
+// separate server keeps the TUI conf and sessions away from the user's
+// personal tmux. Deliberately not v1's "vibe": a leftover v1 server may
+// still hold that socket with an incompatible tmux and conf.
+const Socket = "vibe-engine"
+
 // SessionID is an engine-generated tmux session name.
 type SessionID string
 
@@ -40,17 +46,24 @@ type Session struct {
 
 // Client is the tmux surface the engine uses.
 type Client interface {
+	// ConfigureServer sets the conf file passed with -f on every
+	// invocation; tmux applies it only when it starts the server.
+	ConfigureServer(confPath string)
 	HasSession(ctx context.Context, id SessionID) (bool, error)
 	EnsureSession(ctx context.Context, spec SessionSpec) error
 	KillSession(ctx context.Context, id SessionID) error
 	Attach(ctx context.Context, id SessionID) error
 	SetOption(ctx context.Context, id SessionID, option, value string) error
+	SetGlobalOption(ctx context.Context, option, value string) error
+	SetEnvironment(ctx context.Context, name, value string) error
 	ListSessions(ctx context.Context) ([]Session, error)
 }
 
-// Binary drives a real tmux executable through the runner.
+// Binary drives a real tmux executable through the runner. All commands
+// target the engine's dedicated server socket.
 type Binary struct {
 	path string
+	conf string
 	run  runner.Runner
 }
 
@@ -61,10 +74,16 @@ func NewBinary(path string, run runner.Runner) (*Binary, error) {
 	return &Binary{path: path, run: run}, nil
 }
 
+func (b *Binary) ConfigureServer(confPath string) { b.conf = confPath }
+
 func (b *Binary) exec(ctx context.Context, interactive bool, args ...string) (runner.Output, error) {
+	global := []string{"-L", Socket}
+	if b.conf != "" {
+		global = append(global, "-f", b.conf)
+	}
 	inv := runner.Invocation{
 		Path: b.path,
-		Args: args,
+		Args: append(global, args...),
 		Env:  []string{"TERM=" + os.Getenv("TERM"), "HOME=" + os.Getenv("HOME"), "PATH=" + os.Getenv("PATH")},
 	}
 	if interactive {
@@ -138,6 +157,28 @@ func (b *Binary) SetOption(ctx context.Context, id SessionID, option, value stri
 	}
 	if out.ExitCode != 0 {
 		return fmt.Errorf("%w: tmux set-option %s: %s", domain.ErrInvalid, option, strings.TrimSpace(string(out.Stderr)))
+	}
+	return nil
+}
+
+func (b *Binary) SetGlobalOption(ctx context.Context, option, value string) error {
+	out, err := b.exec(ctx, false, "set-option", "-g", option, value)
+	if err != nil {
+		return err
+	}
+	if out.ExitCode != 0 {
+		return fmt.Errorf("%w: tmux set-option -g %s: %s", domain.ErrInvalid, option, strings.TrimSpace(string(out.Stderr)))
+	}
+	return nil
+}
+
+func (b *Binary) SetEnvironment(ctx context.Context, name, value string) error {
+	out, err := b.exec(ctx, false, "set-environment", "-g", name, value)
+	if err != nil {
+		return err
+	}
+	if out.ExitCode != 0 {
+		return fmt.Errorf("%w: tmux set-environment %s: %s", domain.ErrInvalid, name, strings.TrimSpace(string(out.Stderr)))
 	}
 	return nil
 }

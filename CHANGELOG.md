@@ -33,6 +33,16 @@ The v1 line and its history remain in git up to the cutover commit.
   `image.agents` the plan sets `CLAUDE_CONFIG_DIR` to the agent-state
   volume, and the generated tools image bakes the mount point
   vscode-owned so fresh volumes are writable by the agent.
+- New: the v1 tmux TUI is back. `vibe tui` runs on a dedicated
+  `vibe-engine` socket, loading the v1 conf (theme, C-Space prefix,
+  palette, mouse, status formats) ported to `payload/host/tmux-tui.conf`
+  and materialized from the pinned artifact with stamped paths. The v1
+  host scripts ride along as payload bash under `payload/host/scripts/`
+  — project sidebar (prefix+b), host dock (prefix+t), clipboard image →
+  agent prompt (prefix+v) — reached via `@vibe_payload_dir`, keeping the
+  v1 rule that the host executes only store-owned bytes. The palette
+  gains a broker `requests` entry; the state-dot channel awaits its
+  feeder (BACKLOG).
 - New engine surface ([docs/usage.md](docs/usage.md)): immutable
   content-addressed artifacts/candidates/snapshots under `~/.vibe`;
   `provision`/`update` release flow with streamed checksum verification;

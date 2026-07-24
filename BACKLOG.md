@@ -24,6 +24,20 @@ stands, their mechanisms ("compose profile", "seeded compose override",
   idles); real-daemon CI exercise of tools, extension, and dev builds;
   the first tagged v2 release with the three-platform matrix.
 
+- **TUI: revive the state-dot channel.** The ported conf and host
+  scripts (`payload/host/`, loaded on the `vibe-engine` socket) carry
+  the full v1 theme, palette, sidebar, dock, and clip-to-pane, but the
+  per-window/pane state conditionals (`@vibe_glyph`/`@vibe_dot_fg`/
+  `@vibe_attn`) and the sidebar's aggregate agent roster render inert:
+  their feeder was v1's container-side agent wrapper encoding state into
+  the pane title (`vibe1|…` through the docker-exec TTY), read by
+  `state-render.sh` — both died at the cutover. Engine state shows
+  through `vibe _state` in status-right meanwhile. Per the language
+  split (Go = trusted core; shell = tmux/UI machinery), the revival is
+  a ported `state-render.sh` plus a payload `container/` wrapper around
+  the agent command re-establishing the title channel — not a Go
+  rewrite.
+
 - **Reduced-trust profile for unattended runs (`vibe agent --jailed`).**
   Promised in docs/security.md ("planned but not implemented"). Design
   direction (2026-07-22): a compose-profile sibling service

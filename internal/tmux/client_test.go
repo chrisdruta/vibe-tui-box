@@ -17,9 +17,15 @@ type fakeRunner struct {
 
 func (f *fakeRunner) Run(ctx context.Context, inv runner.Invocation) (runner.Output, error) {
 	f.calls = append(f.calls, inv)
+	// The subcommand follows the global -L/-f flags and their values.
 	sub := ""
-	if len(inv.Args) > 0 {
-		sub = inv.Args[0]
+	for i := 0; i < len(inv.Args); i++ {
+		if inv.Args[i] == "-L" || inv.Args[i] == "-f" {
+			i++
+			continue
+		}
+		sub = inv.Args[i]
+		break
 	}
 	return runner.Output{
 		ExitCode: f.exit[sub],
@@ -52,7 +58,7 @@ func TestEnsureSessionArgv(t *testing.T) {
 		t.Fatalf("want has-session + new-session, got %d calls", len(fr.calls))
 	}
 	got := strings.Join(fr.calls[1].Args, " ")
-	want := "new-session -d -s vibe-abc -c /proj -n agent /bin/vibe agent"
+	want := "-L " + Socket + " new-session -d -s vibe-abc -c /proj -n agent /bin/vibe agent"
 	if got != want {
 		t.Fatalf("new-session argv:\ngot  %s\nwant %s", got, want)
 	}
