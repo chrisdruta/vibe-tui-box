@@ -74,10 +74,43 @@ section at the bottom — as revisable records, not fences.
 - **Host conveniences.** v1's install-tmux.sh (pinned tmux source build
   for hosts below 3.4) and start-ollama.sh. Revive on demand.
 
-- **tui follow-ups (low priority).** Event-driven sidebar refresh
-  (replacing the serial-gated tick); a richer sidebar agent roster backed
-  by `vibe ps` (covers container sessions without windows — deferred from
-  agent-session slice 3 pending that refresh); review-as-split
+- **TUI: consume the engine renderers (reframed 2026-07-24).** Of the
+  four hidden renderers only `_state` has a consumer (the status line
+  polls it). `_sidebar`/`_fleet` render engine truth the shell sidebar
+  cannot see — container running/stale vs the approved candidate, the
+  dev-mode marker, pending-request count, cold registered projects —
+  and three pieces are missing before sidebar.sh can afford to call
+  them: (1) an engine→tui event channel: state-mutating commands
+  (up/down/rebuild/request decisions, broker poll) bump a serial option
+  on the vibe socket the way state-render.sh bumps
+  `@vibe_state_serial`, so engine data gets a freshness signal (a
+  docker-events watcher can later cover out-of-band container deaths —
+  this subsumes the old "event-driven sidebar refresh" item); (2)
+  session→project identity: `vibe tui` stamps only `@vibe_name`, and
+  session names carry a truncated ID — stamp `@vibe_project` with the
+  full ID so the render loop can address `_sidebar --project`; (3) a
+  refresh policy: engine calls run on serial change or the slow tick,
+  never the 2s frame. The same channel unlocks the richer roster —
+  container-side agent sessions without host windows via `vibe ps`
+  (deferred from agent-session slice 3). Product calls to make: does
+  the sidebar's fleet section list COLD registered projects (that is
+  `_fleet`'s real consumer — a render-only glance whose click could
+  dispatch `up`; brushes the live-sessions-only picker record), and is
+  `_statusline` pruned (the container-side statusline won its seat;
+  the engine renderer is unconsumed).
+
+- **TUI layout pass (wanted 2026-07-24).** A deliberate design pass
+  over the tui's layout before more chrome accretes: the default
+  arrangement (agent pane / bottom dock / sidebar proportions, collapse
+  behavior), what information lives where (agent dots and roster vs
+  engine state such as stale-candidate and pending requests — decide
+  together with the renderer-consumption entry above), tab-strip and
+  status-line composition, and the resize story (fit-mode snapping vs
+  proportional stretch). Write the layout spec first, mock it in tmux
+  second, wire scripts last — layout arithmetic is where the sidebar
+  bugs have lived (click-map skew, dot wrapping, resize ballooning).
+
+- **tui follow-ups (low priority).** Review-as-split
   — images in a tmux split survive redraws only via kitty-graphics Unicode
   placeholders, which need the OUTER terminal to speak kitty graphics
   (Windows Terminal is sixel-only), so the revisit trigger is a
