@@ -1,5 +1,10 @@
 # Agent session layer — persistence + the state channel
 
+Status: shipped 2026-07-24 — all three slices in tree. Deferred to
+BACKLOG (tui follow-ups): agent-session.sh's attach mode (its target,
+the in-container services session, awaits the payload-lifecycle work)
+and sidebar roster rows for window-less sessions.
+
 Design for restoring the two v1 properties the cutover dropped:
 
 1. **Persistence** — an agent survives its viewer. In v1 the host pane

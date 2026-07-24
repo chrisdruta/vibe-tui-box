@@ -41,8 +41,28 @@ The v1 line and its history remain in git up to the cutover commit.
   — project sidebar (prefix+b), host dock (prefix+t), clipboard image →
   agent prompt (prefix+v) — reached via `@vibe_payload_dir`, keeping the
   v1 rule that the host executes only store-owned bytes. The palette
-  gains a broker `requests` entry; the state-dot channel awaits its
-  feeder (BACKLOG).
+  gains a broker `requests` entry.
+- New: the agent session layer
+  ([docs/agent-session-design.md](docs/agent-session-design.md))
+  restores the two v1 properties the cutover dropped. Persistence:
+  `vibe agent` runs the CLI inside a container-side tmux session
+  (`agent-session.sh`) that survives its viewer — killing the pane, the
+  tui, or the terminal no longer kills the conversation, and rerunning
+  `vibe agent` (or prefix+r respawn) reattaches; the command grows
+  `--cold`, `-a/--agent`, `-s/--session`, and container execs default
+  to `/workspace` instead of the image WORKDIR. State channel: Claude
+  Code hooks feed working/attention/idle/exited through the pane-title
+  channel into the tab/border/sidebar dots and the attention flash,
+  with exit records and a frontend-dead corpse mark. Roster: `vibe ps`
+  additionally lists the current project's agent sessions
+  (engine-rendered; container-controlled bytes are sanitized), the tui
+  reaps ghost inner viewers after a quit, and v1's
+  statusline/subagent-statusline glue returns via `claude --settings`.
+- New: dev-mode ergonomics — `vibe dev on/sync` atomically repoints
+  `~/.vibe/bin/vibe` at the fresh dev build (`dev off` hands back to
+  the newest release artifact), and dev binaries are stamped
+  `dev-src-<digest12>` from the source snapshot so `vibe version` can
+  tell builds apart.
 - New engine surface ([docs/usage.md](docs/usage.md)): immutable
   content-addressed artifacts/candidates/snapshots under `~/.vibe`;
   `provision`/`update` release flow with streamed checksum verification;

@@ -24,23 +24,11 @@ stands, their mechanisms ("compose profile", "seeded compose override",
   idles); real-daemon CI exercise of tools, extension, and dev builds;
   the first tagged v2 release with the three-platform matrix.
 
-- **Agent persistence + the state channel — DESIGNED, next up.** The
-  two v1 properties the cutover dropped, one design
-  ([docs/agent-session-design.md](docs/agent-session-design.md)): the
-  agent runs in a container-side tmux session (`agent-session.sh`, the
-  v1 agent-entry port) so it survives its viewer, and Claude Code hooks
-  feed the `vibe1|…` pane-title channel that `state-render.sh` renders
-  into the dots/attention/roster the ported conf already conditions on.
-  Three slices: persistence, state channel, roster/polish. Engine's
-  share is small (tmux in the tools recipe, exec wrapping, identity
-  env); everything else is payload shell per the language split.
-
-- **v1 parity, remaining (beyond the agent session layer).** Inventory
-  vs the v1 tree at the cutover (2026-07-23):
-  - *Claude settings/statusline glue* — v1's claude-settings.json
-    template, settings-merge.sh, statusline.sh/subagent-statusline.sh.
-    The hook half lands with the state channel (payload `--settings`,
-    no merge machinery); the statusline half is slice 3 there.
+- **v1 parity, remaining (beyond the agent session layer, which shipped
+  2026-07-24 — all three slices of
+  [docs/agent-session-design.md](docs/agent-session-design.md) in tree,
+  including the claude settings/statusline glue).** Inventory vs the v1
+  tree at the cutover (2026-07-23):
   - *Review/image stack* — review.sh + review-verdict.sh (locked
     read-only yazi browser, A/R verdicts), the sixel pipeline
     (show-image.sh, preview-image-hook.sh, yazi plugin). Gated on the
@@ -122,7 +110,11 @@ stands, their mechanisms ("compose profile", "seeded compose override",
 
 - **tui follow-ups (low priority).** Event-driven sidebar refresh
   (replacing the serial-gated tick); a richer sidebar agent roster backed
-  by `vibe ps` (covers container sessions without windows); review-as-split
+  by `vibe ps` (covers container sessions without windows — deferred from
+  agent-session slice 3 pending that refresh); agent-session.sh's attach
+  mode for the in-container services session (deferred from slice 3:
+  its target doesn't exist until the payload-lifecycle work in the v2
+  gaps entry lands); review-as-split
   — images in a tmux split survive redraws only via kitty-graphics Unicode
   placeholders, which need the OUTER terminal to speak kitty graphics
   (Windows Terminal is sixel-only), so the revisit trigger is a
