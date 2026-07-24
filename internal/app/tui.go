@@ -271,6 +271,7 @@ func (a *App) materializeTuiConf(ctx context.Context, rec registry.Record) (stri
 // projectView assembles the pure view model the tmux renderers consume.
 func (a *App) projectView(ctx context.Context, rec registry.Record) tmuxui.ProjectView {
 	view := tmuxui.ProjectView{
+		ID:      string(rec.ID),
 		Name:    rec.DisplayName,
 		Mode:    string(rec.Mode),
 		Version: rec.ReleaseVersion,

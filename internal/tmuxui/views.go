@@ -22,6 +22,7 @@ const (
 
 // ProjectView is the prepared model for one project.
 type ProjectView struct {
+	ID         string // full project ID, the join key for tmux @vibe_project
 	Name       string
 	Mode       string // "release" or "dev"
 	Version    string
@@ -64,13 +65,16 @@ func State(v ProjectView) string {
 	return fmt.Sprintf("1 %s %d", v.Token(), v.Pending)
 }
 
-// Sidebar renders the project pane summary within a width budget.
+// Sidebar renders one project's detail block for `vibe _sidebar`: the
+// display lines the shell sidebar nests under a project's name row (the
+// name itself stays bash-drawn, so it never appears here). Roles and
+// versions are semi-trusted and go through the encoder like everything
+// else.
 func Sidebar(v ProjectView, width int) []string {
 	if width <= 0 {
 		width = 40
 	}
 	lines := []string{
-		terminal.Line(fmt.Sprintf("%s %s", v.Token(), v.Name), width),
 		terminal.Line(fmt.Sprintf("  %s %s", v.Mode, v.Version), width),
 	}
 	for _, c := range v.Containers {
@@ -90,22 +94,32 @@ func Sidebar(v ProjectView, width int) []string {
 	return lines
 }
 
-// Fleet renders one line per project for `vibe _fleet`.
+// fleetSep separates `vibe _fleet` fields: US (0x1f) survives tmux
+// option round-trips and `read` word-splitting where tabs collapse.
+// sidebar.sh parses on the same byte.
+const fleetSep = "\x1f"
+
+// Fleet renders the `vibe _fleet` porcelain, one project per line:
+//
+//	1<US>id<US>token<US>mode<US>version<US>pending<US>display-name
+//
+// The leading field is the protocol version. The display name comes
+// last because it is the only free-text field; it is sanitized, and
+// consumers re-truncate for display, so the width budget only bounds
+// pathological names. No projects renders no lines.
 func Fleet(views []ProjectView, width int) []string {
 	if width <= 0 {
 		width = 80
 	}
-	if len(views) == 0 {
-		return []string{"no registered projects"}
-	}
 	lines := make([]string, 0, len(views))
 	for _, v := range views {
-		attention := ""
-		if v.Pending > 0 {
-			attention = fmt.Sprintf(" ▲%d", v.Pending)
-		}
-		lines = append(lines, terminal.Line(
-			fmt.Sprintf("%s %-24s %-8s %s%s", v.Token(), v.Name, v.Mode, v.Version, attention), width))
+		lines = append(lines, fmt.Sprintf("1%s%s%s%s%s%s%s%s%s%d%s%s",
+			fleetSep, v.ID,
+			fleetSep, v.Token(),
+			fleetSep, v.Mode,
+			fleetSep, v.Version,
+			fleetSep, v.Pending,
+			fleetSep, terminal.Line(v.Name, width)))
 	}
 	return lines
 }
