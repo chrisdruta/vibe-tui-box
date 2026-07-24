@@ -22,8 +22,8 @@
     {
       "path": "host/scripts/dock.sh",
       "mode": "0755",
-      "size": 2190,
-      "digest": "sha256:387614790f6a86f365038a2bea765b0e5391da0fc75b52e6d993bceed0035db7"
+      "size": 2592,
+      "digest": "sha256:c2af42ccf82fdd1948c1b9ec36d5caa9aebd60cf2c4d1b64e58a4095a35c44a3"
     },
     {
       "path": "host/scripts/sidebar.sh",
@@ -40,8 +40,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 15189,
-      "digest": "sha256:3a1a0240142ab208ec1d81d9758b676062f606bcb8f8db3153a16b4f7d8e9d7c"
+      "size": 15460,
+      "digest": "sha256:5da39e659b69830327b2d2e2fb80e574aab0e96e2c8e8fc209d1f060a28de3e3"
     },
     {
       "path": "presets/minimal/vibe.yaml.tmpl",
@@ -50,5 +50,5 @@
       "digest": "sha256:533ddd8db0f0f7ec129a526512194fe7bc7febe4f995242ef1aaaf7ddad0355c"
     }
   ],
-  "digest": "sha256:4cd411591293647d10780aa9fe340582d98cde2acc367eb8bc8c942f1e829e18"
+  "digest": "sha256:c8ce0c9769b1620c8a295f0d24d2fb28e29ee0bae5f0878c61016405003cfc7c"
 }
