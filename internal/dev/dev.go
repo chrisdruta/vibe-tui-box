@@ -132,7 +132,7 @@ func (s *Service) Build(ctx context.Context, project domain.ProjectID, sourceRoo
 		return Record{}, store.Artifact{}, err
 	}
 	defer os.RemoveAll(outDir)
-	if err := s.runBuild(ctx, builderImage, snap.Path, outDir, sink); err != nil {
+	if err := s.runBuild(ctx, builderImage, snap.Path, outDir, sink, "dev-src-"+snap.Digest.Hex()[:12]); err != nil {
 		return Record{}, store.Artifact{}, err
 	}
 
@@ -208,10 +208,16 @@ func (s *Service) Build(ctx context.Context, project domain.ProjectID, sourceRoo
 	return rec, store.Artifact{Record: artifactRecord, Path: obj.Path}, nil
 }
 
+// versionPkg is the ldflags -X target carrying release metadata.
+const versionPkg = "github.com/chrisdruta/vibe-tui-box/internal/version"
+
 // runBuild compiles inside the builder container: read-only source
 // snapshot, writable output staging, default network for module
-// downloads.
-func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage, srcDir, outDir string, sink dockerapi.ProgressSink) error {
+// downloads. version is stamped into the binary — the snapshot has no
+// .git, so without it every dev build reports the indistinguishable
+// "devel"; the source-digest stamp both identifies the build and pairs
+// it with `vibe dev status` provenance.
+func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage, srcDir, outDir string, sink dockerapi.ProgressSink, version string) error {
 	name := dockerapi.ContainerName(fmt.Sprintf("vibe-devbuild-%s", domain.SHA256([]byte(srcDir + outDir)).Hex()[:10]))
 	sink.Emit(dockerapi.Progress{Stage: "dev-build", Message: "compiling engine in " + string(builder.Ref)})
 	id, err := s.docker.CreateContainer(ctx, dockerapi.CreateRequest{
@@ -223,7 +229,8 @@ func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage,
 		User: fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
 		// Compiler output lands in the staging mount so a failed build
 		// can be reported; the engine has no container-log surface.
-		Command: []string{"sh", "-c", "go build -trimpath -o /out/vibe ./cmd/vibe >/out/build.log 2>&1"},
+		Command: []string{"sh", "-c",
+			"go build -trimpath -ldflags \"-X '" + versionPkg + ".release=" + version + "'\" -o /out/vibe ./cmd/vibe >/out/build.log 2>&1"},
 		Workdir: "/src",
 		Env: []string{
 			"CGO_ENABLED=0",
