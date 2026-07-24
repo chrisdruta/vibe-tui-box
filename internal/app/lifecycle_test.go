@@ -188,6 +188,10 @@ func TestAgentSessionWrapping(t *testing.T) {
 	if fmt.Sprint(last.Env) != fmt.Sprint(wantEnv) {
 		t.Fatalf("agent env wrong: %v", last.Env)
 	}
+	// Workloads start in the workspace, never the image WORKDIR.
+	if last.WorkDir != model.WorkspaceTarget {
+		t.Fatalf("agent workdir %q, want %q", last.WorkDir, model.WorkspaceTarget)
+	}
 
 	// Flag pass-throughs keep script order: --cold, -a marker, -s NAME.
 	if _, err := a.Agent(ctx, AgentRequest{

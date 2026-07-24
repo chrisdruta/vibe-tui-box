@@ -159,6 +159,13 @@ func (a *App) execIn(ctx context.Context, name dockerapi.ContainerName, cmd Cont
 	if user == "" {
 		user = devContainerUser
 	}
+	// The container is created without a working directory, so a bare
+	// docker exec inherits the image's WORKDIR (e.g. /go on Go bases).
+	// Every engine workload starts in the workspace instead — v1's
+	// `cd $REPO_ROOT` rule, engine-side; `vibe exec -w` still overrides.
+	if cmd.Workdir == "" {
+		cmd.Workdir = model.WorkspaceTarget
+	}
 	env := make([]string, 0, len(cmd.Env))
 	for _, e := range cmd.Env {
 		env = append(env, e.Key+"="+e.Value)
