@@ -54,6 +54,33 @@ engine displays) is rendered through an encoder that makes control
 characters, ANSI escapes, and bidi overrides visible, and interface
 chrome is kept structurally separate from that content.
 
+## Inner agent sandboxes are off by design
+
+A consequence of `cap_drop ALL` + `no-new-privileges`: the container
+permits no unprivileged user namespaces, so namespace-based sandboxes
+cannot start inside it. `bwrap: … Operation not permitted` is this
+policy working, not a bug. Affected: codex's `read-only` /
+`workspace-write` modes (bwrap + seccomp), Claude Code's `/sandbox`,
+Chromium's own sandbox. The container is the isolation boundary; a
+second layer inside it is off-by-design, not broken-by-surprise:
+
+- **Codex** — post-create seeds `sandbox_mode = "danger-full-access"`
+  into `$CODEX_HOME/config.toml`, only when the key is absent (your own
+  setting always wins). Codex documents the mode as intended for
+  environments that are externally sandboxed — this container is that
+  environment. The codex Claude-plugin pins its own per-thread sandbox
+  modes that config cannot override, so post-create also rewrites those
+  pins to full access (see [configuration.md](configuration.md)).
+- **Claude Code** — the payload settings ship
+  `enableWeakerNestedSandbox` + `failIfUnavailable: false`, so a
+  `/sandbox` enable degrades to the permission-rules fallback instead
+  of hard-failing.
+
+Do not weaken the outer container to make an inner sandbox start:
+added capabilities are root-shaped, and a userns-permissive profile
+exposes the kernel's user-namespace attack surface. If you need an
+inner sandbox, run that workload outside vibe.
+
 ## Image extensions widen the boundary
 
 `extension: true` sends a project-authored Dockerfile to the Docker

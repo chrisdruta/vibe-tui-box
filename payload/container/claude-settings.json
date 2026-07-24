@@ -1,5 +1,9 @@
 {
   "autoMemoryEnabled": false,
+  "sandbox": {
+    "enableWeakerNestedSandbox": true,
+    "failIfUnavailable": false
+  },
   "statusLine": {
     "type": "command",
     "command": "bash /vibe/payload/container/statusline.sh"

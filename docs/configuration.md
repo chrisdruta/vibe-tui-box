@@ -120,11 +120,22 @@ the engine-owned targets.
 Agent logins relocate onto the agent-state volume per agent: claude via
 `CLAUDE_CONFIG_DIR=/vibe/agent-state/claude`, codex via
 `CODEX_HOME=/vibe/agent-state/codex` — log in once inside the container
-(`claude` / `codex login`, or supply `OPENAI_API_KEY` through
-`env_file`) and the login survives rebuilds until `vibe down
---volumes`. When claude and codex are installed together, post-create
-also best-effort installs the codex second-opinion plugin into Claude
-at user scope (`/codex:review` and friends), retrying on a later `up`
-if the first attempt had no network. The agent state dots and
-statusline are Claude-wired today; codex sessions run fine but report
-at most `running` in `vibe ps`.
+(`claude`; for codex use `codex login --device-auth` headless, or pipe
+a key: `printenv OPENAI_API_KEY | codex login --with-api-key`) and the
+login survives rebuilds until `vibe down --volumes`. When claude and
+codex are installed together, post-create also best-effort installs
+the codex second-opinion plugin into Claude at user scope
+(`/codex:review` and friends), retrying on a later `up` if the first
+attempt had no network. The agent state dots and statusline are
+Claude-wired today; codex sessions run fine but report at most
+`running` in `vibe ps`.
+
+Codex's own sandbox cannot start inside the hardened container
+([security.md](security.md) "Inner agent sandboxes"), so post-create
+seeds `sandbox_mode = "danger-full-access"` into
+`$CODEX_HOME/config.toml` (key-absent only — your own setting wins)
+and rewrites the plugin's pinned per-thread sandbox modes, which
+config cannot reach, to the same. Two caveats: a `claude plugin
+update` reverts that rewrite until the next `vibe up` re-applies it,
+and patched review threads gain workspace write access — the
+container plus git history remain the boundary and the undo.

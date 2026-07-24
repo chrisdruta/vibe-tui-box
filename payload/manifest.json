@@ -22,8 +22,8 @@
     {
       "path": "container/claude-settings.json",
       "mode": "0644",
-      "size": 1561,
-      "digest": "sha256:8285d67ad5737f303cf5d7303a8379f16e5d1adba32cfa357b8269dafc408fe6"
+      "size": 1651,
+      "digest": "sha256:34eed1d1a055d0f59359e6619c79faae64d7472fe55aff357c91c2b62ca190e9"
     },
     {
       "path": "container/entrypoint.sh",
@@ -34,8 +34,8 @@
     {
       "path": "container/lifecycle.sh",
       "mode": "0644",
-      "size": 2445,
-      "digest": "sha256:019f93361a027ae7a1c31b01448e976ecee1d3484885b4c5ddd6f7033d9dab84"
+      "size": 5071,
+      "digest": "sha256:e62cdd8a9d861c7656ac5cbf3bb3a10d1f8fb1aa4ab0d4b6d9c1ed9864d6baa6"
     },
     {
       "path": "container/statusline.sh",
@@ -164,5 +164,5 @@
       "digest": "sha256:51a7ea164117a54218a470f3986030fdf50799f7060d70265810bb6e1c9365ea"
     }
   ],
-  "digest": "sha256:12ec8ec8f348ec9b199ab49f402cab5e51e8e2b97c2872e97da608c0a259580d"
+  "digest": "sha256:ef34b95dd92bdec4448404790898e1a41b4d3421affe877523d21acd74760629"
 }

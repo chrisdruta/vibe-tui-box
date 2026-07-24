@@ -110,6 +110,19 @@ The v1 line and its history remain in git up to the cutover commit.
   customization point. Palette + glyph maps single-source from
   `internal/tmuxui/theme.go`; payload generation renders `theme.sh`
   and the conf's `@thm` block, so the drift gate catches palette skew.
+- Fix: the no-nested-sandbox posture is back (2026-07-24) — v1 encoded
+  it (`997336b`), the cutover dropped it, and raw codex died at its
+  first shell command again: `cap_drop ALL` + `no-new-privileges`
+  denies the user namespace codex's bwrap+seccomp sandbox needs.
+  Post-create now re-seeds `sandbox_mode = "danger-full-access"` into
+  `$CODEX_HOME/config.toml` (key-absent only, prepended, 0600 — the
+  documented mode for externally sandboxed environments), restores the
+  Claude `/sandbox` degrade block in the payload settings, and — new
+  territory v1 never had — rewrites the codex Claude-plugin's pinned
+  per-thread sandbox modes (its app-server API ignores config.toml) to
+  full access, exact-matched against plugin v1.0.6, re-applied each up
+  so a plugin update heals, no-op on unmatched versions.
+  docs/security.md regains the "Inner agent sandboxes" section.
 - Fix: codex logins now actually persist (2026-07-24) — with `codex` in
   `image.agents` the plan sets `CODEX_HOME` to the agent-state volume,
   matching what the docs promised and what claude already did via

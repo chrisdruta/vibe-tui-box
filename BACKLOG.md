@@ -75,6 +75,17 @@ section at the bottom — as revisable records, not fences.
   other spare parts (fzf change-preview glue, diffnav) are recorded in
   git history.
 
+- **Upstream a codex-plugin sandbox override.** The official
+  codex-plugin-cc pins per-thread sandbox modes over the app-server API
+  (`sandbox: "read-only"` / `"workspace-write"` in its scripts), which
+  `$CODEX_HOME/config.toml` cannot override — so lifecycle.sh
+  post-create rewrites the pins to `danger-full-access` inside the
+  container, exact-matched against plugin v1.0.6 and a no-op on
+  anything else. That patch should die: file/land an upstream option
+  (env var or config key the plugin honors, e.g. a sandbox override for
+  externally-sandboxed environments), then drop `codex_patch_plugin`.
+  Until then, bump the sed patterns when the plugin pin moves.
+
 - **Host conveniences.** v1's install-tmux.sh (pinned tmux source build
   for hosts below 3.4) and start-ollama.sh. Revive on demand.
 
