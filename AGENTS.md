@@ -38,6 +38,22 @@ Every change must keep all three release targets compiling:
 `GOOS=linux GOARCH=amd64`, `GOOS=linux GOARCH=arm64`,
 `GOOS=darwin GOARCH=arm64`, each with `CGO_ENABLED=0`.
 
+**Dogfood handoff — nothing lands in a running project until it rides a
+new artifact.** Engine code AND `payload/**` ship inside the binary;
+containers mount the store-owned artifact copy, never this repo's
+tree, so committing (or even building) changes nothing you can run:
+
+```sh
+vibe dev sync    # rebuild the dev artifact from this source, repin it,
+                 # repoint ~/.vibe/bin/vibe at the fresh build
+vibe rebuild     # recreate containers on the new artifact's payload
+                 # (post-create reruns; `vibe up` suffices when only
+                 # host-side pieces changed)
+```
+
+When you finish a change the operator will try live, say so and name
+this cycle — it is the standing reminder this section exists for.
+
 Integration tests that need a Docker daemon (`internal/dockerapi`
 `TestSDKLifecycle`) skip themselves when no daemon is reachable — never
 convert that skip into a failure, and never mock around it: it is the
