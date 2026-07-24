@@ -10,8 +10,8 @@
     {
       "path": "container/agent-session.sh",
       "mode": "0755",
-      "size": 7578,
-      "digest": "sha256:7acd63230f09fffa1d6c5e26499b07d8a19e2b51a09c07b2c63910b8515c24da"
+      "size": 8432,
+      "digest": "sha256:0fd83c7f350302e3fe980bd9d42440f59db7e4067922d0c7d3fa2a8f4fde32a9"
     },
     {
       "path": "container/agent-state-hook.sh",
@@ -22,8 +22,8 @@
     {
       "path": "container/claude-settings.json",
       "mode": "0644",
-      "size": 1531,
-      "digest": "sha256:b86cef0615af009c0e3e81d39d30b876f310a7d2debec4f0bf26055fa8cd88fe"
+      "size": 1561,
+      "digest": "sha256:8285d67ad5737f303cf5d7303a8379f16e5d1adba32cfa357b8269dafc408fe6"
     },
     {
       "path": "container/entrypoint.sh",
@@ -164,5 +164,5 @@
       "digest": "sha256:5cf55370b186c53fbece05d3ed6ec5f68e5f9fecfd316e1599bc0d3df23db087"
     }
   ],
-  "digest": "sha256:7ca2d9dff402908d2590b1529c900bba8cccc3890d1b29146f192008d30f3f84"
+  "digest": "sha256:494e8dc7b257302e3be1a83687f60a2fc2b52378626858dd5033d7be33153599"
 }

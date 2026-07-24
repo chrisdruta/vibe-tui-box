@@ -149,9 +149,28 @@ if [ "$cold" = "1" ]; then
 fi
 
 # The hook/statusline wiring rides the read-only payload mount instead
-# of v1's settings-merge into the user's config.
+# of v1's settings-merge into the user's config. The payload settings
+# pin autoMemoryEnabled=false (a hardened container opts IN to
+# cross-session memory, it doesn't inherit the CLI's upstream default);
+# when the manifest opted in (agent.memory: auto, arriving as
+# VIBE_AGENT_MEMORY from the engine), a derived copy flips the one key.
+# jq ships beside tmux in the tools recipe, but any failure falls back
+# to the static file — memory is a preference, never worth blocking the
+# agent over.
 case "${agent_cmd[0]##*/}" in
-  claude) agent_cmd+=(--settings "$script_dir/claude-settings.json") ;;
+  claude)
+    settings="$script_dir/claude-settings.json"
+    if [ "${VIBE_AGENT_MEMORY:-off}" = "auto" ]; then
+      derived="${XDG_RUNTIME_DIR:-/tmp}/vibe-claude-settings-$session.json"
+      if jq '.autoMemoryEnabled = true' "$settings" >"$derived.$$" 2>/dev/null &&
+        mv -f "$derived.$$" "$derived" 2>/dev/null; then
+        settings="$derived"
+      else
+        rm -f "$derived.$$" 2>/dev/null || true
+      fi
+    fi
+    agent_cmd+=(--settings "$settings")
+    ;;
 esac
 
 # Identity for the agent-state hook: SESSION is the stable logical name,

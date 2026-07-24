@@ -29,6 +29,7 @@ services:
 agent:
   cmd: claude                 # must be listed in image.agents
   tmux: true
+  memory: off                 # auto | off — the agent CLI's cross-session auto memory
 env_file: .env
 bootstrap:
   required: [git, go]
@@ -63,6 +64,14 @@ bootstrap:
   dev container reaches `db` as `db`). Volumes are engine-named from
   the project ID; there is no way to reference another project's
   volume.
+- **`agent.memory`** — opt-in to the agent CLI's cross-session auto
+  memory (Claude Code's `autoMemoryEnabled`; other agents ignore it for
+  now). Off when absent: the payload settings pin memory off, and
+  `auto` flips the key in a derived settings copy at session start.
+  Read live from the manifest like `agent.tmux` — flipping it needs no
+  rebuild, only a new `vibe agent` session. With memory on, the
+  memory directory lives under the agent-state volume, so it survives
+  rebuilds until `vibe down --volumes`.
 - **`env_file`** — workspace-relative, parsed literally (no shell
   syntax, no interpolation), frozen into the snapshot. `vibe run` and
   `vibe agent` load it; `vibe exec` never does.

@@ -105,9 +105,16 @@ func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
 	}
 	// Identity for container-side scripts, which never parse workspace
 	// files for it: appended after the env file so it cannot be shadowed.
+	// agent.memory rides along the same way (read live like agent.tmux,
+	// so it never touches candidate digests); absent means off.
+	memory := doc.Manifest.Agent.Memory
+	if memory == "" {
+		memory = schema.MemoryOff
+	}
 	cmd.Env = append(append(entries, cmd.Env...),
 		envfile.Entry{Key: "VIBE_PROJECT", Value: string(rec.ID)},
 		envfile.Entry{Key: "VIBE_PROJECT_NAME", Value: rec.DisplayName},
+		envfile.Entry{Key: "VIBE_AGENT_MEMORY", Value: string(memory)},
 	)
 	if req.Nested {
 		cmd.Env = append(cmd.Env, envfile.Entry{Key: "VIBE_NESTED", Value: "1"})

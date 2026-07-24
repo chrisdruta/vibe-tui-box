@@ -191,6 +191,24 @@ func TestUnknownEnum(t *testing.T) {
 	if _, err := load(t, "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude], toolchains: [zig]}\nagent: {cmd: claude}\n"); err == nil {
 		t.Fatal("unknown toolchain enum accepted")
 	}
+	if _, err := load(t, "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude, memory: always}\n"); err == nil {
+		t.Fatal("unknown memory enum accepted")
+	}
+}
+
+func TestAgentMemoryModes(t *testing.T) {
+	doc := mustLoad(t, "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude, memory: auto}\n")
+	if doc.Manifest.Agent.Memory != MemoryAuto {
+		t.Fatalf("memory = %q, want auto", doc.Manifest.Agent.Memory)
+	}
+	if errs := doc.Validate(); len(errs) != 0 {
+		t.Fatalf("memory: auto should validate: %v", errs)
+	}
+	// Absent means the zero value — the engine treats it as off.
+	doc = mustLoad(t, "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n")
+	if doc.Manifest.Agent.Memory != "" {
+		t.Fatalf("absent memory = %q, want zero", doc.Manifest.Agent.Memory)
+	}
 }
 
 func TestParsePortTable(t *testing.T) {

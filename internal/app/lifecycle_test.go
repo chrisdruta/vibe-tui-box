@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -184,6 +185,7 @@ func TestAgentSessionWrapping(t *testing.T) {
 		"SECRET=s3cret",
 		"VIBE_PROJECT=" + string(reg.Record.ID),
 		"VIBE_PROJECT_NAME=" + reg.Record.DisplayName,
+		"VIBE_AGENT_MEMORY=off",
 	}
 	if fmt.Sprint(last.Env) != fmt.Sprint(wantEnv) {
 		t.Fatalf("agent env wrong: %v", last.Env)
@@ -228,6 +230,18 @@ func TestAgentSessionWrapping(t *testing.T) {
 	}
 	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Cold: true}); err == nil {
 		t.Fatal("--cold without the carrier should fail")
+	}
+
+	// agent.memory: auto rides the identity env (read live from the
+	// manifest, like agent.tmux — never through the candidate).
+	docker.ExecResults[agentProbeKey] = dockerapi.ExecResult{ExitCode: 0}
+	writeManifest(t, dir, strings.Replace(testManifest, "  tmux: true", "  tmux: true\n  memory: auto", 1))
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}}); err != nil {
+		t.Fatal(err)
+	}
+	last = lastExecArgv(t, docker)
+	if !slices.Contains(last.Env, "VIBE_AGENT_MEMORY=auto") {
+		t.Fatalf("memory env missing: %v", last.Env)
 	}
 }
 

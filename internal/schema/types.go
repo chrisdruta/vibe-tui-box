@@ -62,8 +62,9 @@ type VolumeRef struct {
 }
 
 type Agent struct {
-	Cmd  AgentKind `yaml:"cmd"`
-	Tmux bool      `yaml:"tmux"`
+	Cmd    AgentKind  `yaml:"cmd"`
+	Tmux   bool       `yaml:"tmux"`
+	Memory MemoryMode `yaml:"memory,omitempty"`
 }
 
 type Bootstrap struct {
@@ -93,6 +94,27 @@ func (a *AgentKind) UnmarshalText(b []byte) error {
 		return nil
 	default:
 		return fmt.Errorf("%w: agent %q: known agents are claude, codex, grok", domain.ErrInvalid, b)
+	}
+}
+
+// MemoryMode selects the agent CLI's cross-session auto memory. The
+// zero value (absent) means off — in a hardened container, silent
+// cross-session knowledge accumulation is opt-in, not inherited from
+// the agent CLI's upstream default.
+type MemoryMode string
+
+const (
+	MemoryOff  MemoryMode = "off"
+	MemoryAuto MemoryMode = "auto"
+)
+
+func (m *MemoryMode) UnmarshalText(b []byte) error {
+	switch v := MemoryMode(b); v {
+	case MemoryOff, MemoryAuto:
+		*m = v
+		return nil
+	default:
+		return fmt.Errorf("%w: agent.memory %q: known modes are auto, off", domain.ErrInvalid, b)
 	}
 }
 
