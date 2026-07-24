@@ -129,7 +129,10 @@ func (b *Binary) Attach(ctx context.Context, id SessionID) error {
 }
 
 func (b *Binary) SetOption(ctx context.Context, id SessionID, option, value string) error {
-	out, err := b.exec(ctx, false, "set-option", "-t", "="+string(id), option, value)
+	// No "=" exact-match prefix here: set-option takes a target-pane,
+	// and tmux 3.7's pane-target resolution rejects "=" ("no such
+	// session"). Exact-name resolution still wins for a live session.
+	out, err := b.exec(ctx, false, "set-option", "-t", string(id), option, value)
 	if err != nil {
 		return err
 	}
