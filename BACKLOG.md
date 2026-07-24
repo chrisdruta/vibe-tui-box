@@ -24,19 +24,38 @@ stands, their mechanisms ("compose profile", "seeded compose override",
   idles); real-daemon CI exercise of tools, extension, and dev builds;
   the first tagged v2 release with the three-platform matrix.
 
-- **TUI: revive the state-dot channel.** The ported conf and host
-  scripts (`payload/host/`, loaded on the `vibe-engine` socket) carry
-  the full v1 theme, palette, sidebar, dock, and clip-to-pane, but the
-  per-window/pane state conditionals (`@vibe_glyph`/`@vibe_dot_fg`/
-  `@vibe_attn`) and the sidebar's aggregate agent roster render inert:
-  their feeder was v1's container-side agent wrapper encoding state into
-  the pane title (`vibe1|…` through the docker-exec TTY), read by
-  `state-render.sh` — both died at the cutover. Engine state shows
-  through `vibe _state` in status-right meanwhile. Per the language
-  split (Go = trusted core; shell = tmux/UI machinery), the revival is
-  a ported `state-render.sh` plus a payload `container/` wrapper around
-  the agent command re-establishing the title channel — not a Go
-  rewrite.
+- **Agent persistence + the state channel — DESIGNED, next up.** The
+  two v1 properties the cutover dropped, one design
+  ([docs/agent-session-design.md](docs/agent-session-design.md)): the
+  agent runs in a container-side tmux session (`agent-session.sh`, the
+  v1 agent-entry port) so it survives its viewer, and Claude Code hooks
+  feed the `vibe1|…` pane-title channel that `state-render.sh` renders
+  into the dots/attention/roster the ported conf already conditions on.
+  Three slices: persistence, state channel, roster/polish. Engine's
+  share is small (tmux in the tools recipe, exec wrapping, identity
+  env); everything else is payload shell per the language split.
+
+- **v1 parity, remaining (beyond the agent session layer).** Inventory
+  vs the v1 tree at the cutover (2026-07-23):
+  - *Claude settings/statusline glue* — v1's claude-settings.json
+    template, settings-merge.sh, statusline.sh/subagent-statusline.sh.
+    The hook half lands with the state channel (payload `--settings`,
+    no merge machinery); the statusline half is slice 3 there.
+  - *Review/image stack* — review.sh + review-verdict.sh (locked
+    read-only yazi browser, A/R verdicts), the sixel pipeline
+    (show-image.sh, preview-image-hook.sh, yazi plugin). Gated on the
+    revdiff trial verdict and the kitty-graphics trigger (entries
+    below).
+  - *Bootstrap installer + shim* — v1's `install.sh --self`. v2 has
+    `provision`/`update` and the `~/.vibe/bin` symlink handoff in code,
+    but nothing creates the first PATH entry; today's install is "build
+    from source, copy the binary". Wants a first tagged release first.
+  - *Presets/examples* — payload ships only `minimal`; v1 had the
+    playwright extension example, an agents.md template, and project
+    post-create/post-start hook templates (the hook templates are gated
+    on the payload lifecycle work in the gaps entry above).
+  - *Host conveniences* — install-tmux.sh, start-ollama.sh. Revive on
+    demand.
 
 - **Reduced-trust profile for unattended runs (`vibe agent --jailed`).**
   Promised in docs/security.md ("planned but not implemented"). Design
