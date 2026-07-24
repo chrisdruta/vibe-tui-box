@@ -25,6 +25,23 @@ esac
 
 hook=".vibe/hooks/$mode.sh"
 
+# Engine-owned, best-effort: when claude and codex ship side by side,
+# install the codex second-opinion plugin into Claude at user scope
+# (v1's post-create auto-install, revived — /codex:review et al.).
+# User scope lives under CLAUDE_CONFIG_DIR on the agent-state volume,
+# so one success persists across rebuilds; the marker sits beside it so
+# a failed attempt (offline, pre-login CLI) retries on a later up
+# instead of never. Bounded and swallowed throughout — there is no
+# network guarantee here and this must never fail or stall an up.
+codex_plugin_marker="/vibe/agent-state/.vibe-codex-plugin.done"
+if [ "$mode" = "post-create" ] && [ ! -e "$codex_plugin_marker" ] &&
+  command -v claude >/dev/null 2>&1 && command -v codex >/dev/null 2>&1; then
+  if timeout 60 claude plugin marketplace add openai/codex-plugin-cc >/dev/null 2>&1 &&
+    timeout 60 claude plugin install codex@openai-codex --scope user >/dev/null 2>&1; then
+    : >"$codex_plugin_marker" 2>/dev/null || true
+  fi
+fi
+
 if [ "$mode" = "post-create" ]; then
   # The marker lives in container-local state: it survives stop/start,
   # dies with the container — exactly "once per container". It is only

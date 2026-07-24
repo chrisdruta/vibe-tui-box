@@ -95,6 +95,17 @@ The v1 line and its history remain in git up to the cutover commit.
   request JSON, and the terminal encoder/diff, with a CI fuzz-burst
   job; the first run caught a width-underflow crash in the diff
   renderer (fixed; crasher committed as a regression seed).
+- Fix: codex logins now actually persist (2026-07-24) — with `codex` in
+  `image.agents` the plan sets `CODEX_HOME` to the agent-state volume,
+  matching what the docs promised and what claude already did via
+  `CLAUDE_CONFIG_DIR`. Previously `~/.codex/auth.json` sat on the
+  container's writable layer and died with every rebuild.
+- New: the codex second-opinion plugin auto-install is back
+  (2026-07-24, v1 parity) — when claude and codex ship together,
+  post-create best-effort installs `openai/codex-plugin-cc` into Claude
+  at user scope (`/codex:review`, `/codex:adversarial-review`, …),
+  marker-guarded on the agent-state volume so one success persists
+  across rebuilds and a failed attempt retries on a later `up`.
 - New: opt-in Claude auto memory (2026-07-24) — manifest field
   `agent.memory: auto|off` (default off: a hardened container opts IN
   to cross-session memory, it doesn't inherit Claude Code's on-default).

@@ -34,8 +34,8 @@
     {
       "path": "container/lifecycle.sh",
       "mode": "0644",
-      "size": 1446,
-      "digest": "sha256:c6d6479fca6c4630b805cce5daa3d1c3be32bb11112acb87d255bcf890262b22"
+      "size": 2445,
+      "digest": "sha256:019f93361a027ae7a1c31b01448e976ecee1d3484885b4c5ddd6f7033d9dab84"
     },
     {
       "path": "container/statusline.sh",
@@ -164,5 +164,5 @@
       "digest": "sha256:51a7ea164117a54218a470f3986030fdf50799f7060d70265810bb6e1c9365ea"
     }
   ],
-  "digest": "sha256:1f1bb243a6418fe32131cf7f986cc590114431df6d413a974b87b516af528200"
+  "digest": "sha256:156a7a0e438cb57dd4dbac53f51ef9877046fbcf35eb540698fbccea2ec68aa0"
 }

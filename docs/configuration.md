@@ -116,3 +116,15 @@ them.
 
 Custom import targets may not equal, contain, or be contained by any of
 the engine-owned targets.
+
+Agent logins relocate onto the agent-state volume per agent: claude via
+`CLAUDE_CONFIG_DIR=/vibe/agent-state/claude`, codex via
+`CODEX_HOME=/vibe/agent-state/codex` — log in once inside the container
+(`claude` / `codex login`, or supply `OPENAI_API_KEY` through
+`env_file`) and the login survives rebuilds until `vibe down
+--volumes`. When claude and codex are installed together, post-create
+also best-effort installs the codex second-opinion plugin into Claude
+at user scope (`/codex:review` and friends), retrying on a later `up`
+if the first attempt had no network. The agent state dots and
+statusline are Claude-wired today; codex sessions run fine but report
+at most `running` in `vibe ps`.

@@ -131,6 +131,13 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 			dev.Environment = append(dev.Environment,
 				Env{Key: "CLAUDE_CONFIG_DIR", Value: path.Join(AgentStateTarget, "claude")})
 		}
+		// Codex keeps auth.json and config under CODEX_HOME; the same
+		// relocation keeps `codex login` alive across rebuilds (the
+		// agent-state docs promise it for every agent, not just Claude).
+		if agent == schema.AgentCodex {
+			dev.Environment = append(dev.Environment,
+				Env{Key: "CODEX_HOME", Value: path.Join(AgentStateTarget, "codex")})
+		}
 	}
 	if !in.Artifact.IsZero() {
 		// Engine-provided entries come last so they cannot be shadowed.

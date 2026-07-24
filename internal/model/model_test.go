@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -113,6 +114,29 @@ func TestCompileGolden(t *testing.T) {
 				t.Fatalf("canonical plan drifted from %s:\n%s", golden, got)
 			}
 		})
+	}
+}
+
+// TestCompileAgentStateEnv pins the per-agent login relocation: every
+// installed agent whose CLI honors a state-home variable gets it
+// pointed at the agent-state volume so logins survive rebuilds.
+func TestCompileAgentStateEnv(t *testing.T) {
+	manifest := strings.Replace(minimalManifest, "agents: [claude]", "agents: [claude, codex]", 1)
+	plan, errs := Compile(testInput(t, manifest))
+	if len(errs) > 0 {
+		t.Fatalf("compile diagnostics: %v", errs)
+	}
+	var got []string
+	for _, e := range plan.Dev.Environment {
+		got = append(got, e.Key+"="+e.Value)
+	}
+	for _, want := range []string{
+		"CLAUDE_CONFIG_DIR=/vibe/agent-state/claude",
+		"CODEX_HOME=/vibe/agent-state/codex",
+	} {
+		if !slices.Contains(got, want) {
+			t.Fatalf("dev env missing %q: %v", want, got)
+		}
 	}
 }
 
