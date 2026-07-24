@@ -10,7 +10,7 @@ result, and exits with a stable code: 0 ok, 1 failure, 2 usage,
 
 | Command | Effect |
 | --- | --- |
-| `vibe init [--preset NAME]` | Seed `.vibe/` from an embedded preset (`minimal`, `go`, `node`, `bun`, `playwright`), register, pin the newest artifact |
+| `vibe init [--preset NAME] [--auto-memory[=BOOL]]` | Seed `.vibe/` from an embedded preset (`minimal`, `go`, `node`, `bun`, `playwright`), register, pin the newest artifact. Interactive runs ask about Claude auto memory unless the flag decides it; scripted/`--json` runs default it off |
 | `vibe register [--name NAME]` | Register an existing project |
 | `vibe up` | Freeze inputs → compile candidate → reconcile containers → mark approved |
 | `vibe rebuild` | Same, but recreate containers even when already in sync |

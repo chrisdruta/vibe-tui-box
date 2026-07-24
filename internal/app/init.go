@@ -13,19 +13,26 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
 
 // InitRequest seeds a new project: render the preset into .vibe/,
 // register the project, and pin the newest installed artifact.
+// AutoMemory is the explicit --auto-memory choice (nil = not given);
+// Interactive marks a TTY session where the missing choice may be
+// asked instead of defaulted.
 type InitRequest struct {
-	Dir    string
-	Preset string
+	Dir         string
+	Preset      string
+	AutoMemory  *bool
+	Interactive bool
 }
 
 type InitResult struct {
 	Record  registry.Record
 	Created []string
 	Preset  string
+	Memory  schema.MemoryMode
 }
 
 func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
@@ -65,10 +72,35 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 	if err != nil {
 		return InitResult{}, &domain.OpError{Op: "init", Err: err}
 	}
+
+	// Resolution order: flag > question > off. The question runs only on
+	// an interactive session with a prompt wired — scripted and --json
+	// runs get the hardened default without blocking on stdin.
+	memory := schema.MemoryOff
+	switch {
+	case req.AutoMemory != nil:
+		if *req.AutoMemory {
+			memory = schema.MemoryAuto
+		}
+	case req.Interactive && a.deps.Prompt != nil:
+		ok, err := a.deps.Prompt.Confirm(ctx, terminal.Confirmation{
+			Title:    "auto memory: Claude keeps cross-session project memory on the agent-state",
+			Chrome:   []string{"volume, surviving rebuilds (agent.memory in .vibe/vibe.yaml flips it later)"},
+			Question: "enable auto memory?",
+		})
+		if err != nil {
+			return InitResult{}, &domain.OpError{Op: "init", Err: err}
+		}
+		if ok {
+			memory = schema.MemoryAuto
+		}
+	}
+
 	harness := a.deps.Version.Release
 	files, err := initproject.Render(preset, initproject.TemplateData{
 		ProjectName:    filepath.Base(abs),
 		HarnessVersion: normalizeHarnessVersion(harness),
+		AutoMemory:     string(memory),
 	})
 	if err != nil {
 		return InitResult{}, &domain.OpError{Op: "init", Err: err}
@@ -97,7 +129,7 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 	if err != nil {
 		return InitResult{}, initRecoveryErr(err)
 	}
-	return InitResult{Record: rec, Created: created, Preset: presetName}, nil
+	return InitResult{Record: rec, Created: created, Preset: presetName, Memory: memory}, nil
 }
 
 func initRecoveryErr(err error) error {

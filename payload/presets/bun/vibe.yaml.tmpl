@@ -9,6 +9,7 @@ image:
 agent:
   cmd: claude
   tmux: true
+  memory: {{.AutoMemory}}
 bootstrap:
   required: [git, bun]
   auto: {install: true, git_hooks: false, git_lfs: false}

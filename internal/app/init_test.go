@@ -14,6 +14,8 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
+	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
 
 // withPresetPayload adds a bundle whose minimal preset renders a valid
@@ -28,6 +30,7 @@ image:
 agent:
   cmd: claude
   tmux: true
+  memory: {{.AutoMemory}}
 `
 	script := "#!/bin/sh\nexec sleep infinity\n"
 	files := map[string][]byte{
@@ -116,6 +119,75 @@ func TestInitRendersRegistersAndPins(t *testing.T) {
 	// Unknown preset.
 	if _, err := a.Init(ctx, InitRequest{Dir: t.TempDir(), Preset: "nope"}); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("unknown preset should be not-found, got %v", err)
+	}
+}
+
+// fatalPrompt fails the test if the prompt is consulted at all.
+type fatalPrompt struct{ t *testing.T }
+
+func (p fatalPrompt) Confirm(context.Context, terminal.Confirmation) (bool, error) {
+	p.t.Fatal("prompt must not be consulted")
+	return false, nil
+}
+
+func TestInitAutoMemoryResolution(t *testing.T) {
+	a, _ := newTestApp(t)
+	withPresetPayload(t, a)
+	ctx := context.Background()
+
+	readMemory := func(t *testing.T, dir string) string {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(dir, paths.ManifestRelPath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "memory:"); ok {
+				return strings.TrimSpace(rest)
+			}
+		}
+		t.Fatalf("no memory line in rendered manifest:\n%s", data)
+		return ""
+	}
+
+	// An explicit flag decides without consulting the prompt, in both
+	// directions.
+	a.deps.Prompt = fatalPrompt{t}
+	for _, tc := range []struct {
+		flag bool
+		want string
+	}{{true, "auto"}, {false, "off"}} {
+		dir := t.TempDir()
+		flag := tc.flag
+		res, err := a.Init(ctx, InitRequest{Dir: dir, AutoMemory: &flag, Interactive: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := readMemory(t, dir); got != tc.want || string(res.Memory) != tc.want {
+			t.Fatalf("flag %v rendered %q (result %q), want %q", tc.flag, got, res.Memory, tc.want)
+		}
+	}
+
+	// No flag on an interactive session: the question decides.
+	a.deps.Prompt = terminal.AutoApprove{Approve: true}
+	dir := t.TempDir()
+	res, err := a.Init(ctx, InitRequest{Dir: dir, Interactive: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readMemory(t, dir); got != "auto" || res.Memory != schema.MemoryAuto {
+		t.Fatalf("prompted init rendered %q (result %q), want auto", got, res.Memory)
+	}
+
+	// No flag, not interactive: hardened default, prompt untouched.
+	a.deps.Prompt = fatalPrompt{t}
+	dir = t.TempDir()
+	res, err = a.Init(ctx, InitRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readMemory(t, dir); got != "off" || res.Memory != schema.MemoryOff {
+		t.Fatalf("non-interactive init rendered %q (result %q), want off", got, res.Memory)
 	}
 }
 

@@ -95,6 +95,13 @@ The v1 line and its history remain in git up to the cutover commit.
   request JSON, and the terminal encoder/diff, with a CI fuzz-burst
   job; the first run caught a width-underflow crash in the diff
   renderer (fixed; crasher committed as a regression seed).
+- New: opt-in Claude auto memory (2026-07-24) — manifest field
+  `agent.memory: auto|off` (default off: a hardened container opts IN
+  to cross-session memory, it doesn't inherit Claude Code's on-default).
+  The payload settings pin `autoMemoryEnabled` off; `auto` derives a
+  flipped settings copy at session start, and the memory directory
+  rides the agent-state volume across rebuilds. `vibe init` asks on
+  interactive runs (`--auto-memory[=BOOL]` decides it for scripts).
 - New: `vibe clip [DIR] [--path-only]` is back (2026-07-24) — the v1
   clipboard-image verb, now a thin engine wrapper over the pinned
   artifact's hardened `clip-image.sh` (the same script behind the tui's

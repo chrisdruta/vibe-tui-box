@@ -137,6 +137,9 @@ type ProvisionRequest struct{ Options }
 type InitRequest struct {
 	Options
 	Preset string
+	// AutoMemory is tri-state: nil means the flag was not given and an
+	// interactive init may ask instead.
+	AutoMemory *bool
 }
 
 type DoctorRequest struct{ Options }

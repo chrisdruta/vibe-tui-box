@@ -3,7 +3,12 @@ package cli
 import (
 	"context"
 	"flag"
+	"fmt"
+	"io"
+	"os"
 	"time"
+
+	"golang.org/x/term"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
 )
@@ -13,17 +18,42 @@ var releaseCommands = map[string]Command{
 	"init": {
 		Name:    "init",
 		Summary: "seed .vibe/ from a preset and register the project",
-		Usage:   "vibe init [--preset NAME] [--json]",
+		Usage:   "vibe init [--preset NAME] [--auto-memory[=BOOL]] [--json]",
 		Parse: func(args []string) (Request, error) {
 			var req InitRequest
-			return parseInto(args, "init", &req.Options, func(fs *flag.FlagSet) any {
-				fs.StringVar(&req.Preset, "preset", "", "preset name (default: minimal)")
-				return &req
+			fs := flag.NewFlagSet("init", flag.ContinueOnError)
+			fs.SetOutput(io.Discard)
+			fs.BoolVar(&req.JSON, "json", false, "emit versioned JSON")
+			fs.BoolVar(&req.Quiet, "quiet", false, "suppress nonessential output")
+			fs.StringVar(&req.Preset, "preset", "", "preset name (default: minimal)")
+			autoMemory := fs.Bool("auto-memory", false, "enable Claude auto memory (skips the question)")
+			if err := fs.Parse(args); err != nil {
+				return nil, err
+			}
+			if fs.NArg() > 0 {
+				return nil, fmt.Errorf("unexpected argument %q", fs.Arg(0))
+			}
+			// Tri-state: only a flag the user actually typed decides; its
+			// absence lets an interactive init ask instead.
+			fs.Visit(func(f *flag.Flag) {
+				if f.Name == "auto-memory" {
+					req.AutoMemory = autoMemory
+				}
 			})
+			return &req, nil
 		},
 		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
 			r := req.(*InitRequest)
-			res, err := a.Init(ctx, app.InitRequest{Dir: mustCwd(), Preset: r.Preset})
+			res, err := a.Init(ctx, app.InitRequest{
+				Dir:        mustCwd(),
+				Preset:     r.Preset,
+				AutoMemory: r.AutoMemory,
+				// The question needs a human on both ends: stdin to
+				// answer, stderr to see it; --json implies scripted.
+				Interactive: !r.JSON &&
+					term.IsTerminal(int(os.Stdin.Fd())) &&
+					term.IsTerminal(int(os.Stderr.Fd())),
+			})
 			if err != nil {
 				return nil, err
 			}

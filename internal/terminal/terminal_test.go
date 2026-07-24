@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -55,5 +56,30 @@ func TestLine(t *testing.T) {
 	}
 	if got := Line("evil\nchrome", 40); strings.Contains(got, "\n") {
 		t.Fatalf("Line leaked newline: %q", got)
+	}
+}
+
+func TestStdioPromptQuestion(t *testing.T) {
+	ask := func(c Confirmation, answer string) (bool, string) {
+		t.Helper()
+		var out strings.Builder
+		p := &StdioPrompt{In: strings.NewReader(answer), Out: &out}
+		ok, err := p.Confirm(context.Background(), c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok, out.String()
+	}
+
+	// Default chrome stays the approval form.
+	ok, out := ask(Confirmation{Title: "t"}, "y\n")
+	if !ok || !strings.Contains(out, "approve? [y/N] ") {
+		t.Fatalf("default question wrong (ok=%v):\n%s", ok, out)
+	}
+
+	// A plain question replaces only the ask line; y/N chrome stays.
+	ok, out = ask(Confirmation{Title: "t", Question: "enable auto memory?"}, "n\n")
+	if ok || !strings.Contains(out, "enable auto memory? [y/N] ") || strings.Contains(out, "approve?") {
+		t.Fatalf("custom question wrong (ok=%v):\n%s", ok, out)
 	}
 }

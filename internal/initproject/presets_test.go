@@ -36,24 +36,33 @@ func TestTrackedPresetsRenderValidProjects(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			files, err := Render(preset, TemplateData{ProjectName: "proj", HarnessVersion: "v1.0.0"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			doc, err := schema.Load(strings.NewReader(string(files["vibe.yaml"])), schema.Limits{})
-			if err != nil {
-				t.Fatalf("preset %s vibe.yaml: %v", name, err)
-			}
-			if errs := doc.Validate(); len(errs) > 0 {
-				t.Fatalf("preset %s vibe.yaml invalid: %v", name, errs)
-			}
-			if doc.Manifest.Image.Extension {
-				dockerfile, ok := files["Dockerfile"]
-				if !ok {
-					t.Fatalf("preset %s enables the extension but seeds no Dockerfile", name)
+			// Both init choices must render a valid manifest carrying
+			// the chosen agent.memory value.
+			for _, memory := range []schema.MemoryMode{schema.MemoryOff, schema.MemoryAuto} {
+				files, err := Render(preset, TemplateData{
+					ProjectName: "proj", HarnessVersion: "v1.0.0", AutoMemory: string(memory),
+				})
+				if err != nil {
+					t.Fatal(err)
 				}
-				if err := builder.ValidateDockerfile(dockerfile); err != nil {
-					t.Fatalf("preset %s Dockerfile: %v", name, err)
+				doc, err := schema.Load(strings.NewReader(string(files["vibe.yaml"])), schema.Limits{})
+				if err != nil {
+					t.Fatalf("preset %s vibe.yaml: %v", name, err)
+				}
+				if errs := doc.Validate(); len(errs) > 0 {
+					t.Fatalf("preset %s vibe.yaml invalid: %v", name, errs)
+				}
+				if doc.Manifest.Agent.Memory != memory {
+					t.Fatalf("preset %s agent.memory = %q, want %q", name, doc.Manifest.Agent.Memory, memory)
+				}
+				if doc.Manifest.Image.Extension {
+					dockerfile, ok := files["Dockerfile"]
+					if !ok {
+						t.Fatalf("preset %s enables the extension but seeds no Dockerfile", name)
+					}
+					if err := builder.ValidateDockerfile(dockerfile); err != nil {
+						t.Fatalf("preset %s Dockerfile: %v", name, err)
+					}
 				}
 			}
 		})
@@ -80,7 +89,7 @@ func TestTrackedPresetsRenderValidProjects(t *testing.T) {
 			minimal.Files[name] = content
 		}
 	}
-	files, err := Render(minimal, TemplateData{ProjectName: "proj", HarnessVersion: "v1.0.0"})
+	files, err := Render(minimal, TemplateData{ProjectName: "proj", HarnessVersion: "v1.0.0", AutoMemory: "off"})
 	if err != nil {
 		t.Fatal(err)
 	}

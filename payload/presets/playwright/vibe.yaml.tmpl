@@ -13,6 +13,7 @@ image:
 agent:
   cmd: claude
   tmux: true
+  memory: {{.AutoMemory}}
 bootstrap:
   required: [git, node, npx]
   auto: {install: true, git_hooks: false, git_lfs: false}

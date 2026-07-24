@@ -14,6 +14,7 @@ import (
 // so the prompt renderer cannot be spoofed by request text.
 type Confirmation struct {
 	Title     string
+	Question  string // trusted ask line; "" renders the default "approve?"
 	Digest    domain.Digest
 	Chrome    []string // trusted lines from the engine
 	Content   Encoded  // sanitized untrusted lines
@@ -56,7 +57,11 @@ func (p *StdioPrompt) Confirm(ctx context.Context, c Confirmation) (bool, error)
 			fmt.Fprintln(p.Out, "  │ … (truncated)")
 		}
 	}
-	fmt.Fprint(p.Out, "approve? [y/N] ")
+	question := c.Question
+	if question == "" {
+		question = "approve?"
+	}
+	fmt.Fprintf(p.Out, "%s [y/N] ", question)
 
 	answer := make(chan string, 1)
 	errCh := make(chan error, 1)

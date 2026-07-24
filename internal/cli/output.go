@@ -264,6 +264,9 @@ func (r *initResult) RenderHuman(w io.Writer) error {
 			return err
 		}
 	}
+	if _, err := fmt.Fprintf(w, "auto memory: %s (agent.memory in .vibe/vibe.yaml)\n", r.Result.Memory); err != nil {
+		return err
+	}
 	_, err := fmt.Fprintln(w, "next: `vibe up`")
 	return err
 }
@@ -273,7 +276,8 @@ func (r *initResult) RenderJSON(w io.Writer) error {
 		Record  registry.Record `json:"record"`
 		Created []string        `json:"created"`
 		Preset  string          `json:"preset"`
-	}{r.Result.Record, r.Result.Created, r.Result.Preset})
+		Memory  string          `json:"memory"`
+	}{r.Result.Record, r.Result.Created, r.Result.Preset, string(r.Result.Memory)})
 }
 
 type doctorResult struct {

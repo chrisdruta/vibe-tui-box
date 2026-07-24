@@ -22,6 +22,9 @@ import (
 type TemplateData struct {
 	ProjectName    string
 	HarnessVersion string
+	// AutoMemory is the manifest agent.memory value ("auto" or "off");
+	// always set, because an empty substitution renders invalid YAML.
+	AutoMemory string
 }
 
 // Render produces the .vibe file set from a preset: each preset file
