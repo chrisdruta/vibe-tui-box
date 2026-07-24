@@ -10,17 +10,8 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
 
-// StateToken is the compact one-glyph project state for status lines.
-type StateToken string
-
-const (
-	StateRunning StateToken = "●"
-	StateStopped StateToken = "○"
-	StateStale   StateToken = "◐"
-	StateNone    StateToken = "·"
-)
-
-// ProjectView is the prepared model for one project.
+// ProjectView is the prepared model for one project. (StateToken and
+// the palette live in theme.go — the single source for colors/glyphs.)
 type ProjectView struct {
 	ID         string // full project ID, the join key for tmux @vibe_project
 	Name       string
