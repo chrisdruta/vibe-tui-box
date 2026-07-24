@@ -4,7 +4,7 @@ schema: 1
 harness: {{.HarnessVersion}}
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
-  agents: [claude]
+  agents: [claude, codex]
   toolchains: [bun]
 agent:
   cmd: claude

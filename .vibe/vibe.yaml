@@ -4,7 +4,7 @@ schema: 1
 harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/go:1-bookworm"
-  agents: [claude]
+  agents: [claude, codex]
   toolchains: [go]
 agent:
   cmd: claude

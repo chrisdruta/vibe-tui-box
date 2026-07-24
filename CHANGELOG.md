@@ -110,6 +110,16 @@ The v1 line and its history remain in git up to the cutover commit.
   customization point. Palette + glyph maps single-source from
   `internal/tmuxui/theme.go`; payload generation renders `theme.sh`
   and the conf's `@thm` block, so the drift gate catches palette skew.
+- New: gopls-lsp plugin auto-install (2026-07-24) — containers shipping
+  `gopls` beside claude get Claude Code's official Go LSP plugin
+  installed+enabled at user scope in post-create (marketplace add
+  first: a fresh config dir knows no marketplaces; both steps verified
+  idempotent), so Go code intelligence works without the
+  recommendation popup gating each fresh container.
+- Changed: presets seed `agents: [claude, codex]` (2026-07-24) — both
+  agents by default in every preset and the dogfood manifest; codex
+  drags the node toolchain in automatically. Trim to `[claude]` in
+  `.vibe/vibe.yaml` if you don't want the second agent baked.
 - Fix: the no-nested-sandbox posture is back (2026-07-24) — v1 encoded
   it (`997336b`), the cutover dropped it, and raw codex died at its
   first shell command again: `cap_drop ALL` + `no-new-privileges`
