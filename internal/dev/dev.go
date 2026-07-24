@@ -174,20 +174,26 @@ func (s *Service) Build(ctx context.Context, project domain.ProjectID, sourceRoo
 		return Record{}, store.Artifact{}, err
 	}
 	version := "dev-" + outputDigest.Hex()[:12]
-	artifactRecord := store.ArtifactRecord{
-		Digest:        digest,
-		Version:       version,
-		Platform:      s.platform,
-		BinaryDigest:  outputDigest,
-		PayloadDigest: payloadDigest,
-		Release: domain.ReleaseProvenance{
-			Source:  "dev-build",
-			Version: version,
-		},
-		InstalledAt: time.Now().UTC(),
-	}
-	if err := s.store.WriteArtifactRecord(artifactRecord); err != nil {
-		return Record{}, store.Artifact{}, err
+	// An unchanged source tree republishes the identical artifact; reuse
+	// its record instead of writing one that differs only by timestamp
+	// (records are immutable — a divergent rewrite is a conflict).
+	artifactRecord, err := s.store.ReadArtifactRecord(digest)
+	if err != nil {
+		artifactRecord = store.ArtifactRecord{
+			Digest:        digest,
+			Version:       version,
+			Platform:      s.platform,
+			BinaryDigest:  outputDigest,
+			PayloadDigest: payloadDigest,
+			Release: domain.ReleaseProvenance{
+				Source:  "dev-build",
+				Version: version,
+			},
+			InstalledAt: time.Now().UTC(),
+		}
+		if err := s.store.WriteArtifactRecord(artifactRecord); err != nil {
+			return Record{}, store.Artifact{}, err
+		}
 	}
 	rec := Record{
 		Format:    recordFormat,
@@ -197,7 +203,7 @@ func (s *Service) Build(ctx context.Context, project domain.ProjectID, sourceRoo
 		Output:    outputDigest,
 		Artifact:  digest,
 		Target:    s.platform,
-		BuiltAt:   artifactRecord.InstalledAt,
+		BuiltAt:   artifactRecord.InstalledAt, // original install time when reused
 	}
 	return rec, store.Artifact{Record: artifactRecord, Path: obj.Path}, nil
 }
@@ -209,9 +215,15 @@ func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage,
 	name := dockerapi.ContainerName(fmt.Sprintf("vibe-devbuild-%s", domain.SHA256([]byte(srcDir + outDir)).Hex()[:10]))
 	sink.Emit(dockerapi.Progress{Stage: "dev-build", Message: "compiling engine in " + string(builder.Ref)})
 	id, err := s.docker.CreateContainer(ctx, dockerapi.CreateRequest{
-		Name:    name,
-		Image:   string(builder.Ref),
-		Command: []string{"go", "build", "-trimpath", "-o", "/out/vibe", "./cmd/vibe"},
+		Name:  name,
+		Image: string(builder.Ref),
+		// The snapshot and staging mounts are 0700 host-user-owned; with
+		// all capabilities dropped root has no CAP_DAC_OVERRIDE, so the
+		// build must run as the invoking user to reach them.
+		User: fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
+		// Compiler output lands in the staging mount so a failed build
+		// can be reported; the engine has no container-log surface.
+		Command: []string{"sh", "-c", "go build -trimpath -o /out/vibe ./cmd/vibe >/out/build.log 2>&1"},
 		Workdir: "/src",
 		Env: []string{
 			"CGO_ENABLED=0",
@@ -244,7 +256,20 @@ func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage,
 		return err
 	}
 	if code != 0 {
+		if log, rerr := os.ReadFile(filepath.Join(outDir, "build.log")); rerr == nil && len(log) > 0 {
+			return fmt.Errorf("%w: dev build failed with exit code %d:\n%s",
+				domain.ErrInvalid, code, strings.TrimSpace(tailLines(string(log), 30)))
+		}
 		return fmt.Errorf("%w: dev build failed with exit code %d", domain.ErrInvalid, code)
 	}
 	return nil
+}
+
+// tailLines returns at most the last n lines of s.
+func tailLines(s string, n int) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
 }
