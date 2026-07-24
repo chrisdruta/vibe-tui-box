@@ -26,9 +26,10 @@ type DevOnRequest struct {
 }
 
 type DevOnResult struct {
-	Record   dev.Record
-	Project  registry.Record
-	Artifact store.ArtifactRecord
+	Record     dev.Record
+	Project    registry.Record
+	Artifact   store.ArtifactRecord
+	BinaryPath string
 }
 
 func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) {
@@ -67,7 +68,16 @@ func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) 
 	if err := a.writeDevRecord(devRecord); err != nil {
 		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
 	}
-	return DevOnResult{Record: devRecord, Project: updated, Artifact: artifact.Record}, nil
+	// The same shim handoff `vibe update` performs: repoint the host
+	// `vibe` symlink at the fresh dev binary so the next invocation runs
+	// it — no manual copy after every sync. The binary is host-global by
+	// nature (artifact pins stay per-project); `dev off` hands back to
+	// the newest release.
+	binPath, err := a.installBinary(artifact)
+	if err != nil {
+		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+	}
+	return DevOnResult{Record: devRecord, Project: updated, Artifact: artifact.Record, BinaryPath: binPath}, nil
 }
 
 // DevOffRequest reverts the project to release mode and the newest
@@ -77,7 +87,8 @@ type DevOffRequest struct {
 }
 
 type DevOffResult struct {
-	Project registry.Record
+	Project    registry.Record
+	BinaryPath string // "" when no release artifact existed to hand back to
 }
 
 func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, error) {
@@ -113,7 +124,21 @@ func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, erro
 		return DevOffResult{}, &domain.OpError{Op: "dev off", Project: rec.ID, Err: err}
 	}
 	os.Remove(a.devRecordPath(rec.ID))
-	return DevOffResult{Project: updated}, nil
+	result := DevOffResult{Project: updated}
+	// Hand the `vibe` symlink back to the release the project reverts
+	// to, undoing dev on's handoff. Best-effort with a leased object —
+	// a missing release leaves the current binary in place.
+	if release != nil {
+		if lease, err := a.deps.Store.Open(ctx, store.ArtifactObject, release.Digest); err == nil {
+			binPath, err := a.installBinary(store.Artifact{Record: *release, Path: lease.Object.Path})
+			lease.Close()
+			if err != nil {
+				return DevOffResult{}, &domain.OpError{Op: "dev off", Project: rec.ID, Err: err}
+			}
+			result.BinaryPath = binPath
+		}
+	}
+	return result, nil
 }
 
 // DevStatusRequest reports the project's dev state.

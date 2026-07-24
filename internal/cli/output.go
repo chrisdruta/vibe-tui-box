@@ -445,17 +445,18 @@ type devOnResult struct {
 }
 
 func (r *devOnResult) RenderHuman(w io.Writer) error {
-	_, err := fmt.Fprintf(w, "dev build installed: artifact %s (binary %s)\nproject %s is now in dev mode; run `vibe rebuild` to apply\n",
-		r.Result.Artifact.Digest, r.Result.Record.Output, r.Result.Project.DisplayName)
+	_, err := fmt.Fprintf(w, "dev build installed: artifact %s (binary %s)\n%s -> this build; project %s is in dev mode; run `vibe rebuild` to apply\n",
+		r.Result.Artifact.Digest, r.Result.Record.Output, r.Result.BinaryPath, r.Result.Project.DisplayName)
 	return err
 }
 
 func (r *devOnResult) RenderJSON(w io.Writer) error {
 	return writeJSON(w, "dev-on", struct {
-		Record   any `json:"record"`
-		Project  any `json:"project"`
-		Artifact any `json:"artifact"`
-	}{r.Result.Record, r.Result.Project, r.Result.Artifact})
+		Record   any    `json:"record"`
+		Project  any    `json:"project"`
+		Artifact any    `json:"artifact"`
+		Binary   string `json:"binary"`
+	}{r.Result.Record, r.Result.Project, r.Result.Artifact, r.Result.BinaryPath})
 }
 
 type devOffResult struct {
@@ -463,13 +464,20 @@ type devOffResult struct {
 }
 
 func (r *devOffResult) RenderHuman(w io.Writer) error {
-	_, err := fmt.Fprintf(w, "project %s is back in release mode (artifact %s)\n",
-		r.Result.Project.DisplayName, r.Result.Project.ReleaseVersion)
+	handoff := "no release artifact installed — `vibe` still runs the last dev build"
+	if r.Result.BinaryPath != "" {
+		handoff = r.Result.BinaryPath + " -> release binary"
+	}
+	_, err := fmt.Fprintf(w, "project %s is back in release mode (artifact %s)\n%s\n",
+		r.Result.Project.DisplayName, r.Result.Project.ReleaseVersion, handoff)
 	return err
 }
 
 func (r *devOffResult) RenderJSON(w io.Writer) error {
-	return writeJSON(w, "dev-off", r.Result.Project)
+	return writeJSON(w, "dev-off", struct {
+		Project any    `json:"project"`
+		Binary  string `json:"binary,omitempty"`
+	}{r.Result.Project, r.Result.BinaryPath})
 }
 
 type devStatusResult struct {

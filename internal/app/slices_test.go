@@ -359,6 +359,13 @@ func TestDevModeFlow(t *testing.T) {
 	if !strings.HasPrefix(on.Artifact.Version, "dev-") || on.Artifact.Release.Source != "dev-build" {
 		t.Fatalf("dev artifact record: %+v", on.Artifact)
 	}
+	// The shim handoff: `vibe` now points at the fresh dev binary.
+	if on.BinaryPath == "" {
+		t.Fatal("dev on did not hand off the binary symlink")
+	}
+	if data, err := os.ReadFile(on.BinaryPath); err != nil || string(data) != "DEV-BINARY" {
+		t.Fatalf("vibe symlink content %q, %v", data, err)
+	}
 
 	status, err := a.DevStatus(ctx, DevStatusRequest{Dir: dir})
 	if err != nil || status.Record == nil || status.Record.Output != on.Record.Output {
