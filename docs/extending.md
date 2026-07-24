@@ -37,8 +37,10 @@ frozen context), `ENV`, `ARG`, `WORKDIR`, `LABEL`, `USER` (ending as
 `vscode`). Rejected: custom `# syntax` frontends, any `FROM` other than
 `${VIBE_BASE_IMAGE}` (declared with `ARG VIBE_BASE_IMAGE` first),
 multi-stage builds, `ADD`, `ONBUILD`, and a final user other than
-`vscode`. The engine supplies `VIBE_BASE_IMAGE` as the digest-pinned
-base — the Dockerfile cannot choose its own base.
+`vscode`. The engine supplies `VIBE_BASE_IMAGE` digest-pinned — the
+Dockerfile cannot choose its own base. When the manifest declares
+`image.agents`/`image.toolchains`, that base is the engine-generated
+install image, so the extension layers on top of the baked tools.
 
 `RUN` lines execute in Docker's builder with network access once
 approved — that is what the approval step is for; see

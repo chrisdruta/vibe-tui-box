@@ -9,7 +9,7 @@
   "dev": {
     "name": "vibe-abcdefghijkl-dev",
     "image": {
-      "ref": "mcr.microsoft.com/devcontainers/base:debian"
+      "ref": "vibe-abcdefghijkl-tools"
     },
     "user": "vscode",
     "command": [
@@ -63,10 +63,18 @@
   "images": [
     {
       "ref": "mcr.microsoft.com/devcontainers/base:debian"
+    },
+    {
+      "ref": "vibe-abcdefghijkl-tools"
     }
   ],
   "inputs": {
     "snapshot": "sha256:16a0eeb0791b6c92451fd284dd9f599e0a7dbe7f6ebea6e2d2d06c7f74aec112"
   },
-  "canonical_hash": "sha256:a13f6eb5baf2bf08950d43b3ca3cb9db116f87fcaf70f7e8e9c8302dfc112258"
+  "tools": {
+    "agents": [
+      "claude"
+    ]
+  },
+  "canonical_hash": "sha256:574d99f0ef465c77bb5246e873f02ccd4f40f015ea8b56bae602b041276135f6"
 }

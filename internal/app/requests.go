@@ -303,7 +303,12 @@ func (a *App) buildExtension(ctx context.Context, rec registry.Record, frozen fr
 		return dockerapi.BuiltImage{}, err
 	}
 
+	// With engine-installed tools in play the extension layers on top of
+	// the tools image, not the raw base.
 	base := frozen.Manifest.Image.Base
+	if hasTools(frozen.Manifest) {
+		base = model.ToolsImageRef(rec.ID)
+	}
 	return a.builder.Build(ctx, builder.Candidate{
 		Digest:     extDigest,
 		ContextDir: contextDir,

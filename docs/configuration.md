@@ -40,6 +40,12 @@ bootstrap:
 - **`image.base`** — any image reference; the engine resolves it to a
   registry digest at candidate time and runs by digest from then on.
   Pin with `@sha256:…` yourself for full reproducibility.
+- **`image.agents` / `image.toolchains`** — closed enums the engine
+  bakes into a generated install image layered on the base; recipes and
+  version pins ship with the engine and move with engine releases.
+  Unlike the extension there is no approval prompt: the install
+  Dockerfile is engine-authored, never project input. `agent.cmd` must
+  be listed in `image.agents`.
 - **`runtime.ports`** — published ports must bind a loopback IP; there
   is no way to expose a container to the network. The sanctioned use is
   host tooling that must reach a server inside (e.g. Roblox Studio →

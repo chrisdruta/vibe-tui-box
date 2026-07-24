@@ -1,6 +1,6 @@
 module github.com/chrisdruta/vibe-tui-box
 
-go 1.26.5
+go 1.26.4
 
 require (
 	github.com/docker/docker v28.5.2+incompatible

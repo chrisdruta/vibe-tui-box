@@ -23,6 +23,8 @@ import (
 
 const testProjectID = domain.ProjectID("abcdefghijklmnopqrstuvwxyz")
 
+var testToolsDigest = domain.SHA256([]byte("built-tools"))
+
 const testManifest = `schema: 1
 harness: v2.0.0
 image:
@@ -98,6 +100,11 @@ func newFixture(t *testing.T, manifest string) *fixture {
 		Project:  rec,
 		Manifest: doc.Manifest,
 		Snapshot: snapshot.Result{Digest: snapDigest, Path: snapObj.Path},
+		// The candidate pipeline records the built tools image digest
+		// before compiling; mirror it for the manifest's agents.
+		ImageDigests: map[string]domain.Digest{
+			model.ToolsImageRef(testProjectID): testToolsDigest,
+		},
 	})
 	if len(ferrs) > 0 {
 		t.Fatalf("compile: %v", ferrs)
@@ -176,7 +183,7 @@ func TestUpCreatesFullTopology(t *testing.T) {
 	dev := creates[1].Request.(dockerapi.CreateRequest)
 	want := dockerapi.CreateRequest{
 		Name:    dockerapi.ContainerName(model.DevContainerName(testProjectID)),
-		Image:   "base:1@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+		Image:   model.ToolsImageRef(testProjectID) + "@" + testToolsDigest.String(),
 		User:    "vscode",
 		Command: []string{"sleep", "infinity"},
 		Env:     []string{"SECRET=s3cret", "FLAG=1"},

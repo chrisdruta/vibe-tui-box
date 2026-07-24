@@ -74,8 +74,17 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 		return ImageID{Ref: ref, Digest: in.ImageDigests[ref]}
 	}
 
-	// Dev container.
+	// Dev container image: extension over tools over base — each build
+	// stage, when enabled, becomes the next stage's FROM.
 	devImage := resolve(m.Image.Base)
+	hasTools := len(m.Image.Agents) > 0 || len(m.Image.Toolchains) > 0
+	if hasTools {
+		devImage = resolve(ToolsImageRef(id))
+		plan.Tools = &Tools{
+			Agents:     sortedStrings(m.Image.Agents),
+			Toolchains: sortedStrings(m.Image.Toolchains),
+		}
+	}
 	if m.Image.Extension {
 		devImage = resolve(ExtensionImageRef(id))
 		plan.Extension = &Extension{Dockerfile: "Dockerfile"}
@@ -146,8 +155,11 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 	for _, c := range plan.Services {
 		refs[c.Image.Ref] = true
 	}
-	if m.Image.Extension {
-		refs[m.Image.Base] = true // extension builds still pull the base
+	if hasTools || m.Image.Extension {
+		refs[m.Image.Base] = true // derived builds still pull the base
+	}
+	if hasTools && m.Image.Extension {
+		refs[ToolsImageRef(id)] = true // extension builds FROM the tools image
 	}
 	for ref := range refs {
 		plan.Images = append(plan.Images, Image{Ref: ref, Digest: in.ImageDigests[ref]})
@@ -168,6 +180,17 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 	}
 	plan.CanonicalHash = hash
 	return plan, nil
+}
+
+// sortedStrings canonicalizes a manifest-ordered enum list for the
+// deterministic plan.
+func sortedStrings[T ~string](in []T) []string {
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		out = append(out, string(v))
+	}
+	sort.Strings(out)
+	return out
 }
 
 func defaultPolicy() ContainerPolicy {

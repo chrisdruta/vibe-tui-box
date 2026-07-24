@@ -20,6 +20,15 @@ The v1 line and its history remain in git up to the cutover commit.
   compose, no compose scanner; the engine compiles a canonical plan and
   drives the Docker API directly, reconciling containers by candidate
   digest.
+- New: `image.agents` / `image.toolchains` bake into images. The engine
+  generates an install Dockerfile from its closed recipe set (the v1
+  image ARGs' successor: pins move with engine releases; claude and grok
+  track their installers' stable channel), builds a per-project tools
+  image on the digest-pinned base, and runs the dev container from it.
+  An enabled extension now builds FROM the tools image instead of the
+  base. Engine-authored, so no per-digest approval — no project bytes
+  enter the build; the manifest only selects recipes. The dogfood
+  manifest drops its hand-rolled claude-install extension Dockerfile.
 - New engine surface ([docs/usage.md](docs/usage.md)): immutable
   content-addressed artifacts/candidates/snapshots under `~/.vibe`;
   `provision`/`update` release flow with streamed checksum verification;

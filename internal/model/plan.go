@@ -25,6 +25,7 @@ type Plan struct {
 	Volumes       []Volume      `json:"volumes"`
 	Images        []Image       `json:"images"`
 	Inputs        Inputs        `json:"inputs"`
+	Tools         *Tools        `json:"tools,omitempty"`
 	Extension     *Extension    `json:"extension,omitempty"`
 	CanonicalHash domain.Digest `json:"canonical_hash,omitzero"`
 }
@@ -126,6 +127,14 @@ type Image struct {
 type Inputs struct {
 	Snapshot domain.Digest `json:"snapshot,omitzero"`
 	EnvFile  string        `json:"env_file,omitempty"`
+}
+
+// Tools marks an engine-generated agent/toolchain install image. The
+// lists are sorted at compile time; the Dockerfile is engine-authored
+// (internal/builder), never project input.
+type Tools struct {
+	Agents     []string `json:"agents,omitempty"`
+	Toolchains []string `json:"toolchains,omitempty"`
 }
 
 // Extension marks an enabled image-extension build; the build candidate

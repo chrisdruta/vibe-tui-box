@@ -172,16 +172,26 @@ func TestExtensionBuildFlow(t *testing.T) {
 	}
 
 	builds := docker.CallsTo("Build")
-	if len(builds) != 1 {
-		t.Fatalf("want 1 build, got %d", len(builds))
+	if len(builds) != 2 {
+		t.Fatalf("want 2 builds (tools, extension), got %d", len(builds))
 	}
-	req := builds[0].Request.(dockerapi.BuildRequest)
+	toolsReq := builds[0].Request.(dockerapi.BuildRequest)
+	toolsRef := model.ToolsImageRef(rec.ID)
+	if toolsReq.Tag != toolsRef || toolsReq.Dockerfile != "Dockerfile" {
+		t.Fatalf("tools build request: %+v", toolsReq)
+	}
+	if !strings.Contains(toolsReq.BuildArgs["VIBE_BASE_IMAGE"], "@sha256:") {
+		t.Fatalf("tools base image not digest-pinned: %q", toolsReq.BuildArgs["VIBE_BASE_IMAGE"])
+	}
+	req := builds[1].Request.(dockerapi.BuildRequest)
 	if req.Tag != extRef || req.Dockerfile != model.SnapshotDockerfilePath {
 		t.Fatalf("build request: %+v", req)
 	}
+	// The extension layers on top of the built tools image, pinned to
+	// its digest.
 	base := req.BuildArgs["VIBE_BASE_IMAGE"]
-	if !strings.Contains(base, "@sha256:") {
-		t.Fatalf("base image not digest-pinned: %q", base)
+	if !strings.HasPrefix(base, toolsRef+"@sha256:") || !strings.Contains(base, docker.BuildResult.Digest.Hex()) {
+		t.Fatalf("extension base %q not the digest-pinned tools image", base)
 	}
 	// The restricted context contains the Dockerfile but never env-file
 	// or the manifest.
@@ -201,6 +211,53 @@ func TestExtensionBuildFlow(t *testing.T) {
 	// exercised).
 	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestToolsBuildFlow: a manifest with agents but no extension builds
+// exactly one image — the engine-generated tools image — with no
+// approval prompt (the app has no Prompt wired: tools Dockerfiles are
+// engine-authored, not project input).
+func TestToolsBuildFlow(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := mustResolve(t, a, dir)
+	toolsRef := model.ToolsImageRef(rec.ID)
+	docker.BuildResult = dockerapi.BuiltImage{
+		Ref:    dockerapi.ImageRef(toolsRef),
+		Digest: domain.SHA256([]byte("built-tools")),
+	}
+
+	up, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !up.State.Running() {
+		t.Fatalf("up state: %+v", up.State)
+	}
+
+	builds := docker.CallsTo("Build")
+	if len(builds) != 1 {
+		t.Fatalf("want 1 build, got %d", len(builds))
+	}
+	req := builds[0].Request.(dockerapi.BuildRequest)
+	if req.Tag != toolsRef || req.Dockerfile != "Dockerfile" {
+		t.Fatalf("build request: %+v", req)
+	}
+	if !strings.Contains(req.BuildArgs["VIBE_BASE_IMAGE"], "@sha256:") {
+		t.Fatalf("base image not digest-pinned: %q", req.BuildArgs["VIBE_BASE_IMAGE"])
+	}
+
+	// The dev container runs the tools image pinned to the built digest.
+	creates := docker.CallsTo("CreateContainer")
+	dev := creates[len(creates)-1].Request.(dockerapi.CreateRequest)
+	if !strings.HasPrefix(dev.Image, toolsRef+"@sha256:") || !strings.Contains(dev.Image, docker.BuildResult.Digest.Hex()) {
+		t.Fatalf("dev image %q not the digest-pinned tools image", dev.Image)
 	}
 }
 

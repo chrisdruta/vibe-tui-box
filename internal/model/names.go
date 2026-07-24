@@ -42,6 +42,10 @@ func ExtensionImageRef(id domain.ProjectID) string {
 	return namePrefix + idTag(id) + "-ext"
 }
 
+func ToolsImageRef(id domain.ProjectID) string {
+	return namePrefix + idTag(id) + "-tools"
+}
+
 // Fixed in-container targets for engine-generated mounts. Custom import
 // targets may not equal, contain, or be contained by any of these.
 const (

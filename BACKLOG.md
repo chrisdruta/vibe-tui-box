@@ -19,12 +19,10 @@ stands, their mechanisms ("compose profile", "seeded compose override",
   in tree) still owes: store garbage collection; fuzz targets (schema,
   envfile, ID/digest parsers, request JSON, terminal encoder); a bounded
   plan diff in approval prompts; Sigstore verification behind the existing
-  release `Verifier` seam (checksums.txt today); toolchain/agent install
-  layers consuming `image.agents`/`image.toolchains` (schema-validated
-  today, not yet baked into images); richer payload lifecycle
+  release `Verifier` seam (checksums.txt today); richer payload lifecycle
   (post-create/post-start hooks; the entrypoint currently marks ready and
-  idles); real-daemon CI exercise of extension and dev builds; the first
-  tagged v2 release with the three-platform matrix.
+  idles); real-daemon CI exercise of tools, extension, and dev builds;
+  the first tagged v2 release with the three-platform matrix.
 
 - **Reduced-trust profile for unattended runs (`vibe agent --jailed`).**
   Promised in docs/security.md ("planned but not implemented"). Design

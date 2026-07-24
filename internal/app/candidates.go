@@ -6,12 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/chrisdruta/vibe-tui-box/internal/builder"
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
+	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
 )
 
@@ -41,6 +43,13 @@ func (a *App) prepareCandidate(ctx context.Context, root paths.Root, rec registr
 			return runtime.Candidate{}, fmt.Errorf("resolve image %s: %w", ref, err)
 		}
 		digests[ref] = resolved.Digest
+	}
+	if hasTools(frozen.Manifest) {
+		built, err := a.buildTools(ctx, rec, frozen, digests)
+		if err != nil {
+			return runtime.Candidate{}, err
+		}
+		digests[model.ToolsImageRef(rec.ID)] = built.Digest
 	}
 	if frozen.Manifest.Image.Extension {
 		built, err := a.buildExtension(ctx, rec, frozen, digests)
@@ -99,6 +108,41 @@ func (a *App) prepareCandidate(ctx context.Context, root paths.Root, rec registr
 		return runtime.Candidate{}, err
 	}
 	return runtime.Candidate{Record: candRecord, Plan: plan}, nil
+}
+
+// hasTools reports whether the manifest selects any engine-installed
+// agents or toolchains.
+func hasTools(m schema.Manifest) bool {
+	return len(m.Image.Agents) > 0 || len(m.Image.Toolchains) > 0
+}
+
+// buildTools builds the engine-generated install image. The Dockerfile
+// is engine-authored from the manifest's closed agent/toolchain enums —
+// unlike extension builds it is not project input, so no per-digest
+// operator approval applies. The build context holds nothing but the
+// generated Dockerfile.
+func (a *App) buildTools(ctx context.Context, rec registry.Record, frozen frozenInputs, digests map[string]domain.Digest) (dockerapi.BuiltImage, error) {
+	dockerfile := builder.GenerateInstall(frozen.Manifest.Image.Agents, frozen.Manifest.Image.Toolchains)
+	if err := builder.ValidateDockerfile(dockerfile); err != nil {
+		return dockerapi.BuiltImage{}, fmt.Errorf("generated install dockerfile: %w", err)
+	}
+	contextDir, err := a.deps.Store.NewStaging("tools-context")
+	if err != nil {
+		return dockerapi.BuiltImage{}, err
+	}
+	defer os.RemoveAll(contextDir)
+	if err := os.WriteFile(filepath.Join(contextDir, "Dockerfile"), dockerfile, 0o600); err != nil {
+		return dockerapi.BuiltImage{}, fmt.Errorf("stage tools context: %w", err)
+	}
+
+	base := frozen.Manifest.Image.Base
+	return a.builder.Build(ctx, builder.Candidate{
+		Digest:     domain.SHA256(dockerfile),
+		ContextDir: contextDir,
+		Dockerfile: "Dockerfile",
+		BaseImage:  dockerapi.ResolvedImage{Ref: dockerapi.ImageRef(base), Digest: digests[base]},
+		Tag:        model.ToolsImageRef(rec.ID),
+	}, a.deps.Progress)
 }
 
 // loadArtifact leases the project's pinned artifact for the duration of

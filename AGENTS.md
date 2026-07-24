@@ -170,6 +170,5 @@ fake-backed tests asserting full request equality, not selected fields.
 Tracked in [BACKLOG.md](BACKLOG.md); the notable engine gaps: store GC,
 fuzz targets (schema/envfile/parsers/terminal), bounded plan diff in
 approval prompts, Sigstore verification behind the existing `Verifier`
-seam, real-daemon exercise of extension and dev builds, image layers
-consuming `image.agents`/`image.toolchains`, and the first tagged v2
-release.
+seam, real-daemon exercise of tools, extension, and dev builds, and the
+first tagged v2 release.
