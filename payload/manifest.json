@@ -82,8 +82,8 @@
     {
       "path": "container/tmux-agent.conf",
       "mode": "0644",
-      "size": 1147,
-      "digest": "sha256:a0dd4fb62db2b6015c2c2e08dc5ac60fac76363791d5152d1e7b4701a3ea62e9"
+      "size": 1642,
+      "digest": "sha256:cc7872231bb7a8d64a4e24bc752c4e7fe88405e0300ad9ffe5af4c942138259a"
     },
     {
       "path": "host/scripts/clip-image.sh",
@@ -194,5 +194,5 @@
       "digest": "sha256:cd890404eb7bdebc123ab94392dbfdc54b23221d287079f98506d7ee32720e92"
     }
   ],
-  "digest": "sha256:040d316efa27c16e8a395de3001abaefcb37fd08f5a94bab6e1e058ca0327100"
+  "digest": "sha256:3fe3e6ffd8f66f66bb34398d976d92125a981d5d28791e88292cd9513f1ff691"
 }
