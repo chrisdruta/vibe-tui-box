@@ -118,16 +118,18 @@ var uiCommands = map[string]Command{
 		Usage:   "vibe dev on|sync|off|status",
 		Parse: func(args []string) (Request, error) {
 			var req DevCmdRequest
-			fs := flag.NewFlagSet("dev", flag.ContinueOnError)
-			fs.SetOutput(io.Discard)
-			fs.BoolVar(&req.JSON, "json", false, "")
-			fs.BoolVar(&req.Quiet, "quiet", false, "")
-			if err := fs.Parse(args); err != nil {
+			fs := newFlagSet("dev", &req.Options)
+			if err := parseArgs(fs, args); err != nil {
 				return nil, err
 			}
 			rest := fs.Args()
 			if len(rest) != 1 {
 				return nil, fmt.Errorf("want one of: on, sync, off, status")
+			}
+			switch rest[0] {
+			case "on", "sync", "off", "status":
+			default:
+				return nil, fmt.Errorf("unknown dev subcommand %q (want on, sync, off, status)", rest[0])
 			}
 			req.Sub = rest[0]
 			return &req, nil
@@ -154,7 +156,7 @@ var uiCommands = map[string]Command{
 				}
 				return &devStatusResult{Result: res}, nil
 			default:
-				return nil, &usageError{msg: fmt.Sprintf("unknown dev subcommand %q", r.Sub)}
+				return nil, fmt.Errorf("unreachable")
 			}
 		},
 	},
@@ -179,10 +181,7 @@ type AgentCmdRequest struct {
 
 func parseAgentCmd(args []string) (Request, error) {
 	var req AgentCmdRequest
-	fs := flag.NewFlagSet("agent", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	fs.BoolVar(&req.JSON, "json", false, "emit versioned JSON")
-	fs.BoolVar(&req.Quiet, "quiet", false, "suppress nonessential output")
+	fs := newFlagSet("agent", &req.Options)
 	fs.StringVar(&req.User, "u", "", "container user (default vscode)")
 	fs.BoolVar(&req.Cold, "cold", false, "start without repo instruction files")
 	fs.StringVar(&req.Agent, "a", "", "run this installed agent instead of the manifest's")
@@ -191,7 +190,7 @@ func parseAgentCmd(args []string) (Request, error) {
 	fs.StringVar(&req.Session, "session", "", "alias for -s")
 	fs.BoolVar(&req.Stop, "stop", false, "stop the addressed agent session")
 	fs.BoolVar(&req.Restart, "restart", false, "replace the addressed agent session")
-	if err := fs.Parse(args); err != nil {
+	if err := parseArgs(fs, args); err != nil {
 		return nil, err
 	}
 	if fs.NArg() > 0 {
@@ -208,18 +207,19 @@ func parseAgentCmd(args []string) (Request, error) {
 // stops at the first positional, so the trailing form is folded in here.
 func parseClipCmd(args []string) (Request, error) {
 	var req ClipCmdRequest
-	fs := flag.NewFlagSet("clip", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	fs.BoolVar(&req.JSON, "json", false, "emit versioned JSON")
-	fs.BoolVar(&req.Quiet, "quiet", false, "suppress nonessential output")
+	fs := newFlagSet("clip", &req.Options)
 	fs.BoolVar(&req.PathOnly, "path-only", false, "print only the container path on stdout")
-	if err := fs.Parse(args); err != nil {
+	if err := parseArgs(fs, args); err != nil {
 		return nil, err
 	}
 	for _, arg := range fs.Args() {
 		switch {
 		case arg == "--path-only" || arg == "-path-only":
 			req.PathOnly = true
+		case arg == "--json" || arg == "-json":
+			req.JSON = true
+		case arg == "--quiet" || arg == "-quiet":
+			req.Quiet = true
 		case len(arg) > 0 && arg[0] == '-':
 			return nil, fmt.Errorf("unknown flag %q", arg)
 		case req.DestDir != "":
@@ -249,29 +249,26 @@ func clipEnv() []string {
 	return env
 }
 
-// usageError maps to the usage exit code.
-type usageError struct{ msg string }
-
-func (e *usageError) Error() string { return e.msg }
-
-func (e *usageError) Unwrap() error { return domain.ErrInvalid }
-
 func parseRequestCmd(args []string) (Request, error) {
 	var req RequestCmdRequest
+	fs := newFlagSet("request", &req.Options)
+	fs.BoolVar(&req.Yes, "yes", false, "skip confirmation")
+	fs.StringVar(&req.Message, "m", "", "rejection message")
 	if len(args) == 0 {
 		return nil, fmt.Errorf("want one of: list, show, approve, reject")
 	}
+	// The subcommand word comes first; -h in its place asks for help.
+	if args[0] == "-h" || args[0] == "--help" {
+		return nil, parseArgs(fs, args)
+	}
 	req.Sub = args[0]
-	fs := flag.NewFlagSet("request", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	fs.BoolVar(&req.JSON, "json", false, "")
-	fs.BoolVar(&req.Quiet, "quiet", false, "")
-	fs.BoolVar(&req.Yes, "yes", false, "skip confirmation")
-	fs.StringVar(&req.Message, "m", "", "rejection message")
-	if err := fs.Parse(args[1:]); err != nil {
+	// The documented usage puts flags after the digest (`approve DIGEST
+	// --yes`); stdlib parsing stops at the first positional, so re-parse
+	// around each one.
+	rest, err := parseInterleaved(fs, args[1:])
+	if err != nil {
 		return nil, err
 	}
-	rest := fs.Args()
 	switch req.Sub {
 	case "list":
 		if len(rest) != 0 {

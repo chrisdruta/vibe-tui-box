@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
@@ -98,14 +97,11 @@ var lifecycleCommands = map[string]Command{
 		Usage:   "vibe logs [SERVICE] [-f] [--tail N]",
 		Parse: func(args []string) (Request, error) {
 			var req LogsRequest
-			fs := flag.NewFlagSet("logs", flag.ContinueOnError)
-			fs.SetOutput(io.Discard)
-			fs.BoolVar(&req.JSON, "json", false, "")
-			fs.BoolVar(&req.Quiet, "quiet", false, "")
+			fs := newFlagSet("logs", &req.Options)
 			fs.BoolVar(&req.Follow, "f", false, "follow new output")
 			fs.BoolVar(&req.Follow, "follow", false, "alias for -f")
 			fs.IntVar(&req.Tail, "tail", 0, "last N lines only (default: everything)")
-			if err := fs.Parse(args); err != nil {
+			if err := parseArgs(fs, args); err != nil {
 				return nil, err
 			}
 			rest := fs.Args()
@@ -184,12 +180,9 @@ var lifecycleCommands = map[string]Command{
 		Usage:   "vibe attach [SESSION] [-u USER]",
 		Parse: func(args []string) (Request, error) {
 			var req AttachCmdRequest
-			fs := flag.NewFlagSet("attach", flag.ContinueOnError)
-			fs.SetOutput(io.Discard)
-			fs.BoolVar(&req.JSON, "json", false, "")
-			fs.BoolVar(&req.Quiet, "quiet", false, "")
+			fs := newFlagSet("attach", &req.Options)
 			fs.StringVar(&req.User, "u", "", "container user (default vscode)")
-			if err := fs.Parse(args); err != nil {
+			if err := parseArgs(fs, args); err != nil {
 				return nil, err
 			}
 			switch rest := fs.Args(); len(rest) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"time"
 
@@ -21,13 +20,10 @@ var releaseCommands = map[string]Command{
 		Usage:   "vibe init [--preset NAME] [--auto-memory[=BOOL]] [--json]",
 		Parse: func(args []string) (Request, error) {
 			var req InitRequest
-			fs := flag.NewFlagSet("init", flag.ContinueOnError)
-			fs.SetOutput(io.Discard)
-			fs.BoolVar(&req.JSON, "json", false, "emit versioned JSON")
-			fs.BoolVar(&req.Quiet, "quiet", false, "suppress nonessential output")
+			fs := newFlagSet("init", &req.Options)
 			fs.StringVar(&req.Preset, "preset", "", "preset name (default: minimal)")
 			autoMemory := fs.Bool("auto-memory", false, "enable Claude auto memory (skips the question)")
-			if err := fs.Parse(args); err != nil {
+			if err := parseArgs(fs, args); err != nil {
 				return nil, err
 			}
 			if fs.NArg() > 0 {

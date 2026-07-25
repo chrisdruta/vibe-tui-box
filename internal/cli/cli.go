@@ -4,8 +4,10 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -59,11 +61,15 @@ func Run(ctx context.Context, a *app.App, args []string) int {
 }
 
 func run(ctx context.Context, a *app.App, args []string, stdout, stderr io.Writer) int {
-	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
+	if len(args) == 0 {
 		printHelp(stdout)
-		if len(args) == 0 {
-			return ExitUsage
+		return ExitUsage
+	}
+	if args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
+		if args[0] == "help" && len(args) > 1 {
+			return commandHelp(stdout, stderr, args[1])
 		}
+		printHelp(stdout)
 		return ExitOK
 	}
 	cmd, ok := commandTable[args[0]]
@@ -73,6 +79,10 @@ func run(ctx context.Context, a *app.App, args []string, stdout, stderr io.Write
 	}
 	req, err := cmd.Parse(args[1:])
 	if err != nil {
+		if help, ok := errors.AsType[*helpRequested](err); ok {
+			printCommandHelp(stdout, cmd, help.defaults)
+			return ExitOK
+		}
 		fmt.Fprintf(stderr, "vibe %s: %v\nusage: %s\n", cmd.Name, err, cmd.Usage)
 		return ExitUsage
 	}
@@ -141,4 +151,81 @@ func printHelp(w io.Writer) {
 		fmt.Fprintf(w, "  %-10s %s\n", cmd.Name, cmd.Summary)
 	}
 	fmt.Fprintln(w, "\nGlobal flags: --json (versioned JSON output), --quiet")
+	fmt.Fprintln(w, "Run `vibe help COMMAND` or `vibe COMMAND -h` for command details.")
+}
+
+// commandHelp renders one command's help for `vibe help COMMAND`. The
+// flag defaults come from the command's own parser via the -h path, so
+// help and parsing can never drift apart.
+func commandHelp(stdout, stderr io.Writer, name string) int {
+	cmd, ok := commandTable[name]
+	if !ok {
+		fmt.Fprintf(stderr, "vibe: unknown command %q (see `vibe help`)\n", name)
+		return ExitUsage
+	}
+	_, err := cmd.Parse([]string{"-h"})
+	if help, ok := errors.AsType[*helpRequested](err); ok {
+		printCommandHelp(stdout, cmd, help.defaults)
+	} else {
+		printCommandHelp(stdout, cmd, "")
+	}
+	return ExitOK
+}
+
+func printCommandHelp(w io.Writer, cmd Command, defaults string) {
+	fmt.Fprintf(w, "vibe %s — %s\nusage: %s\n", cmd.Name, cmd.Summary, cmd.Usage)
+	if defaults != "" {
+		fmt.Fprintf(w, "\nflags:\n%s", defaults)
+	}
+}
+
+// helpRequested carries the parser's generated flag defaults out of a
+// Parse func when the user asked for -h/--help; the dispatcher renders
+// it as help on stdout with exit 0, never as a usage error.
+type helpRequested struct{ defaults string }
+
+func (e *helpRequested) Error() string { return "help requested" }
+
+// newFlagSet builds a command flag set with the shared global flags.
+// Output goes nowhere: parse errors render through the dispatcher, and
+// -h/--help renders through helpRequested.
+func newFlagSet(name string, opts *Options) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.BoolVar(&opts.JSON, "json", false, "emit versioned JSON")
+	fs.BoolVar(&opts.Quiet, "quiet", false, "suppress nonessential output")
+	return fs
+}
+
+// parseArgs parses args, translating the flag package's ErrHelp into a
+// helpRequested carrying the rendered flag defaults.
+func parseArgs(fs *flag.FlagSet, args []string) error {
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			var buf bytes.Buffer
+			fs.SetOutput(&buf)
+			fs.PrintDefaults()
+			return &helpRequested{defaults: buf.String()}
+		}
+		return err
+	}
+	return nil
+}
+
+// parseInterleaved parses args accepting flags before and after
+// positionals (stdlib parsing stops at the first positional), returning
+// the positionals in order.
+func parseInterleaved(fs *flag.FlagSet, args []string) ([]string, error) {
+	if err := parseArgs(fs, args); err != nil {
+		return nil, err
+	}
+	var positionals []string
+	for fs.NArg() > 0 {
+		rest := fs.Args()
+		positionals = append(positionals, rest[0])
+		if err := parseArgs(fs, rest[1:]); err != nil {
+			return nil, err
+		}
+	}
+	return positionals, nil
 }

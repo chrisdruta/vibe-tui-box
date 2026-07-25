@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
+	"maps"
 	"os"
 	"strings"
 	"time"
@@ -108,9 +108,7 @@ var commandTable = map[string]Command{
 // point.
 func init() {
 	for _, group := range []map[string]Command{lifecycleCommands, releaseCommands, uiCommands} {
-		for name, cmd := range group {
-			commandTable[name] = cmd
-		}
+		maps.Copy(commandTable, group)
 	}
 }
 
@@ -226,16 +224,13 @@ func (r *ExecRequest) containerCommand() (app.ContainerCommand, func()) {
 func parseExecStyle(name string, withArgv bool) func(args []string) (Request, error) {
 	return func(args []string) (Request, error) {
 		var req ExecRequest
-		fs := flag.NewFlagSet(name, flag.ContinueOnError)
-		fs.SetOutput(io.Discard)
-		fs.BoolVar(&req.JSON, "json", false, "emit versioned JSON")
-		fs.BoolVar(&req.Quiet, "quiet", false, "suppress nonessential output")
+		fs := newFlagSet(name, &req.Options)
 		fs.StringVar(&req.User, "u", "", "container user (default vscode)")
 		if withArgv {
 			fs.StringVar(&req.Workdir, "w", "", "working directory inside the container")
 			fs.Var(&req.Env, "e", "environment entry KEY=VALUE (repeatable)")
 		}
-		if err := fs.Parse(args); err != nil {
+		if err := parseArgs(fs, args); err != nil {
 			return nil, err
 		}
 		req.Argv = fs.Args()
@@ -266,15 +261,12 @@ func (e *envList) Set(v string) error {
 // parseInto builds a flag set with the shared global flags, lets setup
 // register command flags, and rejects positional leftovers.
 func parseInto(args []string, name string, opts *Options, setup func(*flag.FlagSet) any) (Request, error) {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	fs.BoolVar(&opts.JSON, "json", false, "emit versioned JSON")
-	fs.BoolVar(&opts.Quiet, "quiet", false, "suppress nonessential output")
+	fs := newFlagSet(name, opts)
 	var req any
 	if setup != nil {
 		req = setup(fs)
 	}
-	if err := fs.Parse(args); err != nil {
+	if err := parseArgs(fs, args); err != nil {
 		return nil, err
 	}
 	if fs.NArg() > 0 {
