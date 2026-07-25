@@ -11,4 +11,3 @@ agent:
   tmux: true
 bootstrap:
   required: [git, go]
-  auto: {install: true, git_hooks: false, git_lfs: false}
