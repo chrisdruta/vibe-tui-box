@@ -36,8 +36,14 @@ type Record struct {
 	ReleaseVersion string             `json:"release_version,omitempty"`
 	Mode           Mode               `json:"mode"`
 	Approved       *domain.Digest     `json:"approved_candidate,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+	// AgentRefresh is the current agent-refresh generation: a token set by
+	// `vibe rebuild --refresh-agents` and folded into the tools-image
+	// build so the channel-tracking agents (claude, codex, grok) re-pull
+	// to latest and then stay warm until the next refresh. Empty means the
+	// project has never refreshed (agents install at their engine pins).
+	AgentRefresh string    `json:"agent_refresh,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // NewRecord carries the caller-supplied fields for Create; the registry

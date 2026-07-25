@@ -12,8 +12,8 @@ result, and exits with a stable code: 0 ok, 1 failure, 2 usage,
 | --- | --- |
 | `vibe init [--preset NAME] [--auto-memory[=BOOL]]` | Seed `.vibe/` from an embedded preset (`minimal`, `go`, `node`, `bun`, `playwright`), register, pin the newest artifact. Interactive runs ask about Claude auto memory unless the flag decides it; scripted/`--json` runs default it off |
 | `vibe register [--name NAME]` | Register an existing project |
-| `vibe up` | Freeze inputs → compile candidate → reconcile containers → mark approved |
-| `vibe rebuild` | Same, but recreate containers even when already in sync |
+| `vibe up [--refresh-agents]` | Freeze inputs → compile candidate → reconcile containers → mark approved. `--refresh-agents` re-pulls the channel-tracking agents (claude, codex, grok) to latest and makes that the project's new baseline |
+| `vibe rebuild [--refresh-agents]` | Same, but recreate containers even when already in sync |
 | `vibe down [--volumes]` | Stop and remove containers and network; volumes survive unless asked |
 | `vibe status` | Containers vs the approved candidate (running / stopped / stale) |
 | `vibe config` | Print the canonical plan JSON compiled from current inputs |

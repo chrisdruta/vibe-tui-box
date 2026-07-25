@@ -26,6 +26,10 @@ type Candidate struct {
 	Dockerfile string        // path within the context
 	BaseImage  dockerapi.ResolvedImage
 	Tag        string
+	// RefreshToken, when non-empty, is passed as AgentRefreshArg to bust
+	// the channel-tracking agent layers' cache (tools builds only; empty
+	// for extension builds).
+	RefreshToken string
 }
 
 // ValidateDockerfile enforces the closed contract:
@@ -114,10 +118,14 @@ func (s *Service) Build(ctx context.Context, cand Candidate, sink dockerapi.Prog
 		}
 		base += "@" + cand.BaseImage.Digest.String()
 	}
+	buildArgs := map[string]string{BaseImageArg: base}
+	if cand.RefreshToken != "" {
+		buildArgs[AgentRefreshArg] = cand.RefreshToken
+	}
 	return s.docker.Build(ctx, dockerapi.BuildRequest{
 		Tag:        cand.Tag,
 		ContextDir: cand.ContextDir,
 		Dockerfile: cand.Dockerfile,
-		BuildArgs:  map[string]string{BaseImageArg: base},
+		BuildArgs:  buildArgs,
 	}, sink)
 }

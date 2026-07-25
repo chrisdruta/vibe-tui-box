@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
@@ -163,6 +164,11 @@ func loadManifestFile(path string) (*schema.Document, error) {
 type UpRequest struct {
 	Dir   string
 	Force bool // replace containers even when already in sync (rebuild)
+	// RefreshAgents mints a fresh agent-refresh token before compiling, so
+	// the channel-tracking agents (claude, codex, grok) re-pull to latest
+	// and the token persists as the project's new baseline. Honored by
+	// both up and rebuild.
+	RefreshAgents bool
 }
 
 type UpResult struct {
@@ -183,6 +189,13 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 	if err := a.deps.Docker.Ping(ctx); err != nil {
 		return UpResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
 	}
+	// A refresh mints a new token before compiling so the tools image
+	// re-pulls the channel-tracking agents; it is persisted below (with
+	// Approved) only once the containers are actually up. A plain up keeps
+	// the record's existing token, so the agents stay warm-cached.
+	if req.RefreshAgents {
+		rec.AgentRefresh = a.deps.Clock.Now().UTC().Format(time.RFC3339Nano)
+	}
 	cand, err := a.prepareCandidate(ctx, root, rec)
 	if err != nil {
 		return UpResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
@@ -199,6 +212,9 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 	// the approved-candidate pointer.
 	updated, err := a.deps.Registry.Update(ctx, rec.ID, rec.Revision, func(r *registry.Record) error {
 		r.Approved = &cand.Record.Digest
+		if req.RefreshAgents {
+			r.AgentRefresh = rec.AgentRefresh
+		}
 		return nil
 	})
 	if err != nil {

@@ -130,7 +130,10 @@ type PSRequest struct{ Options }
 
 type ForgetRequest struct{ Options }
 
-type UpRequest struct{ Options }
+type UpRequest struct {
+	Options
+	RefreshAgents bool
+}
 
 type ProvisionRequest struct{ Options }
 
@@ -157,7 +160,10 @@ type GCRequest struct {
 	MinAge time.Duration
 }
 
-type RebuildRequest struct{ Options }
+type RebuildRequest struct {
+	Options
+	RefreshAgents bool
+}
 
 type DownRequest struct {
 	Options

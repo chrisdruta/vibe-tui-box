@@ -15,12 +15,15 @@ import (
 
 // Engine-owned install pins. Claude and grok deliberately float on
 // their installers' stable/latest channel (the one consciously mutable
-// component); everything else moves only with engine releases.
-// Version-lock machinery beyond these pins is deferred by decision
-// record (BACKLOG.md).
+// component); everything else moves only with engine releases. In
+// practice the Docker layer cache freezes even the floating installers
+// at first build — `vibe rebuild --refresh-agents` (the refresh path
+// below) is how the operator re-pulls them. Version-lock machinery
+// beyond these pins is deferred by decision record (BACKLOG.md).
 const (
 	claudeChannel = "stable"
 	codexVersion  = "0.144.1"
+	codexChannel  = "latest" // --refresh-agents floats codex to this npm dist-tag
 	nodeMajor     = "22"
 	bunVersion    = "1.3.14"
 	rokitVersion  = "1.2.0"
@@ -29,12 +32,27 @@ const (
 	goSHA256ARM64 = "fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49"
 )
 
+// AgentRefreshArg is the build arg that busts the Docker layer cache for
+// the channel-tracking agent installers. `vibe rebuild --refresh-agents`
+// stamps it with a fresh value so those layers — and only those — re-run
+// and re-pull the latest agent builds; the pinned system toolchains sit
+// in earlier layers and stay cached. When a project has never been
+// refreshed the arg is absent and the generated Dockerfile is
+// byte-identical to the pre-feature output.
+const AgentRefreshArg = "VIBE_AGENT_REFRESH"
+
 // GenerateInstall renders the install Dockerfile for the given
-// selection. The output is a pure function of the selection — canonical
-// layer order, engine-pinned versions — so identical selections yield
-// identical bytes and a warm Docker layer cache. The result always
-// satisfies ValidateDockerfile. Nil means nothing to install.
-func GenerateInstall(agents []schema.AgentKind, toolchains []schema.Toolchain) []byte {
+// selection. The output is a pure function of the selection (and the
+// refresh flag) — canonical layer order, engine-pinned versions — so
+// identical inputs yield identical bytes and a warm Docker layer cache.
+// The result always satisfies ValidateDockerfile. Nil means nothing to
+// install.
+//
+// refresh weaves the AgentRefreshArg cache-buster into the
+// channel-tracking agent layers (claude, codex, grok) and floats codex
+// to its latest npm dist-tag; it never touches the pinned system
+// toolchains. refresh=false reproduces the pre-feature bytes exactly.
+func GenerateInstall(agents []schema.AgentKind, toolchains []schema.Toolchain, refresh bool) []byte {
 	want := map[string]bool{}
 	for _, a := range agents {
 		want[string(a)] = true
@@ -66,7 +84,7 @@ func GenerateInstall(agents []schema.AgentKind, toolchains []schema.Toolchain) [
 		}
 	}
 	b.WriteString("\nUSER vscode\n")
-	for _, l := range userLayers(want) {
+	for _, l := range userLayers(want, refresh) {
 		b.WriteString("\n" + l)
 	}
 	return []byte(b.String())
@@ -157,19 +175,48 @@ RUN command -v unzip >/dev/null 2>&1 \
 	return out
 }
 
+// refreshBust returns the shell prefix that ties a channel-tracking
+// agent layer's cache key to the refresh token: after variable
+// expansion the RUN text embeds the token value, so a new token misses
+// the cache and re-runs the installer. Empty when not refreshing, which
+// keeps the non-refresh layers byte-identical to the pre-feature output.
+func refreshBust(refresh bool) string {
+	if !refresh {
+		return ""
+	}
+	return `: "agents-refresh=${` + AgentRefreshArg + `}" \
+    && `
+}
+
 // userLayers renders the layers that install as vscode into the home
 // directory. Fixed order: agents (claude, codex, grok), then bun,
-// rokit.
-func userLayers(want map[string]bool) []string {
+// rokit. When refresh is set, the agent layers gain the AgentRefreshArg
+// cache-buster (declared once, up front) and codex floats to its latest
+// dist-tag; bun and rokit stay pinned but, sitting after the agents,
+// re-run too when a refresh busts the chain (cheap — the expensive
+// system toolchains live in rootLayers, before USER vscode).
+func userLayers(want map[string]bool, refresh bool) []string {
 	var out []string
+	if refresh && wantsAgent(want) {
+		out = append(out, `# Agent refresh: this build arg's value (a fresh timestamp per
+# --refresh-agents) is woven into the channel-tracking installers below
+# so their Docker layer cache misses and re-pulls the latest builds.
+ARG `+AgentRefreshArg+`
+`)
+	}
 	if want[string(schema.AgentClaude)] {
 		out = append(out, `# Claude Code: the installer's `+claudeChannel+` channel.
-RUN curl -fsSL https://claude.ai/install.sh | bash -s -- `+claudeChannel+` \
+RUN `+refreshBust(refresh)+`curl -fsSL https://claude.ai/install.sh | bash -s -- `+claudeChannel+` \
     && test -x /home/vscode/.local/bin/claude
 `)
 	}
 	if want[string(schema.AgentCodex)] {
-		out = append(out, `RUN npm install -g --prefix /home/vscode/.local "@openai/codex@`+codexVersion+`"
+		// Pinned by default; --refresh-agents floats codex to npm's latest.
+		codexSpec := codexVersion
+		if refresh {
+			codexSpec = codexChannel
+		}
+		out = append(out, `RUN `+refreshBust(refresh)+`npm install -g --prefix /home/vscode/.local "@openai/codex@`+codexSpec+`"
 `)
 	}
 	if want[string(schema.AgentGrok)] {
@@ -178,7 +225,7 @@ RUN curl -fsSL https://claude.ai/install.sh | bash -s -- `+claudeChannel+` \
 # volume BEFORE install. The installer symlinks grok/agent into
 # GROK_BIN_DIR pointing at ~/.grok/downloads/, which the runtime volume
 # mount would shadow — so the real binary is materialized instead.
-RUN mkdir -p /home/vscode/.agents/grok \
+RUN `+refreshBust(refresh)+`mkdir -p /home/vscode/.agents/grok \
     && ln -s /home/vscode/.agents/grok /home/vscode/.grok \
     && curl -fsSL https://x.ai/cli/install.sh | GROK_BIN_DIR=/home/vscode/.local/bin bash -s -- \
     && bin="$(readlink -f /home/vscode/.local/bin/grok)" \

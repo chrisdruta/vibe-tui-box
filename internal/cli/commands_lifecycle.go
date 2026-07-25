@@ -17,13 +17,18 @@ var lifecycleCommands = map[string]Command{
 	"up": {
 		Name:    "up",
 		Summary: "compile a candidate and start the project containers",
-		Usage:   "vibe up [--json]",
+		Usage:   "vibe up [--refresh-agents] [--json]",
 		Parse: func(args []string) (Request, error) {
 			var req UpRequest
-			return parseInto(args, "up", &req.Options, nil)
+			return parseInto(args, "up", &req.Options, func(fs *flag.FlagSet) any {
+				fs.BoolVar(&req.RefreshAgents, "refresh-agents", false,
+					"re-pull the channel-tracking agents (claude, codex, grok) to latest")
+				return &req
+			})
 		},
 		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.Up(ctx, app.UpRequest{Dir: mustCwd()})
+			r := req.(*UpRequest)
+			res, err := a.Up(ctx, app.UpRequest{Dir: mustCwd(), RefreshAgents: r.RefreshAgents})
 			if err != nil {
 				return nil, err
 			}
@@ -33,13 +38,18 @@ var lifecycleCommands = map[string]Command{
 	"rebuild": {
 		Name:    "rebuild",
 		Summary: "recreate containers from freshly compiled inputs",
-		Usage:   "vibe rebuild [--json]",
+		Usage:   "vibe rebuild [--refresh-agents] [--json]",
 		Parse: func(args []string) (Request, error) {
 			var req RebuildRequest
-			return parseInto(args, "rebuild", &req.Options, nil)
+			return parseInto(args, "rebuild", &req.Options, func(fs *flag.FlagSet) any {
+				fs.BoolVar(&req.RefreshAgents, "refresh-agents", false,
+					"re-pull the channel-tracking agents (claude, codex, grok) to latest")
+				return &req
+			})
 		},
 		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.Up(ctx, app.UpRequest{Dir: mustCwd(), Force: true})
+			r := req.(*RebuildRequest)
+			res, err := a.Up(ctx, app.UpRequest{Dir: mustCwd(), Force: true, RefreshAgents: r.RefreshAgents})
 			if err != nil {
 				return nil, err
 			}

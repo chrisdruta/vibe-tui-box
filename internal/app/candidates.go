@@ -132,7 +132,12 @@ func hasTools(m schema.Manifest) bool {
 // operator approval applies. The build context holds nothing but the
 // generated Dockerfile.
 func (a *App) buildTools(ctx context.Context, rec registry.Record, frozen frozenInputs, digests map[string]domain.Digest) (dockerapi.BuiltImage, error) {
-	dockerfile := builder.GenerateInstall(frozen.Manifest.Image.Agents, frozen.Manifest.Image.Toolchains)
+	// A non-empty AgentRefresh (set by `vibe rebuild --refresh-agents` and
+	// persisted on the record) floats the channel-tracking agents and
+	// stamps their layers with the token so the refresh re-pulls and then
+	// stays warm-cached until the next refresh.
+	refresh := rec.AgentRefresh != ""
+	dockerfile := builder.GenerateInstall(frozen.Manifest.Image.Agents, frozen.Manifest.Image.Toolchains, refresh)
 	if err := builder.ValidateDockerfile(dockerfile); err != nil {
 		return dockerapi.BuiltImage{}, fmt.Errorf("generated install dockerfile: %w", err)
 	}
@@ -147,11 +152,12 @@ func (a *App) buildTools(ctx context.Context, rec registry.Record, frozen frozen
 
 	base := frozen.Manifest.Image.Base
 	return a.builder.Build(ctx, builder.Candidate{
-		Digest:     domain.SHA256(dockerfile),
-		ContextDir: contextDir,
-		Dockerfile: "Dockerfile",
-		BaseImage:  dockerapi.ResolvedImage{Ref: dockerapi.ImageRef(base), Digest: digests[base]},
-		Tag:        model.ToolsImageRef(rec.ID),
+		Digest:       domain.SHA256(dockerfile),
+		ContextDir:   contextDir,
+		Dockerfile:   "Dockerfile",
+		BaseImage:    dockerapi.ResolvedImage{Ref: dockerapi.ImageRef(base), Digest: digests[base]},
+		Tag:          model.ToolsImageRef(rec.ID),
+		RefreshToken: rec.AgentRefresh,
 	}, a.deps.Progress)
 }
 

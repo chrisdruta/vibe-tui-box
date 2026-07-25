@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chrisdruta/vibe-tui-box/internal/builder"
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
@@ -166,6 +167,92 @@ func TestRebuildUnchangedInputsUnderMovingClock(t *testing.T) {
 	}
 	if want := time.Date(2026, 7, 23, 12, 0, 1, 0, time.UTC); !recCand.CreatedAt.Equal(want) {
 		t.Fatalf("created_at %s, want the original %s", recCand.CreatedAt, want)
+	}
+}
+
+// lastToolsRefreshArg returns the AgentRefreshArg carried by the most
+// recent tools-image build, and whether it was present at all. The test
+// manifest builds only the tools image, so every Build call is one.
+func lastToolsRefreshArg(t *testing.T, docker *dockerfake.Client) (string, bool) {
+	t.Helper()
+	builds := docker.CallsTo("Build")
+	if len(builds) == 0 {
+		t.Fatal("no tools image was built")
+	}
+	req := builds[len(builds)-1].Request.(dockerapi.BuildRequest)
+	v, ok := req.BuildArgs[builder.AgentRefreshArg]
+	return v, ok
+}
+
+// --refresh-agents mints a token, threads it into the tools build, and
+// persists it so later plain rebuilds keep the refreshed agents (warm)
+// instead of reverting to the cache-frozen build.
+func TestRebuildRefreshAgents(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Plain up: no refresh token minted or passed to the build.
+	up, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up.Record.AgentRefresh != "" {
+		t.Fatalf("plain up set a refresh token: %q", up.Record.AgentRefresh)
+	}
+	if v, ok := lastToolsRefreshArg(t, docker); ok {
+		t.Fatalf("plain up passed a refresh build arg: %q", v)
+	}
+
+	// Rebuild --refresh-agents: token minted, passed to the build, persisted.
+	rb, err := a.Up(ctx, UpRequest{Dir: dir, Force: true, RefreshAgents: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := rb.Record.AgentRefresh
+	if token == "" {
+		t.Fatal("refresh did not persist a token")
+	}
+	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != token {
+		t.Fatalf("refresh build arg = (%q, %v), want persisted token %q", v, ok, token)
+	}
+
+	// A later plain rebuild keeps the same token and still passes it —
+	// the refreshed agents do not revert.
+	rb2, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rb2.Record.AgentRefresh != token {
+		t.Fatalf("plain rebuild changed the token: %q -> %q", token, rb2.Record.AgentRefresh)
+	}
+	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != token {
+		t.Fatalf("plain rebuild dropped the token: got (%q, %v), want %q", v, ok, token)
+	}
+}
+
+// The refresh path is not gated on Force: `vibe up --refresh-agents`
+// mints, threads, and persists the token exactly like rebuild does.
+func TestUpRefreshAgents(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	up, err := a.Up(ctx, UpRequest{Dir: dir, RefreshAgents: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := up.Record.AgentRefresh
+	if token == "" {
+		t.Fatal("up --refresh-agents did not persist a token")
+	}
+	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != token {
+		t.Fatalf("up refresh build arg = (%q, %v), want %q", v, ok, token)
 	}
 }
 

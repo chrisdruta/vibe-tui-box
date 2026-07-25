@@ -29,6 +29,15 @@ The v1 line and its history remain in git up to the cutover commit.
   base. Engine-authored, so no per-digest approval — no project bytes
   enter the build; the manifest only selects recipes. The dogfood
   manifest drops its hand-rolled claude-install extension Dockerfile.
+- New: `--refresh-agents` on `vibe up` / `vibe rebuild` re-pulls the
+  channel-tracking agents to latest. The agent installers otherwise freeze at whatever
+  the Docker layer cache captured on the first build, so a plain rebuild
+  keeps yesterday's Claude; the flag weaves a per-refresh cache-buster
+  into just the claude/codex/grok layers (codex floats to its `latest`
+  npm dist-tag), rebuilds them, and persists the refresh generation on
+  the project record so later plain rebuilds stay on the fresh build
+  (warm-cached) instead of reverting. The pinned system toolchains
+  (Go/Node/apt) sit in earlier layers and never rebuild.
 - New: claude logins persist across rebuilds. With `claude` in
   `image.agents` the plan sets `CLAUDE_CONFIG_DIR` to the agent-state
   volume, and the generated tools image bakes the mount point

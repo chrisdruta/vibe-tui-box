@@ -47,6 +47,17 @@ bootstrap:
   Unlike the extension there is no approval prompt: the install
   Dockerfile is engine-authored, never project input. `agent.cmd` must
   be listed in `image.agents`.
+
+  The agent CLIs track a mutable channel (claude/grok: their installer's
+  stable/latest; codex: an engine version pin), so the Docker layer
+  cache pins whichever build it captured first — a plain `vibe rebuild`
+  keeps that build. `--refresh-agents` (on `vibe up` or `vibe rebuild`)
+  re-pulls them: it weaves a per-refresh cache-buster into only the
+  agent layers (and
+  floats codex to its `latest` npm dist-tag), then records the refresh
+  generation on the project so subsequent plain rebuilds stay on the
+  fresh build. System toolchains (Go/Node/apt) are pinned and never move
+  on a refresh.
 - **`runtime.ports`** — published ports must bind a loopback IP; there
   is no way to expose a container to the network. The sanctioned use is
   host tooling that must reach a server inside (e.g. Roblox Studio →
