@@ -199,11 +199,21 @@ type AttachCmdRequest struct {
 // further output.
 func (r *ExecRequest) containerCommand() (app.ContainerCommand, func()) {
 	streams, tty, restore := setupStreams(true)
+	env := r.Env
+	// The container process talks to THIS terminal through the exec
+	// pty, but docker defaults the exec's TERM to plain "xterm" — an
+	// inner tmux then misjudges its real outer terminal and drops
+	// capabilities at the boundary (sync died there: the 3.7b
+	// ghost-cursor flicker). Forward the truth; an explicit -e TERM
+	// still wins (later duplicate entries override).
+	if term := os.Getenv("TERM"); term != "" && tty {
+		env = append([]envfile.Entry{{Key: "TERM", Value: term}}, r.Env...)
+	}
 	return app.ContainerCommand{
 		Dir:     mustCwd(),
 		User:    r.User,
 		Workdir: r.Workdir,
-		Env:     r.Env,
+		Env:     env,
 		Argv:    r.Argv,
 		TTY:     tty,
 		Stdin:   true,

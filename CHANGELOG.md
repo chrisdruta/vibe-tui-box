@@ -61,6 +61,19 @@ The v1 line and its history remain in git up to the cutover commit.
   3.3a) and splitting container tmux semantics from the host's. The
   carrier probe accepts both the pinned and the old apt path, so
   pre-pin images keep working until their next rebuild.
+- Fixed: agent-pane flicker under the pinned tmux (ghost cursors during
+  streaming — a known Claude-Code-in-tmux class: 3.7b advertises
+  synchronized updates to the agent, but each tmux hop only EMULATES
+  sync, and the chain outward was never declared). Now every hop is
+  real: the engine forwards the caller's TERM through interactive
+  container execs (docker defaulted the pty to bare "xterm", which
+  negotiated everything except sync), the inner server declares
+  tmux*:RGB/sync/extkeys for its host-pane terminal, and the host conf
+  declares xterm*:sync toward the outer emulator. Escape hatches if a
+  CLI still misdetects: /tui fullscreen or CLAUDE_CODE_NO_FLICKER=1.
+- New: the bar gained a top border — a dim rule line (status 2), the
+  boundary between pane content and the tray the dock strip alone
+  didn't provide.
 - New: the bar is a bottom system tray. `🥡 vibe` is a clickable start
   button (palette; the `+` cell too — one definition in
   `scripts/palette.sh` behind key and clicks), window tabs show dot +

@@ -82,8 +82,8 @@
     {
       "path": "container/tmux-agent.conf",
       "mode": "0644",
-      "size": 1642,
-      "digest": "sha256:cc7872231bb7a8d64a4e24bc752c4e7fe88405e0300ad9ffe5af4c942138259a"
+      "size": 2172,
+      "digest": "sha256:fd02e5aad1a03539dc50900ddc898e4e24d33b23945d952baa500eb6ca3b3048"
     },
     {
       "path": "host/scripts/clip-image.sh",
@@ -130,8 +130,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 18493,
-      "digest": "sha256:d54b982369ede9700513fd097eff11e1f5ed040e8f73ebb858cfa1e25a684653"
+      "size": 20344,
+      "digest": "sha256:19e7967c97c01883b85e303d50520b71c7430bef76af078963277fdc053d5a82"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -194,5 +194,5 @@
       "digest": "sha256:cd890404eb7bdebc123ab94392dbfdc54b23221d287079f98506d7ee32720e92"
     }
   ],
-  "digest": "sha256:80c2d48ceb314fc66f8ce5c6847ec9a277bb27f962436c452ef354fff76c09af"
+  "digest": "sha256:f016f89714af150058aaa2824dda3843193879402d9e2ba3ab2b95fab8b7ca07"
 }
