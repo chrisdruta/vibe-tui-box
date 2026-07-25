@@ -25,9 +25,9 @@ var lifecycleCommands = map[string]Command{
 				return &req
 			})
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*UpRequest)
-			res, err := a.Up(ctx, app.UpRequest{Dir: mustCwd(), RefreshAgents: r.RefreshAgents})
+			res, err := a.Up(ctx, app.UpRequest{Dir: dir, RefreshAgents: r.RefreshAgents})
 			if err != nil {
 				return nil, err
 			}
@@ -46,9 +46,9 @@ var lifecycleCommands = map[string]Command{
 				return &req
 			})
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*RebuildRequest)
-			res, err := a.Up(ctx, app.UpRequest{Dir: mustCwd(), Force: true, RefreshAgents: r.RefreshAgents})
+			res, err := a.Up(ctx, app.UpRequest{Dir: dir, Force: true, RefreshAgents: r.RefreshAgents})
 			if err != nil {
 				return nil, err
 			}
@@ -66,9 +66,9 @@ var lifecycleCommands = map[string]Command{
 				return &req
 			})
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*DownRequest)
-			res, err := a.Down(ctx, app.DownRequest{Dir: mustCwd(), RemoveVolumes: r.Volumes})
+			res, err := a.Down(ctx, app.DownRequest{Dir: dir, RemoveVolumes: r.Volumes})
 			if err != nil {
 				return nil, err
 			}
@@ -83,8 +83,8 @@ var lifecycleCommands = map[string]Command{
 			var req StatusRequest
 			return parseInto(args, "status", &req.Options, nil)
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.Status(ctx, app.StatusRequest{Dir: mustCwd()})
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			res, err := a.Status(ctx, app.StatusRequest{Dir: dir})
 			if err != nil {
 				return nil, err
 			}
@@ -114,10 +114,10 @@ var lifecycleCommands = map[string]Command{
 			}
 			return &req, nil
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*LogsRequest)
 			err := a.Logs(ctx, app.LogsRequest{
-				Dir:     mustCwd(),
+				Dir:     dir,
 				Service: r.Service,
 				Follow:  r.Follow,
 				Tail:    r.Tail,
@@ -131,9 +131,9 @@ var lifecycleCommands = map[string]Command{
 		Summary: "run a command in the dev container (explicit env only)",
 		Usage:   "vibe exec [-u USER] [-w DIR] [-e KEY=VALUE]... -- CMD [ARGS...]",
 		Parse:   parseExecStyle("exec", true),
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*ExecRequest)
-			cmd, restore := r.containerCommand()
+			cmd, restore := r.containerCommand(dir)
 			defer restore()
 			res, err := a.Exec(ctx, cmd)
 			if err != nil {
@@ -147,9 +147,9 @@ var lifecycleCommands = map[string]Command{
 		Summary: "run a command with the project's frozen env file",
 		Usage:   "vibe run [-u USER] [-w DIR] [-e KEY=VALUE]... -- CMD [ARGS...]",
 		Parse:   parseExecStyle("run", true),
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*ExecRequest)
-			cmd, restore := r.containerCommand()
+			cmd, restore := r.containerCommand(dir)
 			defer restore()
 			res, err := a.Run(ctx, cmd)
 			if err != nil {
@@ -163,9 +163,9 @@ var lifecycleCommands = map[string]Command{
 		Summary: "open an interactive shell in the dev container",
 		Usage:   "vibe shell [-u USER]",
 		Parse:   parseExecStyle("shell", false),
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*ExecRequest)
-			cmd, restore := r.containerCommand()
+			cmd, restore := r.containerCommand(dir)
 			defer restore()
 			res, err := a.Shell(ctx, cmd)
 			if err != nil {
@@ -194,9 +194,9 @@ var lifecycleCommands = map[string]Command{
 			}
 			return &req, nil
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*AttachCmdRequest)
-			cmd, restore := r.containerCommand()
+			cmd, restore := r.containerCommand(dir)
 			defer restore()
 			res, err := a.Attach(ctx, app.AttachRequest{ContainerCommand: cmd, Session: r.Session})
 			if err != nil {

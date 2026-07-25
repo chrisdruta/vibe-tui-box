@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -295,6 +297,43 @@ func TestRunVersion(t *testing.T) {
 	}
 	if envelope.Format != 1 || envelope.Kind != "version" || envelope.Data.Release != "test" {
 		t.Fatalf("envelope contract broken: %+v", envelope)
+	}
+}
+
+// TestRunDeletedCwd covers the cwd seam: the dispatcher resolves the
+// working directory once and fails fast when it is gone, while commands
+// declaring NoCwd keep working from a deleted directory.
+func TestRunDeletedCwd(t *testing.T) {
+	a := newTestApp(t)
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig)
+	gone := filepath.Join(t.TempDir(), "gone")
+	if err := os.Mkdir(gone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(gone); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(gone); err != nil {
+		t.Fatal(err)
+	}
+
+	// A command needing the project cwd fails fast and loud (not silently
+	// relative to some fallback), with the general failure exit code.
+	code, _, errOut := dispatch(t, a, "config")
+	if code != ExitFailure || !strings.Contains(errOut, "cannot determine working directory") {
+		t.Fatalf("config in deleted cwd: code %d, stderr %q", code, errOut)
+	}
+
+	// NoCwd commands still work from a deleted directory.
+	if code, out, _ := dispatch(t, a, "version"); code != ExitOK || out != "test\n" {
+		t.Fatalf("version in deleted cwd: code %d, out %q", code, out)
+	}
+	if code, _, errOut := dispatch(t, a, "gc"); code != ExitOK {
+		t.Fatalf("gc in deleted cwd: code %d, stderr %q", code, errOut)
 	}
 }
 

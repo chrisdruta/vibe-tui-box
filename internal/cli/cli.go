@@ -40,13 +40,19 @@ type Result interface {
 
 // Command binds one name to a parser and a runner. Parsers return
 // typed requests; a partially parsed flag set never crosses into app.
+//
+// dir is the process working directory, resolved once by the dispatcher
+// and handed to Run as the project-identity input nearly every command
+// needs. Commands that do not need one (version, gc, the input-only
+// renderers) set NoCwd so they still work from a deleted cwd.
 type Command struct {
 	Name    string
 	Summary string
 	Usage   string
 	Hidden  bool
+	NoCwd   bool
 	Parse   func(args []string) (Request, error)
-	Run     func(ctx context.Context, a *app.App, req Request) (Result, error)
+	Run     func(ctx context.Context, a *app.App, req Request, dir string) (Result, error)
 }
 
 // Options carries output mode selected by global flags.
@@ -86,7 +92,21 @@ func run(ctx context.Context, a *app.App, args []string, stdout, stderr io.Write
 		fmt.Fprintf(stderr, "vibe %s: %v\nusage: %s\n", cmd.Name, err, cmd.Usage)
 		return ExitUsage
 	}
-	res, err := cmd.Run(ctx, a, req)
+	// cwd is the project-identity input for nearly every command, so
+	// resolve it once here and fail fast and loud if it is gone (a deleted
+	// working directory), rather than letting each command silently
+	// proceed relative to some fallback. Commands that need no cwd skip it
+	// and keep working from a deleted directory.
+	var dir string
+	if !cmd.NoCwd {
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(stderr, "vibe %s: cannot determine working directory (was it removed?): %v\n", cmd.Name, err)
+			return ExitFailure
+		}
+		dir = cwd
+	}
+	res, err := cmd.Run(ctx, a, req, dir)
 	if err != nil {
 		fmt.Fprintf(stderr, "vibe %s: %v\n", cmd.Name, err)
 		return exitCode(err)

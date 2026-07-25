@@ -38,10 +38,10 @@ var releaseCommands = map[string]Command{
 			})
 			return &req, nil
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*InitRequest)
 			res, err := a.Init(ctx, app.InitRequest{
-				Dir:        mustCwd(),
+				Dir:        dir,
 				Preset:     r.Preset,
 				AutoMemory: r.AutoMemory,
 				// The question needs a human on both ends: stdin to
@@ -64,8 +64,8 @@ var releaseCommands = map[string]Command{
 			var req DoctorRequest
 			return parseInto(args, "doctor", &req.Options, nil)
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.Doctor(ctx, app.DoctorRequest{Dir: mustCwd()})
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			res, err := a.Doctor(ctx, app.DoctorRequest{Dir: dir})
 			if err != nil {
 				return nil, err
 			}
@@ -80,8 +80,8 @@ var releaseCommands = map[string]Command{
 			var req BootstrapRequest
 			return parseInto(args, "bootstrap", &req.Options, nil)
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.Bootstrap(ctx, app.BootstrapRequest{Dir: mustCwd()})
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			res, err := a.Bootstrap(ctx, app.BootstrapRequest{Dir: dir})
 			if err != nil {
 				return nil, err
 			}
@@ -96,8 +96,8 @@ var releaseCommands = map[string]Command{
 			var req ProvisionRequest
 			return parseInto(args, "provision", &req.Options, nil)
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.Provision(ctx, app.ProvisionRequest{Dir: mustCwd()})
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			res, err := a.Provision(ctx, app.ProvisionRequest{Dir: dir})
 			if err != nil {
 				return nil, err
 			}
@@ -108,6 +108,8 @@ var releaseCommands = map[string]Command{
 		Name:    "gc",
 		Summary: "remove unreferenced artifacts, candidates, and snapshots",
 		Usage:   "vibe gc [--dry-run] [--min-age DURATION] [--json]",
+		// Host-global store maintenance: no project, no cwd needed.
+		NoCwd: true,
 		Parse: func(args []string) (Request, error) {
 			var req GCRequest
 			return parseInto(args, "gc", &req.Options, func(fs *flag.FlagSet) any {
@@ -116,7 +118,7 @@ var releaseCommands = map[string]Command{
 				return &req
 			})
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*GCRequest)
 			res, err := a.GC(ctx, app.GCRequest{DryRun: r.DryRun, MinAge: r.MinAge})
 			if err != nil {
@@ -136,9 +138,9 @@ var releaseCommands = map[string]Command{
 				return &req
 			})
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*UpdateRequest)
-			res, err := a.Update(ctx, app.UpdateRequest{Dir: mustCwd(), Version: r.Version})
+			res, err := a.Update(ctx, app.UpdateRequest{Dir: dir, Version: r.Version})
 			if err != nil {
 				return nil, err
 			}

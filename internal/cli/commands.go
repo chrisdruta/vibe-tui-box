@@ -25,11 +25,12 @@ var commandTable = map[string]Command{
 		Name:    "version",
 		Summary: "print engine version",
 		Usage:   "vibe version [--json]",
+		NoCwd:   true,
 		Parse: func(args []string) (Request, error) {
 			var req VersionRequest
 			return parseInto(args, "version", &req.Options, nil)
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			return &versionResult{Info: a.Version()}, nil
 		},
 	},
@@ -44,9 +45,9 @@ var commandTable = map[string]Command{
 				return &req
 			})
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*RegisterRequest)
-			res, err := a.Register(ctx, app.RegisterRequest{Dir: mustCwd(), DisplayName: r.Name})
+			res, err := a.Register(ctx, app.RegisterRequest{Dir: dir, DisplayName: r.Name})
 			if err != nil {
 				return nil, err
 			}
@@ -61,8 +62,8 @@ var commandTable = map[string]Command{
 			var req ConfigRequest
 			return parseInto(args, "config", &req.Options, nil)
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.Config(ctx, app.ConfigRequest{Dir: mustCwd()})
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			res, err := a.Config(ctx, app.ConfigRequest{Dir: dir})
 			if err != nil {
 				return nil, err
 			}
@@ -77,8 +78,8 @@ var commandTable = map[string]Command{
 			var req PSRequest
 			return parseInto(args, "ps", &req.Options, nil)
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.PS(ctx, app.PSRequest{Dir: mustCwd()})
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			res, err := a.PS(ctx, app.PSRequest{Dir: dir})
 			if err != nil {
 				return nil, err
 			}
@@ -93,8 +94,8 @@ var commandTable = map[string]Command{
 			var req ForgetRequest
 			return parseInto(args, "forget", &req.Options, nil)
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			res, err := a.Forget(ctx, app.ForgetRequest{Dir: mustCwd()})
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			res, err := a.Forget(ctx, app.ForgetRequest{Dir: dir})
 			if err != nil {
 				return nil, err
 			}
@@ -195,7 +196,7 @@ type AttachCmdRequest struct {
 // containerCommand wires terminal streams into an app request. The
 // returned restore function resets the terminal and must run before any
 // further output.
-func (r *ExecRequest) containerCommand() (app.ContainerCommand, func()) {
+func (r *ExecRequest) containerCommand(dir string) (app.ContainerCommand, func()) {
 	streams, tty, restore := setupStreams(true)
 	env := r.Env
 	// The container process talks to THIS terminal through the exec
@@ -208,7 +209,7 @@ func (r *ExecRequest) containerCommand() (app.ContainerCommand, func()) {
 		env = append([]envfile.Entry{{Key: "TERM", Value: term}}, r.Env...)
 	}
 	return app.ContainerCommand{
-		Dir:     mustCwd(),
+		Dir:     dir,
 		User:    r.User,
 		Workdir: r.Workdir,
 		Env:     env,
@@ -277,12 +278,4 @@ func parseInto(args []string, name string, opts *Options, setup func(*flag.FlagS
 		return opts, nil
 	}
 	return req, nil
-}
-
-func mustCwd() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "."
-	}
-	return dir
 }

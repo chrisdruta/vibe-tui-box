@@ -53,8 +53,8 @@ var uiCommands = map[string]Command{
 			var req TuiRequest
 			return parseInto(args, "tui", &req.Options, nil)
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
-			return nil, a.Tui(ctx, app.TuiRequest{Dir: mustCwd()})
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			return nil, a.Tui(ctx, app.TuiRequest{Dir: dir})
 		},
 	},
 	"agent": {
@@ -62,9 +62,9 @@ var uiCommands = map[string]Command{
 		Summary: "run the manifest's agent CLI in the dev container",
 		Usage:   "vibe agent [-u USER] [--cold] [-a|--agent CMD] [-s|--session NAME] [--stop|--restart]",
 		Parse:   parseAgentCmd,
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*AgentCmdRequest)
-			cmd, restore := r.containerCommand()
+			cmd, restore := r.containerCommand(dir)
 			defer restore()
 			res, err := a.Agent(ctx, app.AgentRequest{
 				ContainerCommand: cmd,
@@ -89,10 +89,10 @@ var uiCommands = map[string]Command{
 		Summary: "save the host clipboard image where the agent can read it",
 		Usage:   "vibe clip [DIR] [--path-only]",
 		Parse:   parseClipCmd,
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*ClipCmdRequest)
 			res, err := a.Clip(ctx, app.ClipRequest{
-				Dir:      mustCwd(),
+				Dir:      dir,
 				DestDir:  r.DestDir,
 				PathOnly: r.PathOnly,
 				Env:      clipEnv(),
@@ -132,23 +132,23 @@ var uiCommands = map[string]Command{
 			req.Sub = rest[0]
 			return &req, nil
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*DevCmdRequest)
 			switch r.Sub {
 			case "on", "sync":
-				res, err := a.DevOn(ctx, app.DevOnRequest{Dir: mustCwd()})
+				res, err := a.DevOn(ctx, app.DevOnRequest{Dir: dir})
 				if err != nil {
 					return nil, err
 				}
 				return &devOnResult{Result: res}, nil
 			case "off":
-				res, err := a.DevOff(ctx, app.DevOffRequest{Dir: mustCwd()})
+				res, err := a.DevOff(ctx, app.DevOffRequest{Dir: dir})
 				if err != nil {
 					return nil, err
 				}
 				return &devOffResult{Result: res}, nil
 			case "status":
-				res, err := a.DevStatus(ctx, app.DevStatusRequest{Dir: mustCwd()})
+				res, err := a.DevStatus(ctx, app.DevStatusRequest{Dir: dir})
 				if err != nil {
 					return nil, err
 				}
@@ -166,6 +166,8 @@ var uiCommands = map[string]Command{
 		Summary: "internal sidebar frame renderer",
 		Usage:   "vibe _frame [--cache DIR] < tmux-porcelain",
 		Hidden:  true,
+		// Renders from stdin porcelain and an explicit cache dir; no cwd.
+		NoCwd: true,
 		Parse: func(args []string) (Request, error) {
 			var req FrameCmdRequest
 			return parseInto(args, "_frame", &req.Options, func(fs *flag.FlagSet) any {
@@ -173,7 +175,7 @@ var uiCommands = map[string]Command{
 				return &req
 			})
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*FrameCmdRequest)
 			res, err := a.RenderFrame(ctx, app.FrameRequest{Input: os.Stdin, CacheDir: r.Cache})
 			if err != nil {
@@ -317,11 +319,11 @@ func parseRequestCmd(args []string) (Request, error) {
 	return &req, nil
 }
 
-func runRequestCmd(ctx context.Context, a *app.App, req Request) (Result, error) {
+func runRequestCmd(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 	r := req.(*RequestCmdRequest)
 	switch r.Sub {
 	case "list":
-		res, err := a.RequestList(ctx, app.RequestListRequest{Dir: mustCwd()})
+		res, err := a.RequestList(ctx, app.RequestListRequest{Dir: dir})
 		if err != nil {
 			return nil, err
 		}
@@ -331,7 +333,7 @@ func runRequestCmd(ctx context.Context, a *app.App, req Request) (Result, error)
 		if err != nil {
 			return nil, err
 		}
-		res, err := a.RequestShow(ctx, app.RequestShowRequest{Dir: mustCwd(), ID: id})
+		res, err := a.RequestShow(ctx, app.RequestShowRequest{Dir: dir, ID: id})
 		if err != nil {
 			return nil, err
 		}
@@ -342,7 +344,7 @@ func runRequestCmd(ctx context.Context, a *app.App, req Request) (Result, error)
 			return nil, err
 		}
 		res, err := a.RequestDecide(ctx, app.RequestDecideRequest{
-			Dir:       mustCwd(),
+			Dir:       dir,
 			Candidate: digest,
 			Approve:   r.Sub == "approve",
 			Message:   r.Message,
@@ -372,10 +374,10 @@ func renderCommand(name string, fn func(*app.App, context.Context, app.RenderReq
 				return &req
 			})
 		},
-		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*RenderRequest)
 			res, err := fn(a, ctx, app.RenderRequest{
-				Dir:     mustCwd(),
+				Dir:     dir,
 				Project: domain.ProjectID(r.Project),
 				Width:   r.Width,
 			})
