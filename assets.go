@@ -10,5 +10,10 @@ import "embed"
 // the authoritative modes and digests (regenerate with `go generate
 // ./internal/payload`).
 //
-//go:embed payload
+// The all: prefix is load-bearing: plain patterns skip dot-prefixed
+// entries, and the claude plugin's mandatory .claude-plugin/ directory
+// silently vanished from the embed while the manifest (a filesystem
+// walk) kept it — every binary then failed its startup parity check.
+//
+//go:embed all:payload
 var PayloadFS embed.FS

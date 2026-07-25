@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
 
+	assets "github.com/chrisdruta/vibe-tui-box"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 )
 
@@ -164,6 +166,22 @@ func TestTrackedPayloadIsValid(t *testing.T) {
 	}
 	if _, err := b.Preset("minimal"); err != nil {
 		t.Fatalf("minimal preset: %v", err)
+	}
+}
+
+func TestEmbeddedPayloadIsValid(t *testing.T) {
+	// The EMBEDDED payload must also construct — os.DirFS above cannot
+	// catch go:embed divergence: a plain //go:embed pattern silently
+	// drops dot-prefixed entries (the claude plugin's .claude-plugin/
+	// directory), which the manifest's filesystem walk keeps, and every
+	// shipped binary then dies at its startup parity check while this
+	// package's tests stay green. Exactly main.go's wiring.
+	payloadFS, err := fs.Sub(assets.PayloadFS, "payload")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(payloadFS); err != nil {
+		t.Fatalf("embedded payload invalid (check the all: prefix on go:embed in assets.go): %v", err)
 	}
 }
 
