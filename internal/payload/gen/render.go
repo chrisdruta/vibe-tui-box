@@ -10,16 +10,21 @@ import (
 )
 
 const (
-	themeBegin = "# >>> generated: theme"
-	themeEnd   = "# <<< generated: theme"
+	themeBegin   = "# >>> generated: theme"
+	themeEnd     = "# <<< generated: theme"
+	winlistBegin = "# >>> generated: winlist"
+	winlistEnd   = "# <<< generated: winlist"
+	borderBegin  = "# >>> generated: bar-border"
+	borderEnd    = "# <<< generated: bar-border"
 )
 
-// renderTheme materializes the palette/glyph source of truth
-// (internal/tmuxui/theme.go) into its two payload renderings: the whole
-// of host/scripts/theme.sh, and the marker-delimited @thm block inside
-// host/tmux-tui.conf. It runs before the manifest walk so the digests
-// capture the rendered bytes — the CI drift gate then covers palette
-// drift with zero new machinery.
+// renderTheme materializes the generated payload pieces: the whole of
+// host/scripts/theme.sh from the palette/glyph source of truth
+// (internal/tmuxui/theme.go), and the marker-delimited blocks inside
+// host/tmux-tui.conf (the @thm palette, the tray winlist composed
+// around tmux's stock W: construct, the bar border rule). It runs
+// before the manifest walk so the digests capture the rendered bytes —
+// the CI drift gate then covers drift with zero new machinery.
 func renderTheme(root string) error {
 	for _, s := range tmuxui.AgentStates {
 		if tmuxui.PaletteHex(s.Color) == "" {
@@ -35,30 +40,76 @@ func renderTheme(root string) error {
 	if err != nil {
 		return err
 	}
-	spliced, err := spliceTheme(string(src))
-	if err != nil {
-		return fmt.Errorf("%s: %w", confPath, err)
+	spliced := string(src)
+	for _, block := range []struct {
+		begin, end, content string
+	}{
+		{themeBegin, themeEnd, themeBlock()},
+		{winlistBegin, winlistEnd, `set -g @vibe_winlist "` + winlist() + "\"\n"},
+		{borderBegin, borderEnd, `set -g status-format[0] "#[fg=#{@thm_border}]` + strings.Repeat("─", barBorderWidth) + "\"\n"},
+	} {
+		spliced, err = spliceBlock(spliced, block.begin, block.end, block.content)
+		if err != nil {
+			return fmt.Errorf("%s: %w", confPath, err)
+		}
 	}
 	return os.WriteFile(confPath, []byte(spliced), 0o644)
 }
 
-// spliceTheme rewrites only the marker-delimited block; everything
+// spliceBlock rewrites only the marker-delimited block; everything
 // outside stays hand-edited. Missing markers are an error, not a
 // silent append — the conf's structure is deliberate.
-func spliceTheme(src string) (string, error) {
-	begin := strings.Index(src, themeBegin)
-	end := strings.Index(src, themeEnd)
-	if begin == -1 || end == -1 || end < begin {
-		return "", fmt.Errorf("theme markers missing or reordered (%s … %s)", themeBegin, themeEnd)
+func spliceBlock(src, begin, end, content string) (string, error) {
+	b := strings.Index(src, begin)
+	e := strings.Index(src, end)
+	if b == -1 || e == -1 || e < b {
+		return "", fmt.Errorf("markers missing or reordered (%s … %s)", begin, end)
 	}
+	return src[:b] + begin + "\n" + content + src[e:], nil
+}
+
+func themeBlock() string {
 	var b strings.Builder
-	b.WriteString(src[:begin])
-	b.WriteString(themeBegin + "\n")
 	for _, c := range tmuxui.Palette {
 		fmt.Fprintf(&b, "set -g @thm_%-8s%q\n", c.Name, c.Hex)
 	}
-	b.WriteString(src[end:])
-	return b.String(), nil
+	return b.String()
+}
+
+// barBorderWidth is the fixed length of the status-format[0] rule —
+// wide enough for any plausible terminal; tmux clips the excess.
+const barBorderWidth = 400
+
+// tmux 3.7's stock window-list cells, verbatim from
+// `tmux show -g status-format` — the two halves of the `W:` construct.
+// On a tmux bump, diff these constants against the new stock output;
+// the vibe-specific chrome around them never needs re-reading.
+const (
+	stockWindowCell = `#[range=window|#{window_index} #{E:window-status-style}` +
+		`#{?#{&&:#{window_last_flag},#{!=:#{E:window-status-last-style},default}}, #{E:window-status-last-style},}` +
+		`#{?#{&&:#{window_bell_flag},#{!=:#{E:window-status-bell-style},default}}, #{E:window-status-bell-style},` +
+		`#{?#{&&:#{||:#{window_activity_flag},#{window_silence_flag}},#{!=:#{E:window-status-activity-style},default}}, #{E:window-status-activity-style},}}]` +
+		`#[push-default]#{T:window-status-format}#[pop-default]` +
+		`#[norange default]#{?loop_last_flag,,#{E:window-status-separator}}`
+	stockCurrentWindowCell = `#[range=window|#{window_index} list=focus ` +
+		`#{?#{!=:#{E:window-status-current-style},default},#{E:window-status-current-style},#{E:window-status-style}}` +
+		`#{?#{&&:#{window_last_flag},#{!=:#{E:window-status-last-style},default}}, #{E:window-status-last-style},}` +
+		`#{?#{&&:#{window_bell_flag},#{!=:#{E:window-status-bell-style},default}}, #{E:window-status-bell-style},` +
+		`#{?#{&&:#{||:#{window_activity_flag},#{window_silence_flag}},#{!=:#{E:window-status-activity-style},default}}, #{E:window-status-activity-style},}}]` +
+		`#[push-default]#{T:window-status-current-format}#[pop-default]` +
+		`#[norange list=on default]#{?loop_last_flag,,#{E:window-status-separator}}`
+)
+
+// winlist composes the tray middle: list scaffolding, the clickable
+// dock cell, the stock window list, and the clickable new-window cell.
+// Cells deliberately avoid commas — one attribute per #[...] block —
+// so the construct survives #{?…} comma-parsing wherever it is spliced.
+func winlist() string {
+	return `#[list=on align=#{status-justify}]` +
+		`#[list=left-marker]<#[list=right-marker]>#[list=on]` +
+		`#[range=user|dock]#[fg=#{@thm_dim}] ▤ #[norange]#[default]` +
+		`#{W:` + stockWindowCell + `,` + stockCurrentWindowCell + `}` +
+		`#[range=user|newwin]#[fg=#{@thm_dim}]#[bg=#{@thm_surface}] + #[norange]#[default]`
 }
 
 // themeSH renders the whole of theme.sh: palette variables and the

@@ -15,6 +15,9 @@ func stageThemeTree(t *testing.T) string {
 	}
 	conf := "# head, hand-edited\n" +
 		themeBegin + "\nset -g @thm_bg \"#stale0\"\n" + themeEnd + "\n" +
+		"# middle, hand-edited\n" +
+		winlistBegin + "\n" + winlistEnd + "\n" +
+		borderBegin + "\nset -g status-format[0] \"stale\"\n" + borderEnd + "\n" +
 		"# tail, hand-edited\n"
 	if err := os.WriteFile(filepath.Join(root, "host", "tmux-tui.conf"), []byte(conf), 0o644); err != nil {
 		t.Fatal(err)
@@ -49,8 +52,20 @@ func TestRenderThemeIdempotent(t *testing.T) {
 		t.Fatalf("conf splice wrong:\n%s", conf1)
 	}
 	if !strings.HasPrefix(conf1, "# head, hand-edited\n") ||
+		!strings.Contains(conf1, "# middle, hand-edited\n") ||
 		!strings.HasSuffix(conf1, "# tail, hand-edited\n") {
 		t.Fatalf("hand-edited text lost:\n%s", conf1)
+	}
+	// The winlist block carries the composed tray line: the stock W:
+	// construct wrapped in the vibe cells; the border block replaced its
+	// stale content with the fixed-width rule.
+	if !strings.Contains(conf1, `set -g @vibe_winlist "#[list=on align=#{status-justify}]`) ||
+		!strings.Contains(conf1, "#{W:"+stockWindowCell+","+stockCurrentWindowCell+"}") {
+		t.Fatalf("winlist block wrong:\n%s", conf1)
+	}
+	if strings.Contains(conf1, `"stale"`) ||
+		!strings.Contains(conf1, strings.Repeat("─", barBorderWidth)) {
+		t.Fatalf("border block wrong:\n%s", conf1)
 	}
 
 	// Second run: byte-identical (the drift gate depends on this).
@@ -62,11 +77,11 @@ func TestRenderThemeIdempotent(t *testing.T) {
 	}
 }
 
-func TestSpliceThemeRequiresMarkers(t *testing.T) {
-	if _, err := spliceTheme("# a conf without markers\n"); err == nil {
+func TestSpliceBlockRequiresMarkers(t *testing.T) {
+	if _, err := spliceBlock("# a conf without markers\n", themeBegin, themeEnd, "x\n"); err == nil {
 		t.Fatal("missing markers must error, not append")
 	}
-	if _, err := spliceTheme(themeEnd + "\n" + themeBegin + "\n"); err == nil {
+	if _, err := spliceBlock(themeEnd+"\n"+themeBegin+"\n", themeBegin, themeEnd, "x\n"); err == nil {
 		t.Fatal("reordered markers must error")
 	}
 }
