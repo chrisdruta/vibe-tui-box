@@ -122,6 +122,53 @@ func TestUpStatusRunDown(t *testing.T) {
 	}
 }
 
+// advancingClock hands out a distinct timestamp per call, like the
+// production SystemClock. The suite-wide fixedClock cannot see records
+// that diverge by clock alone.
+type advancingClock struct{ n int }
+
+func (c *advancingClock) Now() time.Time {
+	c.n++
+	return time.Date(2026, 7, 23, 12, 0, c.n, 0, time.UTC)
+}
+
+// A rebuild on unchanged inputs recompiles the identical plan, so the
+// candidate record already exists. Under a moving clock that rewrite
+// must not be mistaken for a divergent one.
+func TestRebuildUnchangedInputsUnderMovingClock(t *testing.T) {
+	a, docker := newTestApp(t)
+	a.deps.Clock = &advancingClock{}
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	up, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rebuilt, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
+	if err != nil {
+		t.Fatalf("rebuild on unchanged inputs: %v", err)
+	}
+	if rebuilt.Candidate != up.Candidate {
+		t.Fatal("identical inputs must produce the identical candidate")
+	}
+	// The rebuild reached the containers rather than aborting in
+	// candidate preparation.
+	if got := len(docker.CallsTo("CreateContainer")); got != 2 {
+		t.Fatalf("want 2 container creates (up + forced rebuild), got %d", got)
+	}
+	// The surviving record keeps the first candidate's creation time.
+	recCand, err := a.deps.Store.ReadCandidateRecord(up.Candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := time.Date(2026, 7, 23, 12, 0, 1, 0, time.UTC); !recCand.CreatedAt.Equal(want) {
+		t.Fatalf("created_at %s, want the original %s", recCand.CreatedAt, want)
+	}
+}
+
 func TestShellProbesCandidates(t *testing.T) {
 	a, docker := newTestApp(t)
 	ctx := context.Background()

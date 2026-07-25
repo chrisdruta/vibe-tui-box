@@ -104,6 +104,16 @@ func (a *App) prepareCandidate(ctx context.Context, root paths.Root, rec registr
 		Images:    resolvedImages(plan),
 		CreatedAt: a.deps.Clock.Now().UTC(),
 	}
+	// Unchanged inputs recompile to the identical plan, so the digest —
+	// and the published candidate — already exist. Adopt the first
+	// candidate's timestamp so the rewrite is byte-identical instead of
+	// diverging by clock alone (records are immutable: a divergent
+	// rewrite is a conflict). Every other field is derived from the
+	// plan the digest covers, so a real content disagreement still
+	// reaches WriteCandidateRecord and still conflicts.
+	if existing, err := a.deps.Store.ReadCandidateRecord(digest); err == nil {
+		candRecord.CreatedAt = existing.CreatedAt
+	}
 	if err := a.deps.Store.WriteCandidateRecord(candRecord); err != nil {
 		return runtime.Candidate{}, err
 	}
