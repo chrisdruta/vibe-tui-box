@@ -30,10 +30,17 @@ type Client struct {
 	ResolveErrs    map[dockerapi.ImageRef]error
 	PullErrs       map[dockerapi.ImageRef]error
 	CreateErr      error
+	// CreateErrOnce fails only the next CreateContainer call, then clears
+	// itself. It models the create → ErrNotFound → pull → re-create
+	// retry, which sticky CreateErr cannot express and CreateHook (which
+	// runs only after a *successful* create) cannot reach.
+	CreateErrOnce error
 	// CreateHook runs after a successful create, letting tests emulate
 	// container side effects (e.g. a dev build writing its output).
 	CreateHook  func(dockerapi.CreateRequest)
 	StartErr    error
+	StopErr     error
+	RemoveErr   error
 	WaitCodes   map[dockerapi.ContainerID]int
 	ExecResults map[string]dockerapi.ExecResult // keyed by argv joined with \x00
 	ExecOutputs map[string]string               // stdout written to Streams.Out, same key
@@ -131,6 +138,11 @@ func (c *Client) InspectContainer(ctx context.Context, name dockerapi.ContainerN
 
 func (c *Client) CreateContainer(ctx context.Context, req dockerapi.CreateRequest) (dockerapi.ContainerID, error) {
 	c.record("CreateContainer", req)
+	if c.CreateErrOnce != nil {
+		err := c.CreateErrOnce
+		c.CreateErrOnce = nil
+		return "", err
+	}
 	if c.CreateErr != nil {
 		return "", c.CreateErr
 	}
@@ -182,6 +194,9 @@ func (c *Client) StartContainer(ctx context.Context, id dockerapi.ContainerID) e
 
 func (c *Client) StopContainer(ctx context.Context, id dockerapi.ContainerID, timeout time.Duration) error {
 	c.record("StopContainer", id)
+	if c.StopErr != nil {
+		return c.StopErr
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	state, err := c.findByID(id)
@@ -194,6 +209,9 @@ func (c *Client) StopContainer(ctx context.Context, id dockerapi.ContainerID, ti
 
 func (c *Client) RemoveContainer(ctx context.Context, id dockerapi.ContainerID, opts dockerapi.RemoveOptions) error {
 	c.record("RemoveContainer", id)
+	if c.RemoveErr != nil {
+		return c.RemoveErr
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for name, state := range c.Containers {

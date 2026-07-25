@@ -121,12 +121,19 @@ func (s *Service) Down(ctx context.Context, rec registry.Record, opts DownOption
 	}
 	volumes := []string{model.AgentStateVolumeName(rec.ID)}
 	if rec.Approved != nil {
-		if cand, lease, err := s.LoadCandidate(ctx, *rec.Approved); err == nil {
-			for _, v := range cand.Plan.Volumes {
-				volumes = append(volumes, v.Name)
-			}
-			lease.Close()
+		// The operator asked to remove volumes; the approved candidate is
+		// the only source for the plan-declared sidecar volume names. If
+		// it cannot be loaded — corrupt, digest mismatch, or GC'd out from
+		// under an Approved pointer — fail loudly rather than silently keep
+		// data-bearing volumes, the worst outcome for --volumes.
+		cand, lease, err := s.LoadCandidate(ctx, *rec.Approved)
+		if err != nil {
+			return fmt.Errorf("down --volumes: load approved candidate: %w", err)
 		}
+		for _, v := range cand.Plan.Volumes {
+			volumes = append(volumes, v.Name)
+		}
+		lease.Close()
 	}
 	for _, name := range volumes {
 		if err := s.docker.RemoveVolume(ctx, dockerapi.VolumeName(name)); err != nil && !errors.Is(err, domain.ErrNotFound) {

@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -390,5 +391,139 @@ func TestLoadCandidateVerifiesPlan(t *testing.T) {
 	}
 	if _, _, err := f.svc.LoadCandidate(ctx, domain.SHA256([]byte("missing"))); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("missing candidate should be not-found, got %v", err)
+	}
+}
+
+// TestDownFailsWhenStopFails pins that a StopContainer failure aborts the
+// teardown instead of being swallowed.
+func TestDownFailsWhenStopFails(t *testing.T) {
+	f := newFixture(t, testManifest)
+	ctx := context.Background()
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	f.docker.StopErr = errors.New("stop boom")
+
+	err := f.svc.Down(ctx, f.rec, DownOptions{})
+	if err == nil || !strings.Contains(err.Error(), "stop boom") {
+		t.Fatalf("down must surface the stop failure, got %v", err)
+	}
+	// Aborted before removal, so the containers are still present.
+	if len(f.docker.CallsTo("RemoveContainer")) != 0 {
+		t.Fatal("down should not remove containers after a stop failure")
+	}
+}
+
+// TestDownFailsWhenRemoveFails pins that a RemoveContainer failure that is
+// not ErrNotFound aborts the teardown.
+func TestDownFailsWhenRemoveFails(t *testing.T) {
+	f := newFixture(t, testManifest)
+	ctx := context.Background()
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	f.docker.RemoveErr = errors.New("remove boom")
+
+	err := f.svc.Down(ctx, f.rec, DownOptions{})
+	if err == nil || !strings.Contains(err.Error(), "remove boom") {
+		t.Fatalf("down must surface the remove failure, got %v", err)
+	}
+}
+
+// TestReplaceFailsWhenStopFails pins that the container-replacement path
+// (forced up) propagates a StopContainer failure.
+func TestReplaceFailsWhenStopFails(t *testing.T) {
+	f := newFixture(t, testManifest)
+	ctx := context.Background()
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	f.docker.StopErr = errors.New("stop boom")
+
+	_, err := f.svc.Up(ctx, f.cand, UpOptions{Force: true})
+	if err == nil || !strings.Contains(err.Error(), "stop boom") {
+		t.Fatalf("forced replace must surface the stop failure, got %v", err)
+	}
+	if len(f.docker.CallsTo("RemoveContainer")) != 0 {
+		t.Fatal("replace should not remove after a stop failure")
+	}
+}
+
+// TestReplaceFailsWhenRemoveFails pins that the container-replacement path
+// propagates a RemoveContainer failure that is not ErrNotFound.
+func TestReplaceFailsWhenRemoveFails(t *testing.T) {
+	f := newFixture(t, testManifest)
+	ctx := context.Background()
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	f.docker.RemoveErr = errors.New("remove boom")
+
+	_, err := f.svc.Up(ctx, f.cand, UpOptions{Force: true})
+	if err == nil || !strings.Contains(err.Error(), "remove boom") {
+		t.Fatalf("forced replace must surface the remove failure, got %v", err)
+	}
+}
+
+// TestCreateRetriesPullOnMissingImage pins the create → ErrNotFound →
+// pull → re-create retry: the first create for the sidecar fails
+// not-found, the image is pulled by the right ref, and the retried create
+// succeeds so the topology comes up.
+func TestCreateRetriesPullOnMissingImage(t *testing.T) {
+	f := newFixture(t, testManifest)
+	ctx := context.Background()
+	f.docker.CreateErrOnce = fmt.Errorf("%w: no such image", domain.ErrNotFound)
+
+	state, err := f.svc.Up(ctx, f.cand, UpOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !state.Running() {
+		t.Fatalf("topology not running after pull-retry: %+v", state)
+	}
+
+	pulls := f.docker.CallsTo("PullImage")
+	if len(pulls) != 1 {
+		t.Fatalf("want exactly one pull, got %d", len(pulls))
+	}
+	// The failed create is recorded, then the retry, then the dev create.
+	creates := f.docker.CallsTo("CreateContainer")
+	if len(creates) != 3 {
+		t.Fatalf("want 3 create attempts (fail, retry, dev), got %d", len(creates))
+	}
+	failed := creates[0].Request.(dockerapi.CreateRequest)
+	pulled := pulls[0].Request.(dockerapi.ResolvedImage)
+	if pulled.Ref != dockerapi.ImageRef(failed.Image) {
+		t.Fatalf("pull ref mismatch: got %q want %q", pulled.Ref, failed.Image)
+	}
+	retry := creates[1].Request.(dockerapi.CreateRequest)
+	if retry.Name != failed.Name {
+		t.Fatalf("retry targeted a different container: %q vs %q", retry.Name, failed.Name)
+	}
+}
+
+// TestDownVolumesFailsOnMissingCandidate pins that Down --volumes fails
+// loudly when the approved candidate cannot be loaded, rather than
+// silently keeping the plan-declared sidecar volumes.
+func TestDownVolumesFailsOnMissingCandidate(t *testing.T) {
+	f := newFixture(t, testManifest)
+	ctx := context.Background()
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	bogus := domain.SHA256([]byte("gc'd candidate"))
+	f.rec.Approved = &bogus
+
+	err := f.svc.Down(ctx, f.rec, DownOptions{RemoveVolumes: true})
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("down --volumes with a missing approved candidate should be not-found, got %v", err)
+	}
+	// Failing before the removal loop must not partially delete volumes,
+	// including the always-derivable agent-state volume.
+	if _, ok := f.docker.Volumes[model.AgentStateVolumeName(testProjectID)]; !ok {
+		t.Fatal("down must not delete any volume when it aborts on candidate load")
+	}
+	if len(f.docker.CallsTo("RemoveVolume")) != 0 {
+		t.Fatal("no volume removal should be attempted after the load failure")
 	}
 }
