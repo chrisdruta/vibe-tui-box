@@ -113,6 +113,30 @@ func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, erro
 			}
 		}
 	}
+
+	// Hand the `vibe` symlink back to the release the project reverts to,
+	// undoing dev on's handoff — and do it BEFORE the registry moves. The
+	// binary is the durable thing the reverted record points at, so it
+	// must be in place first: the package's pointer-moves-last discipline
+	// (compare Up, where the approved candidate moves only after its
+	// containers run). A failed handoff must therefore leave the project
+	// in dev mode, not flip the record while the shim still runs the dev
+	// binary. When no release artifact exists, that leg is best-effort and
+	// legitimately leaves the current dev binary in place.
+	result := DevOffResult{}
+	if release != nil {
+		lease, err := a.deps.Store.Open(ctx, store.ArtifactObject, release.Digest)
+		if err != nil {
+			return fail(err)
+		}
+		binPath, err := a.installBinary(store.Artifact{Record: *release, Path: lease.Object.Path})
+		lease.Close()
+		if err != nil {
+			return fail(err)
+		}
+		result.BinaryPath = binPath
+	}
+
 	updated, err := a.deps.Registry.Update(ctx, rec.ID, rec.Revision, func(r *registry.Record) error {
 		r.Mode = registry.ModeRelease
 		if release != nil {
@@ -127,21 +151,11 @@ func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, erro
 	if err != nil {
 		return fail(err)
 	}
-	os.Remove(a.devRecordPath(rec.ID))
-	result := DevOffResult{Project: updated}
-	// Hand the `vibe` symlink back to the release the project reverts
-	// to, undoing dev on's handoff. Best-effort with a leased object —
-	// a missing release leaves the current binary in place.
-	if release != nil {
-		if lease, err := a.deps.Store.Open(ctx, store.ArtifactObject, release.Digest); err == nil {
-			binPath, err := a.installBinary(store.Artifact{Record: *release, Path: lease.Object.Path})
-			lease.Close()
-			if err != nil {
-				return fail(err)
-			}
-			result.BinaryPath = binPath
-		}
-	}
+	result.Project = updated
+	// The dev record is now stale. Removal is best-effort: a leftover
+	// record is inert once the project is in release mode (nothing reads
+	// it) and store GC reclaims it, so a failure here is safe to ignore.
+	_ = os.Remove(a.devRecordPath(rec.ID))
 	a.bumpTuiSerial(ctx)
 	return result, nil
 }

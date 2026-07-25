@@ -14,8 +14,44 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
+	"github.com/chrisdruta/vibe-tui-box/internal/store"
 	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
+
+// seedReleaseArtifact publishes a minimal non-dev-build artifact (object
+// tree plus record) so dev off has a release to revert and hand back to.
+func seedReleaseArtifact(t *testing.T, a *App, binary string) store.ArtifactRecord {
+	t.Helper()
+	staging, err := a.deps.Store.NewStaging("artifact")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(staging)
+	binPath := filepath.Join(staging, store.ArtifactBinaryRelPath)
+	if err := os.MkdirAll(filepath.Dir(binPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(binPath, []byte(binary), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	digest, _, err := store.DigestTree(staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.deps.Store.Publish(context.Background(), store.ArtifactObject, staging, digest); err != nil {
+		t.Fatal(err)
+	}
+	rec := store.ArtifactRecord{
+		Digest:      digest,
+		Version:     "v9.9.9",
+		Release:     domain.ReleaseProvenance{Source: "release", Version: "v9.9.9"},
+		InstalledAt: a.deps.Clock.Now().UTC(),
+	}
+	if err := a.deps.Store.WriteArtifactRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	return rec
+}
 
 func writeRequestFile(t *testing.T, dir, id, content string) {
 	t.Helper()
@@ -410,6 +446,9 @@ func TestDevModeFlow(t *testing.T) {
 		t.Fatalf("dev status: %+v, %v", status, err)
 	}
 
+	// A real release artifact exists to hand back to: dev off reverts the
+	// pin to it and repoints the shim at its binary.
+	release := seedReleaseArtifact(t, a, "RELEASE-BINARY")
 	off, err := a.DevOff(ctx, DevOffRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
@@ -420,6 +459,21 @@ func TestDevModeFlow(t *testing.T) {
 	if off.Project.Artifact == on.Artifact.Digest {
 		t.Fatal("dev off left the dev artifact pinned")
 	}
+	if off.Project.Artifact != release.Digest {
+		t.Fatalf("dev off did not repin to the release: %+v", off.Project)
+	}
+	// The reordered handoff ran before the flip: the shim points at the
+	// release binary and the DevOffResult reports it.
+	if off.BinaryPath == "" {
+		t.Fatal("dev off did not hand the binary back")
+	}
+	if data, err := os.ReadFile(off.BinaryPath); err != nil || string(data) != "RELEASE-BINARY" {
+		t.Fatalf("vibe symlink after dev off %q, %v", data, err)
+	}
+	// The stale dev record is gone.
+	if _, err := os.Stat(a.devRecordPath(mustResolve(t, a, dir).ID)); !os.IsNotExist(err) {
+		t.Fatalf("dev record survived dev off: %v", err)
+	}
 	// A second project stays untouched throughout.
 	other := newProject(t)
 	if _, err := a.Register(ctx, RegisterRequest{Dir: other}); err != nil {
@@ -428,6 +482,57 @@ func TestDevModeFlow(t *testing.T) {
 	otherRec := mustResolve(t, a, other)
 	if otherRec.Mode != registry.ModeRelease {
 		t.Fatal("dev mode leaked to another project")
+	}
+}
+
+// TestDevOffHandoffFailureKeepsDevMode pins the ordering fix: when the
+// binary handoff fails, dev off must not have moved the registry record
+// — the pointer moves only after the durable binary is in place.
+func TestDevOffHandoffFailureKeepsDevMode(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newEngineRepo(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	docker.CreateHook = func(req dockerapi.CreateRequest) {
+		if req.Labels["dev.vibe.role"] != "dev-builder" {
+			return
+		}
+		for _, m := range req.Mounts {
+			if m.Target == "/out" {
+				os.WriteFile(filepath.Join(m.Source, "vibe"), []byte("DEV-BINARY"), 0o755)
+			}
+		}
+	}
+	on, err := a.DevOn(ctx, DevOnRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A release exists to revert to, but a colliding non-symlink file with
+	// different content sits at its install target: installBinary reports
+	// a conflict rather than clobbering it, so the handoff fails.
+	release := seedReleaseArtifact(t, a, "RELEASE-BINARY")
+	target := filepath.Join(a.deps.Layout.Bin, "vibe-"+release.Digest.Hex()[:12])
+	if err := os.MkdirAll(a.deps.Layout.Bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("STALE-COLLISION"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := a.DevOff(ctx, DevOffRequest{Dir: dir}); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("dev off handoff should fail with conflict, got %v", err)
+	}
+	// The flip did not happen: the project is still in dev mode, still
+	// pinned to the dev artifact.
+	rec := mustResolve(t, a, dir)
+	if rec.Mode != registry.ModeDev {
+		t.Fatalf("failed handoff moved the record out of dev mode: %+v", rec)
+	}
+	if rec.Artifact != on.Artifact.Digest {
+		t.Fatalf("failed handoff moved the artifact pin: %+v", rec)
 	}
 }
 
