@@ -146,9 +146,11 @@ func TestFrameLongNameNeverPushesDots(t *testing.T) {
 	)
 	out := Frame(in)
 	rows := frameRows(t, out.Body)
+	// The fleet NAME row is the one carrying the dots; the roster's dim
+	// detail row also contains the session name, so match on both.
 	var name string
 	for _, content := range rows {
-		if strings.Contains(content, "verylongname") {
+		if strings.Contains(content, "verylongname") && strings.ContainsAny(content, "●✗") {
 			name = content
 		}
 	}
