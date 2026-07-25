@@ -8,10 +8,12 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
 )
 
-// recordingTmux records global option sets; every other method is inert.
+// recordingTmux records global option sets and session kills; every
+// other method is inert.
 type recordingTmux struct {
 	fail    bool
 	globals []struct{ Option, Value string }
+	killed  []tmux.SessionID
 }
 
 func (r *recordingTmux) ConfigureServer(string) {}
@@ -19,8 +21,14 @@ func (r *recordingTmux) HasSession(context.Context, tmux.SessionID) (bool, error
 	return false, nil
 }
 func (r *recordingTmux) EnsureSession(context.Context, tmux.SessionSpec) error { return nil }
-func (r *recordingTmux) KillSession(context.Context, tmux.SessionID) error     { return nil }
-func (r *recordingTmux) Attach(context.Context, tmux.SessionID) error          { return nil }
+func (r *recordingTmux) KillSession(_ context.Context, id tmux.SessionID) error {
+	r.killed = append(r.killed, id)
+	if r.fail {
+		return errors.New("no server running")
+	}
+	return nil
+}
+func (r *recordingTmux) Attach(context.Context, tmux.SessionID) error { return nil }
 func (r *recordingTmux) SetOption(context.Context, tmux.SessionID, string, string) error {
 	return nil
 }

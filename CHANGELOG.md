@@ -47,6 +47,33 @@ The v1 line and its history remain in git up to the cutover commit.
   a session that runs a different agent than requested (`agent.cmd` is
   read live, so flipping it never touched the running session) now
   prompts to restart instead of silently delivering the old agent.
+- New: the bar is a bottom system tray. `🥡 vibe` is a clickable start
+  button (palette; the `+` cell too — one definition in
+  `scripts/palette.sh` behind key and clicks), window tabs show dot +
+  name (indexes dropped from display; `M-1..9` still navigate), the
+  right side is the clickable engine state plus a clock, and holding
+  the prefix swaps the tabs for a keybind cheatsheet in place — no
+  second row. Project identity moved out of the bar entirely: the
+  sidebar and the OS window title (display name, not the raw session
+  ID) carry it.
+- New: claude's harness wiring ships as a **vibe plugin**
+  (`payload/container/claude-plugin/`, loaded per session with
+  `--plugin-dir` from the read-only payload — never installed, nothing
+  lands on the agent-state volume): the agent-state hooks, the subagent
+  statusline, and `/vibe:request`, which authors a well-formed rebuild
+  request from inside the agent. The `--settings` file shrinks to the
+  keys a plugin cannot express (`statusLine`, `autoMemoryEnabled`,
+  `autoUpdates`, `sandbox`).
+- New: the TUI owns the daily cycle. `vibe tui` first starts the
+  project's **approved** candidate when its containers are not running
+  (no input freeze, no approval movement — changed inputs still take a
+  deliberate `vibe up`), instead of racing an instantly-dying agent pane
+  into `no server running`. `vibe down` also closes the project's UI
+  session, and the palette gains "park project (down + quit)" — evening
+  parks it, morning is `vibe tui` alone. The UI server sets
+  `remain-on-exit failed`, so a pane whose command dies keeps its error
+  text readable (and the pane-died respawn hint, previously dead code
+  without user opt-in, actually fires) while clean exits still close.
 - Changed: claude's in-container self-updater is disabled
   (`DISABLE_AUTOUPDATER=1` in the dev container env plus `autoUpdates:
   false` in the payload settings). Self-updates landed in the container's

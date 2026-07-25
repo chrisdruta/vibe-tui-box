@@ -13,6 +13,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
+	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
 	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
@@ -173,6 +174,18 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 	if err != nil {
 		return &domain.OpError{Op: "tui", Err: err}
 	}
+	session := tmux.SessionFor(rec.ID)
+	// The morning path: start what was already approved before any tmux
+	// session exists, so the agent pane never races a stopped container
+	// into a dead server. When starting is impossible but a session
+	// already exists, attach anyway — scrollback and the status line
+	// tell that story better than a refusal; with no session either,
+	// the engine error (in the caller's terminal) beats the race.
+	if err := a.startApproved(ctx, rec); err != nil {
+		if ok, hasErr := a.deps.Tmux.HasSession(ctx, session); hasErr != nil || !ok {
+			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+		}
+	}
 	conf, payloadHostDir, err := a.materializeTuiConf(ctx, rec)
 	if err != nil {
 		return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
@@ -180,7 +193,6 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 	if conf != "" {
 		a.deps.Tmux.ConfigureServer(conf)
 	}
-	session := tmux.SessionFor(rec.ID)
 	if err := a.deps.Tmux.EnsureSession(ctx, tmux.SessionSpec{
 		ID:      session,
 		Workdir: root.Path,
@@ -214,8 +226,14 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_project", string(rec.ID)); err != nil {
 			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
 		}
-		// The v1 prefix/copy indicators ahead of the engine state.
-		status = "#{?client_prefix,#[fg=#{@thm_coral}#,bold]⌨  ,}#{?pane_in_mode,#[fg=#{@thm_yellow}#,bold]copy ,}#[default]" + status + " "
+		// The tray's right cluster: the v1 prefix/copy flashes, the
+		// clickable engine-state cell (range "req" → request list in the
+		// conf's mouse dispatch), and the clock. The display name stays
+		// out — the sidebar and the OS title carry identity; the bar
+		// never repeats it.
+		status = fmt.Sprintf("#{?client_prefix,#[fg=#{@thm_coral}#,bold]⌨  ,}#{?pane_in_mode,#[fg=#{@thm_yellow}#,bold]copy ,}#[default]"+
+			"#[range=user|req]#(%s _state --project %s)#[norange] #[fg=#{@thm_dim}]%%H:%%M#[default] ",
+			a.deps.Executable, rec.ID)
 	}
 	if err := a.deps.Tmux.SetOption(ctx, session, "status-right", status); err != nil {
 		return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
@@ -230,6 +248,37 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 	if ok, err := a.deps.Tmux.HasSession(ctx, session); err == nil && !ok {
 		a.reapAgentClients(ctx, rec)
 	}
+	return nil
+}
+
+// startApproved reconciles the project to its already-approved
+// candidate — the `vibe tui` pre-flight. Unlike Up there is no input
+// freeze and the approved pointer never moves: what was approved is
+// exactly what starts, so a changed manifest stays a deliberate
+// `vibe up`. Already running and in sync short-circuits to one status
+// listing.
+func (a *App) startApproved(ctx context.Context, rec registry.Record) error {
+	if rec.Approved == nil {
+		return fmt.Errorf("%w: no approved candidate to start (run `vibe up` first)", domain.ErrUnavailable)
+	}
+	if err := a.deps.Docker.Ping(ctx); err != nil {
+		return err
+	}
+	if state, err := a.runtime.Status(ctx, rec); err == nil && state.Running() {
+		return nil
+	}
+	cand, lease, err := a.runtime.LoadCandidate(ctx, *rec.Approved)
+	if err != nil {
+		return err
+	}
+	defer lease.Close()
+	if _, err := a.runtime.Up(ctx, cand, runtime.UpOptions{
+		Progress:     a.deps.Progress,
+		LifecycleOut: a.deps.LifecycleOut,
+	}); err != nil {
+		return err
+	}
+	a.bumpTuiSerial(ctx)
 	return nil
 }
 

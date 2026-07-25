@@ -17,6 +17,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
+	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
 )
 
 // ConfigRequest compiles and prints the canonical plan for the project
@@ -249,6 +250,16 @@ func (a *App) Down(ctx context.Context, req DownRequest) (DownResult, error) {
 	}
 	if err := a.runtime.Down(ctx, rec, runtime.DownOptions{RemoveVolumes: req.RemoveVolumes}); err != nil {
 		return DownResult{}, &domain.OpError{Op: "down", Project: rec.ID, Err: err}
+	}
+	// The project's UI session fronts containers that no longer exist;
+	// closing it beats leaving a hollow shell (and ends the palette's
+	// park flow cleanly). Best-effort like the serial bump: a nil tmux,
+	// a dead server, or no session never fails the down that did the
+	// real work.
+	if a.deps.Tmux != nil {
+		killCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+		_ = a.deps.Tmux.KillSession(killCtx, tmux.SessionFor(rec.ID))
+		cancel()
 	}
 	a.bumpTuiSerial(ctx)
 	return DownResult{Record: rec}, nil

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +11,77 @@ import (
 
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
+	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
 )
+
+func TestStartApproved(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Nothing approved yet: refuse with the `vibe up` hint instead of
+	// letting a tui session race a container that cannot exist.
+	err = a.startApproved(ctx, reg.Record)
+	if err == nil || !errors.Is(err, domain.ErrUnavailable) || !strings.Contains(err.Error(), "vibe up") {
+		t.Fatalf("no-approved error wrong: %v", err)
+	}
+
+	up, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Running and in sync: a status listing, no reconcile.
+	created := len(docker.CallsTo("CreateContainer"))
+	if err := a.startApproved(ctx, up.Record); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(docker.CallsTo("CreateContainer")); got != created {
+		t.Fatalf("in-sync start reconciled: %d -> %d creates", created, got)
+	}
+
+	// After a down, the approved candidate is brought back exactly —
+	// containers recreated, no input freeze (no new snapshot).
+	if _, err := a.Down(ctx, DownRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	snaps := len(docker.CallsTo("ResolveImage"))
+	if err := a.startApproved(ctx, up.Record); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(docker.CallsTo("CreateContainer")); got <= created {
+		t.Fatalf("post-down start did not recreate containers: %d creates", got)
+	}
+	if got := len(docker.CallsTo("ResolveImage")); got != snaps {
+		t.Fatal("startApproved must not re-resolve inputs — it runs the approved candidate")
+	}
+}
+
+func TestDownKillsUISession(t *testing.T) {
+	a, _ := newTestApp(t)
+	rt := &recordingTmux{}
+	a.deps.Tmux = rt
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Down(ctx, DownRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	want := tmux.SessionFor(reg.Record.ID)
+	if len(rt.killed) != 1 || rt.killed[0] != want {
+		t.Fatalf("down killed %v, want exactly [%s]", rt.killed, want)
+	}
+}
 
 func TestMaterializeTuiConfAppendsUserConf(t *testing.T) {
 	a, _ := newTestApp(t)

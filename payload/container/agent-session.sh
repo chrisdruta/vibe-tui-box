@@ -172,9 +172,14 @@ if [ "$mode" = "stop" ]; then
   exit 0
 fi
 
-# The hook/statusline wiring rides the read-only payload mount instead
-# of v1's settings-merge into the user's config. The payload settings
-# pin autoMemoryEnabled=false (a hardened container opts IN to
+# The claude wiring rides the read-only payload mount instead of v1's
+# settings-merge into the user's config, split across the two surfaces
+# the CLI offers: the vibe PLUGIN (--plugin-dir, loaded in place per
+# session — never installed, so nothing lands on the agent-state
+# volume) carries the agent-state hooks, the subagent statusline, and
+# /vibe:request; the SETTINGS file keeps the keys a plugin cannot
+# express (statusLine, autoMemoryEnabled, autoUpdates, sandbox). The
+# settings pin autoMemoryEnabled=false (a hardened container opts IN to
 # cross-session memory, it doesn't inherit the CLI's upstream default);
 # when the manifest opted in (agent.memory: auto, arriving as
 # VIBE_AGENT_MEMORY from the engine), a derived copy flips the one key.
@@ -193,7 +198,7 @@ case "${agent_cmd[0]##*/}" in
         rm -f "$derived.$$" 2>/dev/null || true
       fi
     fi
-    agent_cmd+=(--settings "$settings")
+    agent_cmd+=(--settings "$settings" --plugin-dir "$script_dir/claude-plugin")
     ;;
 esac
 

@@ -134,6 +134,14 @@ them.
 Custom import targets may not equal, contain, or be contained by any of
 the engine-owned targets.
 
+Claude's harness integration ships as a **vibe plugin** loaded per
+session from the read-only payload (`--plugin-dir` — never installed,
+so nothing lands on the agent-state volume): the agent-state hooks, the
+subagent statusline, and a `/vibe:request` command that authors a
+well-formed rebuild request. The keys a plugin cannot express
+(`statusLine`, `autoMemoryEnabled`, `autoUpdates`, `sandbox`) ride a
+thin `--settings` file beside it.
+
 Agent logins relocate onto the agent-state volume per agent: claude via
 `CLAUDE_CONFIG_DIR=/vibe/agent-state/claude`, codex via
 `CODEX_HOME=/vibe/agent-state/codex` — log in once inside the container

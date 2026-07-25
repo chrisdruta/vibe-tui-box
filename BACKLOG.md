@@ -133,7 +133,27 @@ section at the bottom — as revisable records, not fences.
   live-sessions-only picker record); (3) the richer roster —
   container-side agent sessions without host windows via `vibe ps`
   (deferred from agent-session slice 3) — can now ride the same fetch
-  cache.
+  cache. (2026-07-25: (3) grew a destination — **tray phase 2**: the
+  bottom bar's window cells should graduate into an agent-truth roster,
+  windowless agents rendered as dim clickable cells whose click spawns
+  a viewer (`vibe agent -s NAME` window). Needs the fetch-cache rows
+  plus a `mouse_status_range` cell per agent; the bar itself, branding
+  button, and range dispatch shipped with the bottom-bar move.)
+
+- **Claude wiring: `--plugin-dir` hybrid ADOPTED (2026-07-25).** The
+  agent-state hooks, subagent statusline, and `/vibe:request` moved
+  into `payload/container/claude-plugin/`, loaded per session with
+  `--plugin-dir` from the read-only payload. Verified in-container:
+  hooks fire from a write-protected dir, commands namespace as
+  `/vibe:…`, and the only volume write is an empty per-plugin `data/`
+  dir — no content copies. Marketplace-style install is REJECTED
+  permanently: it copies plugin bytes onto the agent-state volume,
+  recreating the unpinned-mutable-plugin-state defect class recorded
+  above. A plugin cannot express `statusLine`, `autoMemoryEnabled`,
+  `autoUpdates`, or `sandbox` — those stay in the thin `--settings`
+  file; a pure-plugin end state is off the table upstream-permitting.
+  Candidate future content: an environment skill distilled from the
+  seeded `.vibe/AGENTS.md`.
 
 - **TUI layout pass — SHIPPED 2026-07-24.** Spec written first as
   demanded ([docs/tui-layout.md](docs/tui-layout.md)), then wired:

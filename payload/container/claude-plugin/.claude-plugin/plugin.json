@@ -1,0 +1,4 @@
+{
+  "name": "vibe",
+  "description": "vibe harness integration: agent-state hooks for the tmux UI, subagent statusline, and the /vibe:request rebuild-request author. Version identity is the payload artifact digest (VIBE_PAYLOAD_DIGEST), not a plugin version."
+}

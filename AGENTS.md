@@ -106,7 +106,8 @@ shared leaves: domain, envfile, lock, paths, runner, terminal, version
 
 The `payload/` directory at the repo root is the embedded payload:
 `container/` (entrypoint, lifecycle/services runners, agent
-session/state/statusline scripts), `host/` (tui conf + host scripts),
+session/state/statusline scripts, and the `claude-plugin/` loaded per
+session via `--plugin-dir`), `host/` (tui conf + host scripts),
 and `presets/` (including the shared `common` overlay every preset
 renders on top of);
 `payload/manifest.json` is generated, tracked, and authoritative for

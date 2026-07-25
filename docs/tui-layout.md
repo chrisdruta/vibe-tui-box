@@ -11,24 +11,37 @@ Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges);
 
 ## Decisions
 
-### Bar: top, one line
+### Bar: bottom, one line — the system tray (supersedes "top", 2026-07-25)
 
-The status bar stays at the top, single-line. The dock owns the bottom
-edge — its collapsed 1-row strip is already a bottom chrome bar, and a
-bottom status bar would stack two strips of chrome against it. People
-who want a bottom bar set `status-position bottom` in the user conf
-hook (below); it is supported, just not default.
+The bar moved to the bottom and became the tray: branding start button,
+window cells, engine state, clock. The original top call ("the dock
+owns the bottom edge") is superseded by operator decision — with the
+terminal app's own tabs at the top of the screen, a top bar stacked two
+tab strips; at the bottom the collapsed dock strip and the bar read as
+one chrome band, and the taskbar muscle memory is worth more than the
+strip-stacking concern. Still single-line: the keybind cheatsheet swaps
+*into* the middle while the prefix is held (`#{client_prefix}` over
+`#{E:@vibe_cheat}` / `#{E:@vibe_winlist}` — option indirection keeps
+the stock `W:` construct out of the conditional's comma parsing), so
+hints never cost a row. Top-preferrers set `status-position top` in the
+user conf.
 
 ### Segment inventory (left → right)
 
 | Segment | Content | Source |
 | --- | --- | --- |
-| session | `🥡 #S` + `windows:` label | `status-left` (conf) |
-| tabs | per-window `dot index·name`, attention flash | window-status formats (conf) |
-| `+` cell | clickable new-window | `status-format[0]` user range (conf) |
+| branding | `🥡 vibe` start button — click opens the palette | `status-format[0]` user range `brand` (conf) |
+| tabs | per-window `dot name` (index dropped; `M-1..9` still navigate), attention flash | window-status formats via `@vibe_winlist` (conf) |
+| `+` cell | clickable — opens the palette (the "new" chooser) | `@vibe_winlist` user range `newwin` (conf) |
+| cheatsheet | key hints, shown only while prefix held (replaces tabs) | `@vibe_cheat` (conf) |
 | prefix/copy | `⌨` / `copy` indicators | stamped `status-right` (`vibe tui`) |
-| engine state | state glyph, `▲n` only when pending > 0 | `#(vibe _state)` splice |
-| project | display name | stamped `status-right` |
+| engine state | state glyph, `▲n` only when pending > 0; click opens the request list | `#(vibe _state)` splice in user range `req` |
+| clock | `%H:%M` | stamped `status-right` |
+
+The bar never carries project identity: the sidebar and the OS window
+title (`@vibe_name`) own it, and the ID-derived session name appears in
+no chrome. The palette itself lives in `scripts/palette.sh` — one
+definition serving `prefix+Space` and both clickable cells.
 
 Change from the as-built state: **`vibe _state` output becomes display
 form** — the leading protocol version and the always-present pending

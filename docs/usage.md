@@ -14,7 +14,7 @@ result, and exits with a stable code: 0 ok, 1 failure, 2 usage,
 | `vibe register [--name NAME]` | Register an existing project |
 | `vibe up [--refresh-agents]` | Freeze inputs → compile candidate → reconcile containers → mark approved. `--refresh-agents` re-pulls the channel-tracking agents (claude, codex, grok) to latest and makes that the project's new baseline |
 | `vibe rebuild [--refresh-agents]` | Same, but recreate containers even when already in sync |
-| `vibe down [--volumes]` | Stop and remove containers and network; volumes survive unless asked |
+| `vibe down [--volumes]` | Stop and remove containers and network; also closes the project's tui session; volumes survive unless asked |
 | `vibe status` | Containers vs the approved candidate (running / stopped / stale) |
 | `vibe config` | Print the canonical plan JSON compiled from current inputs |
 | `vibe ps` | All registered projects, plus this project's agent sessions |
@@ -89,8 +89,27 @@ everything at once.
 `vibe tui` opens (or joins) the project's tmux session with `vibe agent`
 in the main window and the engine state in the status line: `●` running,
 `◐` running but stale candidate, `○` stopped, plus a pending-request
-count. Sessions are named from the project ID, so display renames never
-strand a session. Agent state (working / attention / idle / exited) is
+count. When the containers are not running it first starts the
+**approved** candidate — no input freeze, no approval movement: exactly
+what you already approved comes back, services and all. Changed inputs
+still take a deliberate `vibe up` (the `◐` glyph is the reminder).
+Sessions are named from the project ID, so display renames never
+strand a session.
+
+The bar sits at the bottom, system-tray style: the `🥡 vibe` cell is a
+clickable start button (opens the palette, as does the `+` cell),
+window tabs show a state dot and name, and the right side carries the
+engine state (click it for the request list) and a clock. Holding the
+prefix swaps the tabs for a keybind cheatsheet — hints on demand, no
+extra row. Project identity lives in the sidebar and the OS window
+title, never the bar.
+
+The daily cycle is symmetric: evening `prefix+Space → park project`
+(or `vibe down` from any terminal) stops the containers and closes the
+project's UI session — agent logins and conversations live on the
+agent-state volume and survive. Morning is `vibe tui`, alone. Leaving
+everything running overnight also works (reattach is instant); it just
+keeps the container — and on WSL2 the VM — warm. Agent state (working / attention / idle / exited) is
 pushed by the agent's own hooks into tab, border, and sidebar dots — a
 permission prompt flashes the tab even from another window.
 
