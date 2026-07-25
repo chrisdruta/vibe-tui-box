@@ -102,10 +102,12 @@ still take a deliberate `vibe up` (the `◐` glyph is the reminder).
 Sessions are named from the project ID, so display renames never
 strand a session.
 
-The bar sits at the bottom, system-tray style: the `🥡 vibe` cell is a
-clickable start button (opens the palette, as does the `+` cell),
-window tabs show a state dot and name, and the right side carries the
-engine state (click it for the request list) and a clock. Holding the
+The bar sits at the bottom, system-tray style: the `🥡` cell is a
+clickable start button (opens the palette, as does the `+` cell), the
+`▤` cell beside the tabs toggles the host dock (clicking the collapsed
+`host` strip expands it too), window tabs show a state dot and the CLI
+actually running, and the right side carries the engine state (click
+it for the request list) and a clock. Holding the
 prefix swaps the tabs for a keybind cheatsheet — hints on demand, no
 extra row. Project identity lives in the sidebar and the OS window
 title, never the bar.

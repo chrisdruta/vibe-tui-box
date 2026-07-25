@@ -32,6 +32,7 @@ user conf.
 | --- | --- | --- |
 | branding | `🥡 vibe-tui-box` start button — click opens the palette | `status-format[0]` user range `brand` (conf) |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's cmd field), attention flash | window-status formats via `@vibe_winlist` (conf) |
+| `▤` cell | clickable — toggles the host dock (prefix+t as a button), left of the tabs; clicking the collapsed dock strip itself also expands it | `@vibe_winlist` user range `dock` (conf) |
 | `+` cell | clickable — opens the palette (the "new" chooser) | `@vibe_winlist` user range `newwin` (conf) |
 | cheatsheet | key hints, shown only while prefix held (replaces tabs) | `@vibe_cheat` (conf) |
 | prefix/copy | `⌨` / `copy` indicators | stamped `status-right` (`vibe tui`) |
