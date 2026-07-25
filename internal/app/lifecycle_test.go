@@ -184,10 +184,10 @@ func lastToolsRefreshArg(t *testing.T, docker *dockerfake.Client) (string, bool)
 	return v, ok
 }
 
-// --refresh-agents mints a token, threads it into the tools build, and
-// persists it so later plain rebuilds keep the refreshed agents (warm)
-// instead of reverting to the cache-frozen build.
-func TestRebuildRefreshAgents(t *testing.T) {
+// Every rebuild refreshes the unversioned agents: the token is minted
+// without any flag, threaded into the tools build, and persisted; a
+// later plain up keeps it (warm cache), never reverting the agents.
+func TestRebuildRefreshesAgents(t *testing.T) {
 	a, docker := newTestApp(t)
 	ctx := context.Background()
 	dir := newProject(t)
@@ -195,7 +195,8 @@ func TestRebuildRefreshAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Plain up: no refresh token minted or passed to the build.
+	// Plain up: no refresh token minted or passed to the build —
+	// idempotent ups stay off the network.
 	up, err := a.Up(ctx, UpRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
@@ -207,30 +208,31 @@ func TestRebuildRefreshAgents(t *testing.T) {
 		t.Fatalf("plain up passed a refresh build arg: %q", v)
 	}
 
-	// Rebuild --refresh-agents: token minted, passed to the build, persisted.
-	rb, err := a.Up(ctx, UpRequest{Dir: dir, Force: true, RefreshAgents: true})
+	// Plain rebuild — no flag: token minted, passed to the build,
+	// persisted. "No version given" means "latest per rebuild".
+	rb, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	token := rb.Record.AgentRefresh
 	if token == "" {
-		t.Fatal("refresh did not persist a token")
+		t.Fatal("rebuild did not mint a refresh token")
 	}
 	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != token {
-		t.Fatalf("refresh build arg = (%q, %v), want persisted token %q", v, ok, token)
+		t.Fatalf("rebuild build arg = (%q, %v), want persisted token %q", v, ok, token)
 	}
 
-	// A later plain rebuild keeps the same token and still passes it —
-	// the refreshed agents do not revert.
-	rb2, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
+	// A later plain up keeps the token and still passes it — the
+	// refreshed agents stay warm-cached, never reverting.
+	up2, err := a.Up(ctx, UpRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rb2.Record.AgentRefresh != token {
-		t.Fatalf("plain rebuild changed the token: %q -> %q", token, rb2.Record.AgentRefresh)
+	if up2.Record.AgentRefresh != token {
+		t.Fatalf("plain up changed the token: %q -> %q", token, up2.Record.AgentRefresh)
 	}
 	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != token {
-		t.Fatalf("plain rebuild dropped the token: got (%q, %v), want %q", v, ok, token)
+		t.Fatalf("plain up dropped the token: got (%q, %v), want %q", v, ok, token)
 	}
 }
 

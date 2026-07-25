@@ -215,11 +215,13 @@ history). Read the mechanisms as historical; the calls stand.
   is a base-image digest pin, not a lockfile subsystem. (v2 note: recipe
   pins now ship inside the engine and move with engine releases.)
   (2026-07-25: the *opposite* direction — the floating agents going
-  stale because the layer cache froze them — is now handled by `vibe
-  rebuild --refresh-agents`, a per-refresh cache-buster on just the
+  stale because the layer cache froze them — is now handled by the
+  refresh token: a per-rebuild cache-buster on just the unversioned
   agent layers, persisted as a generation token on the project record.
-  A `--pin-agents` inverse to drop back to engine defaults is unbuilt;
-  re-init resets the token today.)
+  Superseded the same day by manifest pins: `image.agents` accepts
+  `claude@2.1.220`, unversioned entries re-pull to latest on every
+  rebuild — the pin lives in the manifest, so the deferred lockfile
+  subsystem stays unbuilt.)
 - **Own terminal multiplexer REJECTED (2026-07-21).** Sizing herdr: ~193K
   LoC of Rust whose hard core is vendored (libghostty-vt, portable-pty);
   its daemon layer buys detach/reattach that tmux gives us free. A shell

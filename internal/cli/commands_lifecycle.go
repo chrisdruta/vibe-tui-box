@@ -21,7 +21,7 @@ var lifecycleCommands = map[string]Command{
 			var req UpRequest
 			return parseInto(args, "up", &req.Options, func(fs *flag.FlagSet) any {
 				fs.BoolVar(&req.RefreshAgents, "refresh-agents", false,
-					"re-pull the channel-tracking agents (claude, codex, grok) to latest")
+					"re-pull the unversioned (channel-tracking) agents to latest")
 				return &req
 			})
 		},
@@ -35,20 +35,18 @@ var lifecycleCommands = map[string]Command{
 		},
 	},
 	"rebuild": {
-		Name:    "rebuild",
-		Summary: "recreate containers from freshly compiled inputs",
-		Usage:   "vibe rebuild [--refresh-agents] [--json]",
+		Name: "rebuild",
+		// Rebuild always re-pulls the unversioned agents — "no version
+		// given" means "latest per rebuild" — so it takes no
+		// --refresh-agents flag; pin an agent in image.agents to hold it.
+		Summary: "recreate containers from freshly compiled inputs (unversioned agents re-pull)",
+		Usage:   "vibe rebuild [--json]",
 		Parse: func(args []string) (Request, error) {
 			var req RebuildRequest
-			return parseInto(args, "rebuild", &req.Options, func(fs *flag.FlagSet) any {
-				fs.BoolVar(&req.RefreshAgents, "refresh-agents", false,
-					"re-pull the channel-tracking agents (claude, codex, grok) to latest")
-				return &req
-			})
+			return parseInto(args, "rebuild", &req.Options, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
-			r := req.(*RebuildRequest)
-			res, err := a.Up(ctx, app.UpRequest{Dir: dir, Force: true, RefreshAgents: r.RefreshAgents})
+			res, err := a.Up(ctx, app.UpRequest{Dir: dir, Force: true})
 			if err != nil {
 				return nil, err
 			}

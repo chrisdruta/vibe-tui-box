@@ -72,7 +72,10 @@ func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
 	}
 	agentCmd := string(doc.Manifest.Agent.Cmd)
 	if req.Agent != "" {
-		if !slices.Contains(doc.Manifest.Image.Agents, schema.AgentKind(req.Agent)) {
+		listed := slices.ContainsFunc(doc.Manifest.Image.Agents, func(a schema.AgentSpec) bool {
+			return a.Kind == schema.AgentKind(req.Agent)
+		})
+		if !listed {
 			return fail(fmt.Errorf("%w: agent %q is not listed in image.agents", domain.ErrInvalid, req.Agent))
 		}
 		agentCmd = req.Agent

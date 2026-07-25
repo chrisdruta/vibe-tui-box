@@ -79,9 +79,18 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 	devImage := resolve(m.Image.Base)
 	hasTools := len(m.Image.Agents) > 0 || len(m.Image.Toolchains) > 0
 	if hasTools {
+		agents := make([]string, 0, len(m.Image.Agents))
+		for _, a := range m.Image.Agents {
+			// The spec's string form ("claude", "claude@2.1.220") is the
+			// canonical-plan form: a pin change is a plan change, an
+			// unversioned entry stays byte-identical to the pre-version
+			// output.
+			agents = append(agents, a.String())
+		}
+		sort.Strings(agents)
 		devImage = resolve(ToolsImageRef(id))
 		plan.Tools = &Tools{
-			Agents:     sortedStrings(m.Image.Agents),
+			Agents:     agents,
 			Toolchains: sortedStrings(m.Image.Toolchains),
 		}
 	}
@@ -138,7 +147,7 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 		// Claude relocates all its state (including .claude.json) under
 		// CLAUDE_CONFIG_DIR, so logins land in the agent-state volume and
 		// survive rebuilds. Engine-provided: comes last, cannot be shadowed.
-		if agent == schema.AgentClaude {
+		if agent.Kind == schema.AgentClaude {
 			// DISABLE_AUTOUPDATER pins the running claude to the image's
 			// frozen install: self-updates would land in the container's
 			// writable layer and silently revert on the next replace, so the
@@ -150,7 +159,7 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 		// Codex keeps auth.json and config under CODEX_HOME; the same
 		// relocation keeps `codex login` alive across rebuilds (the
 		// agent-state docs promise it for every agent, not just Claude).
-		if agent == schema.AgentCodex {
+		if agent.Kind == schema.AgentCodex {
 			dev.Environment = append(dev.Environment,
 				Env{Key: "CODEX_HOME", Value: path.Join(AgentStateTarget, "codex")})
 		}

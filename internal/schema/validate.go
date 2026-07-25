@@ -129,12 +129,15 @@ func (v *validator) image(m *Manifest) {
 	} else if !imageRefRe.MatchString(m.Image.Base) {
 		v.add("image.base", fmt.Sprintf("%q is not an image reference (name[:tag][@sha256:...])", m.Image.Base))
 	}
+	// Duplicates key on the agent, not the pin: one CLI installs once,
+	// so "claude" beside "claude@2.1.220" is a contradiction, not two
+	// entries.
 	seenAgents := map[AgentKind]bool{}
 	for i, a := range m.Image.Agents {
-		if seenAgents[a] {
-			v.add(fmt.Sprintf("image.agents[%d]", i), fmt.Sprintf("duplicate agent %q", a))
+		if seenAgents[a.Kind] {
+			v.add(fmt.Sprintf("image.agents[%d]", i), fmt.Sprintf("duplicate agent %q", a.Kind))
 		}
-		seenAgents[a] = true
+		seenAgents[a.Kind] = true
 	}
 	seenTools := map[Toolchain]bool{}
 	for i, t := range m.Image.Toolchains {
@@ -201,7 +204,7 @@ func (v *validator) agent(m *Manifest) {
 		return
 	}
 	for _, a := range m.Image.Agents {
-		if a == m.Agent.Cmd {
+		if a.Kind == m.Agent.Cmd {
 			return
 		}
 	}

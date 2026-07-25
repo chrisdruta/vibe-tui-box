@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	allAgents     = []schema.AgentKind{schema.AgentClaude, schema.AgentCodex, schema.AgentGrok}
+	allAgents     = []schema.AgentSpec{{Kind: schema.AgentClaude}, {Kind: schema.AgentCodex}, {Kind: schema.AgentGrok}}
 	allToolchains = []schema.Toolchain{schema.ToolchainNode, schema.ToolchainBun, schema.ToolchainGo, schema.ToolchainRokit}
 )
 
@@ -19,11 +19,11 @@ func TestGenerateInstallEmpty(t *testing.T) {
 	}
 }
 
-// Every subset of the closed enums must satisfy the extension
-// Dockerfile contract the builder enforces.
-func TestGenerateInstallAllSubsetsValidate(t *testing.T) {
+// subsetSelections enumerates every non-empty subset of the closed
+// enums, with refresh in both positions.
+func subsetSelections(fn func(agents []schema.AgentSpec, toolchains []schema.Toolchain, mask int)) {
 	for mask := 1; mask < 1<<(len(allAgents)+len(allToolchains)); mask++ {
-		var agents []schema.AgentKind
+		var agents []schema.AgentSpec
 		var toolchains []schema.Toolchain
 		for i, a := range allAgents {
 			if mask&(1<<i) != 0 {
@@ -35,24 +35,47 @@ func TestGenerateInstallAllSubsetsValidate(t *testing.T) {
 				toolchains = append(toolchains, tc)
 			}
 		}
-		out := GenerateInstall(agents, toolchains, false)
-		if out == nil {
-			t.Fatalf("mask %b: nil output for non-empty selection", mask)
-		}
-		if err := ValidateDockerfile(out); err != nil {
-			t.Fatalf("mask %b: generated dockerfile invalid: %v\n%s", mask, err, out)
-		}
+		fn(agents, toolchains, mask)
 	}
+}
+
+// Every subset of the closed enums must satisfy the extension
+// Dockerfile contract the builder enforces, refreshed or not, pinned
+// or not.
+func TestGenerateInstallAllSubsetsValidate(t *testing.T) {
+	subsetSelections(func(agents []schema.AgentSpec, toolchains []schema.Toolchain, mask int) {
+		for _, refresh := range []bool{false, true} {
+			out := GenerateInstall(agents, toolchains, refresh)
+			if out == nil {
+				t.Fatalf("mask %b: nil output for non-empty selection", mask)
+			}
+			if err := ValidateDockerfile(out); err != nil {
+				t.Fatalf("mask %b refresh %v: generated dockerfile invalid: %v\n%s", mask, refresh, err, out)
+			}
+		}
+		// Pinned variants validate too (grok cannot be pinned).
+		var pinned []schema.AgentSpec
+		for _, a := range agents {
+			if a.Kind != schema.AgentGrok {
+				a.Version = "1.2.3"
+			}
+			pinned = append(pinned, a)
+		}
+		out := GenerateInstall(pinned, toolchains, true)
+		if err := ValidateDockerfile(out); err != nil {
+			t.Fatalf("mask %b pinned: generated dockerfile invalid: %v\n%s", mask, err, out)
+		}
+	})
 }
 
 func TestGenerateInstallDeterministic(t *testing.T) {
 	a := GenerateInstall(
-		[]schema.AgentKind{schema.AgentGrok, schema.AgentClaude},
+		[]schema.AgentSpec{{Kind: schema.AgentGrok}, {Kind: schema.AgentClaude}},
 		[]schema.Toolchain{schema.ToolchainRokit, schema.ToolchainBun},
 		false,
 	)
 	b := GenerateInstall(
-		[]schema.AgentKind{schema.AgentClaude, schema.AgentGrok},
+		[]schema.AgentSpec{{Kind: schema.AgentClaude}, {Kind: schema.AgentGrok}},
 		[]schema.Toolchain{schema.ToolchainBun, schema.ToolchainRokit},
 		false,
 	)
@@ -61,30 +84,16 @@ func TestGenerateInstallDeterministic(t *testing.T) {
 	}
 }
 
-// A project that has never refreshed must produce byte-identical bytes
-// to the pre-feature generator, so existing tools images never churn.
-func TestGenerateInstallRefreshFalseUnchanged(t *testing.T) {
-	for mask := 1; mask < 1<<(len(allAgents)+len(allToolchains)); mask++ {
-		var agents []schema.AgentKind
-		var toolchains []schema.Toolchain
-		for i, a := range allAgents {
-			if mask&(1<<i) != 0 {
-				agents = append(agents, a)
-			}
-		}
-		for i, tc := range allToolchains {
-			if mask&(1<<(len(allAgents)+i)) != 0 {
-				toolchains = append(toolchains, tc)
-			}
-		}
+// A project that has never refreshed carries no cache-buster: the
+// unversioned installers track their channels but their layers stay
+// plainly cacheable until the first rebuild mints a token.
+func TestGenerateInstallRefreshFalseHasNoBuster(t *testing.T) {
+	subsetSelections(func(agents []schema.AgentSpec, toolchains []schema.Toolchain, mask int) {
 		out := string(GenerateInstall(agents, toolchains, false))
 		if strings.Contains(out, AgentRefreshArg) {
 			t.Fatalf("mask %b: non-refresh output leaked %s:\n%s", mask, AgentRefreshArg, out)
 		}
-		if strings.Contains(out, "@openai/codex@"+codexChannel) {
-			t.Fatalf("mask %b: non-refresh output floated codex to %s", mask, codexChannel)
-		}
-	}
+	})
 }
 
 func TestGenerateInstallRefresh(t *testing.T) {
@@ -100,12 +109,9 @@ func TestGenerateInstallRefresh(t *testing.T) {
 	if got := strings.Count(out, "agents-refresh=${"+AgentRefreshArg+"}"); got != 3 {
 		t.Errorf("want the refresh token referenced by all 3 agents, got %d\n%s", got, out)
 	}
-	// Codex floats to latest on refresh; the hard pin must be gone.
+	// Unversioned codex tracks the npm dist-tag.
 	if !strings.Contains(out, "@openai/codex@"+codexChannel) {
-		t.Errorf("refresh did not float codex to %s:\n%s", codexChannel, out)
-	}
-	if strings.Contains(out, "@openai/codex@"+codexVersion) {
-		t.Errorf("refresh left codex pinned at %s:\n%s", codexVersion, out)
+		t.Errorf("unversioned codex should track %s:\n%s", codexChannel, out)
 	}
 	// The pinned system toolchains sit in earlier layers and must not
 	// carry the cache-buster.
@@ -116,19 +122,59 @@ func TestGenerateInstallRefresh(t *testing.T) {
 	}
 }
 
+// Manifest-pinned agents install their exact version in plain layers
+// the refresh token never reaches; unversioned neighbors still bust.
+func TestGenerateInstallManifestPins(t *testing.T) {
+	pinned := []schema.AgentSpec{
+		{Kind: schema.AgentClaude, Version: "2.1.220"},
+		{Kind: schema.AgentCodex, Version: "0.144.1"},
+	}
+	out := string(GenerateInstall(pinned, nil, true))
+	if strings.Contains(out, AgentRefreshArg) {
+		t.Fatalf("all-pinned selection must ignore refresh entirely:\n%s", out)
+	}
+	if !strings.Contains(out, "install.sh | bash -s -- 2.1.220") {
+		t.Errorf("claude pin missing:\n%s", out)
+	}
+	if !strings.Contains(out, "@openai/codex@0.144.1") {
+		t.Errorf("codex pin missing:\n%s", out)
+	}
+	if strings.Contains(out, "bash -s -- "+claudeChannel) || strings.Contains(out, "@openai/codex@"+codexChannel) {
+		t.Errorf("pinned agents must not track channels:\n%s", out)
+	}
+
+	// Mixed: pinned claude stays plain, unversioned grok busts.
+	mixed := []schema.AgentSpec{
+		{Kind: schema.AgentClaude, Version: "2.1.220"},
+		{Kind: schema.AgentGrok},
+	}
+	out = string(GenerateInstall(mixed, nil, true))
+	if got := strings.Count(out, "agents-refresh=${"+AgentRefreshArg+"}"); got != 1 {
+		t.Fatalf("want exactly the unversioned agent busted, got %d references:\n%s", got, out)
+	}
+	claudeLayer := out[strings.Index(out, "claude.ai/install.sh")-200 : strings.Index(out, "claude.ai/install.sh")]
+	if strings.Contains(claudeLayer, "agents-refresh") {
+		t.Fatalf("pinned claude layer carries the buster:\n%s", out)
+	}
+	if err := ValidateDockerfile([]byte(out)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGenerateInstallContent(t *testing.T) {
 	tests := []struct {
 		name       string
-		agents     []schema.AgentKind
+		agents     []schema.AgentSpec
 		toolchains []schema.Toolchain
 		want       []string
 		absent     []string
 	}{
 		{
 			name:   "claude only",
-			agents: []schema.AgentKind{schema.AgentClaude},
+			agents: []schema.AgentSpec{{Kind: schema.AgentClaude}},
 			want: []string{
 				"claude.ai/install.sh",
+				"bash -s -- " + claudeChannel,
 				"ENV PATH=/home/vscode/.local/bin:${PATH}",
 				"chown vscode:vscode /vibe/agent-state",
 				"tmux/releases/download/" + tmuxVersion + "/tmux-" + tmuxVersion + ".tar.gz",
@@ -139,11 +185,11 @@ func TestGenerateInstallContent(t *testing.T) {
 		},
 		{
 			name:   "codex drags node in",
-			agents: []schema.AgentKind{schema.AgentCodex},
+			agents: []schema.AgentSpec{{Kind: schema.AgentCodex}},
 			want: []string{
 				"USER root",
 				"deb.nodesource.com/setup_" + nodeMajor + ".x",
-				"@openai/codex@" + codexVersion,
+				"@openai/codex@" + codexChannel,
 			},
 		},
 		{
@@ -170,7 +216,7 @@ func TestGenerateInstallContent(t *testing.T) {
 		},
 		{
 			name:   "grok materializes the real binary",
-			agents: []schema.AgentKind{schema.AgentGrok},
+			agents: []schema.AgentSpec{{Kind: schema.AgentGrok}},
 			want: []string{
 				"x.ai/cli/install.sh",
 				"ln -s /home/vscode/.agents/grok /home/vscode/.grok",

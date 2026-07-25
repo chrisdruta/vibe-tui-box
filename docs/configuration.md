@@ -11,7 +11,7 @@ schema: 1
 harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
-  agents: [claude, codex]     # claude | codex | grok (presets seed both)
+  agents: [claude, codex]     # claude | codex | grok; pin with claude@2.1.220 (unversioned = latest per rebuild)
   toolchains: [go]            # node | bun | go | rokit
   extension: true             # opt into .vibe/Dockerfile (see extending.md)
 runtime:
@@ -41,30 +41,30 @@ bootstrap:
   registry digest at candidate time and runs by digest from then on.
   Pin with `@sha256:…` yourself for full reproducibility.
 - **`image.agents` / `image.toolchains`** — closed enums the engine
-  bakes into a generated install image layered on the base; recipes and
-  version pins ship with the engine and move with engine releases.
-  Unlike the extension there is no approval prompt: the install
-  Dockerfile is engine-authored, never project input. `agent.cmd` must
-  be listed in `image.agents`.
+  bakes into a generated install image layered on the base; recipes
+  ship with the engine. Unlike the extension there is no approval
+  prompt: the install Dockerfile is engine-authored, never project
+  input. `agent.cmd` must be listed in `image.agents`.
 
-  The agent CLIs track a mutable channel (claude/grok: their installer's
-  stable/latest; codex: an engine version pin), so the Docker layer
-  cache pins whichever build it captured first — a plain `vibe rebuild`
-  keeps that build. `--refresh-agents` (on `vibe up` or `vibe rebuild`)
-  re-pulls them: it weaves a per-refresh cache-buster into only the
-  agent layers (and
-  floats codex to its `latest` npm dist-tag), then records the refresh
-  generation on the project so subsequent plain rebuilds stay on the
-  fresh build. System toolchains (Go/Node) and tmux (engine-pinned
-  source build — distro tmux drops sixel images on redraw and skews per
-  base image) never move on a refresh; they change only with engine
-  releases.
+  An agent entry optionally pins a version: `claude@2.1.220` installs
+  exactly that build and never moves; plain `claude` tracks the
+  installer's channel (claude: `stable`; codex: npm `latest`) and is
+  **re-pulled to latest on every `vibe rebuild`** — no version given
+  means "keep me current". The refresh weaves a per-rebuild
+  cache-buster into only the unversioned agent layers; pinned agents
+  and the system toolchains (Go/Node, and tmux — an engine-pinned
+  source build, because distro tmux drops sixel images on redraw)
+  stay cached and move only with the manifest or engine releases.
+  `vibe up` never refreshes on its own (idempotent ups stay off the
+  network); `vibe up --refresh-agents` is the opt-in. `grok` cannot be
+  pinned — its installer has no version parameter.
 
   The image is the only version authority: claude's in-container
   self-updater is disabled (engine env `DISABLE_AUTOUPDATER=1` plus the
   payload settings), because an update would land in the container's
-  writable layer and silently revert on the next replace. Agent versions
-  move exactly one way — `--refresh-agents`.
+  writable layer and silently revert on the next replace. Agent
+  versions move exactly one way — a rebuild (unversioned) or a manifest
+  pin change.
 - **`runtime.ports`** — published ports must bind a loopback IP; there
   is no way to expose a container to the network. The sanctioned use is
   host tooling that must reach a server inside (e.g. Roblox Studio →

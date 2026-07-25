@@ -8,6 +8,7 @@ package schema
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -30,7 +31,7 @@ type Manifest struct {
 
 type Image struct {
 	Base       string      `yaml:"base"`
-	Agents     []AgentKind `yaml:"agents,omitempty"`
+	Agents     []AgentSpec `yaml:"agents,omitempty"`
 	Toolchains []Toolchain `yaml:"toolchains,omitempty"`
 	Extension  bool        `yaml:"extension,omitempty"`
 }
@@ -88,6 +89,62 @@ func (a *AgentKind) UnmarshalText(b []byte) error {
 	default:
 		return fmt.Errorf("%w: agent %q: known agents are claude, codex, grok", domain.ErrInvalid, b)
 	}
+}
+
+// AgentSpec is one image.agents entry: an agent CLI, optionally pinned
+// to an exact version. "claude" tracks the installer's channel and is
+// re-pulled to latest on every `vibe rebuild`; "claude@2.1.220" is
+// exact and never refreshed. grok cannot be pinned — its installer has
+// no version parameter.
+type AgentSpec struct {
+	Kind    AgentKind
+	Version string
+}
+
+func (a *AgentSpec) UnmarshalText(b []byte) error {
+	name, version, pinned := strings.Cut(string(b), "@")
+	if err := a.Kind.UnmarshalText([]byte(name)); err != nil {
+		return err
+	}
+	if !pinned {
+		a.Version = ""
+		return nil
+	}
+	if a.Kind == AgentGrok {
+		return fmt.Errorf("%w: agent %q: grok's installer cannot pin a version (drop the @)", domain.ErrInvalid, b)
+	}
+	if !validAgentVersion(version) {
+		return fmt.Errorf("%w: agent %q: version must be 1-64 characters of [0-9A-Za-z._+-], starting alphanumeric", domain.ErrInvalid, b)
+	}
+	a.Version = version
+	return nil
+}
+
+// String renders the manifest form; it is also the canonical-plan form,
+// so unversioned entries stay byte-identical to the pre-version output.
+func (a AgentSpec) String() string {
+	if a.Version == "" {
+		return string(a.Kind)
+	}
+	return string(a.Kind) + "@" + a.Version
+}
+
+// validAgentVersion bounds the charset an agent version may carry: the
+// value lands inside a generated Dockerfile RUN line, so nothing with
+// shell meaning ($, quotes, backslash, whitespace) is representable.
+func validAgentVersion(v string) bool {
+	if len(v) == 0 || len(v) > 64 {
+		return false
+	}
+	for i, c := range v {
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+		case (c == '.' || c == '-' || c == '_' || c == '+') && i > 0:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // MemoryMode selects the agent CLI's cross-session auto memory. The

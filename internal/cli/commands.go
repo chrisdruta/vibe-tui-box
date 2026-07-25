@@ -159,10 +159,7 @@ type GCRequest struct {
 	MinAge time.Duration
 }
 
-type RebuildRequest struct {
-	Options
-	RefreshAgents bool
-}
+type RebuildRequest struct{ Options }
 
 type DownRequest struct {
 	Options

@@ -2,6 +2,7 @@ package schema
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -137,6 +138,52 @@ func TestLoadLimits(t *testing.T) {
 	}
 	if _, err := load(t, sb.String()); err == nil {
 		t.Fatal("collection limit not enforced")
+	}
+}
+
+func TestAgentSpecParsing(t *testing.T) {
+	base := "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [%s]}\nagent: {cmd: claude}\n"
+
+	doc := mustLoad(t, fmt.Sprintf(base, "claude@2.1.220, codex"))
+	if errs := doc.Validate(); len(errs) > 0 {
+		t.Fatalf("pinned manifest should validate: %v", errs)
+	}
+	agents := doc.Manifest.Image.Agents
+	if len(agents) != 2 ||
+		agents[0].Kind != AgentClaude || agents[0].Version != "2.1.220" ||
+		agents[1].Kind != AgentCodex || agents[1].Version != "" {
+		t.Fatalf("spec parse wrong: %+v", agents)
+	}
+	if agents[0].String() != "claude@2.1.220" || agents[1].String() != "codex" {
+		t.Fatalf("spec String() wrong: %q, %q", agents[0], agents[1])
+	}
+
+	for name, src := range map[string]string{
+		"grok cannot pin":       fmt.Sprintf(base, "claude, \"grok@1.0\""),
+		"empty version":         fmt.Sprintf(base, "\"claude@\""),
+		"shell-meaning version": fmt.Sprintf(base, "\"claude@$(id)\""),
+		"quote in version":      fmt.Sprintf(base, "\"claude@1'2\""),
+		"leading punctuation":   fmt.Sprintf(base, "\"claude@.1\""),
+		"unknown agent pinned":  fmt.Sprintf(base, "\"gemini@1.0\""),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := load(t, src); err == nil {
+				t.Fatalf("should fail to load:\n%s", src)
+			}
+		})
+	}
+
+	// A pin and its unversioned twin are one CLI declared twice.
+	dup := mustLoad(t, fmt.Sprintf(base, "claude, claude@2.1.220"))
+	errs := dup.Validate()
+	found := false
+	for _, e := range errs {
+		if e.Path == "image.agents[1]" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("pinned duplicate not diagnosed: %v", errs)
 	}
 }
 

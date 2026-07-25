@@ -168,9 +168,11 @@ type UpRequest struct {
 	Dir   string
 	Force bool // replace containers even when already in sync (rebuild)
 	// RefreshAgents mints a fresh agent-refresh token before compiling, so
-	// the channel-tracking agents (claude, codex, grok) re-pull to latest
-	// and the token persists as the project's new baseline. Honored by
-	// both up and rebuild.
+	// the channel-tracking (unversioned) agents re-pull to latest and the
+	// token persists as the project's new baseline. Force implies it —
+	// every rebuild re-checks unversioned agents; manifest-pinned agents
+	// sit in plain layers no token reaches. On a plain up this is the
+	// --refresh-agents opt-in.
 	RefreshAgents bool
 }
 
@@ -195,10 +197,13 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 		return fail(err)
 	}
 	// A refresh mints a new token before compiling so the tools image
-	// re-pulls the channel-tracking agents; it is persisted below (with
-	// Approved) only once the containers are actually up. A plain up keeps
-	// the record's existing token, so the agents stay warm-cached.
-	if req.RefreshAgents {
+	// re-pulls the channel-tracking (unversioned) agents; it is persisted
+	// below (with Approved) only once the containers are actually up.
+	// Every rebuild refreshes — "no version given" means "latest per
+	// rebuild" — while a plain up keeps the record's existing token, so
+	// idempotent ups stay warm-cached and off the network.
+	refreshAgents := req.RefreshAgents || req.Force
+	if refreshAgents {
 		rec.AgentRefresh = a.deps.Clock.Now().UTC().Format(time.RFC3339Nano)
 	}
 	cand, err := a.prepareCandidate(ctx, root, rec)
@@ -217,7 +222,7 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 	// the approved-candidate pointer.
 	updated, err := a.deps.Registry.Update(ctx, rec.ID, rec.Revision, func(r *registry.Record) error {
 		r.Approved = &cand.Record.Digest
-		if req.RefreshAgents {
+		if refreshAgents {
 			r.AgentRefresh = rec.AgentRefresh
 		}
 		return nil
