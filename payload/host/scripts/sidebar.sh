@@ -46,16 +46,20 @@
 # anyway), and signaling sidebars FROM state-render.sh would put
 # list-panes + kills on the hot path to save work on the cold one.
 #
-# ENGINE truth (container state vs approved candidate, pending requests,
-# dev marker, cold registered projects) comes from the hidden renderers
-# `vibe _fleet` / `vibe _sidebar` — but NEVER on the frame path. A
-# second serial, @vibe_engine_serial (bumped by state-mutating engine
-# commands, internal/app/notify.go), or the @vibe_engine_refresh slow
-# tick (default 30s) triggers a double-forked background fetch into a
-# socket-derived cache; frames only ever READ the cache, so a slow or
-# dead engine costs nothing and the last good truth keeps rendering.
-# No engine binary, no cache: the sidebar degrades to exactly the
-# shell-only view it was before the renderers existed.
+# DRAWING is the engine's: each frame pipes raw tmux porcelain into the
+# hidden `vibe _frame` renderer (internal/tmuxui/frame.go), which owns
+# every budget, truncation, and click-map row — this script never does
+# layout arithmetic. ENGINE truth (container state vs approved
+# candidate, pending requests, dev marker, cold registered projects)
+# stays cache-only: a second serial, @vibe_engine_serial (bumped by
+# state-mutating engine commands, internal/app/notify.go), or the
+# @vibe_engine_refresh slow tick (default 30s) triggers a double-forked
+# background fetch of `vibe _fleet` / `vibe _sidebar` into a
+# socket-derived cache; _frame only ever READS the cache — never
+# Docker — so a slow daemon costs frames nothing and the last good
+# truth keeps rendering. The engine binary itself is a prerequisite
+# (the sidebar only exists under `vibe tui`): if it vanishes
+# mid-session the pane parks on a notice and keeps polling.
 #
 # Host-side: bash-3.2-safe (stock macOS). Runs under the vibe server
 # (run-shell provides TMUX for toggle/ensure; the pane's environment for
@@ -182,19 +186,6 @@ render) ;;
 esac
 
 # ── render ───────────────────────────────────────────────────────────────
-# One palette: theme.sh, beside the tmux conf (whose @thm block is its
-# lockstep twin). Sourced once at launch — a palette change lands on the
-# next toggle, which is fine.
-case "$0" in */*) here="${0%/*}" ;; *) here="." ;; esac
-# shellcheck source=theme.sh disable=SC1091
-. "$here/theme.sh"
-c_fg="$(vibe_fg "$VIBE_THM_FG")"
-c_dim="$(vibe_fg "$VIBE_THM_DIM")"
-c_coral="$(vibe_fg "$VIBE_THM_CORAL")"
-c_border="$(vibe_fg "$VIBE_THM_BORDER")"
-bold="$(printf '\033[1m')"
-reset="$(printf '\033[0m')"
-eol="$(printf '\033[K')"
 
 # ── engine cache ─────────────────────────────────────────────────────────
 # Lifetime- and user-matched to the tmux server: beside its socket
@@ -255,251 +246,42 @@ fetch_engine() {
   )
 }
 
-engine_facts() { # PROJECT_ID → "token mode version pending" from the fleet cache
-  { [ -n "$1" ] && [ -n "$cache_dir" ] && [ -f "$cache_dir/fleet" ]; } || return 0
-  awk -F "$us" -v id="$1" '$1 == "1" && $2 == id { print $3, $4, $5, $6; exit }' \
-    "$cache_dir/fleet" 2>/dev/null
-}
-
-# .git/HEAD read directly — no git subprocess per tick. Handles the .git
-# FILE indirection (worktrees, submodule checkouts); detached HEAD shows
-# the short sha.
-branch_of() {
-  p="$1"
-  g="$p/.git"
-  if [ -f "$g" ]; then
-    gd="$(sed -n 's/^gitdir: //p' "$g" 2>/dev/null)"
-    case "$gd" in
-      '') return 0 ;;
-      /*) g="$gd" ;;
-      *) g="$p/$gd" ;;
-    esac
-  fi
-  [ -r "$g/HEAD" ] || return 0
-  IFS= read -r line <"$g/HEAD" || [ -n "$line" ] || return 0
-  case "$line" in
-    "ref: refs/heads/"*) printf '%s' "${line#ref: refs/heads/}" ;;
-    *) printf '%.7s' "$line" ;; # detached: the short sha is the label
-  esac
-}
-
-put() { # LINE CLICK_TARGET — fleet-section appender: buffer + row counter
-  # + click map advance together (empty target = not clickable)
-  buf="$buf
-$1$eol"
-  row=$((row + 1))
-  [ -z "$2" ] || map="$map $row:$2"
-}
-put_at() { # ROW LINE CLICK_TARGET — absolute-row twin for the roster
-  out="$out$(printf '\033[%d;1H' "$(($1 + 1))")$2$eol"
-  [ -z "$3" ] || map="$map $1:$3"
-}
-
+# frame — one redraw. The layout arithmetic (budgets, truncation, the
+# two-line records, the midpoint split, the click map) lives in the
+# engine's `vibe _frame` renderer (internal/tmuxui/frame.go), where it
+# is table-tested; this side only gathers the raw tmux porcelain and
+# paints the returned bytes. The renderer answers two protocol lines:
+# the click map (published as @vibe_sidebar_map for the click mode
+# above — no second copy of the layout arithmetic to drift) and the
+# newline-free ANSI body. Engine facts still come cache-only: _frame
+# reads the fleet/detail caches, never Docker, so frames stay cheap.
+nl='
+'
 frame() {
-  info="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{pane_width} #{pane_height} #{session_id} #{session_name}' 2>/dev/null)" || info=""
-  read -r width height sid_self here <<EOF0
-$info
-EOF0
-  case "$width" in '' | *[!0-9]*) width=30 ;; esac
-  case "$height" in '' | *[!0-9]*) height=24 ;; esac
-  # Text budget: 2-col left gutter, keep 1 clear on the right.
-  max=$((width - 3))
-  [ "$max" -lt 8 ] && max=8
-
-  buf="$(printf '\033[H')$eol"
-  # Click map: pane row -> session id, published as @vibe_sidebar_map for
-  # the click mode above. A session claims its name row, branch row, AND
-  # the blank row under it — deliberate click slop. put/put_at are the
-  # ONLY appenders: one call advances the buffer, the row counter, and
-  # the map together, so the drawn frame and the click targets cannot
-  # skew. (Map keys are 0-based mouse_y rows.)
-  row=0
-  map=""
-  agent_lines=""
-  n_agents=0
-  seen_projects=""
-  while IFS="$tab" read -r sid name path; do
-    [ -n "$sid" ] || continue
-    # Dots: window order, same semantics as the tabs — attention renders
-    # coral (the tab-blend @vibe_dot_fg would vanish here), plain windows
-    # (host shells, popups) emit nothing. The same pass collects the
-    # AGGREGATE agent roster for the bottom section: every stateful
-    # window across every project, "glyph name · project", click target
-    # session+window.
-    dots=""
-    ndots=0
-    # US (\037) separator, NOT tab: tab is whitespace-class, so read
-    # COLLAPSES adjacent tabs and empty fields shift everything left —
-    # a window with an unset option scrambled the roster (live bug).
-    while IFS="$us" read -r glyph dfg attn wid wname wactive wmodel; do
-      [ -n "$glyph" ] || continue
-      ndots=$((ndots + 1))
-      if [ "$attn" = "1" ]; then
-        dotc="${c_coral}"
-      else
-        dotc="$(vibe_fg "${dfg:-$VIBE_THM_DIM}")"
-      fi
-      dots="$dots ${dotc}${glyph}"
-      # roster row: the client's own active agent gets the coral mark +
-      # bright name; everything else stays calm
-      if [ "$sid" = "$sid_self" ] && [ "$wactive" = "1" ]; then
-        amark="${c_coral}▍" acol="${bold}${c_fg}"
-      else
-        amark=" " acol="$c_fg"
-      fi
-      # The name owns its whole line now (model/project moved to the
-      # detail line below): budget = text width minus mark, dot, and
-      # their spacing.
-      nbudget=$((max - 4))
-      [ "$nbudget" -lt 8 ] && nbudget=8
-      wn="$wname"
-      [ "${#wn}" -gt "$nbudget" ] && wn="$(printf '%.*s' $((nbudget - 1)) "$wn")…"
-      # Two-line record, mirroring the fleet rows: the name line (mark,
-      # dot, window name) and a dim detail line (model · project)
-      # underneath — no more single-line width fight between name,
-      # model, and project. US separates the two lines inside one
-      # record; the print loop places both on the same click target.
-      det="${wmodel:+$wmodel · }$name"
-      [ "${#det}" -gt $((max - 3)) ] && det="$(printf '%.*s' $((max - 4)) "$det")…"
-      n_agents=$((n_agents + 1))
-      agent_lines="$agent_lines
-$sid:$wid$tab${amark}${reset} ${dotc}${glyph}${reset} ${acol}${wn}${reset}$us   ${c_dim}${det}${reset}"
-    done <<EOF2
-$(tmux list-windows -t "$sid" -F "#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}" 2>/dev/null)
-EOF2
-    if [ "$sid" = "$sid_self" ]; then
-      mark="${c_coral}▍" name_c="$c_fg"
-    else
-      mark=" " name_c="$c_dim"
-    fi
-    # The dots ride on the name line (2 cols each: space + glyph), so the
-    # name budget shrinks with them — otherwise a long name pushes the
-    # dots onto a wrapped line AND shifts the click map (host bug,
-    # 2026-07-22 screenshot).
-    nmax=$((max - ndots * 2))
-    [ "$nmax" -lt 8 ] && nmax=8
-    shown="$name"
-    [ "${#shown}" -gt "$nmax" ] && shown="$(printf '%.*s' $((nmax - 1)) "$shown")…"
-    put "${mark}${reset} ${bold}${name_c}${shown}${reset}${dots}${reset}" "$sid"
-    br="$(branch_of "$path")"
-    if [ -n "$br" ]; then
-      [ "${#br}" -gt $((max - 2)) ] && br="$(printf '%.*s' $((max - 3)) "$br")…"
-      put "   ${c_dim}⎇ ${br}${reset}" "$sid"
-    fi
-    # Engine truth, cache-only. The client's own session gets its full
-    # detail block; other sessions get one dim facts line when anything
-    # is interesting (stale/stopped container, pending requests, dev
-    # mode) — and so does the own session while its detail cache hasn't
-    # landed yet. Rows flow through put, so the click map stays honest:
-    # click slop onto the same session, like the branch row.
-    proj_id="$(tmux show-options -qv -t "$sid" @vibe_project 2>/dev/null)"
-    [ -n "$proj_id" ] && seen_projects="$seen_projects $proj_id "
-    if [ "$sid" = "$sid_self" ] && [ -n "$proj_id" ] &&
-      [ -n "$cache_dir" ] && [ -f "$cache_dir/detail.$proj_id" ]; then
-      while IFS= read -r dline; do
-        [ -n "$dline" ] || continue
-        # The engine already budgets to the fetch width; this guard only
-        # matters when a stale cache meets a narrower pane — a wrapped
-        # row would skew every click target below it.
-        [ "${#dline}" -gt $((max - 1)) ] && dline="$(printf '%.*s' $((max - 2)) "$dline")…"
-        put " ${c_dim}${dline}${reset}" "$sid"
-      done <"$cache_dir/detail.$proj_id"
-    else
-      facts="$(engine_facts "$proj_id")"
-      if [ -n "$facts" ]; then
-        read -r etoken emode eversion epending <<EOF4
-$facts
-EOF4
-        : "$eversion" # version stays status-line territory; unused here
-        parts=""
-        case "$etoken" in
-          "◐") parts="◐ stale" ;;
-          "○") parts="○ stopped" ;;
-        esac
-        case "$epending" in
-          '' | *[!0-9]* | 0) ;;
-          *) parts="${parts:+$parts · }▲$epending" ;;
-        esac
-        [ "$emode" = "dev" ] && parts="${parts:+$parts · }dev"
-        [ -z "$parts" ] || put "   ${c_dim}${parts}${reset}" "$sid"
-      fi
-    fi
-    put "" "$sid"
-  done <<EOF
-$(tmux list-sessions -F "#{session_id}$tab#{?#{@vibe_name},#{@vibe_name},#{session_name}}$tab#{session_path}" 2>/dev/null | sort -t "$tab" -k2)
-EOF
-  # Cold registered projects — fleet entries with no live session; the
-  # names are engine-sanitized. Render-only dim rows for now: click
-  # dispatching `up` is a recorded product call, not half-shipped here.
-  if [ -n "$cache_dir" ] && [ -f "$cache_dir/fleet" ]; then
-    while IFS="$us" read -r fver fid ftoken fmode fversion fpending fname; do
-      { [ "$fver" = "1" ] && [ -n "$fid" ]; } || continue
-      : "$ftoken$fmode$fversion$fpending" # cold rows stay minimal
-      case "$seen_projects" in *" $fid "*) continue ;; esac
-      fn="$fname"
-      [ "${#fn}" -gt $((max - 2)) ] && fn="$(printf '%.*s' $((max - 3)) "$fn")…"
-      put " ${c_dim}· ${fn}${reset}" ""
-    done <"$cache_dir/fleet"
+  exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null)"
+  if [ -z "$exe" ] || [ ! -x "$exe" ]; then
+    # No engine binary means `vibe tui` itself is gone mid-session;
+    # keep polling — an update may land a new binary at the same path.
+    printf '\033[H\033[2J engine unavailable'
+    return 0
   fi
-  printf '%s\033[J' "$buf"
-
-  # ── agents: the aggregate roster, from the pane's midpoint ────────────
-  # Projects own the top half, agents the bottom half — a fleet section
-  # that grows past the midpoint pushes the roster down instead of
-  # overlapping it. Each agent is a fleet-style two-line entry (name,
-  # dim detail) plus a gap row; all three claim the click target, the
-  # same slop rule the project rows use. Skipped entirely when nothing
-  # fits (min: header + one two-line entry). When only PART fits, the
-  # last visible slot becomes a dim overflow count instead of silently
-  # clipping.
-  min_start=$((row + 2))
-  start=$((height / 2))
-  [ "$start" -lt "$min_start" ] && start="$min_start"
-  avail=$((height - start - 1))
-  n_show=$(((avail + 1) / 3)) # name + detail + gap, no trailing gap
-  [ "$n_show" -gt "$n_agents" ] && n_show="$n_agents"
-  if [ "$n_agents" -gt 0 ] && [ "$n_show" -ge 1 ]; then
-    out=""
-    # The header wears the same ruled dress (and offset) as the pane
-    # border's "projects" title above it: ─ agents ───…, rule in the
-    # border color. Pure-bash fill; under a C locale ${#} counts the
-    # dash's bytes and the rule just runs a little short — never long.
-    fill=$((max - 9))
-    dashes=""
-    while [ "${#dashes}" -lt "$fill" ]; do dashes="$dashes─"; done
-    put_at "$start" "${c_border}─${reset} ${c_dim}agents${reset} ${c_border}${dashes}${reset}" ""
-    r=$((start + 1))
-    i=0
-    overflow=$((n_agents - n_show))
-    while IFS="$tab" read -r target rec; do
-      [ -n "$target" ] || continue
-      if [ "$overflow" -gt 0 ] && [ "$i" -eq $((n_show - 1)) ]; then
-        put_at "$r" "   ${c_dim}… +$((overflow + 1)) more${reset}" ""
-        i=$((i + 1))
-        break
-      fi
-      put_at "$r" "${rec%%"$us"*}" "$target"
-      put_at "$((r + 1))" "${rec#*"$us"}" "$target"
-      i=$((i + 1))
-      # Gap row between entries (click slop, like the fleet's blank
-      # rows) — skipped after the last so the section never overruns
-      # the pane bottom.
-      [ "$i" -lt "$n_show" ] && put_at "$((r + 2))" "" "$target"
-      r=$((r + 3))
-      [ "$i" -ge "$n_show" ] && break
-    done <<EOF3
-${agent_lines#
-}
-EOF3
-    printf '%s' "$out"
-  fi
-
-  map="${map# }"
+  geo="$(tmux display-message -p -t "${TMUX_PANE:-}" "#{pane_width}$us#{pane_height}$us#{session_id}" 2>/dev/null)" || return 0
+  out="$(
+    {
+      printf 'G%s%s\n' "$us" "$geo"
+      tmux list-sessions -F "S$us#{session_id}$us#{?#{@vibe_name},#{@vibe_name},#{session_name}}$us#{session_path}$us#{@vibe_project}" 2>/dev/null
+      tmux list-windows -a -F "W$us#{session_id}$us#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}" 2>/dev/null
+    } | "$exe" _frame --cache "$cache_dir" 2>/dev/null
+  )" || return 0
+  case "$out" in *"$nl"*) ;; *) return 0 ;; esac # malformed: keep last frame
+  map="${out%%"$nl"*}"
+  printf '%s' "${out#*"$nl"}"
   if [ "$map" != "$last_map" ]; then
     tmux set-option -p -t "${TMUX_PANE:-}" @vibe_sidebar_map "$map" 2>/dev/null
     last_map="$map"
   fi
 }
+
 
 last_map=""
 last_serial=""

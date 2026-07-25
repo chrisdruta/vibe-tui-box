@@ -96,13 +96,11 @@ var uiCommands = map[string]Command{
 				DestDir:  r.DestDir,
 				PathOnly: r.PathOnly,
 				Env:      clipEnv(),
-				Stdout:   os.Stdout,
-				Stderr:   os.Stderr,
 			})
 			if err != nil {
 				return nil, err
 			}
-			return &execResult{Code: res.ExitCode}, nil
+			return &clipResult{Result: res, PathOnly: r.PathOnly}, nil
 		},
 	},
 	"request": {
@@ -163,6 +161,35 @@ var uiCommands = map[string]Command{
 	"_sidebar": renderCommand("_sidebar", (*app.App).RenderSidebar),
 	"_state":   renderCommand("_state", (*app.App).RenderState),
 	"_fleet":   renderCommand("_fleet", (*app.App).RenderFleet),
+	"_frame": {
+		Name:    "_frame",
+		Summary: "internal sidebar frame renderer",
+		Usage:   "vibe _frame [--cache DIR] < tmux-porcelain",
+		Hidden:  true,
+		Parse: func(args []string) (Request, error) {
+			var req FrameCmdRequest
+			return parseInto(args, "_frame", &req.Options, func(fs *flag.FlagSet) any {
+				fs.StringVar(&req.Cache, "cache", "", "engine cache directory beside the tmux socket")
+				return &req
+			})
+		},
+		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
+			r := req.(*FrameCmdRequest)
+			res, err := a.RenderFrame(ctx, app.FrameRequest{Input: os.Stdin, CacheDir: r.Cache})
+			if err != nil {
+				return nil, err
+			}
+			// Two protocol lines: the click map, then the newline-free
+			// ANSI body the sidebar loop paints verbatim.
+			return &renderResult{Lines: []string{res.Map, res.Body}}, nil
+		},
+	},
+}
+
+// FrameCmdRequest drives the hidden sidebar frame renderer.
+type FrameCmdRequest struct {
+	Options
+	Cache string
 }
 
 // AgentCmdRequest is the exec-shaped agent command plus its session
@@ -232,15 +259,15 @@ func parseClipCmd(args []string) (Request, error) {
 }
 
 // clipEnv curates the host environment clip-image.sh needs: tool
-// discovery (powershell.exe / osascript / docker / clip.exe / pbcopy),
-// the WSL interop variables without which Windows executables cannot
-// launch from WSL, and the docker CLI's connection overrides.
+// discovery (powershell.exe / osascript / clip.exe / pbcopy) and the
+// WSL interop variables without which Windows executables cannot
+// launch from WSL. Container streaming goes through the engine's own
+// Docker client, so no docker CLI variables ride along.
 func clipEnv() []string {
 	var env []string
 	for _, key := range []string{
 		"PATH", "HOME", "TMPDIR",
 		"WSLENV", "WSL_INTEROP", "WSL_DISTRO_NAME",
-		"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "DOCKER_CERT_PATH", "DOCKER_TLS_VERIFY",
 	} {
 		if v := os.Getenv(key); v != "" {
 			env = append(env, key+"="+v)

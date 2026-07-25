@@ -1,53 +1,44 @@
 #!/usr/bin/env bash
 #
-# prefix+v in vibe tui: grab the host clipboard image (clip-image.sh) and
-# type the resulting container path into the agent pane — replaces the
-# whole switch-tab / clip / copy / paste dance with one chord.
+# prefix+v in vibe tui: grab the host clipboard image (`vibe clip
+# --path-only`) and type the resulting container path into the agent
+# pane — replaces the whole switch-tab / clip / copy / paste dance with
+# one chord.
 #
 # Runs as a tmux run-shell job on the HOST server; run-shell provides
-# TMUX, so plain `tmux` is the right binary/socket (same rule as
-# sidebar/dock). $1 = trusted payload host dir (a store artifact path,
-# stamped as @vibe_payload_dir by `vibe tui`), $2 = window id.
-#
-# The session path is derived FROM tmux here rather than interpolated
-# into the binding's shell string: a repo path containing an apostrophe
-# would otherwise break the binding's quoting. The payload dir is a
-# store path we control (apostrophe-free by construction). The dev
-# container is the engine's `<session>-dev` (session = vibe-<id12>,
-# container naming per internal/model/names.go — engine ABI).
+# TMUX, so plain `tmux` is always the right binary/socket (same rule as
+# sidebar/dock). $1 = window id. Everything else comes from the engine:
+# `vibe clip` resolves the project from the session's path and streams
+# into the dev container through its own Docker client, so this script
+# never names containers or runs docker itself.
 
 set -euo pipefail
 
-payload_dir="${1:-}"
-window="${2:-}"
+window="${1:-}"
 
 note() {
   tmux display-message "$1" 2>/dev/null || true
 }
 
-# The invoking window's session path and name, straight from tmux (no
-# shell-quoting risk).
+# The invoking window's session path, straight from tmux (no
+# shell-quoting risk — a repo path containing an apostrophe never
+# rides a binding's shell string).
 session_path="$(tmux display-message -p -t "$window" '#{session_path}' 2>/dev/null || true)"
-session_name="$(tmux display-message -p -t "$window" '#{session_name}' 2>/dev/null || true)"
-if [ -z "$session_path" ] || [ -z "$session_name" ]; then
+if [ -z "$session_path" ]; then
   note "clip: no session context"
   exit 0
 fi
 
-# The project's dev container, if running (clip-image streams into its
-# /tmp; without one it explains itself).
-container="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -Fx "${session_name}-dev" || true)"
-
-clip="$payload_dir/scripts/clip-image.sh"
-if [ ! -f "$clip" ]; then
-  note "clip: payload script missing"
+exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null)"
+if [ -z "$exe" ] || [ ! -x "$exe" ]; then
+  note "clip: engine binary unavailable"
   exit 0
 fi
 
 # --path-only: on success the LAST stdout line is exactly the container
-# path (human chatter goes to stderr; 2>&1 folds it in only so a failure
-# toast can show the real error line).
-if ! out="$(bash "$clip" "$session_path" "" "$container" --path-only 2>&1)"; then
+# path (2>&1 folds stderr in only so a failure toast can show the real
+# error line).
+if ! out="$(cd "$session_path" && "$exe" clip --path-only 2>&1)"; then
   last_line="$(printf '%s\n' "$out" | tail -1)"
   note "vibe clip: ${last_line:-failed}"
   exit 0

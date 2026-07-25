@@ -10,20 +10,36 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
 	"github.com/chrisdruta/vibe-tui-box/internal/runner"
 )
 
-// fakeRunner records invocations and plays back a fixed output.
+// fakeRunner records invocations, materializes the PNG a real `save`
+// would write, and plays back a fixed output.
 type fakeRunner struct {
-	invs []runner.Invocation
-	out  runner.Output
-	err  error
+	invs     []runner.Invocation
+	out      runner.Output
+	err      error
+	noImage  bool // save reports an empty clipboard
+	pngBytes []byte
 }
 
 func (f *fakeRunner) Run(_ context.Context, inv runner.Invocation) (runner.Output, error) {
 	f.invs = append(f.invs, inv)
+	if len(inv.Args) == 2 && inv.Args[0] == "save" {
+		if f.noImage {
+			return runner.Output{ExitCode: 1, Stderr: []byte("No image on the clipboard.\n")}, nil
+		}
+		png := f.pngBytes
+		if png == nil {
+			png = []byte("PNGDATA")
+		}
+		if err := os.WriteFile(inv.Args[1], png, 0o644); err != nil {
+			return runner.Output{}, err
+		}
+	}
 	return f.out, f.err
 }
 
@@ -59,7 +75,7 @@ func withClipPayload(t *testing.T, a *App, dir string) {
 	}
 }
 
-func TestClipRunsArtifactScript(t *testing.T) {
+func TestClipTmpModeStreamsThroughEngineExec(t *testing.T) {
 	a, docker := newTestApp(t)
 	ctx := context.Background()
 	dir := newProject(t)
@@ -78,52 +94,97 @@ func TestClipRunsArtifactScript(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.ExitCode != 0 {
-		t.Fatalf("clip exit %d", res.ExitCode)
+	if !strings.HasPrefix(res.ContainerPath, "/tmp/clip-") || !strings.HasSuffix(res.ContainerPath, ".png") {
+		t.Fatalf("container path wrong: %q", res.ContainerPath)
 	}
-	if len(fake.invs) != 1 {
-		t.Fatalf("want 1 invocation, got %d", len(fake.invs))
+	if res.SavedPath != "" {
+		t.Fatalf("tmp mode must not report a workspace copy: %q", res.SavedPath)
 	}
-	inv := fake.invs[0]
-	if !filepath.IsAbs(inv.Path) || !strings.HasSuffix(inv.Path, "/host/scripts/clip-image.sh") {
-		t.Fatalf("script path wrong: %q", inv.Path)
+	// The script is invoked as pure clipboard glue — save, then the
+	// interactive copy-back — with the curated env, never a repo path
+	// or container name.
+	if len(fake.invs) != 2 {
+		t.Fatalf("want save+copy invocations, got %d", len(fake.invs))
 	}
-	// Argv contract: REPO_ROOT DEST_DIR_OR_EMPTY CONTAINER [--path-only].
-	// The registered root is the exact repo path; /tmp mode names the
-	// running dev container.
-	if len(inv.Args) != 3 || inv.Args[1] != "" {
-		t.Fatalf("argv wrong: %v", inv.Args)
+	save, clipCopy := fake.invs[0], fake.invs[1]
+	if !filepath.IsAbs(save.Path) || !strings.HasSuffix(save.Path, "/host/scripts/clip-image.sh") {
+		t.Fatalf("script path wrong: %q", save.Path)
 	}
-	if inv.Args[0] != dir {
-		t.Fatalf("repo root %q, want %q", inv.Args[0], dir)
+	if save.Args[0] != "save" || !strings.HasSuffix(save.Args[1], ".png") {
+		t.Fatalf("save argv wrong: %v", save.Args)
 	}
-	if !strings.HasPrefix(inv.Args[2], "vibe-") || !strings.HasSuffix(inv.Args[2], "-dev") {
-		t.Fatalf("container name wrong: %q", inv.Args[2])
+	if clipCopy.Args[0] != "copy" || clipCopy.Args[1] != res.ContainerPath {
+		t.Fatalf("copy argv wrong: %v", clipCopy.Args)
 	}
-	if fmt.Sprint(inv.Env) != fmt.Sprint(env) {
-		t.Fatalf("env not passed through: %v", inv.Env)
+	if !res.PathCopied {
+		t.Fatal("successful copy-back must be reported")
+	}
+	if fmt.Sprint(save.Env) != fmt.Sprint(env) {
+		t.Fatalf("env not passed through: %v", save.Env)
+	}
+	// The bytes ride the engine's typed docker exec (argv-only tee),
+	// not a script-side docker CLI.
+	execs := docker.CallsTo("Exec")
+	if len(execs) == 0 {
+		t.Fatal("no engine exec recorded")
+	}
+	last := execs[len(execs)-1].Request.(dockerapi.ExecRequest)
+	if len(last.Argv) != 2 || last.Argv[0] != "tee" || last.Argv[1] != res.ContainerPath {
+		t.Fatalf("stream argv wrong: %v", last.Argv)
+	}
+	if !last.Stdin || last.User != devContainerUser {
+		t.Fatalf("stream exec shape wrong: %+v", last)
 	}
 
-	// --path-only appends the script's machine-output flag.
-	if _, err := a.Clip(ctx, ClipRequest{Dir: dir, PathOnly: true}); err != nil {
-		t.Fatal(err)
+	// PathOnly is the machine flow: no clipboard copy-back.
+	fake.invs = nil
+	if res, err := a.Clip(ctx, ClipRequest{Dir: dir, PathOnly: true}); err != nil || res.PathCopied {
+		t.Fatalf("path-only must skip copy-back: %+v, %v", res, err)
 	}
-	inv = fake.invs[len(fake.invs)-1]
-	if len(inv.Args) != 4 || inv.Args[3] != "--path-only" {
-		t.Fatalf("path-only argv wrong: %v", inv.Args)
+	if len(fake.invs) != 1 || fake.invs[0].Args[0] != "save" {
+		t.Fatalf("path-only invocations wrong: %v", fake.invs)
 	}
 
-	// Script exit codes pass through untouched (1 = no image).
-	fake.out = runner.Output{ExitCode: 1}
-	res, err = a.Clip(ctx, ClipRequest{Dir: dir})
-	if err != nil || res.ExitCode != 1 {
-		t.Fatalf("exit passthrough: %d, %v", res.ExitCode, err)
+	// An empty clipboard surfaces the script's diagnostic as the error.
+	fake.noImage = true
+	if _, err := a.Clip(ctx, ClipRequest{Dir: dir}); err == nil || !strings.Contains(err.Error(), "No image") {
+		t.Fatalf("no-image error wrong: %v", err)
 	}
-	_ = docker
 }
 
-func TestClipDirModeSkipsDocker(t *testing.T) {
+func TestClipDirModeWritesWorkspaceAndSkipsDocker(t *testing.T) {
 	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	withClipPayload(t, a, dir)
+	fake := &fakeRunner{pngBytes: []byte("IMAGEBYTES")}
+	a.deps.Runner = fake
+
+	before := len(docker.Calls())
+	res, err := a.Clip(ctx, ClipRequest{Dir: dir, DestDir: "shots"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(docker.Calls()); got != before {
+		t.Fatalf("DIR mode touched docker: %d calls added", got-before)
+	}
+	if !strings.HasPrefix(res.SavedPath, "shots/clip-") {
+		t.Fatalf("saved path wrong: %q", res.SavedPath)
+	}
+	if res.ContainerPath != "/workspace/"+res.SavedPath {
+		t.Fatalf("container path wrong: %q", res.ContainerPath)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(res.SavedPath)))
+	if err != nil || string(data) != "IMAGEBYTES" {
+		t.Fatalf("workspace copy wrong: %q, %v", data, err)
+	}
+}
+
+func TestClipDirModeRefusesEscapes(t *testing.T) {
+	a, _ := newTestApp(t)
 	ctx := context.Background()
 	dir := newProject(t)
 	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
@@ -133,18 +194,27 @@ func TestClipDirModeSkipsDocker(t *testing.T) {
 	fake := &fakeRunner{}
 	a.deps.Runner = fake
 
-	// DIR mode: no running container required, no Docker call made, and
-	// the container argv slot stays empty (the script ignores it).
-	before := len(docker.Calls())
-	if _, err := a.Clip(ctx, ClipRequest{Dir: dir, DestDir: "shots"}); err != nil {
+	// Lexical escapes are invalid before anything runs.
+	for _, dest := range []string{"/abs", "../out", "a/../../out"} {
+		if _, err := a.Clip(ctx, ClipRequest{Dir: dir, DestDir: dest}); !errors.Is(err, domain.ErrInvalid) {
+			t.Fatalf("dest %q should be invalid, got %v", dest, err)
+		}
+	}
+	if len(fake.invs) != 0 {
+		t.Fatal("invalid destinations must not reach the clipboard script")
+	}
+
+	// A pre-planted symlink pointing outside the workspace cannot be
+	// traversed: the os.Root write refuses it.
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(dir, "captures")); err != nil {
 		t.Fatal(err)
 	}
-	if got := len(docker.Calls()); got != before {
-		t.Fatalf("DIR mode touched docker: %d calls added", got-before)
+	if _, err := a.Clip(ctx, ClipRequest{Dir: dir, DestDir: "captures"}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("symlink escape should be invalid, got %v", err)
 	}
-	inv := fake.invs[len(fake.invs)-1]
-	if len(inv.Args) != 3 || inv.Args[1] != "shots" || inv.Args[2] != "" {
-		t.Fatalf("DIR argv wrong: %v", inv.Args)
+	if entries, _ := os.ReadDir(outside); len(entries) != 0 {
+		t.Fatal("escape target must stay untouched")
 	}
 }
 
@@ -163,12 +233,16 @@ func TestClipRequiresContainerAndArtifact(t *testing.T) {
 	}
 
 	// Artifact pinned but the container is not running: /tmp mode fails
-	// with the vibe-up hint, DIR mode still works.
+	// with the vibe-up hint before the clipboard is touched; DIR mode
+	// still works.
 	withClipPayload(t, a, dir)
 	fake := &fakeRunner{}
 	a.deps.Runner = fake
 	if _, err := a.Clip(ctx, ClipRequest{Dir: dir}); err == nil || !strings.Contains(err.Error(), "vibe up") {
 		t.Fatalf("stopped-container error wrong: %v", err)
+	}
+	if len(fake.invs) != 0 {
+		t.Fatal("a missing container must fail before the clipboard runs")
 	}
 	if _, err := a.Clip(ctx, ClipRequest{Dir: dir, DestDir: "shots"}); err != nil {
 		t.Fatalf("DIR mode should not need a container: %v", err)

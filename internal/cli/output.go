@@ -182,6 +182,42 @@ func renderState(w io.Writer, state runtime.State) error {
 	return nil
 }
 
+// clipResult reports where the clipboard image landed. PathOnly mode
+// prints exactly one machine-readable line — the container path — for
+// the tui's prefix+v consumer; human mode narrates.
+type clipResult struct {
+	Result   app.ClipResult
+	PathOnly bool
+}
+
+func (r *clipResult) RenderHuman(w io.Writer) error {
+	if r.PathOnly {
+		_, err := fmt.Fprintln(w, r.Result.ContainerPath)
+		return err
+	}
+	if r.Result.SavedPath != "" {
+		if _, err := fmt.Fprintf(w, "Saved: %s\n", r.Result.SavedPath); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintf(w, "In the container: %s\n", r.Result.ContainerPath); err != nil {
+		return err
+	}
+	if r.Result.PathCopied {
+		_, err := fmt.Fprintln(w, "(path copied to clipboard)")
+		return err
+	}
+	return nil
+}
+
+func (r *clipResult) RenderJSON(w io.Writer) error {
+	return writeJSON(w, "clip", struct {
+		ContainerPath string `json:"container_path"`
+		SavedPath     string `json:"saved_path,omitempty"`
+		PathCopied    bool   `json:"path_copied"`
+	}{r.Result.ContainerPath, r.Result.SavedPath, r.Result.PathCopied})
+}
+
 // execResult carries only the container process's exit code, which
 // becomes the vibe exit code.
 type execResult struct {

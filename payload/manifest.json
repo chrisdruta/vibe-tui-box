@@ -88,14 +88,14 @@
     {
       "path": "host/scripts/clip-image.sh",
       "mode": "0755",
-      "size": 7574,
-      "digest": "sha256:932a01afe4a8d438936e50c4432567728e92ccb2d7ae708db7444cf62b08897f"
+      "size": 4103,
+      "digest": "sha256:3e78e6eeed947c98cd176fe004003642c7496de86e6919b873d3a0f583f68e74"
     },
     {
       "path": "host/scripts/clip-to-pane.sh",
       "mode": "0755",
-      "size": 3017,
-      "digest": "sha256:e34503185737b6dc3a72c14aba7cf6aebd775fec42f03e7c29c0ab4c63172202"
+      "size": 2465,
+      "digest": "sha256:e3f1366a1e6ca51f005ff2b95e1953c21e10aefc100fb0f5656592ff7c86448b"
     },
     {
       "path": "host/scripts/dock.sh",
@@ -112,8 +112,8 @@
     {
       "path": "host/scripts/sidebar.sh",
       "mode": "0755",
-      "size": 23292,
-      "digest": "sha256:8c8e55bea2d1442c8f2b595af2cc0940e7258f18b95b0c3030e180223b1cefe8"
+      "size": 14275,
+      "digest": "sha256:50893ae9b76216d87b7244f6b64fe37bb7f6d91eddd489d719eaac00fd055901"
     },
     {
       "path": "host/scripts/state-render.sh",
@@ -130,8 +130,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 20344,
-      "digest": "sha256:19e7967c97c01883b85e303d50520b71c7430bef76af078963277fdc053d5a82"
+      "size": 20319,
+      "digest": "sha256:da32c5dbfe1b0f3739acb00ab3aecc31f797a1ae84f51bdbc03e942c39e007b5"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -194,5 +194,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:063f97216b4f3b06b92b13bdcb156751e3d9257bcd748a2831ddb5974a151164"
+  "digest": "sha256:4cb173cdaa9d52f7d69b20098ac167ce898c596a6bbc5066ea8faac5764eb9d4"
 }
