@@ -145,7 +145,28 @@ section at the bottom — as revisable records, not fences.
   plus a `mouse_status_range` cell per agent; the bar itself, branding
   button, and range dispatch shipped with the bottom-bar move.)
 
-- **Claude wiring: `--plugin-dir` hybrid ADOPTED (2026-07-25).** The
+- **Branch-review remainder (2026-07-25).** The pre-merge review's nine
+  correctness findings were fixed (45eaa14); the verified-but-unfixed
+  tail, in rough value order: (1) hot-path forks — statusline.sh spawns
+  `id`/`cat` per tick and agent-state-hook/state-render spawn
+  subshell+tr+head per event where pure-bash expansions
+  (`${var//[^…]/}`, `$UID`, `read <file`) are free; (2) palette action
+  strings still triplicated across bind u / the tray's `req` range /
+  palette.sh, and the Q/K confirm prompts duplicated between conf and
+  palette.sh — command-alias or option indirection would single-source
+  them; (3) the bar's rule line is a 400-glyph literal (clients wider
+  than 400 cols show it stopping mid-bar); (4) stop/restart plumbed as
+  two mutually-exclusive bools instead of one mode end to end (the
+  script silently accepts `--restart` in stop mode); (5) startApproved's
+  Docker Ping is redundant with the Status call's own error; (6)
+  `--refresh-agents` busts the pinned bun/rokit layers too (they sit
+  after the agent layers — reorder for warm refreshes); (7) the
+  agent-state dir derivation is string-copied across three container
+  scripts; (8) palette.sh's empty-`"${target[@]}"` expansion violates
+  the bash-3.2 pledge if ever invoked clientless (no shipped caller
+  does); (9) `vibe down` from inside its own UI session HUPs itself
+  after teardown — output truncates, `--json` consumers see
+  death-by-signal (park popup intends this; scripts may not). The
   agent-state hooks, subagent statusline, and `/vibe:request` moved
   into `payload/container/claude-plugin/`, loaded per session with
   `--plugin-dir` from the read-only payload. Verified in-container:
