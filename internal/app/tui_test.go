@@ -3,14 +3,17 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
@@ -222,5 +225,309 @@ func TestMaterializeTuiConfAppendsUserConf(t *testing.T) {
 	}
 	if idx < strings.Index(got, "# payload conf body") {
 		t.Fatalf("user conf must load after the payload body:\n%s", got)
+	}
+}
+
+// withTuiConfPayload equips the app with a payload bundle whose
+// host/tmux-tui.conf drives the rich (conf != "") Tui path, plus a fake
+// executable so provisioning pins a real artifact.
+func withTuiConfPayload(t *testing.T, a *App) {
+	t.Helper()
+	entry := "#!/bin/sh\nexec sleep infinity\n"
+	conf := "# payload conf body\nset -g status on\n"
+	manifest, err := payload.EncodeManifest([]payload.File{
+		{Path: "container/entrypoint.sh", Mode: "0755", Size: int64(len(entry)), Digest: domain.SHA256([]byte(entry))},
+		{Path: "host/tmux-tui.conf", Mode: "0644", Size: int64(len(conf)), Digest: domain.SHA256([]byte(conf))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := payload.New(fstest.MapFS{
+		"container/entrypoint.sh": &fstest.MapFile{Data: []byte(entry)},
+		"host/tmux-tui.conf":      &fstest.MapFile{Data: []byte(conf)},
+		payload.ManifestPath:      &fstest.MapFile{Data: manifest},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exe := filepath.Join(t.TempDir(), "vibe")
+	if err := os.WriteFile(exe, []byte("FAKE-ENGINE"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	a.deps.Payload = bundle
+	a.deps.Executable = exe
+}
+
+// reapExecs counts the container-side reap execs the tui issued.
+func reapExecs(t *testing.T, calls []dockerapi.ExecRequest) int {
+	t.Helper()
+	want := []string{"bash", model.PayloadAgentSession, "reap"}
+	n := 0
+	for _, req := range calls {
+		if slices.Equal(req.Argv, want) {
+			n++
+		}
+	}
+	return n
+}
+
+// TestTuiHappyPathWithConf drives the full rich path: an already-running
+// project pinned to a conf-carrying artifact. startApproved is a no-op
+// (everything is up), the conf is materialized and applied, identity
+// globals/options are stamped, and Attach fires against the ID-derived
+// session.
+func TestTuiHappyPathWithConf(t *testing.T) {
+	a, docker := newTestApp(t)
+	withTuiConfPayload(t, a)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Provision(ctx, ProvisionRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	up, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Attach the recorder only now so the setup's serial bumps don't land
+	// in the recorded globals — the Tui path's own writes are the subject.
+	rt := &recordingTmux{hasSession: true}
+	a.deps.Tmux = rt
+
+	created := len(docker.CallsTo("CreateContainer"))
+	if err := a.Tui(ctx, TuiRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	// startApproved found everything already running: no reconcile.
+	if got := len(docker.CallsTo("CreateContainer")); got != created {
+		t.Fatalf("in-sync tui reconciled: %d -> %d creates", created, got)
+	}
+
+	session := tmux.SessionFor(up.Record.ID)
+
+	// The conf is materialized and applied to the server exactly once.
+	if len(rt.configured) != 1 || rt.configured[0] == "" {
+		t.Fatalf("ConfigureServer = %v, want one non-empty path", rt.configured)
+	}
+	// EnsureSession: ID-derived session, agent window, [exe, "agent"].
+	if len(rt.ensured) != 1 {
+		t.Fatalf("EnsureSession calls = %d, want 1", len(rt.ensured))
+	}
+	spec := rt.ensured[0]
+	if spec.ID != session || spec.Window != "agent" || spec.Workdir == "" {
+		t.Fatalf("session spec = %+v", spec)
+	}
+	if !slices.Equal(spec.Command, []string{a.deps.Executable, "agent"}) {
+		t.Fatalf("session command = %v, want [%s agent]", spec.Command, a.deps.Executable)
+	}
+	// VIBE_TUI_CONF stamped to the materialized conf path.
+	if len(rt.envs) != 1 || rt.envs[0] != (recordedEnv{Name: "VIBE_TUI_CONF", Value: rt.configured[0]}) {
+		t.Fatalf("SetEnvironment = %+v, want VIBE_TUI_CONF=%s", rt.envs, rt.configured[0])
+	}
+	// Server globals: exe and the store-owned payload host dir. No engine
+	// serial — startApproved never bumped (nothing needed starting).
+	if v, ok := rt.globalValue("@vibe_exe"); !ok || v != a.deps.Executable {
+		t.Fatalf("@vibe_exe = %q (%v), want %q", v, ok, a.deps.Executable)
+	}
+	if v, ok := rt.globalValue("@vibe_payload_dir"); !ok || !strings.HasSuffix(v, "/payload/host") {
+		t.Fatalf("@vibe_payload_dir = %q (%v), want a /payload/host suffix", v, ok)
+	}
+	if _, ok := rt.globalValue("@vibe_engine_serial"); ok {
+		t.Fatal("tui bumped the engine serial on an already-running project")
+	}
+	// Session options carry identity for the host scripts.
+	if v, ok := rt.optionValue(session, "@vibe_name"); !ok || v != up.Record.DisplayName {
+		t.Fatalf("@vibe_name = %q (%v), want %q", v, ok, up.Record.DisplayName)
+	}
+	if v, ok := rt.optionValue(session, "@vibe_project"); !ok || v != string(up.Record.ID) {
+		t.Fatalf("@vibe_project = %q (%v), want %q", v, ok, up.Record.ID)
+	}
+	// status-right stamped with the clickable engine-state cell; identity
+	// stays out of the bar on the rich path.
+	status, ok := rt.optionValue(session, "status-right")
+	if !ok {
+		t.Fatal("status-right not stamped")
+	}
+	if !strings.Contains(status, "_state --project "+string(up.Record.ID)) {
+		t.Fatalf("status-right missing engine-state cell: %q", status)
+	}
+	// Attach targeted the session.
+	if !slices.Equal(rt.attached, []tmux.SessionID{session}) {
+		t.Fatalf("Attach = %v, want [%s]", rt.attached, session)
+	}
+}
+
+// TestTuiBarePathEscapesDisplayName covers the conf == "" path (no
+// artifact pinned): none of the rich-path wiring runs, and the bare
+// status-right carries the operator's display name — escaped, so a
+// #()-bearing name cannot inject a tmux command.
+func TestTuiBarePathEscapesDisplayName(t *testing.T) {
+	a, _ := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	const evil = "evil #(rm -rf ~) name"
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir, DisplayName: evil})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Up with no provision: no artifact pins, so materializeTuiConf yields
+	// "" and the tui runs bare.
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	rt := &recordingTmux{hasSession: true}
+	a.deps.Tmux = rt
+	if err := a.Tui(ctx, TuiRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	session := tmux.SessionFor(reg.Record.ID)
+
+	// The rich-path wiring is skipped wholesale.
+	if len(rt.configured) != 0 {
+		t.Fatalf("ConfigureServer called on the bare path: %v", rt.configured)
+	}
+	if len(rt.envs) != 0 {
+		t.Fatalf("SetEnvironment called on the bare path: %v", rt.envs)
+	}
+	if len(rt.globals) != 0 {
+		t.Fatalf("global options set on the bare path: %v", rt.globals)
+	}
+
+	status, ok := rt.optionValue(session, "status-right")
+	if !ok {
+		t.Fatal("status-right not stamped")
+	}
+	// The display name is escaped: every '#' doubled to "##".
+	if !strings.Contains(status, "##(") {
+		t.Fatalf("display name not escaped (no ##(): %q", status)
+	}
+	// The engine's own #(<exe> _state ...) prefix is the only legitimate
+	// directive. Strip it and confirm the name portion is exactly the
+	// escaped form — and that collapsing the escaped ## pairs leaves no
+	// lone #( that tmux would execute.
+	prefix := fmt.Sprintf("#(%s _state --project %s) ", a.deps.Executable, reg.Record.ID)
+	name := strings.TrimPrefix(status, prefix)
+	if name != tmux.EscapeFormat(evil) {
+		t.Fatalf("display-name portion = %q, want %q", name, tmux.EscapeFormat(evil))
+	}
+	if collapsed := strings.ReplaceAll(name, "##", ""); strings.Contains(collapsed, "#(") {
+		t.Fatalf("unescaped #( directive survived: %q", status)
+	}
+}
+
+// TestTuiStartFailsSessionExists: startApproved fails (nothing approved)
+// but a live session exists → attach anyway, no error.
+func TestTuiStartFailsSessionExists(t *testing.T) {
+	a, _ := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// No Up → nothing approved → startApproved returns an error; the live
+	// session (HasSession true) means we attach anyway.
+	rt := &recordingTmux{hasSession: true}
+	a.deps.Tmux = rt
+	if err := a.Tui(ctx, TuiRequest{Dir: dir}); err != nil {
+		t.Fatalf("attach-anyway must not error: %v", err)
+	}
+	session := tmux.SessionFor(reg.Record.ID)
+	if !slices.Equal(rt.attached, []tmux.SessionID{session}) {
+		t.Fatalf("Attach = %v, want [%s]", rt.attached, session)
+	}
+}
+
+// TestTuiStartFailsNoSession: startApproved fails and no session exists →
+// the engine error surfaces as a tui OpError carrying the project ID.
+func TestTuiStartFailsNoSession(t *testing.T) {
+	a, _ := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := &recordingTmux{hasSession: false}
+	a.deps.Tmux = rt
+	err = a.Tui(ctx, TuiRequest{Dir: dir})
+	var opErr *domain.OpError
+	if !errors.As(err, &opErr) {
+		t.Fatalf("want *domain.OpError, got %T: %v", err, err)
+	}
+	if opErr.Op != "tui" || opErr.Project != reg.Record.ID {
+		t.Fatalf("op error = {Op:%q Project:%q}, want {tui %s}", opErr.Op, opErr.Project, reg.Record.ID)
+	}
+	if !errors.Is(err, domain.ErrUnavailable) {
+		t.Fatalf("want ErrUnavailable (no approved candidate), got %v", err)
+	}
+	if len(rt.attached) != 0 {
+		t.Fatalf("no session: must not attach, got %v", rt.attached)
+	}
+}
+
+// TestTuiReapOnQuit: after Attach returns, an absent session (a quit)
+// reaps the ghost agent clients; a live session (a plain detach) leaves
+// the panes running.
+func TestTuiReapOnQuit(t *testing.T) {
+	cases := []struct {
+		name       string
+		hasSession bool
+		wantReap   bool
+	}{
+		{"quit reaps ghost clients", false, true},
+		{"detach leaves panes running", true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a, docker := newTestApp(t)
+			withTuiConfPayload(t, a)
+			ctx := context.Background()
+			dir := newProject(t)
+			if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := a.Provision(ctx, ProvisionRequest{Dir: dir}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+				t.Fatal(err)
+			}
+			rt := &recordingTmux{hasSession: tc.hasSession}
+			a.deps.Tmux = rt
+			if err := a.Tui(ctx, TuiRequest{Dir: dir}); err != nil {
+				t.Fatal(err)
+			}
+			var execs []dockerapi.ExecRequest
+			for _, call := range docker.CallsTo("Exec") {
+				if req, ok := call.Request.(dockerapi.ExecRequest); ok {
+					execs = append(execs, req)
+				}
+			}
+			if got := reapExecs(t, execs); (got > 0) != tc.wantReap {
+				t.Fatalf("reap execs = %d, want reap=%v", got, tc.wantReap)
+			}
+		})
+	}
+}
+
+// TestTuiUnavailableWithoutTmux: a nil Tmux dependency is unavailable,
+// surfaced as a tui OpError before any project work.
+func TestTuiUnavailableWithoutTmux(t *testing.T) {
+	a, _ := newTestApp(t) // newTestApp injects no Tmux dependency
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	err := a.Tui(ctx, TuiRequest{Dir: dir})
+	if !errors.Is(err, domain.ErrUnavailable) {
+		t.Fatalf("nil tmux should be unavailable, got %v", err)
+	}
+	var opErr *domain.OpError
+	if !errors.As(err, &opErr) || opErr.Op != "tui" {
+		t.Fatalf("want a tui OpError, got %T: %v", err, err)
 	}
 }

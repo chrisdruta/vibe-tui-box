@@ -8,19 +8,43 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
 )
 
-// recordingTmux records global option sets and session kills; every
-// other method is inert.
+// recordingTmux records the calls the engine makes against the tmux
+// client. It was originally minimal (global option sets and session
+// kills); the extra recorders below let the Tui tests assert the full
+// interaction without changing any existing behavior other tests rely
+// on — every method still returns the same values it always did.
 type recordingTmux struct {
 	fail    bool
 	globals []struct{ Option, Value string }
 	killed  []tmux.SessionID
+
+	// hasSession is the answer HasSession returns (default false, the
+	// original behavior). hasSessionErr, when set, is returned instead.
+	hasSession    bool
+	hasSessionErr error
+
+	configured []string           // ConfigureServer conf paths
+	ensured    []tmux.SessionSpec // EnsureSession specs
+	attached   []tmux.SessionID   // Attach targets
+	options    []recordedOption   // SetOption calls
+	envs       []recordedEnv      // SetEnvironment calls
 }
 
-func (r *recordingTmux) ConfigureServer(string) {}
-func (r *recordingTmux) HasSession(context.Context, tmux.SessionID) (bool, error) {
-	return false, nil
+type recordedOption struct {
+	ID            tmux.SessionID
+	Option, Value string
 }
-func (r *recordingTmux) EnsureSession(context.Context, tmux.SessionSpec) error { return nil }
+
+type recordedEnv struct{ Name, Value string }
+
+func (r *recordingTmux) ConfigureServer(path string) { r.configured = append(r.configured, path) }
+func (r *recordingTmux) HasSession(context.Context, tmux.SessionID) (bool, error) {
+	return r.hasSession, r.hasSessionErr
+}
+func (r *recordingTmux) EnsureSession(_ context.Context, spec tmux.SessionSpec) error {
+	r.ensured = append(r.ensured, spec)
+	return nil
+}
 func (r *recordingTmux) KillSession(_ context.Context, id tmux.SessionID) error {
 	r.killed = append(r.killed, id)
 	if r.fail {
@@ -28,8 +52,12 @@ func (r *recordingTmux) KillSession(_ context.Context, id tmux.SessionID) error 
 	}
 	return nil
 }
-func (r *recordingTmux) Attach(context.Context, tmux.SessionID) error { return nil }
-func (r *recordingTmux) SetOption(context.Context, tmux.SessionID, string, string) error {
+func (r *recordingTmux) Attach(_ context.Context, id tmux.SessionID) error {
+	r.attached = append(r.attached, id)
+	return nil
+}
+func (r *recordingTmux) SetOption(_ context.Context, id tmux.SessionID, option, value string) error {
+	r.options = append(r.options, recordedOption{ID: id, Option: option, Value: value})
 	return nil
 }
 func (r *recordingTmux) SetGlobalOption(_ context.Context, option, value string) error {
@@ -39,8 +67,34 @@ func (r *recordingTmux) SetGlobalOption(_ context.Context, option, value string)
 	r.globals = append(r.globals, struct{ Option, Value string }{option, value})
 	return nil
 }
-func (r *recordingTmux) SetEnvironment(context.Context, string, string) error { return nil }
+func (r *recordingTmux) SetEnvironment(_ context.Context, name, value string) error {
+	r.envs = append(r.envs, recordedEnv{Name: name, Value: value})
+	return nil
+}
 func (r *recordingTmux) ListSessions(context.Context) ([]tmux.Session, error) { return nil, nil }
+
+// optionValue returns the last value SetOption recorded for (id, option),
+// and whether it was set at all.
+func (r *recordingTmux) optionValue(id tmux.SessionID, option string) (string, bool) {
+	value, ok := "", false
+	for _, o := range r.options {
+		if o.ID == id && o.Option == option {
+			value, ok = o.Value, true
+		}
+	}
+	return value, ok
+}
+
+// globalValue returns the last value SetGlobalOption recorded for option.
+func (r *recordingTmux) globalValue(option string) (string, bool) {
+	value, ok := "", false
+	for _, g := range r.globals {
+		if g.Option == option {
+			value, ok = g.Value, true
+		}
+	}
+	return value, ok
+}
 
 func (r *recordingTmux) serials() []string {
 	var out []string
