@@ -159,8 +159,8 @@ section at the bottom — as revisable records, not fences.
   two mutually-exclusive bools instead of one mode end to end (the
   script silently accepts `--restart` in stop mode); (5) startApproved's
   Docker Ping is redundant with the Status call's own error; (6)
-  `--refresh-agents` busts the pinned bun/rokit layers too (they sit
-  after the agent layers — reorder for warm refreshes); (7) the
+  a rebuild's agent refresh busts the engine-pinned bun/rokit layers
+  too (they sit after the agent layers — reorder for warm refreshes); (7) the
   agent-state dir derivation is string-copied across three container
   scripts; (8) palette.sh's empty-`"${target[@]}"` expansion violates
   the bash-3.2 pledge if ever invoked clientless (no shipped caller

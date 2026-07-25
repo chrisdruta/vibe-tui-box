@@ -132,11 +132,11 @@ func hasTools(m schema.Manifest) bool {
 // operator approval applies. The build context holds nothing but the
 // generated Dockerfile.
 func (a *App) buildTools(ctx context.Context, rec registry.Record, frozen frozenInputs, digests map[string]domain.Digest) (dockerapi.BuiltImage, error) {
-	// A non-empty AgentRefresh (minted by every rebuild and by `vibe up
-	// --refresh-agents`, persisted on the record) stamps the unversioned
-	// agent layers with the token so they re-pull and then stay
-	// warm-cached until the next refresh. Manifest-pinned agents live in
-	// plain layers the token never reaches.
+	// A non-empty AgentRefresh (minted by every rebuild, persisted on
+	// the record) stamps the unversioned agent layers with the token so
+	// they re-pull and then stay warm-cached until the next rebuild.
+	// Manifest-pinned agents live in plain layers the token never
+	// reaches.
 	refresh := rec.AgentRefresh != ""
 	dockerfile := builder.GenerateInstall(frozen.Manifest.Image.Agents, frozen.Manifest.Image.Toolchains, refresh)
 	if err := builder.ValidateDockerfile(dockerfile); err != nil {

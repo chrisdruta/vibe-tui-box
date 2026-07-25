@@ -16,18 +16,13 @@ var lifecycleCommands = map[string]Command{
 	"up": {
 		Name:    "up",
 		Summary: "compile a candidate and start the project containers",
-		Usage:   "vibe up [--refresh-agents] [--json]",
+		Usage:   "vibe up [--json]",
 		Parse: func(args []string) (Request, error) {
 			var req UpRequest
-			return parseInto(args, "up", &req.Options, func(fs *flag.FlagSet) any {
-				fs.BoolVar(&req.RefreshAgents, "refresh-agents", false,
-					"re-pull the unversioned (channel-tracking) agents to latest")
-				return &req
-			})
+			return parseInto(args, "up", &req.Options, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
-			r := req.(*UpRequest)
-			res, err := a.Up(ctx, app.UpRequest{Dir: dir, RefreshAgents: r.RefreshAgents})
+			res, err := a.Up(ctx, app.UpRequest{Dir: dir})
 			if err != nil {
 				return nil, err
 			}
@@ -36,9 +31,9 @@ var lifecycleCommands = map[string]Command{
 	},
 	"rebuild": {
 		Name: "rebuild",
-		// Rebuild always re-pulls the unversioned agents — "no version
-		// given" means "latest per rebuild" — so it takes no
-		// --refresh-agents flag; pin an agent in image.agents to hold it.
+		// Rebuild is the one agent-refresh boundary: it always re-pulls
+		// the unversioned agents — "no version given" means "latest per
+		// rebuild" — and pinning in image.agents is how a version holds.
 		Summary: "recreate containers from freshly compiled inputs (unversioned agents re-pull)",
 		Usage:   "vibe rebuild [--json]",
 		Parse: func(args []string) (Request, error) {

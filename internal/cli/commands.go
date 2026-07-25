@@ -129,10 +129,7 @@ type PSRequest struct{ Options }
 
 type ForgetRequest struct{ Options }
 
-type UpRequest struct {
-	Options
-	RefreshAgents bool
-}
+type UpRequest struct{ Options }
 
 type ProvisionRequest struct{ Options }
 

@@ -129,7 +129,7 @@ func TestRunHelp(t *testing.T) {
 		if code != ExitOK {
 			t.Fatalf("code = %d, want 0", code)
 		}
-		for _, want := range []string{"vibe up —", "usage: vibe up", "refresh-agents", "json"} {
+		for _, want := range []string{"vibe up —", "usage: vibe up", "json"} {
 			if !strings.Contains(out, want) {
 				t.Fatalf("help up output missing %q:\n%s", want, out)
 			}

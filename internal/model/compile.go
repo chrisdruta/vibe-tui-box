@@ -151,7 +151,8 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 			// DISABLE_AUTOUPDATER pins the running claude to the image's
 			// frozen install: self-updates would land in the container's
 			// writable layer and silently revert on the next replace, so the
-			// version moves only when --refresh-agents rebuilds the layer.
+			// version moves only when a rebuild re-pulls the layer (or the
+			// manifest pin changes).
 			dev.Environment = append(dev.Environment,
 				Env{Key: "CLAUDE_CONFIG_DIR", Value: path.Join(AgentStateTarget, "claude")},
 				Env{Key: "DISABLE_AUTOUPDATER", Value: "1"})

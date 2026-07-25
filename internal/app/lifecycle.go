@@ -164,16 +164,15 @@ func loadManifestFile(path string) (*schema.Document, error) {
 
 // UpRequest reconciles the project to a fresh candidate compiled from
 // the current workspace inputs.
+// UpRequest reconciles the project to a fresh candidate. Force (the
+// rebuild verb) is also the agent-refresh boundary: every rebuild mints
+// the token that re-pulls the unversioned agents, and nothing else does
+// — a refreshed tools image changes the candidate and replaces the
+// containers anyway, so a separate refresh knob on up would just be
+// rebuild spelled twice.
 type UpRequest struct {
 	Dir   string
 	Force bool // replace containers even when already in sync (rebuild)
-	// RefreshAgents mints a fresh agent-refresh token before compiling, so
-	// the channel-tracking (unversioned) agents re-pull to latest and the
-	// token persists as the project's new baseline. Force implies it —
-	// every rebuild re-checks unversioned agents; manifest-pinned agents
-	// sit in plain layers no token reaches. On a plain up this is the
-	// --refresh-agents opt-in.
-	RefreshAgents bool
 }
 
 type UpResult struct {
@@ -196,13 +195,13 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 	if err := a.deps.Docker.Ping(ctx); err != nil {
 		return fail(err)
 	}
-	// A refresh mints a new token before compiling so the tools image
+	// A rebuild mints a new token before compiling so the tools image
 	// re-pulls the channel-tracking (unversioned) agents; it is persisted
 	// below (with Approved) only once the containers are actually up.
 	// Every rebuild refreshes — "no version given" means "latest per
 	// rebuild" — while a plain up keeps the record's existing token, so
 	// idempotent ups stay warm-cached and off the network.
-	refreshAgents := req.RefreshAgents || req.Force
+	refreshAgents := req.Force
 	if refreshAgents {
 		rec.AgentRefresh = a.deps.Clock.Now().UTC().Format(time.RFC3339Nano)
 	}

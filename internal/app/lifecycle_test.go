@@ -236,28 +236,6 @@ func TestRebuildRefreshesAgents(t *testing.T) {
 	}
 }
 
-// The refresh path is not gated on Force: `vibe up --refresh-agents`
-// mints, threads, and persists the token exactly like rebuild does.
-func TestUpRefreshAgents(t *testing.T) {
-	a, docker := newTestApp(t)
-	ctx := context.Background()
-	dir := newProject(t)
-	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
-		t.Fatal(err)
-	}
-	up, err := a.Up(ctx, UpRequest{Dir: dir, RefreshAgents: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	token := up.Record.AgentRefresh
-	if token == "" {
-		t.Fatal("up --refresh-agents did not persist a token")
-	}
-	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != token {
-		t.Fatalf("up refresh build arg = (%q, %v), want %q", v, ok, token)
-	}
-}
-
 func TestShellProbesCandidates(t *testing.T) {
 	a, docker := newTestApp(t)
 	ctx := context.Background()

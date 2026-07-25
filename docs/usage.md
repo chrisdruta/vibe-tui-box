@@ -12,7 +12,7 @@ result, and exits with a stable code: 0 ok, 1 failure, 2 usage,
 | --- | --- |
 | `vibe init [--preset NAME] [--auto-memory[=BOOL]]` | Seed `.vibe/` from an embedded preset (`minimal`, `go`, `node`, `bun`, `playwright`), register, pin the newest artifact. Interactive runs ask about Claude auto memory unless the flag decides it; scripted/`--json` runs default it off |
 | `vibe register [--name NAME]` | Register an existing project |
-| `vibe up [--refresh-agents]` | Freeze inputs → compile candidate → reconcile containers → mark approved. `--refresh-agents` opts in to re-pulling the unversioned agents to latest |
+| `vibe up` | Freeze inputs → compile candidate → reconcile containers → mark approved. Idempotent: warm caches, no agent re-pulls |
 | `vibe rebuild` | Same, but recreate containers even when already in sync — and always re-pull the unversioned (channel-tracking) agents to latest; pin one in `image.agents` (`claude@2.1.220`) to hold it |
 | `vibe down [--volumes]` | Stop and remove containers and network; also closes the project's tui session; volumes survive unless asked |
 | `vibe status` | Containers vs the approved candidate (running / stopped / stale) |

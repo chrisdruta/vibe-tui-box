@@ -55,9 +55,10 @@ bootstrap:
   and the system toolchains (Go/Node, and tmux — an engine-pinned
   source build, because distro tmux drops sixel images on redraw)
   stay cached and move only with the manifest or engine releases.
-  `vibe up` never refreshes on its own (idempotent ups stay off the
-  network); `vibe up --refresh-agents` is the opt-in. `grok` cannot be
-  pinned — its installer has no version parameter.
+  `vibe up` never refreshes (idempotent ups stay off the network):
+  rebuild is the one refresh boundary, so there is exactly one way to
+  move an agent and one way to hold it. `grok` cannot be pinned — its
+  installer has no version parameter.
 
   The image is the only version authority: claude's in-container
   self-updater is disabled (engine env `DISABLE_AUTOUPDATER=1` plus the
