@@ -58,11 +58,10 @@ func (l Limits) withDefaults() Limits {
 	return l
 }
 
-// Document is one successfully loaded manifest: the decoded types, the
-// raw source, and an index from schema paths to source positions.
+// Document is one successfully loaded manifest: the decoded types plus
+// an index from schema paths to source positions.
 type Document struct {
 	Manifest Manifest
-	Source   []byte
 	Index    SourceIndex
 }
 
@@ -110,7 +109,7 @@ func Load(r io.Reader, limits Limits) (*Document, error) {
 		return nil, err
 	}
 
-	return &Document{Manifest: manifest, Source: source, Index: index}, nil
+	return &Document{Manifest: manifest, Index: index}, nil
 }
 
 // yamlErrMessage strips the "yaml: " prefix the library adds so wrapped

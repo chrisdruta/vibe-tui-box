@@ -49,27 +49,3 @@ func Discover(start string) (Root, error) {
 		}
 	}
 }
-
-// OpenRegistered opens a registered project root directory and verifies
-// it is still the same filesystem object that was registered. A moved or
-// replaced directory returns ErrConflict rather than a handle to
-// whatever now occupies the path.
-func OpenRegistered(path string, want FileIdentity) (*os.File, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY, 0)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%w: project root %s", domain.ErrNotFound, path)
-		}
-		return nil, fmt.Errorf("open project root: %w", err)
-	}
-	got, err := identityOf(f)
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-	if got != want {
-		f.Close()
-		return nil, fmt.Errorf("%w: project root %s changed identity since registration", domain.ErrConflict, path)
-	}
-	return f, nil
-}

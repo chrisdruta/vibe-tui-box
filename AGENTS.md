@@ -148,8 +148,8 @@ Persistent records are versioned JSON, decoded with
 `DisallowUnknownFields`, dispatched by `format`.
 
 **Ordering and safety.** Lock order is fixed: store-global →
-artifact/candidate → project → broker-request; never acquire earlier
-while holding later. Mutable records (registry `Approved`, pins) move
+artifact/candidate → project; never acquire earlier while holding
+later. Mutable records (registry `Approved`, pins) move
 only *after* the durable object they reference exists and its containers
 run — a failed `up` must not move the approved-candidate pointer.
 Reconciliation never removes a container it did not decide to replace,

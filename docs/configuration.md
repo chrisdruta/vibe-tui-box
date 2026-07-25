@@ -33,7 +33,6 @@ agent:
 env_file: .env
 bootstrap:
   required: [git, go]
-  auto: {install: true, git_hooks: false, git_lfs: false}
 ```
 
 ## Field notes

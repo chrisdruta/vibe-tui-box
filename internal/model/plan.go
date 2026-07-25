@@ -23,7 +23,7 @@ type Plan struct {
 	Services      []Container   `json:"services"`
 	Networks      []Network     `json:"networks"`
 	Volumes       []Volume      `json:"volumes"`
-	Images        []Image       `json:"images"`
+	Images        []ImageID     `json:"images"`
 	Inputs        Inputs        `json:"inputs"`
 	Tools         *Tools        `json:"tools,omitempty"`
 	Extension     *Extension    `json:"extension,omitempty"`
@@ -95,12 +95,9 @@ type Label struct {
 
 type NetworkMode string
 
-const (
-	// NetworkProject attaches the container to the project network.
-	NetworkProject NetworkMode = "project"
-	// NetworkNone disables networking.
-	NetworkNone NetworkMode = "none"
-)
+// NetworkProject attaches the container to the project network; it is
+// the only mode the compiler produces.
+const NetworkProject NetworkMode = "project"
 
 // ContainerPolicy is the closed security posture every container gets.
 type ContainerPolicy struct {
@@ -116,11 +113,6 @@ type Network struct {
 
 type Volume struct {
 	Name string `json:"name"`
-}
-
-type Image struct {
-	Ref    string        `json:"ref"`
-	Digest domain.Digest `json:"digest,omitzero"`
 }
 
 // Inputs records the frozen inputs the plan was compiled from.

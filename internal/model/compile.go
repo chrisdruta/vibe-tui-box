@@ -114,6 +114,17 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 		})
 	}
 	for i, imp := range m.Runtime.Imports {
+		// Engine-owned targets stay engine-owned even when the mount is
+		// absent from this compile (no artifact installed yet, no broker
+		// results); rejecting here keeps the error at the manifest field
+		// instead of a later mount-overlap surprise on `up`.
+		if r := reservedTargetFor(imp.Target); r != "" {
+			errs = append(errs, domain.FieldError{
+				Path:    fmt.Sprintf("runtime.imports[%d].target", i),
+				Message: fmt.Sprintf("target %q overlaps the engine-owned target %q", imp.Target, r),
+			})
+			continue
+		}
 		dev.Mounts = append(dev.Mounts, Mount{
 			Kind:     BindMount,
 			Source:   path.Join(in.Snapshot.Path, SnapshotImportDir, strconv.Itoa(i)),
@@ -183,7 +194,7 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 		refs[ToolsImageRef(id)] = true // extension builds FROM the tools image
 	}
 	for ref := range refs {
-		plan.Images = append(plan.Images, Image{Ref: ref, Digest: in.ImageDigests[ref]})
+		plan.Images = append(plan.Images, ImageID{Ref: ref, Digest: in.ImageDigests[ref]})
 	}
 	sort.Slice(plan.Images, func(i, j int) bool { return plan.Images[i].Ref < plan.Images[j].Ref })
 	sort.Slice(plan.Volumes, func(i, j int) bool { return plan.Volumes[i].Name < plan.Volumes[j].Name })

@@ -67,7 +67,7 @@ func ValidServiceName(s string) bool { return serviceNameRe.MatchString(s) }
 var (
 	harnessRe     = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$`)
 	serviceNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
-	volumeNameRe  = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+	volumeNameRe  = serviceNameRe // same closed shape, distinct diagnostics
 	commandRe     = regexp.MustCompile(`^[a-z0-9][A-Za-z0-9._-]{0,63}$`)
 	// imageRefRe accepts name[:tag][@sha256:hex] with optional registry
 	// host. It is a shape check; digest pinning is enforced at candidate
@@ -154,7 +154,7 @@ func (v *validator) runtime(m *Manifest) {
 	targets := map[string]string{}
 	for i, imp := range m.Runtime.Imports {
 		base := fmt.Sprintf("runtime.imports[%d]", i)
-		v.relPathAt(base+".source", imp.Source)
+		v.relPath(base+".source", imp.Source)
 		if tgt, ok := v.containerTarget(base+".target", imp.Target); ok {
 			if prev, dup := targets[tgt]; dup {
 				v.add(base+".target", fmt.Sprintf("target %q duplicates %s", tgt, prev))
@@ -218,9 +218,7 @@ func (v *validator) envKeys(base string, env OrderedEnv) {
 
 // relPath checks a workspace-relative path: non-empty, relative, clean,
 // and confined to the workspace.
-func (v *validator) relPath(fieldPath, p string) { v.relPathAt(fieldPath, p) }
-
-func (v *validator) relPathAt(fieldPath, p string) {
+func (v *validator) relPath(fieldPath, p string) {
 	switch {
 	case p == "":
 		v.add(fieldPath, "path is required")

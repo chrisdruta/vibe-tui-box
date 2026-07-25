@@ -192,10 +192,25 @@ func TestCompileShape(t *testing.T) {
 }
 
 func TestCompileRejectsReservedTarget(t *testing.T) {
-	manifest := strings.Replace(sidecarManifest, "target: /models", "target: "+WorkspaceTarget, 1)
-	_, errs := Compile(testInput(t, manifest))
-	if len(errs) == 0 {
-		t.Fatal("import targeting the workspace mount should fail")
+	// The engine-owned targets stay reserved even when their mounts are
+	// absent from this compile: testInput carries no artifact and no
+	// broker results dir, so /vibe/payload and /vibe/results exist only
+	// as policy, not as mounts.
+	for _, target := range []string{
+		WorkspaceTarget,
+		PayloadTarget,
+		ResultsTarget,
+		AgentStateTarget + "/nested",
+		"/vibe", // contains engine-owned targets
+	} {
+		manifest := strings.Replace(sidecarManifest, "target: /models", "target: "+target, 1)
+		_, errs := Compile(testInput(t, manifest))
+		if len(errs) == 0 {
+			t.Fatalf("import targeting %s should fail", target)
+		}
+		if !strings.Contains(errs[0].Path, "runtime.imports[0].target") {
+			t.Fatalf("error for %s should name the manifest field, got %+v", target, errs[0])
+		}
 	}
 }
 

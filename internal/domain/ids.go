@@ -10,10 +10,6 @@ import (
 // names or paths.
 type ProjectID string
 
-// CandidateID aliases the digest hex of a candidate where an opaque ID
-// is needed; candidates are otherwise addressed by Digest.
-type CandidateID string
-
 // RequestID names a broker rebuild request. Agents choose it inside the
 // container, so parsing is strict and bounded.
 type RequestID string

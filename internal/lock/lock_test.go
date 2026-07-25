@@ -41,7 +41,7 @@ func TestAcquireRelease(t *testing.T) {
 }
 
 func TestLockNamesEncodeOrder(t *testing.T) {
-	names := []string{StoreGlobal(), Object("candidate", "ff"), Project("id"), BrokerRequest("id", "req")}
+	names := []string{StoreGlobal(), Object("candidate", "ff"), Project("id")}
 	for i := 1; i < len(names); i++ {
 		if names[i-1] >= names[i] {
 			t.Fatalf("lock order prefixes not ascending: %q >= %q", names[i-1], names[i])

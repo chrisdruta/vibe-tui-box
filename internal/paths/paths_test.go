@@ -81,30 +81,3 @@ func TestDiscoverIgnoresManifestDirectory(t *testing.T) {
 		t.Fatalf("directory manifest should be ignored, got %v", err)
 	}
 }
-
-func TestOpenRegistered(t *testing.T) {
-	dir := makeProject(t)
-	root, err := Discover(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, err := OpenRegistered(root.Path, root.Identity)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
-
-	// A different live directory can never carry the registered
-	// identity: simulates the root being replaced or the path retargeted.
-	other := makeProject(t)
-	if _, err := OpenRegistered(other, root.Identity); !errors.Is(err, domain.ErrConflict) {
-		t.Fatalf("identity mismatch should conflict, got %v", err)
-	}
-
-	if err := os.RemoveAll(root.Path); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := OpenRegistered(root.Path, root.Identity); !errors.Is(err, domain.ErrNotFound) {
-		t.Fatalf("missing root should be not-found, got %v", err)
-	}
-}

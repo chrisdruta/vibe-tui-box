@@ -5,7 +5,6 @@ package paths
 import (
 	"fmt"
 	"io/fs"
-	"os"
 	"syscall"
 )
 
@@ -44,12 +43,4 @@ func LinkCount(info fs.FileInfo) uint64 {
 		return 1
 	}
 	return uint64(st.Nlink)
-}
-
-func identityOf(f *os.File) (FileIdentity, error) {
-	var st syscall.Stat_t
-	if err := syscall.Fstat(int(f.Fd()), &st); err != nil {
-		return FileIdentity{}, fmt.Errorf("stat %s: %w", f.Name(), err)
-	}
-	return FileIdentity{Device: uint64(st.Dev), Inode: uint64(st.Ino)}, nil
 }

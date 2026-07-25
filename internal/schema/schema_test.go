@@ -43,7 +43,6 @@ agent:
 env_file: .env
 bootstrap:
   required: [git, jq]
-  auto: {install: true, git_hooks: false, git_lfs: false}
 `
 
 func load(t *testing.T, src string) (*Document, error) {

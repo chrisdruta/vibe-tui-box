@@ -153,7 +153,7 @@ Lock order is fixed — never acquire an earlier lock while holding a
 later one:
 
 ```text
-store-global → artifact/candidate → project → broker-request
+store-global → artifact/candidate → project
 ```
 
 Mutable records move only *after* the durable object they reference

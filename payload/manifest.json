@@ -136,8 +136,8 @@
     {
       "path": "presets/bun/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 426,
-      "digest": "sha256:ba0ee2a4ba1037ae578cbb9552443f36581a644fd8ce5e5ae3ccecab06a2b2d3"
+      "size": 368,
+      "digest": "sha256:e1631a3c8a7144a227b60b41cbde22297d348e87606eaf97dffcff1eb9b268cd"
     },
     {
       "path": "presets/common/AGENTS.md",
@@ -160,20 +160,20 @@
     {
       "path": "presets/go/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 423,
-      "digest": "sha256:5679f1283254c3e30247da064c39e82f36decb312337d76373f98b852c6c9c29"
+      "size": 365,
+      "digest": "sha256:d0ee51d4fc4f9a0093e754461f0e4ded2db6604616242aada259ae9429334f1c"
     },
     {
       "path": "presets/minimal/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 405,
-      "digest": "sha256:55e2f631ce84a370dcf2987207091e0492f9a407db9b1637b549e09f022cf6ec"
+      "size": 347,
+      "digest": "sha256:da86ccc8efb196f4d9f94e212ecbcf6e8a6a1a8f0ed76112051dcb39362959d0"
     },
     {
       "path": "presets/node/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 434,
-      "digest": "sha256:92f5d0687c31b8e9114dc06a31bd8ac6dbb071993555d325a6ac8b8eaa3a4af3"
+      "size": 376,
+      "digest": "sha256:99f1b19cd883816fe1db7d989cba7d8e64f30c4e69719442b88b4b1824bcd1a0"
     },
     {
       "path": "presets/playwright/Dockerfile",
@@ -190,9 +190,9 @@
     {
       "path": "presets/playwright/vibe.yaml.tmpl",
       "mode": "0644",
-      "size": 622,
-      "digest": "sha256:cd890404eb7bdebc123ab94392dbfdc54b23221d287079f98506d7ee32720e92"
+      "size": 564,
+      "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:da2b4e5c48fac34c1f56161db1764d2c6991db9a6d47d82ace05505bba0429dd"
+  "digest": "sha256:063f97216b4f3b06b92b13bdcb156751e3d9257bcd748a2831ddb5974a151164"
 }

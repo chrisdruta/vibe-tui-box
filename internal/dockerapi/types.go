@@ -150,8 +150,6 @@ type BuildRequest struct {
 	ContextDir string // frozen candidate context on the host
 	Dockerfile string // path within the context
 	BuildArgs  map[string]string
-	Network    string // build network mode ("" = daemon default)
-	Platform   domain.Platform
 }
 
 type BuiltImage struct {

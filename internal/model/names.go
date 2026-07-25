@@ -1,6 +1,10 @@
 package model
 
-import "github.com/chrisdruta/vibe-tui-box/internal/domain"
+import (
+	"strings"
+
+	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+)
 
 // Generated Docker object names derive from the project ID — never from
 // display names or paths — so they are stable, collision-free, and safe
@@ -58,6 +62,17 @@ const (
 // ReservedTargets lists every engine-owned mount target.
 func ReservedTargets() []string {
 	return []string{WorkspaceTarget, PayloadTarget, AgentStateTarget, ResultsTarget}
+}
+
+// reservedTargetFor returns the engine-owned target that t equals,
+// contains, or is contained by, or "" when t is free.
+func reservedTargetFor(t string) string {
+	for _, r := range ReservedTargets() {
+		if t == r || strings.HasPrefix(t, r+"/") || strings.HasPrefix(r, t+"/") {
+			return r
+		}
+	}
+	return ""
 }
 
 // PayloadEntrypoint is the dev container command when an artifact's

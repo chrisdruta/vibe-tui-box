@@ -28,7 +28,6 @@ func (s *SDK) buildSDK(ctx context.Context, req BuildRequest, sink ProgressSink)
 	}
 	args := make(map[string]*string, len(req.BuildArgs))
 	for k, v := range req.BuildArgs {
-		v := v
 		args[k] = &v
 	}
 	opts := build.ImageBuildOptions{
@@ -37,7 +36,6 @@ func (s *SDK) buildSDK(ctx context.Context, req BuildRequest, sink ProgressSink)
 		BuildArgs:   args,
 		Remove:      true,
 		ForceRemove: true,
-		NetworkMode: req.Network,
 	}
 	resp, err := s.cli.ImageBuild(ctx, bytes.NewReader(contextTar), opts)
 	if err != nil {

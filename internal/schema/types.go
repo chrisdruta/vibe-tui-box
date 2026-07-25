@@ -68,14 +68,7 @@ type Agent struct {
 }
 
 type Bootstrap struct {
-	Required []string      `yaml:"required,omitempty"`
-	Auto     BootstrapAuto `yaml:"auto"`
-}
-
-type BootstrapAuto struct {
-	Install  bool `yaml:"install"`
-	GitHooks bool `yaml:"git_hooks"`
-	GitLFS   bool `yaml:"git_lfs"`
+	Required []string `yaml:"required,omitempty"`
 }
 
 // AgentKind is the closed set of installable agent CLIs.

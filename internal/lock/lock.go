@@ -3,7 +3,7 @@
 // acquisition site to timeout errors.
 //
 // Fixed order (never acquire an earlier class while holding a later
-// one): store-global → artifact/candidate → project → broker-request.
+// one): store-global → artifact/candidate → project.
 package lock
 
 import "context"
@@ -28,7 +28,3 @@ func StoreGlobal() string { return "00-store" }
 func Object(kind, digestHex string) string { return "10-object-" + kind + "-" + digestHex }
 
 func Project(id string) string { return "20-project-" + id }
-
-func BrokerRequest(project, request string) string {
-	return "30-broker-" + project + "-" + request
-}
