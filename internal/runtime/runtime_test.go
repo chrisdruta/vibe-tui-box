@@ -190,7 +190,7 @@ func TestUpCreatesFullTopology(t *testing.T) {
 		Image:   model.ToolsImageRef(testProjectID) + "@" + testToolsDigest.String(),
 		User:    "vscode",
 		Command: []string{"sleep", "infinity"},
-		Env:     []string{"SECRET=s3cret", "FLAG=1", "CLAUDE_CONFIG_DIR=/vibe/agent-state/claude"},
+		Env:     []string{"SECRET=s3cret", "FLAG=1", "CLAUDE_CONFIG_DIR=/vibe/agent-state/claude", "DISABLE_AUTOUPDATER=1"},
 		Labels: map[string]string{
 			ManagedLabel:   "true",
 			ProjectLabel:   string(testProjectID),

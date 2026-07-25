@@ -21,7 +21,8 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-  echo "Usage: agent-session.sh agent [--cold] [-a] [-s NAME] -- COMMAND [ARGUMENT ...]" >&2
+  echo "Usage: agent-session.sh agent [--cold] [-a] [-s NAME] [--restart] -- COMMAND [ARGUMENT ...]" >&2
+  echo "       agent-session.sh stop [--cold] [-a] [-s NAME] -- COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh attach [SESSION]" >&2
   echo "       agent-session.sh run COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh reap" >&2
@@ -82,7 +83,10 @@ if [ "$mode" = "run" ]; then
   exit "$?"
 fi
 
-[ "$mode" = "agent" ] || usage
+# stop shares agent mode's flag surface: the flags only exist to name
+# the session (agent(-cmd)(-name)(-cold)), and computing that name in a
+# second place is how the two would drift.
+case "$mode" in agent | stop) ;; *) usage ;; esac
 
 # --cold starts the agent without repo instruction files for an unbiased
 # session. -a marks the command after `--` as a `vibe agent -a` override
@@ -91,13 +95,19 @@ fi
 # (agent-NAME): without it, -A reattaches the one default session —
 # persistence by design, but "another agent" usually means another
 # AGENT. Every variant gets its own tmux session and own identity.
+# --restart replaces the persistent session instead of reattaching it.
 cold=0
 override=0
+restart=0
 session_suffix=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --cold)
       cold=1
+      shift
+      ;;
+    --restart)
+      restart=1
       shift
       ;;
     -a)
@@ -146,6 +156,20 @@ if [ "$cold" = "1" ]; then
       ;;
   esac
   session="$session-cold"
+fi
+
+# stop ends the named session's run — the one lifecycle affordance
+# persistence needs (everything else keeps agents alive by design).
+# kill-session HUPs the pane; the run-mode EXIT trap records the death
+# for `vibe ps`. Idempotent: a session that is not running is already
+# what stop promises.
+if [ "$mode" = "stop" ]; then
+  if tmux kill-session -t "=$session" 2>/dev/null; then
+    echo "stopped agent session '$session'"
+  else
+    echo "agent session '$session' is not running"
+  fi
+  exit 0
 fi
 
 # The hook/statusline wiring rides the read-only payload mount instead
@@ -198,6 +222,33 @@ cmd=(env "VIBE_AGENT_SESSION=$session" "VIBE_AGENT_INSTANCE=$$.$(date +%s)" \
 # agent directly rather than nesting servers.
 if [ -n "${TMUX:-}" ]; then
   exec "${cmd[@]}"
+fi
+
+# Reattach-mismatch guard: -A discards the freshly composed command
+# whenever the session already exists, so a changed agent.cmd (read
+# live from the manifest — no rebuild involved) would silently keep
+# delivering the OLD agent forever. The window name is minted from the
+# agent binary at session creation (-n below, automatic-rename off), so
+# it names what actually runs; on a mismatch ask before reattaching —
+# or just warn when there is no terminal to ask.
+want="${agent_cmd[0]##*/}"
+if [ "$restart" != "1" ]; then
+  running="$(tmux list-windows -t "=$session" -F '#{window_name}' 2>/dev/null | head -n1 || true)"
+  if [ -n "$running" ] && [ "$running" != "$want" ]; then
+    echo "vibe: session '$session' is running $running, but the requested agent is $want." >&2
+    if [ -t 0 ]; then
+      read -r -p "restart with $want? this ends the running $running [y/N] " ans || ans=""
+      case "$ans" in
+        [Yy]*) restart=1 ;;
+        *) echo "reattaching to $running ('vibe agent --restart' switches later)" >&2 ;;
+      esac
+    else
+      echo "reattaching anyway ('vibe agent --restart' switches)" >&2
+    fi
+  fi
+fi
+if [ "$restart" = "1" ]; then
+  tmux kill-session -t "=$session" 2>/dev/null || true
 fi
 
 # The inner server loads only the payload conf (status off, titles on,

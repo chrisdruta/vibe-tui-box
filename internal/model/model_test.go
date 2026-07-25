@@ -132,6 +132,7 @@ func TestCompileAgentStateEnv(t *testing.T) {
 	}
 	for _, want := range []string{
 		"CLAUDE_CONFIG_DIR=/vibe/agent-state/claude",
+		"DISABLE_AUTOUPDATER=1",
 		"CODEX_HOME=/vibe/agent-state/codex",
 	} {
 		if !slices.Contains(got, want) {

@@ -30,7 +30,7 @@ a failed `up` never moves the approved-candidate pointer.
 | --- | --- |
 | `vibe exec [-u USER] [-w DIR] [-e K=V]… -- CMD ARGS…` | explicit `-e` entries only |
 | `vibe run -- CMD ARGS…` | the env file frozen in the approved candidate, then `-e` |
-| `vibe agent [--cold] [-a CMD] [-s NAME]` | the manifest's agent CLI, with the frozen env file |
+| `vibe agent [--cold] [-a CMD] [-s NAME] [--stop\|--restart]` | the manifest's agent CLI, with the frozen env file |
 | `vibe shell` | first of zsh/bash/sh found in the container, as a login shell |
 | `vibe attach [SESSION]` | the main process; with SESSION, that in-container tmux session (default target: `services`) |
 | `vibe logs [SERVICE] [-f] [--tail N]` | container logs — the dev container, or a named sidecar |
@@ -74,6 +74,15 @@ reattaches to it. Flags: `--cold` starts without repo instruction files;
 identity and state dot. `vibe ps` lists the current project's agent
 sessions alongside the registered projects. (Containers whose image
 lacks tmux fall back to direct exec: no persistence, no dot.)
+
+To end one: `vibe agent --stop` stops the addressed session (combine
+with `-s`/`-a`/`--cold` to address a variant; idempotent), and
+`--restart` replaces it — the conversation ends and a fresh one starts.
+Because sessions persist, a changed `agent.cmd` alone never switches a
+*running* session; reattaching to one that runs a different agent than
+the manifest asks for now prompts to restart it (or warns, when nothing
+can prompt). `vibe down` remains the container-level stop for
+everything at once.
 
 ## The TUI
 

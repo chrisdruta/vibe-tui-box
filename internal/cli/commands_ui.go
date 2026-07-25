@@ -60,7 +60,7 @@ var uiCommands = map[string]Command{
 	"agent": {
 		Name:    "agent",
 		Summary: "run the manifest's agent CLI in the dev container",
-		Usage:   "vibe agent [-u USER] [--cold] [-a|--agent CMD] [-s|--session NAME]",
+		Usage:   "vibe agent [-u USER] [--cold] [-a|--agent CMD] [-s|--session NAME] [--stop|--restart]",
 		Parse:   parseAgentCmd,
 		Run: func(ctx context.Context, a *app.App, req Request) (Result, error) {
 			r := req.(*AgentCmdRequest)
@@ -71,6 +71,8 @@ var uiCommands = map[string]Command{
 				Cold:             r.Cold,
 				Agent:            r.Agent,
 				Session:          r.Session,
+				Stop:             r.Stop,
+				Restart:          r.Restart,
 				// The tui conf exports VIBE_NESTED=1 server-wide; the
 				// marker rides into the container so its inner tmux
 				// client is reapable when the UI dies.
@@ -164,12 +166,15 @@ var uiCommands = map[string]Command{
 // AgentCmdRequest is the exec-shaped agent command plus its session
 // pass-throughs: --cold (no repo instruction files), -a/--agent (run a
 // different installed agent in its own session), -s/--session (a named
-// parallel instance).
+// parallel instance), --stop / --restart (end or replace the addressed
+// persistent session instead of reattaching it).
 type AgentCmdRequest struct {
 	ExecRequest
 	Cold    bool
 	Agent   string
 	Session string
+	Stop    bool
+	Restart bool
 }
 
 func parseAgentCmd(args []string) (Request, error) {
@@ -184,11 +189,16 @@ func parseAgentCmd(args []string) (Request, error) {
 	fs.StringVar(&req.Agent, "agent", "", "alias for -a")
 	fs.StringVar(&req.Session, "s", "", "named parallel session")
 	fs.StringVar(&req.Session, "session", "", "alias for -s")
+	fs.BoolVar(&req.Stop, "stop", false, "stop the addressed agent session")
+	fs.BoolVar(&req.Restart, "restart", false, "replace the addressed agent session")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
 	if fs.NArg() > 0 {
 		return nil, fmt.Errorf("unexpected argument %q", fs.Arg(0))
+	}
+	if req.Stop && req.Restart {
+		return nil, fmt.Errorf("--stop and --restart are mutually exclusive")
 	}
 	return &req, nil
 }

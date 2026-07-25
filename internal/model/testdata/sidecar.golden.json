@@ -28,6 +28,10 @@
       {
         "key": "CLAUDE_CONFIG_DIR",
         "value": "/vibe/agent-state/claude"
+      },
+      {
+        "key": "DISABLE_AUTOUPDATER",
+        "value": "1"
       }
     ],
     "mounts": [
@@ -157,5 +161,5 @@
       "claude"
     ]
   },
-  "canonical_hash": "sha256:0d7d67b7028a501f529abc8bd1b77c4f41b57cbf706294d48b7eb0a7b37e58d4"
+  "canonical_hash": "sha256:2f1831f50a233ac52687e5a3dd5fa3b32891914c12393513f2ed2f12901747da"
 }

@@ -31,6 +31,11 @@ type AgentRequest struct {
 	Agent   string
 	Session string
 	Nested  bool
+	// Stop ends the addressed persistent session instead of attaching;
+	// Restart replaces it (end, then a fresh launch). Both are
+	// carrier-only: without agent.tmux there is no session to address.
+	Stop    bool
+	Restart bool
 }
 
 // agentTmuxPath is the probe target for the session carrier: the tools
@@ -81,7 +86,11 @@ func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
 	}
 	cmd := req.ContainerCommand
 	if session {
-		cmd.Argv = []string{"bash", model.PayloadAgentSession, "agent"}
+		scriptMode := "agent"
+		if req.Stop {
+			scriptMode = "stop"
+		}
+		cmd.Argv = []string{"bash", model.PayloadAgentSession, scriptMode}
 		if req.Cold {
 			cmd.Argv = append(cmd.Argv, "--cold")
 		}
@@ -91,17 +100,25 @@ func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
 		if req.Session != "" {
 			cmd.Argv = append(cmd.Argv, "-s", req.Session)
 		}
+		if req.Restart {
+			cmd.Argv = append(cmd.Argv, "--restart")
+		}
 		cmd.Argv = append(cmd.Argv, "--", agentCmd)
 	} else {
-		// The cold/session variants only exist inside the carrier.
-		if req.Cold || req.Session != "" {
-			return fail(fmt.Errorf("%w: --cold and -s need agent.tmux and a tmux-capable image", domain.ErrUnavailable))
+		// The cold/session/stop variants only exist inside the carrier.
+		if req.Cold || req.Session != "" || req.Stop || req.Restart {
+			return fail(fmt.Errorf("%w: --cold, -s, --stop, and --restart need agent.tmux and a tmux-capable image", domain.ErrUnavailable))
 		}
 		cmd.Argv = []string{agentCmd}
 	}
-	entries, err := a.approvedEnvFile(ctx, rec)
-	if err != nil {
-		return fail(err)
+	// A stop exec only addresses the inner tmux server — the frozen env
+	// file (secrets) has no business riding along on a kill.
+	var entries []envfile.Entry
+	if !req.Stop {
+		entries, err = a.approvedEnvFile(ctx, rec)
+		if err != nil {
+			return fail(err)
+		}
 	}
 	// Identity for container-side scripts, which never parse workspace
 	// files for it: appended after the env file so it cannot be shadowed.

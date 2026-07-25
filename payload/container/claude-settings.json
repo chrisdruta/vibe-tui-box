@@ -1,5 +1,6 @@
 {
   "autoMemoryEnabled": false,
+  "autoUpdates": false,
   "sandbox": {
     "enableWeakerNestedSandbox": true,
     "failIfUnavailable": false

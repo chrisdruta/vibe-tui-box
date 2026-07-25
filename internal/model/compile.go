@@ -128,8 +128,13 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 		// CLAUDE_CONFIG_DIR, so logins land in the agent-state volume and
 		// survive rebuilds. Engine-provided: comes last, cannot be shadowed.
 		if agent == schema.AgentClaude {
+			// DISABLE_AUTOUPDATER pins the running claude to the image's
+			// frozen install: self-updates would land in the container's
+			// writable layer and silently revert on the next replace, so the
+			// version moves only when --refresh-agents rebuilds the layer.
 			dev.Environment = append(dev.Environment,
-				Env{Key: "CLAUDE_CONFIG_DIR", Value: path.Join(AgentStateTarget, "claude")})
+				Env{Key: "CLAUDE_CONFIG_DIR", Value: path.Join(AgentStateTarget, "claude")},
+				Env{Key: "DISABLE_AUTOUPDATER", Value: "1"})
 		}
 		// Codex keeps auth.json and config under CODEX_HOME; the same
 		// relocation keeps `codex login` alive across rebuilds (the

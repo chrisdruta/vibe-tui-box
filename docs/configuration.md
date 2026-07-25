@@ -58,6 +58,12 @@ bootstrap:
   generation on the project so subsequent plain rebuilds stay on the
   fresh build. System toolchains (Go/Node/apt) are pinned and never move
   on a refresh.
+
+  The image is the only version authority: claude's in-container
+  self-updater is disabled (engine env `DISABLE_AUTOUPDATER=1` plus the
+  payload settings), because an update would land in the container's
+  writable layer and silently revert on the next replace. Agent versions
+  move exactly one way — `--refresh-agents`.
 - **`runtime.ports`** — published ports must bind a loopback IP; there
   is no way to expose a container to the network. The sanctioned use is
   host tooling that must reach a server inside (e.g. Roblox Studio →

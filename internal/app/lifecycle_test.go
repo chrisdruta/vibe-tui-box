@@ -57,7 +57,7 @@ func TestUpStatusRunDown(t *testing.T) {
 		t.Fatalf("want 1 container, got %d", len(creates))
 	}
 	created := creates[0].Request.(dockerapi.CreateRequest)
-	wantEnv := []string{"SECRET=s3cret", "FLAG=1", "CLAUDE_CONFIG_DIR=/vibe/agent-state/claude"}
+	wantEnv := []string{"SECRET=s3cret", "FLAG=1", "CLAUDE_CONFIG_DIR=/vibe/agent-state/claude", "DISABLE_AUTOUPDATER=1"}
 	if fmt.Sprint(created.Env) != fmt.Sprint(wantEnv) {
 		t.Fatalf("container env wrong: %v", created.Env)
 	}
@@ -401,6 +401,67 @@ func TestAgentTmuxOptOut(t *testing.T) {
 		if dockerfake.ExecKey(call.Request.(dockerapi.ExecRequest).Argv) == agentProbeKey {
 			t.Fatal("agent.tmux: false must not probe for the carrier")
 		}
+	}
+}
+
+func TestAgentStopRestart(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// --stop swaps the script mode and keeps the session-naming flags;
+	// the frozen env file (secrets) never rides a kill — identity only.
+	if _, err := a.Agent(ctx, AgentRequest{
+		ContainerCommand: ContainerCommand{Dir: dir},
+		Stop:             true,
+		Session:          "review",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	last := lastExecArgv(t, docker)
+	wantArgv := []string{"bash", model.PayloadAgentSession, "stop", "-s", "review", "--", "claude"}
+	if fmt.Sprint(last.Argv) != fmt.Sprint(wantArgv) {
+		t.Fatalf("stop argv wrong: %v", last.Argv)
+	}
+	wantEnv := []string{
+		"VIBE_PROJECT=" + string(reg.Record.ID),
+		"VIBE_PROJECT_NAME=" + reg.Record.DisplayName,
+		"VIBE_AGENT_MEMORY=off",
+	}
+	if fmt.Sprint(last.Env) != fmt.Sprint(wantEnv) {
+		t.Fatalf("stop env wrong: %v", last.Env)
+	}
+
+	// --restart rides agent mode as a flag and keeps the full launch env.
+	if _, err := a.Agent(ctx, AgentRequest{
+		ContainerCommand: ContainerCommand{Dir: dir},
+		Restart:          true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	last = lastExecArgv(t, docker)
+	wantArgv = []string{"bash", model.PayloadAgentSession, "agent", "--restart", "--", "claude"}
+	if fmt.Sprint(last.Argv) != fmt.Sprint(wantArgv) {
+		t.Fatalf("restart argv wrong: %v", last.Argv)
+	}
+	if !slices.Contains(last.Env, "SECRET=s3cret") {
+		t.Fatalf("restart env lost the frozen env file: %v", last.Env)
+	}
+
+	// Without the carrier there is no session to address.
+	docker.ExecResults[agentProbeKey] = dockerapi.ExecResult{ExitCode: 1}
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Stop: true}); err == nil {
+		t.Fatal("--stop without the carrier should fail")
+	}
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Restart: true}); err == nil {
+		t.Fatal("--restart without the carrier should fail")
 	}
 }
 

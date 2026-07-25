@@ -359,7 +359,7 @@ control APIs — is recorded in [positioning.md](positioning.md).
 ```text
 init [--preset P] / register [--name N] / forget / ps
 up / rebuild / down / status / logs [SVC] / config / doctor / bootstrap
-agent [--cold] [-a CMD] [-s NAME] / run -- CMD / exec -- CMD / shell
+agent [--cold] [-a CMD] [-s NAME] [--stop|--restart] / run -- CMD / exec -- CMD / shell
 attach [SESSION] / tui / clip [DIR] / request {list|show|approve|reject}
 provision / update --version vX.Y.Z / gc / version
 dev {on|sync|off|status}

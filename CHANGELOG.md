@@ -38,6 +38,22 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- New: `vibe agent --stop` / `--restart` end or replace the persistent
+  agent session (combine with `-s`/`-a`/`--cold` to address a variant) —
+  the lifecycle affordance persistence lacked: the only stops were
+  exiting the CLI by hand or `vibe down`. The TUI palette gains matching
+  "stop agent" / "restart agent" entries, and the quit prompts now say
+  how to stop an agent instead of only that it keeps running. Reattaching
+  a session that runs a different agent than requested (`agent.cmd` is
+  read live, so flipping it never touched the running session) now
+  prompts to restart instead of silently delivering the old agent.
+- Changed: claude's in-container self-updater is disabled
+  (`DISABLE_AUTOUPDATER=1` in the dev container env plus `autoUpdates:
+  false` in the payload settings). Self-updates landed in the container's
+  writable layer and silently reverted on the next replace; the image is
+  now the only version authority, moved exactly by `--refresh-agents`.
+  Plan change: claude projects compile a new candidate on their next
+  `vibe up`, which replaces containers once.
 - New: claude logins persist across rebuilds. With `claude` in
   `image.agents` the plan sets `CLAUDE_CONFIG_DIR` to the agent-state
   volume, and the generated tools image bakes the mount point
