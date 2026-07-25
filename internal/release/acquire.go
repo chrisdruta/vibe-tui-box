@@ -235,7 +235,10 @@ func validateExtracted(staging string) (binaryDigest, payloadDigest domain.Diges
 	if err != nil {
 		return domain.Digest{}, domain.Digest{}, err
 	}
+	known := make(map[string]bool, len(manifest.Files)+1)
+	known[payload.ManifestPath] = true
 	for _, f := range manifest.Files {
+		known[f.Path] = true
 		target := filepath.Join(payloadRoot, filepath.FromSlash(f.Path))
 		digest, size, err := digestFileSized(target)
 		if err != nil {
@@ -253,6 +256,26 @@ func validateExtracted(staging string) (binaryDigest, payloadDigest domain.Diges
 		if err := os.Chmod(target, perm); err != nil {
 			return domain.Digest{}, domain.Digest{}, err
 		}
+	}
+	// The verification is two-directional: bytes the archive smuggled
+	// under payload/ that the manifest does not list would otherwise
+	// live inside a "manifest-verified" artifact without being covered
+	// by its payload digest.
+	err = filepath.WalkDir(payloadRoot, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(payloadRoot, p)
+		if err != nil {
+			return err
+		}
+		if !known[filepath.ToSlash(rel)] {
+			return fmt.Errorf("%w: archive carries payload file %s that the payload manifest does not list", domain.ErrConflict, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	if err != nil {
+		return domain.Digest{}, domain.Digest{}, err
 	}
 	return binaryDigest, manifest.Digest, nil
 }

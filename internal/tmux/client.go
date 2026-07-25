@@ -22,6 +22,13 @@ const Socket = "vibe-engine"
 // SessionID is an engine-generated tmux session name.
 type SessionID string
 
+// EscapeFormat escapes s for literal inclusion in a tmux format
+// string: # introduces expansion there (#{…}, #(…), #[…] styles) —
+// #() executes a command — and ## renders one literal #. Anything
+// operator- or workspace-authored must pass through here before it
+// lands in a format.
+func EscapeFormat(s string) string { return strings.ReplaceAll(s, "#", "##") }
+
 // SessionFor derives the session for a project.
 func SessionFor(id domain.ProjectID) SessionID {
 	s := string(id)

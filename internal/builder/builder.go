@@ -36,7 +36,7 @@ type Candidate struct {
 //
 //   - no BuildKit frontend selection (# syntax directives);
 //   - exactly one FROM, and it must be ${VIBE_BASE_IMAGE};
-//   - no ADD, ONBUILD, or additional build stages; and
+//   - no ADD, ONBUILD, COPY --from, or additional build stages; and
 //   - any final USER instruction must return to vscode.
 func ValidateDockerfile(content []byte) error {
 	fromCount := 0
@@ -70,6 +70,15 @@ func ValidateDockerfile(content []byte) error {
 			}
 		case "ADD":
 			return fmt.Errorf("%w: line %d: ADD is not allowed (use COPY)", domain.ErrInvalid, lineNo)
+		case "COPY":
+			// COPY --from pulls content from an arbitrary unpinned image —
+			// the same hole as ADD's remote URLs, and outside the frozen
+			// context + pinned base everything else is confined to.
+			for _, f := range fields[1:] {
+				if strings.HasPrefix(strings.ToLower(f), "--from") {
+					return fmt.Errorf("%w: line %d: COPY --from is not allowed (all content comes from the pinned base or the frozen context)", domain.ErrInvalid, lineNo)
+				}
+			}
 		case "ONBUILD":
 			return fmt.Errorf("%w: line %d: ONBUILD is not allowed", domain.ErrInvalid, lineNo)
 		case "USER":

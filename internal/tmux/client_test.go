@@ -40,6 +40,21 @@ func TestSessionFor(t *testing.T) {
 	}
 }
 
+func TestEscapeFormat(t *testing.T) {
+	cases := map[string]string{
+		"plain":              "plain",
+		"my #1 project":      "my ##1 project",
+		"#(rm -rf ~)":        "##(rm -rf ~)",
+		"#{@vibe_exe}":       "##{@vibe_exe}",
+		"already ## escaped": "already #### escaped", // data stays data
+	}
+	for in, want := range cases {
+		if got := EscapeFormat(in); got != want {
+			t.Errorf("EscapeFormat(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestEnsureSessionArgv(t *testing.T) {
 	fr := &fakeRunner{exit: map[string]int{"has-session": 1}, out: map[string]string{}}
 	b, err := NewBinary("/usr/bin/tmux", fr)

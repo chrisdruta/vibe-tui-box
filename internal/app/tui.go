@@ -208,7 +208,9 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 	}); err != nil {
 		return fail(err)
 	}
-	status := fmt.Sprintf("#(%s _state --project %s) %s", a.deps.Executable, rec.ID, rec.DisplayName)
+	// The display name is operator input landing in a format string
+	// where #() executes commands; escape it like any other data.
+	status := fmt.Sprintf("#(%s _state --project %s) %s", a.deps.Executable, rec.ID, tmux.EscapeFormat(rec.DisplayName))
 	if conf != "" {
 		// A server that predates this conf (conf applies at server start
 		// only) still gets current paths stamped onto it.

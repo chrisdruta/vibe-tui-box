@@ -221,6 +221,20 @@ func TestAcquireRejectsPayloadManifestDrift(t *testing.T) {
 	}
 }
 
+func TestAcquireRejectsUnmanifestedPayloadFile(t *testing.T) {
+	// Verification is two-directional: a file the archive smuggles under
+	// payload/ that the manifest does not list would live inside a
+	// "manifest-verified" artifact without being covered by its payload
+	// digest.
+	entries := append(goodEntries(t), tarEntry{
+		name: "payload/container/extra.sh", content: "#!/bin/sh\nsmuggled\n", mode: 0o755,
+	})
+	f := newFixture(t, entries)
+	if _, err := f.svc.Acquire(context.Background(), "v2.0.0"); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("unmanifested payload file should conflict, got %v", err)
+	}
+}
+
 func TestAcquireMissingRelease(t *testing.T) {
 	f := newFixture(t, goodEntries(t))
 	if _, err := f.svc.Acquire(context.Background(), "v9.9.9"); !errors.Is(err, domain.ErrNotFound) {
