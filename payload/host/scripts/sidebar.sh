@@ -8,11 +8,13 @@
 #            data state-render.sh maintains for the tabs), the workspace
 #            name in bold (bright = the session this sidebar lives in),
 #            and the checkout's git branch underneath; click = switch
-#   bottom — the agent roster, AGGREGATE across all projects ("glyph
-#            name · project", from the pane's midpoint — projects own
-#            the top half, agents the bottom half): every stateful
-#            window on the socket; click = jump to that project AND
-#            that window
+#   bottom — the agent roster, AGGREGATE across all projects, from the
+#            pane's midpoint (projects own the top half, agents the
+#            bottom half) under a ruled header matching the pane
+#            border's "projects" title. Fleet-style two-line entries —
+#            "dot name" over a dim "model · project" — for every
+#            stateful window on the socket; click = jump to that
+#            project AND that window
 #
 # GLOBAL across the whole UI: @vibe_sidebar_on (conf defaults it to 1) is
 # the one switch, and the conf's ensure hooks (after-new-window /
@@ -189,6 +191,7 @@ case "$0" in */*) here="${0%/*}" ;; *) here="." ;; esac
 c_fg="$(vibe_fg "$VIBE_THM_FG")"
 c_dim="$(vibe_fg "$VIBE_THM_DIM")"
 c_coral="$(vibe_fg "$VIBE_THM_CORAL")"
+c_border="$(vibe_fg "$VIBE_THM_BORDER")"
 bold="$(printf '\033[1m')"
 reset="$(printf '\033[0m')"
 eol="$(printf '\033[K')"
@@ -344,32 +347,23 @@ EOF0
       else
         amark=" " acol="$c_fg"
       fi
-      # Width-derived (docs/tui-layout.md): window names get up to a
-      # third of the text budget (min 12 — exactly the old fixed cut at
-      # the default 30-col width), so a widened sidebar shows more.
-      nbudget=$((max / 3))
-      [ "$nbudget" -lt 12 ] && nbudget=12
+      # The name owns its whole line now (model/project moved to the
+      # detail line below): budget = text width minus mark, dot, and
+      # their spacing.
+      nbudget=$((max - 4))
+      [ "$nbudget" -lt 8 ] && nbudget=8
       wn="$wname"
       [ "${#wn}" -gt "$nbudget" ] && wn="$(printf '%.*s' $((nbudget - 1)) "$wn")…"
-      # Model suffix (dim, the statusline-fed @vibe_model): shown only
-      # when it fits alongside the project tag — identity beats
-      # decoration on narrow sidebars.
-      mseg=""
-      mlen=0
-      if [ -n "${wmodel:-}" ] && [ $((max - ${#wn} - ${#wmodel} - 11)) -ge 0 ]; then
-        mseg=" ${c_dim}${wmodel}${reset}"
-        mlen=$((${#wmodel} + 1))
-      fi
-      pmax=$((max - ${#wn} - mlen - 6))
-      pj=" ${c_dim}· $name"
-      if [ "$pmax" -lt 4 ]; then
-        pj=""
-      elif [ "${#name}" -gt "$pmax" ]; then
-        pj=" ${c_dim}· $(printf '%.*s' $((pmax - 1)) "$name")…"
-      fi
+      # Two-line record, mirroring the fleet rows: the name line (mark,
+      # dot, window name) and a dim detail line (model · project)
+      # underneath — no more single-line width fight between name,
+      # model, and project. US separates the two lines inside one
+      # record; the print loop places both on the same click target.
+      det="${wmodel:+$wmodel · }$name"
+      [ "${#det}" -gt $((max - 3)) ] && det="$(printf '%.*s' $((max - 4)) "$det")…"
       n_agents=$((n_agents + 1))
       agent_lines="$agent_lines
-$sid:$wid$tab${amark}${reset} ${dotc}${glyph}${reset} ${acol}${wn}${reset}${mseg}${pj}${reset}"
+$sid:$wid$tab${amark}${reset} ${dotc}${glyph}${reset} ${acol}${wn}${reset}$us   ${c_dim}${det}${reset}"
     done <<EOF2
 $(tmux list-windows -t "$sid" -F "#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}" 2>/dev/null)
 EOF2
@@ -452,31 +446,46 @@ EOF
   # ── agents: the aggregate roster, from the pane's midpoint ────────────
   # Projects own the top half, agents the bottom half — a fleet section
   # that grows past the midpoint pushes the roster down instead of
-  # overlapping it. Skipped entirely when that leaves no room (min:
-  # header + one row + one blank gap). When only PART fits, the last
-  # visible row becomes a dim overflow count instead of silently
+  # overlapping it. Each agent is a fleet-style two-line entry (name,
+  # dim detail) plus a gap row; all three claim the click target, the
+  # same slop rule the project rows use. Skipped entirely when nothing
+  # fits (min: header + one two-line entry). When only PART fits, the
+  # last visible slot becomes a dim overflow count instead of silently
   # clipping.
   min_start=$((row + 2))
   start=$((height / 2))
   [ "$start" -lt "$min_start" ] && start="$min_start"
-  n_show=$((height - start - 1))
+  avail=$((height - start - 1))
+  n_show=$(((avail + 1) / 3)) # name + detail + gap, no trailing gap
   [ "$n_show" -gt "$n_agents" ] && n_show="$n_agents"
   if [ "$n_agents" -gt 0 ] && [ "$n_show" -ge 1 ]; then
     out=""
-    put_at "$start" "${c_dim}agents${reset}" ""
+    # The header wears the same ruled dress (and offset) as the pane
+    # border's "projects" title above it: ─ agents ───…, rule in the
+    # border color. Pure-bash fill; under a C locale ${#} counts the
+    # dash's bytes and the rule just runs a little short — never long.
+    fill=$((max - 9))
+    dashes=""
+    while [ "${#dashes}" -lt "$fill" ]; do dashes="$dashes─"; done
+    put_at "$start" "${c_border}─${reset} ${c_dim}agents${reset} ${c_border}${dashes}${reset}" ""
     r=$((start + 1))
     i=0
     overflow=$((n_agents - n_show))
-    while IFS="$tab" read -r target aline; do
+    while IFS="$tab" read -r target rec; do
       [ -n "$target" ] || continue
       if [ "$overflow" -gt 0 ] && [ "$i" -eq $((n_show - 1)) ]; then
         put_at "$r" "   ${c_dim}… +$((overflow + 1)) more${reset}" ""
         i=$((i + 1))
         break
       fi
-      put_at "$r" "$aline" "$target"
-      r=$((r + 1))
+      put_at "$r" "${rec%%"$us"*}" "$target"
+      put_at "$((r + 1))" "${rec#*"$us"}" "$target"
       i=$((i + 1))
+      # Gap row between entries (click slop, like the fleet's blank
+      # rows) — skipped after the last so the section never overruns
+      # the pane bottom.
+      [ "$i" -lt "$n_show" ] && put_at "$((r + 2))" "" "$target"
+      r=$((r + 3))
       [ "$i" -ge "$n_show" ] && break
     done <<EOF3
 ${agent_lines#

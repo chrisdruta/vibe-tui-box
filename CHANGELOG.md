@@ -84,7 +84,9 @@ The v1 line and its history remain in git up to the cutover commit.
   sidebar and the OS window title (display name, not the raw session
   ID) carry it. The sidebar's agent roster starts at the pane midpoint
   (projects top half, agents bottom half) instead of hugging the
-  bottom.
+  bottom, renders fleet-style two-line entries (name over a dim
+  model · project detail — no more single-line width fight), and wears
+  a ruled header matching the pane border's "projects" title.
 - New: claude's harness wiring ships as a **vibe plugin**
   (`payload/container/claude-plugin/`, loaded per session with
   `--plugin-dir` from the read-only payload — never installed, nothing
