@@ -40,13 +40,15 @@ type RequestListResult struct {
 }
 
 func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestListResult, error) {
+	fail := opFail[RequestListResult]("request list", "")
 	root, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return RequestListResult{}, &domain.OpError{Op: "request list", Err: err}
+		return fail(err)
 	}
+	fail = opFail[RequestListResult]("request list", rec.ID)
 	bs, err := a.brokerStore(rec.ID)
 	if err != nil {
-		return RequestListResult{}, &domain.OpError{Op: "request list", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 
 	raws, problems := broker.ReadRequests(root)
@@ -58,7 +60,7 @@ func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestL
 
 	pending, err := bs.ListPending()
 	if err != nil {
-		return RequestListResult{}, &domain.OpError{Op: "request list", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	known := map[domain.RequestID]broker.Pending{}
 	for _, p := range pending {
@@ -66,7 +68,7 @@ func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestL
 	}
 	results, err := bs.ListResults()
 	if err != nil {
-		return RequestListResult{}, &domain.OpError{Op: "request list", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	completed := map[domain.RequestID]bool{}
 	for _, r := range results {
@@ -99,7 +101,7 @@ func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestL
 			CreatedAt: a.deps.Clock.Now().UTC(),
 		}
 		if err := bs.WritePending(p); err != nil {
-			return RequestListResult{}, &domain.OpError{Op: "request list", Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		known[id] = p
 		adopted = true
@@ -107,7 +109,7 @@ func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestL
 
 	final, err := bs.ListPending()
 	if err != nil {
-		return RequestListResult{}, &domain.OpError{Op: "request list", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	result.Pending = final
 	// Adoption is the moment a request becomes visible engine truth
@@ -133,17 +135,19 @@ type RequestShowResult struct {
 }
 
 func (a *App) RequestShow(ctx context.Context, req RequestShowRequest) (RequestShowResult, error) {
+	fail := opFail[RequestShowResult]("request show", "")
 	_, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return RequestShowResult{}, &domain.OpError{Op: "request show", Err: err}
+		return fail(err)
 	}
+	fail = opFail[RequestShowResult]("request show", rec.ID)
 	bs, err := a.brokerStore(rec.ID)
 	if err != nil {
-		return RequestShowResult{}, &domain.OpError{Op: "request show", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	pending, err := bs.ListPending()
 	if err != nil {
-		return RequestShowResult{}, &domain.OpError{Op: "request show", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	for _, p := range pending {
 		if p.RequestID == req.ID {
@@ -157,8 +161,7 @@ func (a *App) RequestShow(ctx context.Context, req RequestShowRequest) (RequestS
 			}, nil
 		}
 	}
-	return RequestShowResult{}, &domain.OpError{Op: "request show", Project: rec.ID,
-		Err: fmt.Errorf("%w: pending request %s", domain.ErrNotFound, req.ID)}
+	return fail(fmt.Errorf("%w: pending request %s", domain.ErrNotFound, req.ID))
 }
 
 // planDiff renders the bounded plan diff between the project's approved
@@ -240,17 +243,19 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 	if req.Approve {
 		op = "request approve"
 	}
+	fail := opFail[RequestDecideResult](op, "")
 	_, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return RequestDecideResult{}, &domain.OpError{Op: op, Err: err}
+		return fail(err)
 	}
+	fail = opFail[RequestDecideResult](op, rec.ID)
 	bs, err := a.brokerStore(rec.ID)
 	if err != nil {
-		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	pending, err := bs.ListPending()
 	if err != nil {
-		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	var match *broker.Pending
 	for i := range pending {
@@ -260,8 +265,7 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 		}
 	}
 	if match == nil {
-		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID,
-			Err: fmt.Errorf("%w: no pending request for candidate %s", domain.ErrNotFound, req.Candidate)}
+		return fail(fmt.Errorf("%w: no pending request for candidate %s", domain.ErrNotFound, req.Candidate))
 	}
 
 	now := a.deps.Clock.Now().UTC()
@@ -277,10 +281,10 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 		result.Message = req.Message
 		result.CompletedAt = &now
 		if err := bs.WriteResult(result); err != nil {
-			return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		if err := bs.DeletePending(match.RequestID); err != nil {
-			return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		a.bumpTuiSerial(ctx)
 		return RequestDecideResult{Result: result}, nil
@@ -297,17 +301,16 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 			Diff:      diff,
 		})
 		if err != nil {
-			return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		if !ok {
-			return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID,
-				Err: fmt.Errorf("%w: not confirmed", domain.ErrCanceled)}
+			return fail(fmt.Errorf("%w: not confirmed", domain.ErrCanceled))
 		}
 	}
 
 	cand, lease, err := a.runtime.LoadCandidate(ctx, match.Candidate)
 	if err != nil {
-		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	defer lease.Close()
 	state, err := a.runtime.Up(ctx, cand, runtime.UpOptions{
@@ -315,22 +318,22 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 		LifecycleOut: a.deps.LifecycleOut,
 	})
 	if err != nil {
-		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	if _, err := a.deps.Registry.Update(ctx, rec.ID, rec.Revision, func(r *registry.Record) error {
 		r.Approved = &match.Candidate
 		return nil
 	}); err != nil {
-		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 
 	result.Status = broker.StatusApproved
 	result.CompletedAt = &now
 	if err := bs.WriteResult(result); err != nil {
-		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	if err := bs.DeletePending(match.RequestID); err != nil {
-		return RequestDecideResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	a.bumpTuiSerial(ctx)
 	return RequestDecideResult{Result: result, State: &state}, nil

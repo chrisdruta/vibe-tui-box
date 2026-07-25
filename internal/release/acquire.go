@@ -221,11 +221,10 @@ func mapEntry(name string) (dest string, mode fs.FileMode, err error) {
 // validateExtracted checks the staged artifact: binary present, payload
 // manifest parses, and every payload file matches its manifest entry.
 func validateExtracted(staging string) (binaryDigest, payloadDigest domain.Digest, err error) {
-	binary, err := os.ReadFile(filepath.Join(staging, store.ArtifactBinaryRelPath))
+	binaryDigest, _, err = digestFileSized(filepath.Join(staging, store.ArtifactBinaryRelPath))
 	if err != nil {
 		return domain.Digest{}, domain.Digest{}, fmt.Errorf("%w: release archive has no engine binary", domain.ErrInvalid)
 	}
-	binaryDigest = domain.SHA256(binary)
 
 	payloadRoot := filepath.Join(staging, store.ArtifactPayloadRelPath)
 	manifestData, err := os.ReadFile(filepath.Join(payloadRoot, payload.ManifestPath))
@@ -238,11 +237,11 @@ func validateExtracted(staging string) (binaryDigest, payloadDigest domain.Diges
 	}
 	for _, f := range manifest.Files {
 		target := filepath.Join(payloadRoot, filepath.FromSlash(f.Path))
-		content, err := os.ReadFile(target)
+		digest, size, err := digestFileSized(target)
 		if err != nil {
 			return domain.Digest{}, domain.Digest{}, fmt.Errorf("%w: payload file %s missing from archive", domain.ErrConflict, f.Path)
 		}
-		if int64(len(content)) != f.Size || domain.SHA256(content) != f.Digest {
+		if size != f.Size || digest != f.Digest {
 			return domain.Digest{}, domain.Digest{}, fmt.Errorf("%w: payload file %s does not match the payload manifest", domain.ErrConflict, f.Path)
 		}
 		// The manifest's modes are authoritative; tar modes only chose
@@ -256,4 +255,23 @@ func validateExtracted(staging string) (binaryDigest, payloadDigest domain.Diges
 		}
 	}
 	return binaryDigest, manifest.Digest, nil
+}
+
+// digestFileSized streams a file through the hasher and reports its
+// size, so multi-MB artifact members never load into memory whole.
+func digestFileSized(path string) (domain.Digest, int64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return domain.Digest{}, 0, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return domain.Digest{}, 0, err
+	}
+	digest, err := domain.SHA256Reader(f)
+	if err != nil {
+		return domain.Digest{}, 0, err
+	}
+	return digest, info.Size(), nil
 }

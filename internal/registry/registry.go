@@ -1,9 +1,8 @@
 package registry
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -188,6 +187,12 @@ func (r *Registry) list() ([]Record, error) {
 		}
 		rec, err := r.read(filepath.Join(r.dir, e.Name()))
 		if err != nil {
+			// Resolve and List run lockless by design; a record deleted
+			// between ReadDir and the read (a racing `forget`) must not
+			// abort the whole listing.
+			if errors.Is(err, domain.ErrNotFound) {
+				continue
+			}
 			return nil, err
 		}
 		records = append(records, rec)
@@ -209,28 +214,13 @@ func (r *Registry) read(path string) (Record, error) {
 		}
 		return Record{}, err
 	}
-	var probe struct {
-		Format int `json:"format"`
-	}
-	if err := json.Unmarshal(data, &probe); err != nil {
-		return Record{}, fmt.Errorf("%w: project record %s: %v", domain.ErrInvalid, filepath.Base(path), err)
-	}
-	if probe.Format != RecordFormat {
-		return Record{}, fmt.Errorf("%w: project record format %d (supported: %d)", domain.ErrNotSupported, probe.Format, RecordFormat)
-	}
-	var rec Record
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&rec); err != nil {
-		return Record{}, fmt.Errorf("%w: project record %s: %v", domain.ErrInvalid, filepath.Base(path), err)
-	}
-	return rec, nil
+	return store.DecodeRecord[Record](data, "project record "+filepath.Base(path), RecordFormat)
 }
 
 func (r *Registry) write(rec Record) error {
-	data, err := json.MarshalIndent(rec, "", "  ")
+	data, err := store.MarshalRecord(rec)
 	if err != nil {
 		return err
 	}
-	return store.WriteFileAtomic(r.recordPath(rec.ID), append(data, '\n'), 0o600)
+	return store.WriteFileAtomic(r.recordPath(rec.ID), data, 0o600)
 }

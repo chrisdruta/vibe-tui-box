@@ -36,13 +36,12 @@ type ClipResult struct {
 // name; every clipboard and path-containment decision stays in the
 // script, which owns that logic for both entry points.
 func (a *App) Clip(ctx context.Context, req ClipRequest) (ClipResult, error) {
+	fail := opFail[ClipResult]("clip", "")
 	root, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return ClipResult{}, &domain.OpError{Op: "clip", Err: err}
+		return fail(err)
 	}
-	fail := func(err error) (ClipResult, error) {
-		return ClipResult{}, &domain.OpError{Op: "clip", Project: rec.ID, Err: err}
-	}
+	fail = opFail[ClipResult]("clip", rec.ID)
 	artifact, release, err := a.loadArtifact(ctx, rec)
 	if err != nil {
 		return fail(err)

@@ -34,26 +34,28 @@ type ConfigResult struct {
 }
 
 func (a *App) Config(ctx context.Context, req ConfigRequest) (ConfigResult, error) {
+	fail := opFail[ConfigResult]("config", "")
 	root, err := paths.Discover(req.Dir)
 	if err != nil {
-		return ConfigResult{}, &domain.OpError{Op: "config", Err: err}
+		return fail(err)
 	}
 	rec, err := a.deps.Registry.Resolve(ctx, root)
 	if err != nil {
-		return ConfigResult{}, &domain.OpError{Op: "config", Err: err}
+		return fail(err)
 	}
+	fail = opFail[ConfigResult]("config", rec.ID)
 	frozen, err := a.freezeInputs(ctx, root, rec)
 	if err != nil {
-		return ConfigResult{}, &domain.OpError{Op: "config", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	artifact, releaseArtifact, err := a.loadArtifact(ctx, rec)
 	if err != nil {
-		return ConfigResult{}, &domain.OpError{Op: "config", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	defer releaseArtifact()
 	brokerStore, err := a.brokerStore(rec.ID)
 	if err != nil {
-		return ConfigResult{}, &domain.OpError{Op: "config", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	plan, ferrs := model.Compile(model.CompileInput{
 		Project:          rec,
@@ -65,11 +67,11 @@ func (a *App) Config(ctx context.Context, req ConfigRequest) (ConfigResult, erro
 		// resolves them to digests when it builds the real candidate.
 	})
 	if len(ferrs) > 0 {
-		return ConfigResult{}, &domain.OpError{Op: "config", Project: rec.ID, Err: fieldErrs(ferrs)}
+		return fail(fieldErrs(ferrs))
 	}
 	canonical, err := model.CanonicalJSON(plan)
 	if err != nil {
-		return ConfigResult{}, &domain.OpError{Op: "config", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	return ConfigResult{Plan: plan, Canonical: canonical, Snapshot: frozen.Snapshot}, nil
 }
@@ -183,12 +185,14 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 	if req.Force {
 		op = "rebuild"
 	}
+	fail := opFail[UpResult](op, "")
 	root, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return UpResult{}, &domain.OpError{Op: op, Err: err}
+		return fail(err)
 	}
+	fail = opFail[UpResult](op, rec.ID)
 	if err := a.deps.Docker.Ping(ctx); err != nil {
-		return UpResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	// A refresh mints a new token before compiling so the tools image
 	// re-pulls the channel-tracking agents; it is persisted below (with
@@ -199,7 +203,7 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 	}
 	cand, err := a.prepareCandidate(ctx, root, rec)
 	if err != nil {
-		return UpResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	state, err := a.runtime.Up(ctx, cand, runtime.UpOptions{
 		Force:        req.Force,
@@ -207,7 +211,7 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 		LifecycleOut: a.deps.LifecycleOut,
 	})
 	if err != nil {
-		return UpResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	// The durable candidate exists and its containers run; only now move
 	// the approved-candidate pointer.
@@ -219,7 +223,7 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 		return nil
 	})
 	if err != nil {
-		return UpResult{}, &domain.OpError{Op: op, Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	state.Approved = cand.Record.Digest
 	for i := range state.Containers {
@@ -241,15 +245,17 @@ type DownResult struct {
 }
 
 func (a *App) Down(ctx context.Context, req DownRequest) (DownResult, error) {
+	fail := opFail[DownResult]("down", "")
 	_, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return DownResult{}, &domain.OpError{Op: "down", Err: err}
+		return fail(err)
 	}
+	fail = opFail[DownResult]("down", rec.ID)
 	if err := a.deps.Docker.Ping(ctx); err != nil {
-		return DownResult{}, &domain.OpError{Op: "down", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	if err := a.runtime.Down(ctx, rec, runtime.DownOptions{RemoveVolumes: req.RemoveVolumes}); err != nil {
-		return DownResult{}, &domain.OpError{Op: "down", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	// The project's UI session fronts containers that no longer exist;
 	// closing it beats leaving a hollow shell (and ends the palette's
@@ -275,16 +281,18 @@ type StatusResult struct {
 }
 
 func (a *App) Status(ctx context.Context, req StatusRequest) (StatusResult, error) {
+	fail := opFail[StatusResult]("status", "")
 	_, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return StatusResult{}, &domain.OpError{Op: "status", Err: err}
+		return fail(err)
 	}
+	fail = opFail[StatusResult]("status", rec.ID)
 	if err := a.deps.Docker.Ping(ctx); err != nil {
-		return StatusResult{}, &domain.OpError{Op: "status", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	state, err := a.runtime.Status(ctx, rec)
 	if err != nil {
-		return StatusResult{}, &domain.OpError{Op: "status", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	return StatusResult{Record: rec, State: state}, nil
 }

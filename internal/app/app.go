@@ -121,3 +121,19 @@ func New(deps Dependencies) (*App, error) {
 
 // Version reports build metadata.
 func (a *App) Version() version.Info { return a.deps.Version }
+
+// opFail returns the typed failure constructor every (T, error) method
+// funnels its returns through: `fail := opFail[T](op, "")` before the
+// project resolves, rebound with the record's ID after. One idiom, so
+// the op name and project attach uniformly.
+func opFail[T any](op string, project domain.ProjectID) func(error) (T, error) {
+	return func(err error) (T, error) {
+		var zero T
+		return zero, &domain.OpError{Op: op, Project: project, Err: err}
+	}
+}
+
+// opError is opFail's shape for error-only methods.
+func opError(op string, project domain.ProjectID, err error) error {
+	return &domain.OpError{Op: op, Project: project, Err: err}
+}

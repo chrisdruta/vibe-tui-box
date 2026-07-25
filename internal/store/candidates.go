@@ -1,8 +1,6 @@
 package store
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -57,18 +55,7 @@ func (s *Store) WriteCandidateRecord(rec CandidateRecord) error {
 		return fmt.Errorf("%w: candidate record needs digest and project", domain.ErrInvalid)
 	}
 	rec.Format = candidateRecordFormat
-	data, err := marshalRecord(rec)
-	if err != nil {
-		return err
-	}
-	path := s.candidateRecordPath(rec.Digest)
-	if existing, err := os.ReadFile(path); err == nil {
-		if bytes.Equal(existing, data) {
-			return nil
-		}
-		return fmt.Errorf("%w: candidate record %s exists with different content", domain.ErrConflict, rec.Digest)
-	}
-	return WriteFileAtomic(path, data, 0o600)
+	return writeRecordOnce(s.candidateRecordPath(rec.Digest), "candidate record "+rec.Digest.String(), rec)
 }
 
 // ReadCandidateRecord loads and format-checks one candidate record.
@@ -80,30 +67,5 @@ func (s *Store) ReadCandidateRecord(digest domain.Digest) (CandidateRecord, erro
 		}
 		return CandidateRecord{}, err
 	}
-	var probe struct {
-		Format int `json:"format"`
-	}
-	if err := json.Unmarshal(data, &probe); err != nil {
-		return CandidateRecord{}, fmt.Errorf("%w: candidate record %s: %v", domain.ErrInvalid, digest, err)
-	}
-	if probe.Format != candidateRecordFormat {
-		return CandidateRecord{}, fmt.Errorf("%w: candidate record format %d (supported: %d)", domain.ErrNotSupported, probe.Format, candidateRecordFormat)
-	}
-	var rec CandidateRecord
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&rec); err != nil {
-		return CandidateRecord{}, fmt.Errorf("%w: candidate record %s: %v", domain.ErrInvalid, digest, err)
-	}
-	return rec, nil
-}
-
-// marshalRecord produces deterministic JSON: fixed field order from the
-// struct, two-space indentation, one trailing newline.
-func marshalRecord(v any) ([]byte, error) {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	return append(data, '\n'), nil
+	return DecodeRecord[CandidateRecord](data, "candidate record "+digest.String(), candidateRecordFormat)
 }

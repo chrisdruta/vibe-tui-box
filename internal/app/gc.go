@@ -42,9 +42,7 @@ type GCResult struct {
 }
 
 func (a *App) GC(ctx context.Context, req GCRequest) (GCResult, error) {
-	fail := func(err error) (GCResult, error) {
-		return GCResult{}, &domain.OpError{Op: "gc", Err: err}
-	}
+	fail := opFail[GCResult]("gc", "")
 	held, err := a.deps.Locks.Acquire(ctx, lock.StoreGlobal())
 	if err != nil {
 		return fail(err)

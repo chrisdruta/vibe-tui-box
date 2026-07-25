@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
@@ -28,9 +27,10 @@ type RegisterResult struct {
 }
 
 func (a *App) Register(ctx context.Context, req RegisterRequest) (RegisterResult, error) {
+	fail := opFail[RegisterResult]("register", "")
 	root, err := paths.Discover(req.Dir)
 	if err != nil {
-		return RegisterResult{}, &domain.OpError{Op: "register", Err: err}
+		return fail(err)
 	}
 	name := req.DisplayName
 	if name == "" {
@@ -42,7 +42,7 @@ func (a *App) Register(ctx context.Context, req RegisterRequest) (RegisterResult
 		Mode:        registry.ModeRelease,
 	})
 	if err != nil {
-		return RegisterResult{}, &domain.OpError{Op: "register", Err: err}
+		return fail(err)
 	}
 	a.bumpTuiSerial(ctx)
 	return RegisterResult{Record: rec}, nil
@@ -75,9 +75,10 @@ type PSResult struct {
 }
 
 func (a *App) PS(ctx context.Context, req PSRequest) (PSResult, error) {
+	fail := opFail[PSResult]("ps", "")
 	records, err := a.deps.Registry.List(ctx)
 	if err != nil {
-		return PSResult{}, &domain.OpError{Op: "ps", Err: err}
+		return fail(err)
 	}
 	result := PSResult{Projects: records}
 	// Agent rows are strictly best-effort decoration: no project here,
@@ -166,16 +167,18 @@ type ForgetResult struct {
 }
 
 func (a *App) Forget(ctx context.Context, req ForgetRequest) (ForgetResult, error) {
+	fail := opFail[ForgetResult]("forget", "")
 	root, err := paths.Discover(req.Dir)
 	if err != nil {
-		return ForgetResult{}, &domain.OpError{Op: "forget", Err: err}
+		return fail(err)
 	}
 	rec, err := a.deps.Registry.Resolve(ctx, root)
 	if err != nil {
-		return ForgetResult{}, &domain.OpError{Op: "forget", Err: err}
+		return fail(err)
 	}
+	fail = opFail[ForgetResult]("forget", rec.ID)
 	if err := a.deps.Registry.Delete(ctx, rec.ID, rec.Revision); err != nil {
-		return ForgetResult{}, &domain.OpError{Op: "forget", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	a.bumpTuiSerial(ctx)
 	return ForgetResult{Record: rec}, nil

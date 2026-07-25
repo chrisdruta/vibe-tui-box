@@ -33,28 +33,30 @@ type DevOnResult struct {
 }
 
 func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) {
+	fail := opFail[DevOnResult]("dev on", "")
 	_, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return DevOnResult{}, &domain.OpError{Op: "dev on", Err: err}
+		return fail(err)
 	}
+	fail = opFail[DevOnResult]("dev on", rec.ID)
 	sourceDir := req.Source
 	if sourceDir == "" {
 		sourceDir = req.Dir
 	}
 	sourceRoot, err := paths.Discover(sourceDir)
 	if err != nil {
-		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	if err := dev.VerifyEngineRepo(sourceRoot.Path, EngineModule); err != nil {
-		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	if err := a.deps.Docker.Ping(ctx); err != nil {
-		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 
 	devRecord, artifact, err := a.dev.Build(ctx, rec.ID, sourceRoot, a.deps.Progress)
 	if err != nil {
-		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	updated, err := a.deps.Registry.Update(ctx, rec.ID, rec.Revision, func(r *registry.Record) error {
 		r.Mode = registry.ModeDev
@@ -63,10 +65,10 @@ func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) 
 		return nil
 	})
 	if err != nil {
-		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	if err := a.writeDevRecord(devRecord); err != nil {
-		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	// The same shim handoff `vibe update` performs: repoint the host
 	// `vibe` symlink at the fresh dev binary so the next invocation runs
@@ -75,7 +77,7 @@ func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) 
 	// the newest release.
 	binPath, err := a.installBinary(artifact)
 	if err != nil {
-		return DevOnResult{}, &domain.OpError{Op: "dev on", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	a.bumpTuiSerial(ctx)
 	return DevOnResult{Record: devRecord, Project: updated, Artifact: artifact.Record, BinaryPath: binPath}, nil
@@ -93,13 +95,14 @@ type DevOffResult struct {
 }
 
 func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, error) {
+	fail := opFail[DevOffResult]("dev off", "")
 	_, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return DevOffResult{}, &domain.OpError{Op: "dev off", Err: err}
+		return fail(err)
 	}
+	fail = opFail[DevOffResult]("dev off", rec.ID)
 	if rec.Mode != registry.ModeDev {
-		return DevOffResult{}, &domain.OpError{Op: "dev off", Project: rec.ID,
-			Err: fmt.Errorf("%w: project is not in dev mode", domain.ErrInvalid)}
+		return fail(fmt.Errorf("%w: project is not in dev mode", domain.ErrInvalid))
 	}
 	var release *store.ArtifactRecord
 	if artifacts, err := a.deps.Store.ListArtifactRecords(); err == nil {
@@ -122,7 +125,7 @@ func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, erro
 		return nil
 	})
 	if err != nil {
-		return DevOffResult{}, &domain.OpError{Op: "dev off", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	os.Remove(a.devRecordPath(rec.ID))
 	result := DevOffResult{Project: updated}
@@ -134,7 +137,7 @@ func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, erro
 			binPath, err := a.installBinary(store.Artifact{Record: *release, Path: lease.Object.Path})
 			lease.Close()
 			if err != nil {
-				return DevOffResult{}, &domain.OpError{Op: "dev off", Project: rec.ID, Err: err}
+				return fail(err)
 			}
 			result.BinaryPath = binPath
 		}
@@ -154,9 +157,10 @@ type DevStatusResult struct {
 }
 
 func (a *App) DevStatus(ctx context.Context, req DevStatusRequest) (DevStatusResult, error) {
+	fail := opFail[DevStatusResult]("dev status", "")
 	_, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return DevStatusResult{}, &domain.OpError{Op: "dev status", Err: err}
+		return fail(err)
 	}
 	result := DevStatusResult{Project: rec}
 	if data, err := os.ReadFile(a.devRecordPath(rec.ID)); err == nil {

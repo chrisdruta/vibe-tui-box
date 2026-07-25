@@ -1,8 +1,6 @@
 package store
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -65,18 +63,7 @@ func (s *Store) WriteArtifactRecord(rec ArtifactRecord) error {
 		return fmt.Errorf("%w: artifact record needs a digest", domain.ErrInvalid)
 	}
 	rec.Format = artifactRecordFormat
-	data, err := marshalRecord(rec)
-	if err != nil {
-		return err
-	}
-	path := s.artifactRecordPath(rec.Digest)
-	if existing, err := os.ReadFile(path); err == nil {
-		if bytes.Equal(existing, data) {
-			return nil
-		}
-		return fmt.Errorf("%w: artifact record %s exists with different content", domain.ErrConflict, rec.Digest)
-	}
-	return WriteFileAtomic(path, data, 0o600)
+	return writeRecordOnce(s.artifactRecordPath(rec.Digest), "artifact record "+rec.Digest.String(), rec)
 }
 
 // ListArtifactRecords returns every installed artifact record, newest
@@ -120,20 +107,5 @@ func (s *Store) ReadArtifactRecord(digest domain.Digest) (ArtifactRecord, error)
 		}
 		return ArtifactRecord{}, err
 	}
-	var probe struct {
-		Format int `json:"format"`
-	}
-	if err := json.Unmarshal(data, &probe); err != nil {
-		return ArtifactRecord{}, fmt.Errorf("%w: artifact record %s: %v", domain.ErrInvalid, digest, err)
-	}
-	if probe.Format != artifactRecordFormat {
-		return ArtifactRecord{}, fmt.Errorf("%w: artifact record format %d (supported: %d)", domain.ErrNotSupported, probe.Format, artifactRecordFormat)
-	}
-	var rec ArtifactRecord
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&rec); err != nil {
-		return ArtifactRecord{}, fmt.Errorf("%w: artifact record %s: %v", domain.ErrInvalid, digest, err)
-	}
-	return rec, nil
+	return DecodeRecord[ArtifactRecord](data, "artifact record "+digest.String(), artifactRecordFormat)
 }

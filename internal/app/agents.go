@@ -41,13 +41,15 @@ const devContainerUser = "vscode"
 // Exec runs argv in the dev container with only the explicitly given
 // environment.
 func (a *App) Exec(ctx context.Context, cmd ContainerCommand) (ExecResult, error) {
+	fail := opFail[ExecResult]("exec", "")
 	rec, name, err := a.devContainer(ctx, cmd.Dir)
 	if err != nil {
-		return ExecResult{}, &domain.OpError{Op: "exec", Err: err}
+		return fail(err)
 	}
+	fail = opFail[ExecResult]("exec", rec.ID)
 	res, err := a.execIn(ctx, name, cmd)
 	if err != nil {
-		return ExecResult{}, &domain.OpError{Op: "exec", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	return res, nil
 }
@@ -56,18 +58,20 @@ func (a *App) Exec(ctx context.Context, cmd ContainerCommand) (ExecResult, error
 // the approved candidate's snapshot, so workloads see the project
 // environment without the host ever exporting it.
 func (a *App) Run(ctx context.Context, cmd ContainerCommand) (ExecResult, error) {
+	fail := opFail[ExecResult]("run", "")
 	rec, name, err := a.devContainer(ctx, cmd.Dir)
 	if err != nil {
-		return ExecResult{}, &domain.OpError{Op: "run", Err: err}
+		return fail(err)
 	}
+	fail = opFail[ExecResult]("run", rec.ID)
 	entries, err := a.approvedEnvFile(ctx, rec)
 	if err != nil {
-		return ExecResult{}, &domain.OpError{Op: "run", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	cmd.Env = append(entries, cmd.Env...)
 	res, err := a.execIn(ctx, name, cmd)
 	if err != nil {
-		return ExecResult{}, &domain.OpError{Op: "run", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	return res, nil
 }
@@ -78,10 +82,12 @@ var shellCandidates = []string{"/bin/zsh", "/bin/bash", "/bin/sh"}
 // Shell opens an interactive login shell: the first candidate that
 // exists in the container wins.
 func (a *App) Shell(ctx context.Context, cmd ContainerCommand) (ExecResult, error) {
+	fail := opFail[ExecResult]("shell", "")
 	rec, name, err := a.devContainer(ctx, cmd.Dir)
 	if err != nil {
-		return ExecResult{}, &domain.OpError{Op: "shell", Err: err}
+		return fail(err)
 	}
+	fail = opFail[ExecResult]("shell", rec.ID)
 	shell := ""
 	for _, candidate := range shellCandidates {
 		probe, err := a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
@@ -90,7 +96,7 @@ func (a *App) Shell(ctx context.Context, cmd ContainerCommand) (ExecResult, erro
 			Argv:      []string{"test", "-x", candidate},
 		})
 		if err != nil {
-			return ExecResult{}, &domain.OpError{Op: "shell", Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		if probe.ExitCode == 0 {
 			shell = candidate
@@ -98,13 +104,12 @@ func (a *App) Shell(ctx context.Context, cmd ContainerCommand) (ExecResult, erro
 		}
 	}
 	if shell == "" {
-		return ExecResult{}, &domain.OpError{Op: "shell", Project: rec.ID,
-			Err: fmt.Errorf("%w: none of %s exist in the container", domain.ErrNotFound, strings.Join(shellCandidates, ", "))}
+		return fail(fmt.Errorf("%w: none of %s exist in the container", domain.ErrNotFound, strings.Join(shellCandidates, ", ")))
 	}
 	cmd.Argv = []string{shell, "-l"}
 	res, err := a.execIn(ctx, name, cmd)
 	if err != nil {
-		return ExecResult{}, &domain.OpError{Op: "shell", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	return res, nil
 }
@@ -123,13 +128,12 @@ type AttachRequest struct {
 var sessionNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error) {
+	fail := opFail[ExecResult]("attach", "")
 	rec, name, err := a.devContainer(ctx, req.Dir)
 	if err != nil {
-		return ExecResult{}, &domain.OpError{Op: "attach", Err: err}
+		return fail(err)
 	}
-	fail := func(err error) (ExecResult, error) {
-		return ExecResult{}, &domain.OpError{Op: "attach", Project: rec.ID, Err: err}
-	}
+	fail = opFail[ExecResult]("attach", rec.ID)
 	if req.Session == "" {
 		if err := a.deps.Docker.Attach(ctx, dockerapi.AttachRequest{
 			Container: name,
@@ -238,13 +242,12 @@ type LogsRequest struct {
 func (a *App) Logs(ctx context.Context, req LogsRequest) error {
 	_, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return &domain.OpError{Op: "logs", Err: err}
+		return opError("logs", "", err)
 	}
 	name := model.DevContainerName(rec.ID)
 	if req.Service != "" {
 		if !schema.ValidServiceName(req.Service) {
-			return &domain.OpError{Op: "logs", Project: rec.ID,
-				Err: fmt.Errorf("%w: service name %q", domain.ErrInvalid, req.Service)}
+			return opError("logs", rec.ID, fmt.Errorf("%w: service name %q", domain.ErrInvalid, req.Service))
 		}
 		name = model.SidecarContainerName(rec.ID, req.Service)
 	}
@@ -254,7 +257,7 @@ func (a *App) Logs(ctx context.Context, req LogsRequest) error {
 		Tail:      req.Tail,
 		Streams:   req.Streams,
 	}); err != nil {
-		return &domain.OpError{Op: "logs", Project: rec.ID, Err: err}
+		return opError("logs", rec.ID, err)
 	}
 	return nil
 }

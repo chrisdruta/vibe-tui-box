@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -25,36 +26,36 @@ type ProvisionResult struct {
 }
 
 func (a *App) Provision(ctx context.Context, req ProvisionRequest) (ProvisionResult, error) {
+	fail := opFail[ProvisionResult]("provision", "")
 	if a.deps.Payload == nil {
-		return ProvisionResult{}, &domain.OpError{Op: "provision",
-			Err: fmt.Errorf("%w: this build embeds no payload", domain.ErrUnavailable)}
+		return fail(fmt.Errorf("%w: this build embeds no payload", domain.ErrUnavailable))
 	}
 	platform, err := domain.CurrentPlatform()
 	if err != nil {
-		return ProvisionResult{}, &domain.OpError{Op: "provision", Err: err}
+		return fail(err)
 	}
 
 	staging, err := a.deps.Store.NewStaging("artifact")
 	if err != nil {
-		return ProvisionResult{}, &domain.OpError{Op: "provision", Err: err}
+		return fail(err)
 	}
 	defer os.RemoveAll(staging)
 
 	binaryDigest, err := copyBinary(a.deps.Executable, filepath.Join(staging, store.ArtifactBinaryRelPath))
 	if err != nil {
-		return ProvisionResult{}, &domain.OpError{Op: "provision", Err: err}
+		return fail(err)
 	}
 	payloadDigest, err := a.deps.Payload.Extract(ctx, filepath.Join(staging, store.ArtifactPayloadRelPath))
 	if err != nil {
-		return ProvisionResult{}, &domain.OpError{Op: "provision", Err: err}
+		return fail(err)
 	}
 
 	digest, _, err := store.DigestTree(staging)
 	if err != nil {
-		return ProvisionResult{}, &domain.OpError{Op: "provision", Err: err}
+		return fail(err)
 	}
 	if _, err := a.deps.Store.Publish(ctx, store.ArtifactObject, staging, digest); err != nil {
-		return ProvisionResult{}, &domain.OpError{Op: "provision", Err: err}
+		return fail(err)
 	}
 	record := store.ArtifactRecord{
 		Digest:        digest,
@@ -69,13 +70,13 @@ func (a *App) Provision(ctx context.Context, req ProvisionRequest) (ProvisionRes
 		InstalledAt: a.deps.Clock.Now().UTC(),
 	}
 	if err := a.deps.Store.WriteArtifactRecord(record); err != nil {
-		return ProvisionResult{}, &domain.OpError{Op: "provision", Err: err}
+		return fail(err)
 	}
 
 	result := ProvisionResult{Artifact: record}
 	pinned, err := a.pinProject(ctx, req.Dir, record)
 	if err != nil {
-		return ProvisionResult{}, &domain.OpError{Op: "provision", Err: err}
+		return fail(err)
 	}
 	result.Pinned = pinned
 	return result, nil
@@ -117,25 +118,24 @@ type UpdateResult struct {
 }
 
 func (a *App) Update(ctx context.Context, req UpdateRequest) (UpdateResult, error) {
+	fail := opFail[UpdateResult]("update", "")
 	if a.deps.Release == nil {
-		return UpdateResult{}, &domain.OpError{Op: "update",
-			Err: fmt.Errorf("%w: no release source configured", domain.ErrUnavailable)}
+		return fail(fmt.Errorf("%w: no release source configured", domain.ErrUnavailable))
 	}
 	if req.Version == "" {
-		return UpdateResult{}, &domain.OpError{Op: "update",
-			Err: fmt.Errorf("%w: a release version is required (e.g. --version v2.0.0)", domain.ErrInvalid)}
+		return fail(fmt.Errorf("%w: a release version is required (e.g. --version v2.0.0)", domain.ErrInvalid))
 	}
 	artifact, err := a.deps.Release.Acquire(ctx, req.Version)
 	if err != nil {
-		return UpdateResult{}, &domain.OpError{Op: "update", Err: err}
+		return fail(err)
 	}
 	pinned, err := a.pinProject(ctx, req.Dir, artifact.Record)
 	if err != nil {
-		return UpdateResult{}, &domain.OpError{Op: "update", Err: err}
+		return fail(err)
 	}
 	binPath, err := a.installBinary(artifact)
 	if err != nil {
-		return UpdateResult{}, &domain.OpError{Op: "update", Err: err}
+		return fail(err)
 	}
 	a.bumpTuiSerial(ctx)
 	return UpdateResult{Artifact: artifact.Record, Pinned: pinned, BinaryPath: binPath}, nil
@@ -161,12 +161,14 @@ func (a *App) installBinary(artifact store.Artifact) (string, error) {
 	return link, nil
 }
 
-// copyBinary copies an executable file, returning its content digest.
+// copyBinary streams an executable file to dst, returning its content
+// digest; the binary never buffers in memory whole.
 func copyBinary(src, dst string) (domain.Digest, error) {
-	data, err := os.ReadFile(src)
+	in, err := os.Open(src)
 	if err != nil {
 		return domain.Digest{}, fmt.Errorf("read binary: %w", err)
 	}
+	defer in.Close()
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return domain.Digest{}, err
 	}
@@ -174,15 +176,23 @@ func copyBinary(src, dst string) (domain.Digest, error) {
 	if err != nil {
 		if os.IsExist(err) {
 			// Same digest-addressed target: verify instead of clobbering.
-			existing, readErr := os.ReadFile(dst)
-			if readErr == nil && domain.SHA256(existing) == domain.SHA256(data) {
-				return domain.SHA256(data), nil
+			srcDigest, err := domain.SHA256Reader(in)
+			if err != nil {
+				return domain.Digest{}, fmt.Errorf("read binary: %w", err)
+			}
+			if existing, err := os.Open(dst); err == nil {
+				dstDigest, err := domain.SHA256Reader(existing)
+				existing.Close()
+				if err == nil && dstDigest == srcDigest {
+					return srcDigest, nil
+				}
 			}
 			return domain.Digest{}, fmt.Errorf("%w: %s exists with different content", domain.ErrConflict, dst)
 		}
 		return domain.Digest{}, fmt.Errorf("write binary: %w", err)
 	}
-	if _, err := f.Write(data); err != nil {
+	digest, err := domain.SHA256Reader(io.TeeReader(in, f))
+	if err != nil {
 		f.Close()
 		return domain.Digest{}, err
 	}
@@ -193,5 +203,5 @@ func copyBinary(src, dst string) (domain.Digest, error) {
 	if err := f.Close(); err != nil {
 		return domain.Digest{}, err
 	}
-	return domain.SHA256(data), nil
+	return digest, nil
 }

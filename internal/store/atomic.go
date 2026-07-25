@@ -2,7 +2,6 @@ package store
 
 import (
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -107,11 +106,7 @@ func digestFile(p string) (domain.Digest, error) {
 		return domain.Digest{}, err
 	}
 	defer f.Close()
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return domain.Digest{}, err
-	}
-	return domain.SHA256(data), nil
+	return domain.SHA256Reader(f)
 }
 
 // WriteFileAtomic writes data next to path and renames it into place,

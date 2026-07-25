@@ -36,14 +36,13 @@ type InitResult struct {
 }
 
 func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
+	fail := opFail[InitResult]("init", "")
 	if a.deps.Payload == nil {
-		return InitResult{}, &domain.OpError{Op: "init",
-			Err: fmt.Errorf("%w: this build embeds no presets", domain.ErrUnavailable)}
+		return fail(fmt.Errorf("%w: this build embeds no presets", domain.ErrUnavailable))
 	}
 	// Refuse to nest inside an existing project.
 	if existing, err := paths.Discover(req.Dir); err == nil {
-		return InitResult{}, &domain.OpError{Op: "init",
-			Err: fmt.Errorf("%w: already inside project %s", domain.ErrConflict, existing.Path)}
+		return fail(fmt.Errorf("%w: already inside project %s", domain.ErrConflict, existing.Path))
 	}
 
 	presetName := req.Preset
@@ -51,12 +50,11 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 		presetName = "minimal"
 	}
 	if presetName == payload.CommonPreset {
-		return InitResult{}, &domain.OpError{Op: "init",
-			Err: fmt.Errorf("%w: %q is the shared overlay, not a preset", domain.ErrInvalid, presetName)}
+		return fail(fmt.Errorf("%w: %q is the shared overlay, not a preset", domain.ErrInvalid, presetName))
 	}
 	preset, err := a.deps.Payload.Preset(presetName)
 	if err != nil {
-		return InitResult{}, &domain.OpError{Op: "init", Err: err}
+		return fail(err)
 	}
 	// Every preset renders on top of the shared overlay (AGENTS.md, hook
 	// samples); the preset's own files win on collision.
@@ -70,7 +68,7 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 
 	abs, err := filepath.Abs(req.Dir)
 	if err != nil {
-		return InitResult{}, &domain.OpError{Op: "init", Err: err}
+		return fail(err)
 	}
 
 	// Resolution order: flag > question > off. The question runs only on
@@ -89,7 +87,7 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 			Question: "enable auto memory?",
 		})
 		if err != nil {
-			return InitResult{}, &domain.OpError{Op: "init", Err: err}
+			return fail(err)
 		}
 		if ok {
 			memory = schema.MemoryAuto
@@ -103,11 +101,11 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 		AutoMemory:     string(memory),
 	})
 	if err != nil {
-		return InitResult{}, &domain.OpError{Op: "init", Err: err}
+		return fail(err)
 	}
 	created, err := initproject.Materialize(abs, files)
 	if err != nil {
-		return InitResult{}, &domain.OpError{Op: "init", Err: err}
+		return fail(err)
 	}
 
 	// From here the .vibe tree exists; failures leave it for inspection
@@ -133,8 +131,7 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 }
 
 func initRecoveryErr(err error) error {
-	return &domain.OpError{Op: "init",
-		Err: fmt.Errorf("%w (the rendered .vibe/ was kept; fix the cause and run `vibe register`)", err)}
+	return opError("init", "", fmt.Errorf("%w (the rendered .vibe/ was kept; fix the cause and run `vibe register`)", err))
 }
 
 // normalizeHarnessVersion maps development builds onto a valid manifest
@@ -190,20 +187,22 @@ type BootstrapResult struct {
 }
 
 func (a *App) Bootstrap(ctx context.Context, req BootstrapRequest) (BootstrapResult, error) {
+	fail := opFail[BootstrapResult]("bootstrap", "")
 	root, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return BootstrapResult{}, &domain.OpError{Op: "bootstrap", Err: err}
+		return fail(err)
 	}
+	failRec := opFail[BootstrapResult]("bootstrap", rec.ID)
 	doc, err := loadManifestFile(filepath.Join(root.Path, paths.ManifestRelPath))
 	if err != nil {
-		return BootstrapResult{}, &domain.OpError{Op: "bootstrap", Project: rec.ID, Err: err}
+		return failRec(err)
 	}
 	if ferrs := doc.Validate(); len(ferrs) > 0 {
-		return BootstrapResult{}, &domain.OpError{Op: "bootstrap", Project: rec.ID, Err: fieldErrs(ferrs)}
+		return failRec(fieldErrs(ferrs))
 	}
 	_, name, err := a.devContainer(ctx, req.Dir)
 	if err != nil {
-		return BootstrapResult{}, &domain.OpError{Op: "bootstrap", Err: err}
+		return fail(err)
 	}
 
 	var result BootstrapResult
@@ -214,7 +213,7 @@ func (a *App) Bootstrap(ctx context.Context, req BootstrapRequest) (BootstrapRes
 			Argv:      []string{"which", tool},
 		})
 		if err != nil {
-			return BootstrapResult{}, &domain.OpError{Op: "bootstrap", Project: rec.ID, Err: err}
+			return failRec(err)
 		}
 		present := probe.ExitCode == 0
 		if !present {

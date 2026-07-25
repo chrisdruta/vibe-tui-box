@@ -57,13 +57,12 @@ const (
 // the one tmux shell-string quoting layer lives at the bottom of the
 // script.
 func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
+	fail := opFail[ExecResult]("agent", "")
 	root, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return ExecResult{}, &domain.OpError{Op: "agent", Err: err}
+		return fail(err)
 	}
-	fail := func(err error) (ExecResult, error) {
-		return ExecResult{}, &domain.OpError{Op: "agent", Project: rec.ID, Err: err}
-	}
+	fail = opFail[ExecResult]("agent", rec.ID)
 	doc, err := loadManifestFile(filepath.Join(root.Path, paths.ManifestRelPath))
 	if err != nil {
 		return fail(err)
@@ -173,13 +172,15 @@ type TuiRequest struct {
 }
 
 func (a *App) Tui(ctx context.Context, req TuiRequest) error {
+	fail := func(err error) error { return opError("tui", "", err) }
 	if a.deps.Tmux == nil {
-		return &domain.OpError{Op: "tui", Err: fmt.Errorf("%w: tmux not found on PATH", domain.ErrUnavailable)}
+		return fail(fmt.Errorf("%w: tmux not found on PATH", domain.ErrUnavailable))
 	}
 	root, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
-		return &domain.OpError{Op: "tui", Err: err}
+		return fail(err)
 	}
+	fail = func(err error) error { return opError("tui", rec.ID, err) }
 	session := tmux.SessionFor(rec.ID)
 	// The morning path: start what was already approved before any tmux
 	// session exists, so the agent pane never races a stopped container
@@ -189,12 +190,12 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 	// the engine error (in the caller's terminal) beats the race.
 	if err := a.startApproved(ctx, rec); err != nil {
 		if ok, hasErr := a.deps.Tmux.HasSession(ctx, session); hasErr != nil || !ok {
-			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+			return fail(err)
 		}
 	}
 	conf, payloadHostDir, err := a.materializeTuiConf(ctx, rec)
 	if err != nil {
-		return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	if conf != "" {
 		a.deps.Tmux.ConfigureServer(conf)
@@ -205,32 +206,32 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 		Window:  "agent",
 		Command: []string{a.deps.Executable, "agent"},
 	}); err != nil {
-		return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	status := fmt.Sprintf("#(%s _state --project %s) %s", a.deps.Executable, rec.ID, rec.DisplayName)
 	if conf != "" {
 		// A server that predates this conf (conf applies at server start
 		// only) still gets current paths stamped onto it.
 		if err := a.deps.Tmux.SetEnvironment(ctx, "VIBE_TUI_CONF", conf); err != nil {
-			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		if err := a.deps.Tmux.SetGlobalOption(ctx, "@vibe_exe", a.deps.Executable); err != nil {
-			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		// The conf's host scripts (sidebar/dock/clip) resolve through this
 		// store-owned payload dir — never workspace files.
 		if err := a.deps.Tmux.SetGlobalOption(ctx, "@vibe_payload_dir", payloadHostDir); err != nil {
-			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		// The sidebar shows display names; session names stay ID-derived.
 		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_name", rec.DisplayName); err != nil {
-			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		// The FULL project ID (session names carry a truncated one), so
 		// host scripts can address the engine renderers per session
 		// (`vibe _sidebar --project …`) without a reverse lookup.
 		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_project", string(rec.ID)); err != nil {
-			return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+			return fail(err)
 		}
 		// The tray's right cluster: the v1 prefix/copy flashes, the
 		// clickable engine-state cell (range "req" → request list in the
@@ -242,10 +243,10 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 			a.deps.Executable, rec.ID)
 	}
 	if err := a.deps.Tmux.SetOption(ctx, session, "status-right", status); err != nil {
-		return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	if err := a.deps.Tmux.Attach(ctx, session); err != nil {
-		return &domain.OpError{Op: "tui", Project: rec.ID, Err: err}
+		return fail(err)
 	}
 	// Attach returns on detach AND on quit. Only a quit (the session is
 	// gone, so every nested docker-exec client is dead by definition)
@@ -423,25 +424,28 @@ func (a *App) renderProject(ctx context.Context, req RenderRequest) (registry.Re
 }
 
 func (a *App) RenderSidebar(ctx context.Context, req RenderRequest) (RenderResult, error) {
+	fail := opFail[RenderResult]("_sidebar", "")
 	rec, err := a.renderProject(ctx, req)
 	if err != nil {
-		return RenderResult{}, &domain.OpError{Op: "_sidebar", Err: err}
+		return fail(err)
 	}
 	return RenderResult{Lines: tmuxui.Sidebar(a.projectView(ctx, rec), req.Width)}, nil
 }
 
 func (a *App) RenderState(ctx context.Context, req RenderRequest) (RenderResult, error) {
+	fail := opFail[RenderResult]("_state", "")
 	rec, err := a.renderProject(ctx, req)
 	if err != nil {
-		return RenderResult{}, &domain.OpError{Op: "_state", Err: err}
+		return fail(err)
 	}
 	return RenderResult{Lines: []string{tmuxui.State(a.projectView(ctx, rec))}}, nil
 }
 
 func (a *App) RenderFleet(ctx context.Context, req RenderRequest) (RenderResult, error) {
+	fail := opFail[RenderResult]("_fleet", "")
 	records, err := a.deps.Registry.List(ctx)
 	if err != nil {
-		return RenderResult{}, &domain.OpError{Op: "_fleet", Err: err}
+		return fail(err)
 	}
 	views := make([]tmuxui.ProjectView, 0, len(records))
 	for _, rec := range records {

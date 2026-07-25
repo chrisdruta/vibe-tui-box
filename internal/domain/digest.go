@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -40,6 +41,16 @@ func ParseDigest(s string) (Digest, error) {
 func SHA256(b []byte) Digest {
 	sum := sha256.Sum256(b)
 	return Digest{algorithm: sha256Alg, hex: hex.EncodeToString(sum[:])}
+}
+
+// SHA256Reader digests everything readable from r without buffering it,
+// so artifact-sized files never need to fit in memory.
+func SHA256Reader(r io.Reader) (Digest, error) {
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return Digest{}, err
+	}
+	return Digest{algorithm: sha256Alg, hex: hex.EncodeToString(h.Sum(nil))}, nil
 }
 
 func (d Digest) String() string {
