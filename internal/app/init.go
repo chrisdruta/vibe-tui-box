@@ -192,15 +192,15 @@ func (a *App) Bootstrap(ctx context.Context, req BootstrapRequest) (BootstrapRes
 	if err != nil {
 		return fail(err)
 	}
-	failRec := opFail[BootstrapResult]("bootstrap", rec.ID)
+	fail = opFail[BootstrapResult]("bootstrap", rec.ID)
 	doc, err := loadManifestFile(filepath.Join(root.Path, paths.ManifestRelPath))
 	if err != nil {
-		return failRec(err)
+		return fail(err)
 	}
 	if ferrs := doc.Validate(); len(ferrs) > 0 {
-		return failRec(fieldErrs(ferrs))
+		return fail(fieldErrs(ferrs))
 	}
-	_, name, err := a.devContainer(ctx, req.Dir)
+	name, err := a.requireDevContainer(ctx, rec)
 	if err != nil {
 		return fail(err)
 	}
@@ -213,7 +213,7 @@ func (a *App) Bootstrap(ctx context.Context, req BootstrapRequest) (BootstrapRes
 			Argv:      []string{"which", tool},
 		})
 		if err != nil {
-			return failRec(err)
+			return fail(err)
 		}
 		present := probe.ExitCode == 0
 		if !present {

@@ -266,7 +266,8 @@ agent:
 bootstrap:
   required: [git, missing-tool]
 `)
-	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
@@ -284,6 +285,23 @@ bootstrap:
 	}
 	if !res.Tools[0].Present || res.Tools[1].Present {
 		t.Fatalf("tool statuses wrong: %+v", res.Tools)
+	}
+
+	// A failure after resolution (dev container not running) carries the
+	// resolved project's ID on the OpError.
+	if _, err := a.Down(ctx, DownRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = a.Bootstrap(ctx, BootstrapRequest{Dir: dir})
+	if err == nil {
+		t.Fatal("bootstrap should fail with the dev container down")
+	}
+	var opErr *domain.OpError
+	if !errors.As(err, &opErr) {
+		t.Fatalf("want *domain.OpError, got %T: %v", err, err)
+	}
+	if opErr.Project != reg.Record.ID {
+		t.Fatalf("OpError project = %q, want %q", opErr.Project, reg.Record.ID)
 	}
 }
 
