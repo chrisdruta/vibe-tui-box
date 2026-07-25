@@ -220,7 +220,7 @@ esac
 carrier=none
 [ -z "${TMUX:-}" ] && carrier=tmux
 cmd=(env "VIBE_AGENT_SESSION=$session" "VIBE_AGENT_INSTANCE=$$.$(date +%s)" \
-  "VIBE_AGENT_CARRIER=$carrier" \
+  "VIBE_AGENT_CARRIER=$carrier" "VIBE_AGENT_CMD=${agent_cmd[0]##*/}" \
   bash "$script_dir/agent-session.sh" run "${agent_cmd[@]}")
 
 # Already inside a tmux session (a shell in the inner server): run the

@@ -290,7 +290,8 @@ func lastExecArgv(t *testing.T, docker *dockerfake.Client) dockerapi.ExecRequest
 	return execs[len(execs)-1].Request.(dockerapi.ExecRequest)
 }
 
-var agentProbeKey = dockerfake.ExecKey([]string{"test", "-x", "/usr/bin/tmux", "-a", "-r", model.PayloadAgentSession})
+var agentProbeKey = dockerfake.ExecKey([]string{"test", "-r", model.PayloadAgentSession, "-a",
+	"(", "-x", "/usr/local/bin/tmux", "-o", "-x", "/usr/bin/tmux", ")"})
 
 func TestAgentSessionWrapping(t *testing.T) {
 	a, docker := newTestApp(t)

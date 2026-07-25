@@ -27,6 +27,22 @@ input=$(cat)
 ' <<<"$input" 2>/dev/null)
 [ -z "$cwd" ] && cwd="$PWD"
 
+# Model sidecar for the roster: the statusline is the ONE place the CLI
+# reports its model, so record it beside the agent-state files; the
+# state hook folds it into the title channel on its next event
+# (agent-state-hook.sh). Write-on-change only — this renders every
+# tick. Best-effort throughout: the model is cosmetic, the prompt is
+# not.
+if [ -n "$model" ] && [ -n "${VIBE_AGENT_SESSION:-}" ]; then
+  sd="${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-$(id -u)"
+  mf="$sd/$VIBE_AGENT_SESSION.model"
+  if [ "$(cat "$mf" 2>/dev/null)" != "$model" ]; then
+    { mkdir -p "$sd" &&
+      printf '%s' "$model" >"$mf.tmp.$$" &&
+      mv -f "$mf.tmp.$$" "$mf"; } 2>/dev/null || true
+  fi
+fi
+
 GREEN=$'\033[0;32m'
 BLUE=$'\033[1;34m'
 CYAN=$'\033[0;36m'

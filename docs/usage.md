@@ -75,6 +75,12 @@ identity and state dot. `vibe ps` lists the current project's agent
 sessions alongside the registered projects. (Containers whose image
 lacks tmux fall back to direct exec: no persistence, no dot.)
 
+Session names are **addresses** (`agent`, `agent-review`, …) — what
+`--stop`/`-s`/`-a` target. Displays show **truth**: the tab, pane
+border, and sidebar roster are renamed to the CLI actually running
+(`claude`, `codex·review`), with the model as a dim roster suffix where
+the CLI reports one; `vibe ps` carries both in its detail column.
+
 To end one: `vibe agent --stop` stops the addressed session (combine
 with `-s`/`-a`/`--cold` to address a variant; idempotent), and
 `--restart` replaces it — the conversation ends and a fresh one starts.

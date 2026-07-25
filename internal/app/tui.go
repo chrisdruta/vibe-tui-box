@@ -39,9 +39,14 @@ type AgentRequest struct {
 	Restart bool
 }
 
-// agentTmuxPath is the probe target for the session carrier: the tools
-// recipe installs distro tmux, so apt's path is deterministic.
-const agentTmuxPath = "/usr/bin/tmux"
+// Probe targets for the session carrier: the tools recipe builds the
+// engine-pinned tmux at /usr/local/bin (which precedes /usr/bin in
+// PATH, so it also wins at exec time); the apt path keeps images built
+// before the pin probing true until their next rebuild.
+const (
+	pinnedTmuxPath = "/usr/local/bin/tmux"
+	distroTmuxPath = "/usr/bin/tmux"
+)
 
 // Agent runs the agent CLI in the dev container with the frozen env
 // file — the tmux session's main window command. With agent.tmux set
@@ -152,7 +157,8 @@ func (a *App) probeAgentSession(ctx context.Context, name dockerapi.ContainerNam
 	res, err := a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
 		Container: name,
 		User:      devContainerUser,
-		Argv:      []string{"test", "-x", agentTmuxPath, "-a", "-r", model.PayloadAgentSession},
+		Argv: []string{"test", "-r", model.PayloadAgentSession, "-a",
+			"(", "-x", pinnedTmuxPath, "-o", "-x", distroTmuxPath, ")"},
 	})
 	if err != nil {
 		return false, err

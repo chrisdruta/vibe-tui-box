@@ -30,8 +30,8 @@ user conf.
 
 | Segment | Content | Source |
 | --- | --- | --- |
-| branding | `🥡 vibe` start button — click opens the palette | `status-format[0]` user range `brand` (conf) |
-| tabs | per-window `dot name` (index dropped; `M-1..9` still navigate), attention flash | window-status formats via `@vibe_winlist` (conf) |
+| branding | `🥡 vibe-tui-box` start button — click opens the palette | `status-format[0]` user range `brand` (conf) |
+| tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's cmd field), attention flash | window-status formats via `@vibe_winlist` (conf) |
 | `+` cell | clickable — opens the palette (the "new" chooser) | `@vibe_winlist` user range `newwin` (conf) |
 | cheatsheet | key hints, shown only while prefix held (replaces tabs) | `@vibe_cheat` (conf) |
 | prefix/copy | `⌨` / `copy` indicators | stamped `status-right` (`vibe tui`) |

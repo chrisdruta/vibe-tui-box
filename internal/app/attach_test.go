@@ -57,7 +57,8 @@ func TestAttachSession(t *testing.T) {
 
 	// A tmux-less image degrades to unavailable, not a broken exec.
 	docker.ExecResults[dockerfake.ExecKey([]string{
-		"test", "-x", agentTmuxPath, "-a", "-r", model.PayloadAgentSession,
+		"test", "-r", model.PayloadAgentSession, "-a",
+		"(", "-x", pinnedTmuxPath, "-o", "-x", distroTmuxPath, ")",
 	})] = dockerapi.ExecResult{ExitCode: 1}
 	if _, err := a.Attach(ctx, AttachRequest{ContainerCommand: ContainerCommand{Dir: dir}, Session: "services"}); !errors.Is(err, domain.ErrUnavailable) {
 		t.Fatalf("probe failure should be unavailable: %v", err)

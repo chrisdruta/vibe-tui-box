@@ -18,7 +18,13 @@
 #      docker-exec TTY, the host `vibe tui` server sees its pane title
 #      change, and its pane-title-changed hook renders the dot — the
 #      validated no-polling bridge. Encoding:
-#      vibe1|<project>|<session>|<instance>|<state>
+#      vibe1|<project>|<session>|<instance>|<state>|<cmd>|<model>
+#      (cmd: the CLI binary, from the VIBE_AGENT_CMD identity — the
+#      host renames the viewer window to it, so tabs and roster say
+#      "claude", never "agent"; model: statusline-fed sidecar file,
+#      empty for CLIs without a statusline hook. Both may be empty —
+#      field POSITIONS are fixed, and pre-cmd artifacts simply emitted
+#      five fields.)
 #
 # States are deliberately conservative: working / attention / idle /
 # exited. Notification means "wants a human" (permission prompt,
@@ -89,10 +95,19 @@ command -v tmux >/dev/null 2>&1 || exit 0
 proj="$(printf '%s' "${VIBE_PROJECT_NAME:-}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
 [ -n "$proj" ] || proj="$(basename "${CLAUDE_PROJECT_DIR:-$PWD}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
 
+# Truth fields: the CLI binary from the identity env, and the model the
+# statusline sidecar recorded (statusline.sh — the one place the CLI
+# reports it). Same sanitize-and-bound rule as proj; model keeps
+# spaces ("Fable 5"). Empty is fine — positions are fixed.
+cmd="$(printf '%s' "${VIBE_AGENT_CMD:-}" | tr -cd 'A-Za-z0-9._-' | head -c 24)"
+model=""
+[ -r "$state_dir/$session.model" ] &&
+  model="$(tr -cd 'A-Za-z0-9 ._-' <"$state_dir/$session.model" 2>/dev/null | head -c 32)"
+
 # Plain -t name, no "=" prefix: 3.7b set-option -t takes a pane-style
 # target and rejects exact-match syntax; exact names beat prefixes
 # anyway, and these session names are harness-controlled.
 tmux set-option -t "$session" set-titles on \; \
-  set-option -t "$session" set-titles-string "vibe1|$proj|$session|$instance|$state" \
+  set-option -t "$session" set-titles-string "vibe1|$proj|$session|$instance|$state|$cmd|$model" \
   >/dev/null 2>&1 || true
 exit 0

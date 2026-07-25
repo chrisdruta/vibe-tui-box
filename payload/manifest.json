@@ -4,20 +4,20 @@
     {
       "path": "container/agent-ps.sh",
       "mode": "0755",
-      "size": 4031,
-      "digest": "sha256:b24e69553229d102b918e010f7d77e84dcd32fd75430d6aff87d53f11edcb028"
+      "size": 4693,
+      "digest": "sha256:c00608f65b0057b5d27772e49fd20d2d556af1547839c5a6db554e94634e6024"
     },
     {
       "path": "container/agent-session.sh",
       "mode": "0755",
-      "size": 10995,
-      "digest": "sha256:a2760118b4dda8cf6fc30c24c6aa971b4475607e23a9254bd07f8edd53599c28"
+      "size": 11032,
+      "digest": "sha256:e07379eca14e1f3845f7f75c03c9937897da17a66ed8144f245b83752600abd5"
     },
     {
       "path": "container/agent-state-hook.sh",
       "mode": "0755",
-      "size": 4679,
-      "digest": "sha256:d644999cb8ba71355cc0fc9c33ff286cfc67e986e64a15405bdf3b82f5021486"
+      "size": 5561,
+      "digest": "sha256:795878b3b6899feb71071e5ae2dd5a73497f06ea692ada3f91aa8bced042face"
     },
     {
       "path": "container/claude-plugin/.claude-plugin/plugin.json",
@@ -64,8 +64,8 @@
     {
       "path": "container/statusline.sh",
       "mode": "0755",
-      "size": 3250,
-      "digest": "sha256:8adc0710b742856e855826e7b9f1eedbab73037e9a4deb35426efb789542a858"
+      "size": 3939,
+      "digest": "sha256:eca6b0d27a516d96c303e0854eaa6da89976c0645c099d34a4e5faae755d2677"
     },
     {
       "path": "container/subagent-statusline.sh",
@@ -112,14 +112,14 @@
     {
       "path": "host/scripts/sidebar.sh",
       "mode": "0755",
-      "size": 21927,
-      "digest": "sha256:1917cc8cd4f82f59d65d22e4ca06c533a0bbf95a3e06a9e6657d430fb1126b98"
+      "size": 22337,
+      "digest": "sha256:b59741f13dcc1c385fd8c0b6b006019644f39ef23da90ca74933835e17102a93"
     },
     {
       "path": "host/scripts/state-render.sh",
       "mode": "0755",
-      "size": 4800,
-      "digest": "sha256:e42a12ec5a075aeb55007028bc29a1c5d69b853cf793384da060aea7a19cb3e6"
+      "size": 6529,
+      "digest": "sha256:1c52ea46a7dc6b9affe5bb90866173856689bf613db2f760be3c90e2d96d9c27"
     },
     {
       "path": "host/scripts/theme.sh",
@@ -130,8 +130,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 17668,
-      "digest": "sha256:06a082176d86117fb6bf6a41ebb7d5647645642dd6c1205faabae7084a57277b"
+      "size": 17833,
+      "digest": "sha256:1f40bad35bfc80887a8784547d96ba6958ca40bc86e1599491150905f05d033c"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -194,5 +194,5 @@
       "digest": "sha256:cd890404eb7bdebc123ab94392dbfdc54b23221d287079f98506d7ee32720e92"
     }
   ],
-  "digest": "sha256:3035925fe9de2a74a6c404717148e31f842054542d77a97d3164322612747e53"
+  "digest": "sha256:040d316efa27c16e8a395de3001abaefcb37fd08f5a94bab6e1e058ca0327100"
 }

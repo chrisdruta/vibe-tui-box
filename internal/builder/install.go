@@ -30,6 +30,15 @@ const (
 	goVersion     = "1.26.5"
 	goSHA256AMD64 = "5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053"
 	goSHA256ARM64 = "fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49"
+	// tmux is pinned and built from source — the lesson the v1 line
+	// already recorded (its install-tmux.sh/Dockerfile carried the SAME
+	// version + checksum): distro tmux drops sixel images on pane redraw
+	// (bookworm ships 3.3a; upstream #4499/#4639 fixed by 3.7) and skews
+	// per base image, while host conf and container scripts are written
+	// against one version's semantics. The v2 cutover regressed this to
+	// apt tmux; re-pinned 2026-07-25.
+	tmuxVersion = "3.7b"
+	tmuxSHA256  = "87f2e99e3b685973f2ca002ffd6ed7e51a5744f7009daae5a15670b6d532db96"
 )
 
 // AgentRefreshArg is the build arg that busts the Docker layer cache for
@@ -127,14 +136,28 @@ func rootLayers(want map[string]bool) []string {
 RUN mkdir -p /vibe/agent-state && chown vscode:vscode /vibe/agent-state
 `)
 	if wantsAgent(want) {
-		// Distro packages, no pin (version-lock machinery deferred by
-		// decision record). Apt's /usr/bin/tmux is the fixed path
-		// App.Agent probes; jq feeds the statusline glue (never the
-		// hot-path state hook).
-		out = append(out, `# tmux carries the persistent agent session (docs/architecture.md (agent sessions));
-# jq parses the Claude statusline JSON.
+		// Pinned source build (see the tmuxVersion decision comment) at
+		// /usr/local/bin/tmux — the path App.Agent probes first. Single
+		// stage on purpose: ValidateDockerfile forbids extra build
+		// stages, so the build deps stay in the image (a dev container
+		// carries compilers anyway). jq feeds the statusline glue
+		// (never the hot-path state hook).
+		out = append(out, `# tmux `+tmuxVersion+` carries the persistent agent session (docs/architecture.md
+# (agent sessions)): pinned source build with --enable-sixel — distro tmux
+# drops sixel images on pane redraw and varies per base image. jq
+# parses the Claude statusline JSON.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tmux jq \
+    && apt-get install -y --no-install-recommends jq build-essential byacc pkg-config libevent-dev libncurses-dev \
+    && tmp="$(mktemp -d)" \
+    && curl -fsSL -o "$tmp/tmux.tar.gz" "https://github.com/tmux/tmux/releases/download/`+tmuxVersion+`/tmux-`+tmuxVersion+`.tar.gz" \
+    && echo "`+tmuxSHA256+`  $tmp/tmux.tar.gz" | sha256sum -c - \
+    && tar -C "$tmp" -xzf "$tmp/tmux.tar.gz" \
+    && cd "$tmp/tmux-`+tmuxVersion+`" \
+    && ./configure --prefix=/usr/local --enable-sixel \
+    && make -j"$(nproc)" \
+    && make install \
+    && cd / \
+    && rm -rf "$tmp" \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 `)

@@ -49,6 +49,7 @@ for name in "${!s_attached[@]}"; do
 done
 if [ -d "$state_dir" ]; then
   for f in "$state_dir"/*; do
+    case "$f" in *.model) continue ;; esac # statusline sidecars, not sessions
     [ -f "$f" ] && candidates[$(basename "$f")]=1
   done
 fi
@@ -97,6 +98,19 @@ while IFS= read -r name; do
   else
     continue
   fi
+  # Truth prefix for the detail column: the CLI actually running (the
+  # inner window is named after the binary at session creation) and the
+  # statusline-fed model sidecar. Sessions are addresses; rows show
+  # what runs at them.
+  who=""
+  if [ -n "${s_attached[$name]:-}" ]; then
+    who="$(tmux list-windows -t "=$name" -F '#{window_name}' 2>/dev/null | head -1)"
+  fi
+  if [ -r "$state_dir/$name.model" ]; then
+    m="$(head -c 32 "$state_dir/$name.model" 2>/dev/null)"
+    [ -n "$m" ] && who="${who:+$who · }$m"
+  fi
+  [ -n "$who" ] && detail="${who}${detail:+ · $detail}"
   printf '%s|%s|%s|%s\n' "$name" "$state" "$ts" "$detail"
 done < <(printf '%s\n' "${!candidates[@]}" | sort)
 exit 0

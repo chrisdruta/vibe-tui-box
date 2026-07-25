@@ -328,7 +328,7 @@ EOF0
     # US (\037) separator, NOT tab: tab is whitespace-class, so read
     # COLLAPSES adjacent tabs and empty fields shift everything left —
     # a window with an unset option scrambled the roster (live bug).
-    while IFS="$us" read -r glyph dfg attn wid wname wactive; do
+    while IFS="$us" read -r glyph dfg attn wid wname wactive wmodel; do
       [ -n "$glyph" ] || continue
       ndots=$((ndots + 1))
       if [ "$attn" = "1" ]; then
@@ -351,7 +351,16 @@ EOF0
       [ "$nbudget" -lt 12 ] && nbudget=12
       wn="$wname"
       [ "${#wn}" -gt "$nbudget" ] && wn="$(printf '%.*s' $((nbudget - 1)) "$wn")…"
-      pmax=$((max - ${#wn} - 6))
+      # Model suffix (dim, the statusline-fed @vibe_model): shown only
+      # when it fits alongside the project tag — identity beats
+      # decoration on narrow sidebars.
+      mseg=""
+      mlen=0
+      if [ -n "${wmodel:-}" ] && [ $((max - ${#wn} - ${#wmodel} - 11)) -ge 0 ]; then
+        mseg=" ${c_dim}${wmodel}${reset}"
+        mlen=$((${#wmodel} + 1))
+      fi
+      pmax=$((max - ${#wn} - mlen - 6))
       pj=" ${c_dim}· $name"
       if [ "$pmax" -lt 4 ]; then
         pj=""
@@ -360,9 +369,9 @@ EOF0
       fi
       n_agents=$((n_agents + 1))
       agent_lines="$agent_lines
-$sid:$wid$tab${amark}${reset} ${dotc}${glyph}${reset} ${acol}${wn}${reset}${pj}${reset}"
+$sid:$wid$tab${amark}${reset} ${dotc}${glyph}${reset} ${acol}${wn}${reset}${mseg}${pj}${reset}"
     done <<EOF2
-$(tmux list-windows -t "$sid" -F "#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}" 2>/dev/null)
+$(tmux list-windows -t "$sid" -F "#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}" 2>/dev/null)
 EOF2
     if [ "$sid" = "$sid_self" ]; then
       mark="${c_coral}▍" name_c="$c_fg"

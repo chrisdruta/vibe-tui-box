@@ -56,8 +56,10 @@ bootstrap:
   agent layers (and
   floats codex to its `latest` npm dist-tag), then records the refresh
   generation on the project so subsequent plain rebuilds stay on the
-  fresh build. System toolchains (Go/Node/apt) are pinned and never move
-  on a refresh.
+  fresh build. System toolchains (Go/Node) and tmux (engine-pinned
+  source build — distro tmux drops sixel images on redraw and skews per
+  base image) never move on a refresh; they change only with engine
+  releases.
 
   The image is the only version authority: claude's in-container
   self-updater is disabled (engine env `DISABLE_AUTOUPDATER=1` plus the

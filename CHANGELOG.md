@@ -47,6 +47,20 @@ The v1 line and its history remain in git up to the cutover commit.
   a session that runs a different agent than requested (`agent.cmd` is
   read live, so flipping it never touched the running session) now
   prompts to restart instead of silently delivering the old agent.
+- New: displays show truth, addresses stay stable. The title channel
+  gained `cmd` and `model` fields: the host renames the agent's viewer
+  window to the CLI actually running (`claude`, `codex·review` — tabs,
+  pane border, and sidebar roster follow), the sidebar shows the
+  statusline-reported model as a dim suffix, and `vibe ps` carries both
+  in its detail column. Session names (`agent`, `agent-review`) remain
+  the stop/-s/-a addresses.
+- Changed: tmux in the tools image is the engine-pinned 3.7b source
+  build with `--enable-sixel` (v1's exact version + checksum) instead
+  of distro tmux. The v2 cutover had silently regressed the pin,
+  reintroducing the sixel-drop-on-redraw v1 recorded (bookworm ships
+  3.3a) and splitting container tmux semantics from the host's. The
+  carrier probe accepts both the pinned and the old apt path, so
+  pre-pin images keep working until their next rebuild.
 - New: the bar is a bottom system tray. `🥡 vibe` is a clickable start
   button (palette; the `+` cell too — one definition in
   `scripts/palette.sh` behind key and clicks), window tabs show dot +

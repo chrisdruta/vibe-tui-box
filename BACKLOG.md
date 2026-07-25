@@ -120,6 +120,11 @@ section at the bottom — as revisable records, not fences.
 
 - **Host conveniences.** v1's install-tmux.sh (pinned tmux source build
   for hosts below 3.4) and start-ollama.sh. Revive on demand.
+  (2026-07-25: the CONTAINER side of that pin is back — the tools
+  recipe builds v1's exact tmux version+checksum with --enable-sixel;
+  the v2 cutover had silently regressed to distro tmux, reintroducing
+  the sixel-drop v1 pinned against. The host-side installer stays
+  retired.)
 
 - **TUI: consume the engine renderers — SHIPPED 2026-07-24.** The
   sidebar now renders engine truth through the `@vibe_engine_serial`

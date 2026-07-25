@@ -11,14 +11,20 @@
 # design).
 #
 # Input title encoding (written by the container-side
-# agent-state-hook.sh):
-#   vibe1|<project>|<session>|<instance>|<state>
+# agent-state-hook.sh); cmd/model are absent from pre-truth artifacts
+# and both may be empty — positions are fixed:
+#   vibe1|<project>|<session>|<instance>|<state>|<cmd>|<model>
 # Output: data-only tmux user options; presentation lives in
 # tmux-tui.conf.
-#   pane   @vibe_state  raw state, @vibe_title (only if unset — keeps
-#                       the raw encoding out of the pane border)
+#   pane   @vibe_state  raw state, @vibe_title (the display name — the
+#                       CLI actually running, never the raw encoding)
 #   pane+window @vibe_glyph / @vibe_dot_fg  the pre-chosen dot + color
 #   window @vibe_attn   1 while the agent wants a human (tab flash)
+#   window @vibe_model  the statusline-fed model, roster's dim suffix
+#   window NAME         renamed to the display — session names are the
+#                       ADDRESS (stop/-s/-a target them), the window
+#                       shows TRUTH ("claude", "codex·review"), so tabs
+#                       and roster never read "agent"
 #   server @vibe_state_serial  bumped on every write, riding the same
 #                       server command — the sidebar's cheap change
 #                       signal
@@ -40,7 +46,9 @@ case "$0" in */*) here="${0%/*}" ;; *) here="." ;; esac
 # shellcheck source=theme.sh disable=SC1091
 . "$here/theme.sh"
 
-dead="$(tmux display-message -p -t "$pane" '#{pane_dead}' 2>/dev/null)" || exit 0
+info="$(tmux display-message -p -t "$pane" '#{pane_dead}|#{window_name}' 2>/dev/null)" || exit 0
+dead="${info%%|*}"
+wname="${info#*|}"
 
 if [ -n "$forced" ]; then
   # pane-died path: an agent pane's death here means the FRONTEND is
@@ -74,9 +82,30 @@ case "$title" in
   *) exit 0 ;; # not an agent-state title — nothing to render
 esac
 
-IFS='|' read -r _ _proj session _instance state <<EOF
+IFS='|' read -r _ _proj session _instance state cmd model _rest <<EOF
 $title
 EOF
+
+# cmd/model are container-controlled bytes: allowlist them HERE before
+# they become a window name or an option value (argv-only below, never
+# shell words — but display surfaces still deserve a closed charset).
+cmd="$(printf '%s' "${cmd:-}" | tr -cd 'A-Za-z0-9._-' | head -c 24)"
+model="$(printf '%s' "${model:-}" | tr -cd 'A-Za-z0-9 ._-' | head -c 32)"
+
+# Display derivation, one place: the session is the stable address, the
+# display is the CLI truth plus the address's disambiguating suffix —
+# `agent` → claude, `agent-codex` → codex, `agent-review` →
+# claude·review, `agent-codex-review` → codex·review, `agent-cold` →
+# claude·cold.
+display=""
+if [ -n "$cmd" ]; then
+  case "$session" in
+    agent | "agent-$cmd") display="$cmd" ;;
+    "agent-$cmd-"*) display="$cmd·${session#agent-"$cmd"-}" ;;
+    agent-*) display="$cmd·${session#agent-}" ;;
+    *) display="$cmd" ;;
+  esac
+fi
 
 # The title channel carries exactly these four states — anything else is
 # a newer/older artifact talking: render nothing rather than guess.
@@ -100,13 +129,19 @@ tmux set-option -p -t "$pane" @vibe_state "$state" \; \
   set-option -w -t "$pane" @vibe_glyph "$vibe_glyph" \; \
   set-option -w -t "$pane" @vibe_dot_fg "$dot_fg" \; \
   set-option -w -t "$pane" @vibe_attn "$attn" \; \
+  set-option -w -t "$pane" @vibe_model "$model" \; \
   set-option -g @vibe_state_serial "$$$RANDOM" 2>/dev/null || exit 0
 
-# Human label for the pane border: the border format prefers
-# @vibe_title, so stamping the session name here keeps the raw vibe1|…
-# encoding from ever showing. Never overwrite a label the palette
-# already chose.
-cur_title="$(tmux show-options -pqv -t "$pane" @vibe_title 2>/dev/null)"
-[ -n "$cur_title" ] || tmux set-option -p -t "$pane" @vibe_title "$session" 2>/dev/null
+# Human labels. With cmd in the channel the window and border track
+# TRUTH: rename once when the name differs (a manual rename lasts until
+# the next state event — truth wins, by design). Pre-truth titles keep
+# the old behavior: session name, only if nothing chose a label yet.
+if [ -n "$display" ]; then
+  [ "$wname" = "$display" ] || tmux rename-window -t "$pane" "$display" \; \
+    set-option -p -t "$pane" @vibe_title "$display" 2>/dev/null
+else
+  cur_title="$(tmux show-options -pqv -t "$pane" @vibe_title 2>/dev/null)"
+  [ -n "$cur_title" ] || tmux set-option -p -t "$pane" @vibe_title "$session" 2>/dev/null
+fi
 
 exit 0
