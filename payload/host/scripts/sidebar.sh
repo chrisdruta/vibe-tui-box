@@ -9,8 +9,10 @@
 #            name in bold (bright = the session this sidebar lives in),
 #            and the checkout's git branch underneath; click = switch
 #   bottom — the agent roster, AGGREGATE across all projects ("glyph
-#            name · project", bottom-anchored): every stateful window on
-#            the socket; click = jump to that project AND that window
+#            name · project", from the pane's midpoint — projects own
+#            the top half, agents the bottom half): every stateful
+#            window on the socket; click = jump to that project AND
+#            that window
 #
 # GLOBAL across the whole UI: @vibe_sidebar_on (conf defaults it to 1) is
 # the one switch, and the conf's ensure hooks (after-new-window /
@@ -438,17 +440,18 @@ EOF
   fi
   printf '%s\033[J' "$buf"
 
-  # ── agents: the aggregate roster, anchored to the pane bottom ─────────
-  # Skipped entirely when the fleet section leaves no room (min: header +
-  # one row + one blank gap). When only PART fits, the last visible row
-  # becomes a dim overflow count instead of silently clipping.
+  # ── agents: the aggregate roster, from the pane's midpoint ────────────
+  # Projects own the top half, agents the bottom half — a fleet section
+  # that grows past the midpoint pushes the roster down instead of
+  # overlapping it. Skipped entirely when that leaves no room (min:
+  # header + one row + one blank gap). When only PART fits, the last
+  # visible row becomes a dim overflow count instead of silently
+  # clipping.
   min_start=$((row + 2))
-  n_show="$n_agents"
-  start=$((height - n_agents - 1))
-  if [ "$start" -lt "$min_start" ]; then
-    n_show=$((height - min_start - 1))
-    start="$min_start"
-  fi
+  start=$((height / 2))
+  [ "$start" -lt "$min_start" ] && start="$min_start"
+  n_show=$((height - start - 1))
+  [ "$n_show" -gt "$n_agents" ] && n_show="$n_agents"
   if [ "$n_agents" -gt 0 ] && [ "$n_show" -ge 1 ]; then
     out=""
     put_at "$start" "${c_dim}agents${reset}" ""
