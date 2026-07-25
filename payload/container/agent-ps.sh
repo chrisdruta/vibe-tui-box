@@ -49,7 +49,8 @@ for name in "${!s_attached[@]}"; do
 done
 if [ -d "$state_dir" ]; then
   for f in "$state_dir"/*; do
-    case "$f" in *.model) continue ;; esac # statusline sidecars, not sessions
+    # Statusline sidecars and their write-temps, not sessions.
+    case "$f" in *.model | *.model.tmp.*) continue ;; esac
     [ -f "$f" ] && candidates[$(basename "$f")]=1
   done
 fi
@@ -63,7 +64,7 @@ while IFS= read -r name; do
 
   state="" ts="" detail=""
   if [ -n "${s_attached[$name]:-}" ]; then
-    pane_dead="$(tmux list-panes -t "=$name" -F '#{pane_dead}' 2>/dev/null | head -1)"
+    pane_dead="$(tmux list-panes -t "=$name" -F '#{pane_dead}' 2>/dev/null | head -1 || true)"
     if [ "$pane_dead" = "1" ]; then
       # Corpse pane (user remain-on-exit): trust a recorded exit; a
       # non-exited record means no trap fired — the run is gone.
@@ -101,16 +102,24 @@ while IFS= read -r name; do
   # Truth prefix for the detail column: the CLI actually running (the
   # inner window is named after the binary at session creation) and the
   # statusline-fed model sidecar. Sessions are addresses; rows show
-  # what runs at them.
+  # what runs at them. Both values are free bytes (window names, file
+  # contents): allowlist to the ASCII the engine's row encoder keeps
+  # (it strips 0x7F+, so multibyte separators would vanish) and never
+  # let `|` reach the field protocol; the substitutions carry `|| true`
+  # because a session can vanish between the snapshot above and this
+  # row — set -e must not kill the feeder mid-listing.
   who=""
   if [ -n "${s_attached[$name]:-}" ]; then
-    who="$(tmux list-windows -t "=$name" -F '#{window_name}' 2>/dev/null | head -1)"
+    who="$(tmux list-windows -t "=$name" -F '#{window_name}' 2>/dev/null | head -1 || true)"
+    who="${who//[^a-zA-Z0-9:._-]/}"
+    who="${who:0:32}"
   fi
   if [ -r "$state_dir/$name.model" ]; then
-    m="$(head -c 32 "$state_dir/$name.model" 2>/dev/null)"
-    [ -n "$m" ] && who="${who:+$who · }$m"
+    m="$(head -c 32 "$state_dir/$name.model" 2>/dev/null || true)"
+    m="${m//[^a-zA-Z0-9 ._-]/}"
+    [ -n "$m" ] && who="${who:+$who - }$m"
   fi
-  [ -n "$who" ] && detail="${who}${detail:+ · $detail}"
+  [ -n "$who" ] && detail="${who}${detail:+ - $detail}"
   printf '%s|%s|%s|%s\n' "$name" "$state" "$ts" "$detail"
 done < <(printf '%s\n' "${!candidates[@]}" | sort)
 exit 0

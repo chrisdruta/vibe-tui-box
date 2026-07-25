@@ -142,9 +142,20 @@ done
 [ "$#" -gt 0 ] || usage
 agent_cmd=("$@")
 
+# session is the stable ADDRESS (what stop/-s/-a target); display is
+# the TRUTH label every UI surface shows (tab, border, roster, ps).
+# Composed HERE beside the address and shipped through the identity
+# env + title channel — never re-derived from the address elsewhere:
+# one grammar, one place. ASCII ':' joins the disambiguators so every
+# downstream surface (window names, ps rows through the engine's
+# ASCII-only encoder) keeps them intact.
 session="agent"
+display="${agent_cmd[0]##*/}"
 [ "$override" = "1" ] && session="$session-${agent_cmd[0]##*/}"
-[ -n "$session_suffix" ] && session="$session-$session_suffix"
+if [ -n "$session_suffix" ]; then
+  session="$session-$session_suffix"
+  display="$display:$session_suffix"
+fi
 
 if [ "$cold" = "1" ]; then
   case "${agent_cmd[0]##*/}" in
@@ -156,6 +167,7 @@ if [ "$cold" = "1" ]; then
       ;;
   esac
   session="$session-cold"
+  display="$display:cold"
 fi
 
 # stop ends the named session's run — the one lifecycle affordance
@@ -221,6 +233,7 @@ carrier=none
 [ -z "${TMUX:-}" ] && carrier=tmux
 cmd=(env "VIBE_AGENT_SESSION=$session" "VIBE_AGENT_INSTANCE=$$.$(date +%s)" \
   "VIBE_AGENT_CARRIER=$carrier" "VIBE_AGENT_CMD=${agent_cmd[0]##*/}" \
+  "VIBE_AGENT_DISPLAY=$display" \
   bash "$script_dir/agent-session.sh" run "${agent_cmd[@]}")
 
 # Already inside a tmux session (a shell in the inner server): run the

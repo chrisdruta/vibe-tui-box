@@ -4,20 +4,20 @@
     {
       "path": "container/agent-ps.sh",
       "mode": "0755",
-      "size": 4693,
-      "digest": "sha256:c00608f65b0057b5d27772e49fd20d2d556af1547839c5a6db554e94634e6024"
+      "size": 5232,
+      "digest": "sha256:ac9970b8ac6ac93dc9830693fb29d2c33a0adced9c654555aaeca44fd73cc7d3"
     },
     {
       "path": "container/agent-session.sh",
       "mode": "0755",
-      "size": 11032,
-      "digest": "sha256:e07379eca14e1f3845f7f75c03c9937897da17a66ed8144f245b83752600abd5"
+      "size": 11622,
+      "digest": "sha256:2dda7b99512cd123a8123e9a47e51858025fd4cc31592c43af3983dca45f6dcf"
     },
     {
       "path": "container/agent-state-hook.sh",
       "mode": "0755",
-      "size": 5561,
-      "digest": "sha256:795878b3b6899feb71071e5ae2dd5a73497f06ea692ada3f91aa8bced042face"
+      "size": 6213,
+      "digest": "sha256:7fcb5e9637db368126182cced1346aded1690eb4a9b8f002ad127da45af9f616"
     },
     {
       "path": "container/claude-plugin/.claude-plugin/plugin.json",
@@ -118,8 +118,8 @@
     {
       "path": "host/scripts/state-render.sh",
       "mode": "0755",
-      "size": 6529,
-      "digest": "sha256:1c52ea46a7dc6b9affe5bb90866173856689bf613db2f760be3c90e2d96d9c27"
+      "size": 6324,
+      "digest": "sha256:f638ef8d0f6760f2f9bbbdaef5cab212f5a72cfaf49c01af8b405cfe842b57b3"
     },
     {
       "path": "host/scripts/theme.sh",
@@ -194,5 +194,5 @@
       "digest": "sha256:cd890404eb7bdebc123ab94392dbfdc54b23221d287079f98506d7ee32720e92"
     }
   ],
-  "digest": "sha256:f016f89714af150058aaa2824dda3843193879402d9e2ba3ab2b95fab8b7ca07"
+  "digest": "sha256:4698535a79cea235f4daa587afa5d8a091889b29020ac94084688232a2a77be8"
 }

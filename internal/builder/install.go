@@ -147,7 +147,7 @@ RUN mkdir -p /vibe/agent-state && chown vscode:vscode /vibe/agent-state
 # drops sixel images on pane redraw and varies per base image. jq
 # parses the Claude statusline JSON.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends jq build-essential byacc pkg-config libevent-dev libncurses-dev \
+    && apt-get install -y --no-install-recommends jq build-essential byacc pkg-config libevent-dev libncurses-dev ca-certificates curl \
     && tmp="$(mktemp -d)" \
     && curl -fsSL -o "$tmp/tmux.tar.gz" "https://github.com/tmux/tmux/releases/download/`+tmuxVersion+`/tmux-`+tmuxVersion+`.tar.gz" \
     && echo "`+tmuxSHA256+`  $tmp/tmux.tar.gz" | sha256sum -c - \

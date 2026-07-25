@@ -261,8 +261,12 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 // candidate — the `vibe tui` pre-flight. Unlike Up there is no input
 // freeze and the approved pointer never moves: what was approved is
 // exactly what starts, so a changed manifest stays a deliberate
-// `vibe up`. Already running and in sync short-circuits to one status
-// listing.
+// `vibe up`. Completeness is judged against the PLAN, not the state
+// alone — a state listing cannot see a container that was removed
+// outright. And a running container on a DIFFERENT candidate is live
+// work a UI open must never destroy (reconciling would replace it,
+// inner agent sessions and all): that refuses with the explicit
+// commands instead.
 func (a *App) startApproved(ctx context.Context, rec registry.Record) error {
 	if rec.Approved == nil {
 		return fmt.Errorf("%w: no approved candidate to start (run `vibe up` first)", domain.ErrUnavailable)
@@ -270,14 +274,21 @@ func (a *App) startApproved(ctx context.Context, rec registry.Record) error {
 	if err := a.deps.Docker.Ping(ctx); err != nil {
 		return err
 	}
-	if state, err := a.runtime.Status(ctx, rec); err == nil && state.Running() {
-		return nil
-	}
 	cand, lease, err := a.runtime.LoadCandidate(ctx, *rec.Approved)
 	if err != nil {
 		return err
 	}
 	defer lease.Close()
+	if state, err := a.runtime.Status(ctx, rec); err == nil {
+		for _, c := range state.Containers {
+			if c.Running && !c.InSync {
+				return fmt.Errorf("%w: running containers don't match the approved candidate (run `vibe up` or `vibe rebuild`)", domain.ErrConflict)
+			}
+		}
+		if plannedRunning(cand.Plan, state) {
+			return nil
+		}
+	}
 	if _, err := a.runtime.Up(ctx, cand, runtime.UpOptions{
 		Progress:     a.deps.Progress,
 		LifecycleOut: a.deps.LifecycleOut,
@@ -286,6 +297,24 @@ func (a *App) startApproved(ctx context.Context, rec registry.Record) error {
 	}
 	a.bumpTuiSerial(ctx)
 	return nil
+}
+
+// plannedRunning reports whether every container the plan wants exists
+// in the state, running and in sync. Stopped or stale-but-stopped
+// containers fall through to the reconcile (replacing a stopped stale
+// container destroys nothing).
+func plannedRunning(plan model.Plan, state runtime.State) bool {
+	byName := make(map[string]runtime.ContainerStatus, len(state.Containers))
+	for _, c := range state.Containers {
+		byName[c.Name] = c
+	}
+	for _, c := range append([]model.Container{plan.Dev}, plan.Services...) {
+		got, ok := byName[c.Name]
+		if !ok || !got.Running || !got.InSync {
+			return false
+		}
+	}
+	return true
 }
 
 // reapAgentClients detaches VIBE_NESTED ghost tmux clients inside the

@@ -9,8 +9,10 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
+	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
 )
 
@@ -58,6 +60,79 @@ func TestStartApproved(t *testing.T) {
 	}
 	if got := len(docker.CallsTo("ResolveImage")); got != snaps {
 		t.Fatal("startApproved must not re-resolve inputs — it runs the approved candidate")
+	}
+}
+
+func TestStartApprovedGuards(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+
+	// A service makes the plan multi-container, so completeness is
+	// judged against the PLAN — a removed sidecar must not pass.
+	manifest := testManifest + `services:
+  cache:
+    image: "redis:7"
+`
+	writeManifest(t, dir, manifest)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	up, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove the sidecar outright: the state listing alone can't see it,
+	// the plan can. startApproved must reconcile it back.
+	containers, err := docker.ListProjectContainers(ctx, up.Record.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed := false
+	for _, c := range containers {
+		if strings.Contains(string(c.Name), "-svc-") {
+			if err := docker.RemoveContainer(ctx, c.ID, dockerapi.RemoveOptions{Force: true}); err != nil {
+				t.Fatal(err)
+			}
+			removed = true
+		}
+	}
+	if !removed {
+		t.Fatal("no sidecar container to remove")
+	}
+	created := len(docker.CallsTo("CreateContainer"))
+	if err := a.startApproved(ctx, up.Record); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(docker.CallsTo("CreateContainer")); got <= created {
+		t.Fatal("missing planned sidecar did not trigger a reconcile")
+	}
+
+	// Running containers on a DIFFERENT candidate are live work: point
+	// the approved pointer at the OLD candidate (the crashed-up shape)
+	// and startApproved must refuse rather than replace them.
+	writeManifest(t, dir, manifest+"bootstrap:\n  required: [git]\n")
+	up2, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up2.Candidate == up.Candidate {
+		t.Fatal("manifest change should compile a new candidate")
+	}
+	reverted, err := a.deps.Registry.Update(ctx, up2.Record.ID, up2.Record.Revision, func(r *registry.Record) error {
+		r.Approved = &up.Candidate
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = a.startApproved(ctx, reverted)
+	if err == nil || !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("stale running containers should refuse with conflict, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "vibe up") {
+		t.Fatalf("refusal must name the deliberate command: %v", err)
 	}
 }
 

@@ -78,7 +78,7 @@ lacks tmux fall back to direct exec: no persistence, no dot.)
 Session names are **addresses** (`agent`, `agent-review`, …) — what
 `--stop`/`-s`/`-a` target. Displays show **truth**: the tab, pane
 border, and sidebar roster are renamed to the CLI actually running
-(`claude`, `codex·review`), with the model as a dim roster suffix where
+(`claude`, `codex:review`), with the model as a dim roster suffix where
 the CLI reports one; `vibe ps` carries both in its detail column.
 
 To end one: `vibe agent --stop` stops the addressed session (combine

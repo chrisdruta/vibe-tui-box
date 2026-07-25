@@ -49,7 +49,7 @@ The v1 line and its history remain in git up to the cutover commit.
   prompts to restart instead of silently delivering the old agent.
 - New: displays show truth, addresses stay stable. The title channel
   gained `cmd` and `model` fields: the host renames the agent's viewer
-  window to the CLI actually running (`claude`, `codex·review` — tabs,
+  window to the CLI actually running (`claude`, `codex:review` — tabs,
   pane border, and sidebar roster follow), the sidebar shows the
   statusline-reported model as a dim suffix, and `vibe ps` carries both
   in its detail column. Session names (`agent`, `agent-review`) remain

@@ -11,9 +11,9 @@
 # design).
 #
 # Input title encoding (written by the container-side
-# agent-state-hook.sh); cmd/model are absent from pre-truth artifacts
-# and both may be empty — positions are fixed:
-#   vibe1|<project>|<session>|<instance>|<state>|<cmd>|<model>
+# agent-state-hook.sh); display/model are absent from pre-truth
+# artifacts and both may be empty — positions are fixed:
+#   vibe1|<project>|<session>|<instance>|<state>|<display>|<model>
 # Output: data-only tmux user options; presentation lives in
 # tmux-tui.conf.
 #   pane   @vibe_state  raw state, @vibe_title (the display name — the
@@ -23,7 +23,7 @@
 #   window @vibe_model  the statusline-fed model, roster's dim suffix
 #   window NAME         renamed to the display — session names are the
 #                       ADDRESS (stop/-s/-a target them), the window
-#                       shows TRUTH ("claude", "codex·review"), so tabs
+#                       shows TRUTH ("claude", "codex:review"), so tabs
 #                       and roster never read "agent"
 #   server @vibe_state_serial  bumped on every write, riding the same
 #                       server command — the sidebar's cheap change
@@ -46,9 +46,9 @@ case "$0" in */*) here="${0%/*}" ;; *) here="." ;; esac
 # shellcheck source=theme.sh disable=SC1091
 . "$here/theme.sh"
 
-info="$(tmux display-message -p -t "$pane" '#{pane_dead}|#{window_name}' 2>/dev/null)" || exit 0
+info="$(tmux display-message -p -t "$pane" '#{pane_dead}|#{@vibe_title}' 2>/dev/null)" || exit 0
 dead="${info%%|*}"
-wname="${info#*|}"
+prev_title="${info#*|}"
 
 if [ -n "$forced" ]; then
   # pane-died path: an agent pane's death here means the FRONTEND is
@@ -82,30 +82,23 @@ case "$title" in
   *) exit 0 ;; # not an agent-state title — nothing to render
 esac
 
-IFS='|' read -r _ _proj session _instance state cmd model _rest <<EOF
+IFS='|' read -r _ _proj session _instance state display model _rest <<EOF
 $title
 EOF
 
-# cmd/model are container-controlled bytes: allowlist them HERE before
-# they become a window name or an option value (argv-only below, never
-# shell words — but display surfaces still deserve a closed charset).
-cmd="$(printf '%s' "${cmd:-}" | tr -cd 'A-Za-z0-9._-' | head -c 24)"
-model="$(printf '%s' "${model:-}" | tr -cd 'A-Za-z0-9 ._-' | head -c 32)"
-
-# Display derivation, one place: the session is the stable address, the
-# display is the CLI truth plus the address's disambiguating suffix —
-# `agent` → claude, `agent-codex` → codex, `agent-review` →
-# claude·review, `agent-codex-review` → codex·review, `agent-cold` →
-# claude·cold.
-display=""
-if [ -n "$cmd" ]; then
-  case "$session" in
-    agent | "agent-$cmd") display="$cmd" ;;
-    "agent-$cmd-"*) display="$cmd·${session#agent-"$cmd"-}" ;;
-    agent-*) display="$cmd·${session#agent-}" ;;
-    *) display="$cmd" ;;
-  esac
-fi
+# EVERY field here is container-controlled bytes: allowlist them ALL
+# before any becomes a window name or option value (argv-only below,
+# never shell words — but display surfaces still deserve a closed
+# charset, and the roster does byte-width math on them). Pure bash —
+# this runs per state event. The display itself is minted beside the
+# session address in agent-session.sh and travels the channel whole;
+# this script renders, it never re-derives the grammar.
+display="${display//[^a-zA-Z0-9:._-]/}"
+display="${display:0:32}"
+model="${model//[^a-zA-Z0-9 ._-]/}"
+model="${model:0:32}"
+session="${session//[^a-zA-Z0-9_-]/}"
+session="${session:0:40}"
 
 # The title channel carries exactly these four states — anything else is
 # a newer/older artifact talking: render nothing rather than guess.
@@ -132,16 +125,17 @@ tmux set-option -p -t "$pane" @vibe_state "$state" \; \
   set-option -w -t "$pane" @vibe_model "$model" \; \
   set-option -g @vibe_state_serial "$$$RANDOM" 2>/dev/null || exit 0
 
-# Human labels. With cmd in the channel the window and border track
-# TRUTH: rename once when the name differs (a manual rename lasts until
-# the next state event — truth wins, by design). Pre-truth titles keep
-# the old behavior: session name, only if nothing chose a label yet.
+# Human labels: the window and border track the channel's display.
+# Guard on the PANE's own settled label (@vibe_title, fetched with the
+# dead check above), never the window name — two agent panes sharing a
+# window would otherwise fight over it on every event from either
+# side. Pre-display titles keep the old behavior: session name, only
+# if nothing chose a label yet.
 if [ -n "$display" ]; then
-  [ "$wname" = "$display" ] || tmux rename-window -t "$pane" "$display" \; \
+  [ "$prev_title" = "$display" ] || tmux rename-window -t "$pane" "$display" \; \
     set-option -p -t "$pane" @vibe_title "$display" 2>/dev/null
 else
-  cur_title="$(tmux show-options -pqv -t "$pane" @vibe_title 2>/dev/null)"
-  [ -n "$cur_title" ] || tmux set-option -p -t "$pane" @vibe_title "$session" 2>/dev/null
+  [ -n "$prev_title" ] || tmux set-option -p -t "$pane" @vibe_title "$session" 2>/dev/null
 fi
 
 exit 0

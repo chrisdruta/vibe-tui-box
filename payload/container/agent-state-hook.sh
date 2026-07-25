@@ -18,13 +18,14 @@
 #      docker-exec TTY, the host `vibe tui` server sees its pane title
 #      change, and its pane-title-changed hook renders the dot — the
 #      validated no-polling bridge. Encoding:
-#      vibe1|<project>|<session>|<instance>|<state>|<cmd>|<model>
-#      (cmd: the CLI binary, from the VIBE_AGENT_CMD identity — the
+#      vibe1|<project>|<session>|<instance>|<state>|<display>|<model>
+#      (display: the truth label agent-session.sh mints beside the
+#      session address (VIBE_AGENT_DISPLAY, e.g. "claude:review") — the
 #      host renames the viewer window to it, so tabs and roster say
 #      "claude", never "agent"; model: statusline-fed sidecar file,
 #      empty for CLIs without a statusline hook. Both may be empty —
-#      field POSITIONS are fixed, and pre-cmd artifacts simply emitted
-#      five fields.)
+#      field POSITIONS are fixed, and pre-display artifacts simply
+#      emitted five fields.)
 #
 # States are deliberately conservative: working / attention / idle /
 # exited. Notification means "wants a human" (permission prompt,
@@ -95,19 +96,27 @@ command -v tmux >/dev/null 2>&1 || exit 0
 proj="$(printf '%s' "${VIBE_PROJECT_NAME:-}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
 [ -n "$proj" ] || proj="$(basename "${CLAUDE_PROJECT_DIR:-$PWD}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
 
-# Truth fields: the CLI binary from the identity env, and the model the
+# Truth fields: the display label minted beside the session address
+# (VIBE_AGENT_DISPLAY — agent-session.sh owns the grammar; identities
+# minted before it fall back to the bare CLI name), and the model the
 # statusline sidecar recorded (statusline.sh — the one place the CLI
 # reports it). Same sanitize-and-bound rule as proj; model keeps
 # spaces ("Fable 5"). Empty is fine — positions are fixed.
-cmd="$(printf '%s' "${VIBE_AGENT_CMD:-}" | tr -cd 'A-Za-z0-9._-' | head -c 24)"
+disp="$(printf '%s' "${VIBE_AGENT_DISPLAY:-${VIBE_AGENT_CMD:-}}" | tr -cd 'A-Za-z0-9:._-' | head -c 32)"
 model=""
 [ -r "$state_dir/$session.model" ] &&
   model="$(tr -cd 'A-Za-z0-9 ._-' <"$state_dir/$session.model" 2>/dev/null | head -c 32)"
 
-# Plain -t name, no "=" prefix: 3.7b set-option -t takes a pane-style
-# target and rejects exact-match syntax; exact names beat prefixes
-# anyway, and these session names are harness-controlled.
-tmux set-option -t "$session" set-titles on \; \
-  set-option -t "$session" set-titles-string "vibe1|$proj|$session|$instance|$state|$cmd|$model" \
+# Exact-match targeting. 3.7b's set-option rejects "=" exact syntax,
+# and a plain -t NAME PREFIX-matches once the exact session is gone —
+# and stop/restart guarantee that: their kill fires this hook from the
+# run-mode EXIT trap, and `-t agent` would then stamp a live sibling
+# like agent-codex as exited. Resolve the unique session ID with an
+# exact filter (no prefix fallback — verified on 3.7b) and stamp THAT;
+# a gone session resolves to nothing and nothing is stamped.
+sid="$(tmux list-sessions -f "#{==:#{session_name},$session}" -F '#{session_id}' 2>/dev/null | head -1)"
+[ -n "$sid" ] || exit 0
+tmux set-option -t "$sid" set-titles on \; \
+  set-option -t "$sid" set-titles-string "vibe1|$proj|$session|$instance|$state|$disp|$model" \
   >/dev/null 2>&1 || true
 exit 0
