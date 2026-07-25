@@ -161,6 +161,38 @@ func TestGenerateInstallManifestPins(t *testing.T) {
 	}
 }
 
+// A word qualifier names a channel, not a pin: it installs that channel
+// and refreshes exactly like an unversioned entry — freezing a channel
+// in a cached layer would be the staleness bug all over again.
+func TestGenerateInstallChannelWordsRefresh(t *testing.T) {
+	channels := []schema.AgentSpec{
+		{Kind: schema.AgentClaude, Version: "stable"},
+		{Kind: schema.AgentCodex, Version: "next"},
+	}
+	out := string(GenerateInstall(channels, nil, true))
+	if got := strings.Count(out, "agents-refresh=${"+AgentRefreshArg+"}"); got != 2 {
+		t.Fatalf("channel-selecting agents must both bust, got %d references:\n%s", got, out)
+	}
+	if !strings.Contains(out, "bash -s -- stable") {
+		t.Errorf("claude should install the selected stable channel:\n%s", out)
+	}
+	if !strings.Contains(out, "@openai/codex@next") {
+		t.Errorf("codex should install the selected dist-tag:\n%s", out)
+	}
+	if err := ValidateDockerfile([]byte(out)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Unversioned claude tracks LATEST — stable lags it by design, which
+// is exactly the staleness the per-rebuild refresh exists to kill.
+func TestGenerateInstallUnversionedClaudeTracksLatest(t *testing.T) {
+	out := string(GenerateInstall([]schema.AgentSpec{{Kind: schema.AgentClaude}}, nil, false))
+	if !strings.Contains(out, "bash -s -- latest") {
+		t.Fatalf("unversioned claude must install the latest channel:\n%s", out)
+	}
+}
+
 func TestGenerateInstallContent(t *testing.T) {
 	tests := []struct {
 		name       string

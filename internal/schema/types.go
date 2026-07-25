@@ -91,11 +91,12 @@ func (a *AgentKind) UnmarshalText(b []byte) error {
 	}
 }
 
-// AgentSpec is one image.agents entry: an agent CLI, optionally pinned
-// to an exact version. "claude" tracks the installer's channel and is
-// re-pulled to latest on every `vibe rebuild`; "claude@2.1.220" is
-// exact and never refreshed. grok cannot be pinned — its installer has
-// no version parameter.
+// AgentSpec is one image.agents entry: an agent CLI, optionally
+// qualified. "claude" tracks the installer's latest channel and is
+// re-pulled on every `vibe rebuild`; "claude@2.1.220" (digit-leading =
+// exact version) is frozen; "claude@stable" (word = a channel or npm
+// dist-tag) selects that channel and refreshes like unversioned. grok
+// takes no qualifier — its installer has no version parameter.
 type AgentSpec struct {
 	Kind    AgentKind
 	Version string

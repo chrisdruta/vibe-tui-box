@@ -11,7 +11,7 @@ schema: 1
 harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
-  agents: [claude, codex]     # claude | codex | grok; pin with claude@2.1.220 (unversioned = latest per rebuild)
+  agents: [claude, codex]     # claude | codex | grok; claude@2.1.220 pins, claude@stable tracks that channel, bare = latest per rebuild
   toolchains: [go]            # node | bun | go | rokit
   extension: true             # opt into .vibe/Dockerfile (see extending.md)
 runtime:
@@ -46,12 +46,16 @@ bootstrap:
   prompt: the install Dockerfile is engine-authored, never project
   input. `agent.cmd` must be listed in `image.agents`.
 
-  An agent entry optionally pins a version: `claude@2.1.220` installs
-  exactly that build and never moves; plain `claude` tracks the
-  installer's channel (claude: `stable`; codex: npm `latest`) and is
-  **re-pulled to latest on every `vibe rebuild`** — no version given
-  means "keep me current". The refresh weaves a per-rebuild
-  cache-buster into only the unversioned agent layers; pinned agents
+  An agent entry optionally carries a qualifier. `claude@2.1.220`
+  (digit-leading = exact version) installs that build and never moves.
+  Plain `claude` tracks the installer's **latest** channel and is
+  **re-pulled on every `vibe rebuild`** — no version given means "keep
+  me current" (claude's `stable` channel lags latest by design, so
+  latest is the default). A word qualifier (`claude@stable`, an npm
+  dist-tag for codex) selects that channel and refreshes per rebuild
+  like an unversioned entry — channels are moving targets, never
+  frozen into a cached layer. The refresh weaves a per-rebuild
+  cache-buster into only the channel-tracking agent layers; pinned agents
   and the system toolchains (Go/Node, and tmux — an engine-pinned
   source build, because distro tmux drops sixel images on redraw)
   stay cached and move only with the manifest or engine releases.

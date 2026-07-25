@@ -14,13 +14,16 @@ import (
 // closed set.
 
 // Engine-owned install pins. Agent CLIs follow the manifest: an
-// unversioned image.agents entry tracks its installer's channel below
-// and re-pulls on every rebuild (the refresh path); a pinned entry
-// ("claude@2.1.220") installs that exact version in a plain cached
-// layer and never refreshes. The system toolchains move only with
-// engine releases.
+// unversioned image.agents entry tracks its installer's LATEST channel
+// below and re-pulls on every rebuild (the refresh path — "no version
+// given" means "keep me current", and claude's stable channel lags
+// latest by design, which is exactly the staleness the refresh exists
+// to kill); an exact pin ("claude@2.1.220") installs that version in a
+// plain cached layer and never refreshes; a named channel
+// ("claude@stable") installs that channel and refreshes like
+// unversioned. The system toolchains move only with engine releases.
 const (
-	claudeChannel = "stable"
+	claudeChannel = "latest"
 	codexChannel  = "latest" // the npm dist-tag unversioned codex tracks
 	nodeMajor     = "22"
 	bunVersion    = "1.3.14"
@@ -221,8 +224,16 @@ func refreshBust(bust bool) string {
 // (cheap — the expensive system toolchains live in rootLayers, before
 // USER vscode).
 func userLayers(want map[string]bool, pin map[schema.AgentKind]string, refresh bool) []string {
+	// A version starting with a digit is an exact pin (frozen layer);
+	// anything else ("stable", "latest", an npm dist-tag) names a
+	// CHANNEL — a moving target that refreshes exactly like an
+	// unversioned entry, because freezing a channel in a cached layer
+	// is the staleness bug all over again.
+	isChannel := func(v string) bool {
+		return v != "" && (v[0] < '0' || v[0] > '9')
+	}
 	bustFor := func(kind schema.AgentKind) bool {
-		return refresh && pin[kind] == ""
+		return refresh && (pin[kind] == "" || isChannel(pin[kind]))
 	}
 	anyBust := false
 	for _, kind := range []schema.AgentKind{schema.AgentClaude, schema.AgentCodex, schema.AgentGrok} {
@@ -243,8 +254,12 @@ ARG `+AgentRefreshArg+`
 		target := claudeChannel + " channel"
 		spec := claudeChannel
 		if v := pin[schema.AgentClaude]; v != "" {
-			target = "manifest-pinned " + v
 			spec = v
+			if isChannel(v) {
+				target = "manifest-selected " + v + " channel"
+			} else {
+				target = "manifest-pinned " + v
+			}
 		}
 		out = append(out, `# Claude Code: the installer's `+target+`.
 RUN `+refreshBust(bustFor(schema.AgentClaude))+`curl -fsSL https://claude.ai/install.sh | bash -s -- `+spec+` \
