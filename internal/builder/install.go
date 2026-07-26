@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
@@ -53,11 +54,15 @@ const (
 	lazygitSHA256AMD64 = "8e033bc78c8e192dee9510e951f6c9e154289b7198d22c924ed1d0a951b0dac1"
 	lazygitSHA256ARM64 = "555dbc9a8efcf2e33bc24e7fbd9463e9fa375e3c5e23cc270763733c38eeae36"
 	// nvim-treesitter's main branch requires the tree-sitter CLI
-	// (>= 0.26.1) for the build-time parser compile; its release
-	// binaries use x64/arm64 arch names.
-	treesitterCLIVersion     = "0.26.11"
-	treesitterCLISHA256AMD64 = "8dac3c89bb632eece700ea7a261ad963b251f2228c4aef3b58458ebea8dbe4eb"
-	treesitterCLISHA256ARM64 = "e47dd59bf2f21ad7c15771546a724464ee3c008a60fbb61c6860bd19a44b3060"
+	// (>= 0.26.1) for the build-time parser compile. Built from the
+	// crates.io source with a PINNED Rust toolchain, not the release
+	// binaries: every 0.26.x prebuilt links glibc 2.39 (Ubuntu 24.04
+	// runners) and the bookworm-era bases carry 2.36 — the first
+	// rebuild proved it (2026-07-26). The toolchain lives in the RUN's
+	// scratch dir and is deleted in the same layer; only the CLI
+	// binary lands in the image.
+	treesitterCLIVersion = "0.26.11"
+	rustVersion          = "1.97.1"
 )
 
 // reviewPlugins are cloned into the root-owned native packpath
@@ -295,24 +300,21 @@ RUN mkdir -p /opt/vibe/nvim/pack/vibe/start`)
 # image build (the tmux layer's build-essential compiles, the pinned
 # tree-sitter CLI drives — a main-branch nvim-treesitter requirement)
 # into a root-owned site dir the payload nvim config puts on the
-# runtime path — no runtime compiles, no writable plugin state.
+# runtime path — no runtime compiles, no writable plugin state. The
+# CLI is cargo-built with a pinned toolchain (release prebuilts need
+# glibc 2.39 — newer than bookworm-era bases); the toolchain lives in
+# scratch and dies inside this layer, only the CLI binary remains.
 RUN tmp="$(mktemp -d)" \
-    && case "$(uname -m)" in \
-         x86_64)  tsarch=x64;   ts_sha="`+treesitterCLISHA256AMD64+`" ;; \
-         aarch64) tsarch=arm64; ts_sha="`+treesitterCLISHA256ARM64+`" ;; \
-         *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
-       esac \
-    && curl -fsSL -o "$tmp/tree-sitter.gz" "https://github.com/tree-sitter/tree-sitter/releases/download/v`+treesitterCLIVersion+`/tree-sitter-linux-${tsarch}.gz" \
-    && echo "${ts_sha}  $tmp/tree-sitter.gz" | sha256sum -c - \
-    && gunzip "$tmp/tree-sitter.gz" \
-    && install -m 0755 "$tmp/tree-sitter" /usr/local/bin/tree-sitter \
-    && rm -rf "$tmp" \
+    && export RUSTUP_HOME="$tmp/rustup" CARGO_HOME="$tmp/cargo" \
+    && curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain `+rustVersion+` --no-modify-path \
+    && "$tmp/cargo/bin/cargo" install tree-sitter-cli --version `+treesitterCLIVersion+` --locked --root /usr/local \
+    && rm -rf "$tmp" /usr/local/.crates.toml /usr/local/.crates2.json \
     && mkdir -p /opt/vibe/nvim-data \
     && HOME=/tmp XDG_DATA_HOME=/opt/vibe/nvim-data nvim --headless \
        --cmd "set packpath^=/opt/vibe/nvim" \
        -c "lua require('nvim-treesitter').install({'`+strings.Join(reviewParsers, `','`)+`'}):wait(900000)" \
        -c "quitall!" \
-    && ls /opt/vibe/nvim-data/nvim/site/parser/*.so >/dev/null
+    && test "$(ls /opt/vibe/nvim-data/nvim/site/parser/*.so | wc -l)" -eq `+strconv.Itoa(len(reviewParsers))+`
 `)
 	return out
 }

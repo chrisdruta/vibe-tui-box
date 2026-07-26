@@ -193,11 +193,15 @@ section at the bottom — as revisable records, not fences.
   tree + `edit.sh` launcher, the theme.lua/lazygit-yml generated
   renderings, and the `f`/`g`/`G` rewire through the
   `scripts/review.sh` router (repurposed from the host difftool gate
-  it briefly was). What remains is empirical: the first
-  `vibe rebuild` proves the parser layer (headless nvim-treesitter
-  main-branch install — the one build step engine tests cannot
-  execute; if it fights back, the layer is independently droppable),
-  and dogfood judges the keymap contract.
+  it briefly was). What remains is empirical: a `vibe rebuild` proves
+  the parser layer (headless nvim-treesitter main-branch install —
+  the one build step engine tests cannot execute; if it fights back,
+  the layer is independently droppable), and dogfood judges the
+  keymap contract. The first rebuild attempt (2026-07-26) caught the
+  prebuilt tree-sitter CLI linking glibc 2.39 against the base's
+  2.36 — every 0.26.x release binary does; fixed by cargo-building
+  the CLI in-layer with a pinned Rust toolchain that lives in scratch
+  and dies inside the same layer, only the binary remaining.
 
 - **Host editor passthrough (parked 2026-07-26).** The original
   editor-as-surface idea — your own host nvim/config as the viewer —

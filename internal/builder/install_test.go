@@ -208,8 +208,8 @@ func TestGenerateInstallReviewStack(t *testing.T) {
 		"rm -rf /opt/vibe/nvim/pack/vibe/start/*/.git",
 		"nvim-treesitter').install(",
 		"/opt/vibe/nvim-data/nvim/site/parser",
-		"tree-sitter/releases/download/v" + treesitterCLIVersion,
-		treesitterCLISHA256AMD64, treesitterCLISHA256ARM64,
+		"cargo\" install tree-sitter-cli --version " + treesitterCLIVersion + " --locked",
+		"--default-toolchain " + rustVersion,
 	} {
 		if !strings.Contains(out, w) {
 			t.Errorf("missing %q in:\n%s", w, out)
