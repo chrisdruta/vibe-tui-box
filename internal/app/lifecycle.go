@@ -236,14 +236,22 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 }
 
 // DownRequest tears down the project's containers and network. Volumes
-// survive unless RemoveVolumes is set.
+// survive unless RemoveVolumes is set. DeferUIKill hands the
+// UI-session teardown back to the caller as DownResult.KillUI instead
+// of killing inline: the CLI sets it so the result renders BEFORE the
+// kill — `vibe down` inside the project's own UI session used to HUP
+// itself mid-output (branch-review remainder item 9).
 type DownRequest struct {
 	Dir           string
 	RemoveVolumes bool
+	DeferUIKill   bool
 }
 
 type DownResult struct {
 	Record registry.Record
+	// KillUI closes the project's UI session; non-nil only when the
+	// request deferred it. Best-effort, exactly like the inline kill.
+	KillUI func(context.Context)
 }
 
 func (a *App) Down(ctx context.Context, req DownRequest) (DownResult, error) {
@@ -263,14 +271,24 @@ func (a *App) Down(ctx context.Context, req DownRequest) (DownResult, error) {
 	// closing it beats leaving a hollow shell (and ends the palette's
 	// park flow cleanly). Best-effort like the serial bump: a nil tmux,
 	// a dead server, or no session never fails the down that did the
-	// real work.
-	if a.deps.Tmux != nil {
+	// real work. Deferred, the same kill runs from the result after
+	// the caller has flushed its output.
+	killUI := func(ctx context.Context) {
+		if a.deps.Tmux == nil {
+			return
+		}
 		killCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 		_ = a.deps.Tmux.KillSession(killCtx, tmux.SessionFor(rec.ID))
 		cancel()
 	}
+	res := DownResult{Record: rec}
+	if req.DeferUIKill {
+		res.KillUI = killUI
+	} else {
+		killUI(ctx)
+	}
 	a.bumpTuiSerial(ctx)
-	return DownResult{Record: rec}, nil
+	return res, nil
 }
 
 type StatusRequest struct {

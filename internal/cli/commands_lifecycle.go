@@ -61,7 +61,10 @@ var lifecycleCommands = map[string]Command{
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			r := req.(*DownRequest)
-			res, err := a.Down(ctx, app.DownRequest{Dir: dir, RemoveVolumes: r.Volumes})
+			// Defer the UI-session kill to AfterRender: when this very
+			// command runs inside that session, the output must land
+			// before the branch is sawed off.
+			res, err := a.Down(ctx, app.DownRequest{Dir: dir, RemoveVolumes: r.Volumes, DeferUIKill: true})
 			if err != nil {
 				return nil, err
 			}

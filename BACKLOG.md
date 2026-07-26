@@ -137,18 +137,25 @@ section at the bottom — as revisable records, not fences.
   (`vibe-quit-ui`/`vibe-kill-server`) shared by binds and palette —
   this sub-item is done; (3) the bar's rule line was a 400-glyph
   literal — regenerated at 1000 with the 2026-07-26 polish pass, this
-  sub-item is done; (4) stop/restart plumbed as
-  two mutually-exclusive bools instead of one mode end to end (the
-  script silently accepts `--restart` in stop mode); (5) startApproved's
+  sub-item is done; (4) stop/restart — fixed 2026-07-26 at pragmatic
+  depth: one `AgentMode` on AgentRequest (invalid combos
+  unrepresentable), wire format untouched, and agent-session.sh now
+  REJECTS `--restart` in stop mode instead of swallowing it — this
+  sub-item is done; (5) startApproved's
   Docker Ping is redundant with the Status call's own error; (6)
   a rebuild's agent refresh busts the engine-pinned bun/rokit layers
-  too (they sit after the agent layers — reorder for warm refreshes); (7) the
-  agent-state dir derivation is string-copied across three container
-  scripts; (8) palette.sh's empty-`"${target[@]}"` expansion violates
-  the bash-3.2 pledge if ever invoked clientless (no shipped caller
-  does); (9) `vibe down` from inside its own UI session HUPs itself
-  after teardown — output truncates, `--json` consumers see
-  death-by-signal (park popup intends this; scripts may not). The
+  too (they sit after the agent layers — reorder for warm refreshes);
+  (7) agent-state dir derivation — fixed 2026-07-26:
+  `payload/container/state-dir.sh` is the one sourced definition for
+  statusline/hook/agent-ps (the copies had already drifted) — this
+  sub-item is done; (8) palette.sh's empty-`"${target[@]}"` expansion
+  violates the bash-3.2 pledge if ever invoked clientless (no shipped
+  caller does); (9) `vibe down` self-HUP — fixed 2026-07-26: the CLI
+  defers the UI-session kill to a post-render hook (App default
+  unchanged for direct callers), and ignores SIGHUP around the kill so
+  a fully-rendered `--json` exit stays clean; residue: an interactive
+  shell inside the session still dies with its pane, inherent to
+  parking from inside — this sub-item is done. The
   agent-state hooks, subagent statusline, and `/vibe:request` moved
   into `payload/container/claude-plugin/`, loaded per session with
   `--plugin-dir` from the read-only payload. Verified in-container:

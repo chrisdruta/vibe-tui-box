@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
@@ -219,6 +222,18 @@ func (r *downResult) RenderHuman(w io.Writer) error {
 
 func (r *downResult) RenderJSON(w io.Writer) error {
 	return writeJSON(w, "down", r.Result.Record)
+}
+
+// AfterRender fires the deferred UI-session kill (cli.go's post-render
+// hook). SIGHUP is ignored first: when `vibe down` runs inside the
+// session it kills, the pane's HUP would otherwise turn a clean,
+// fully-rendered exit into death-by-signal for --json consumers.
+func (r *downResult) AfterRender(ctx context.Context) {
+	if r.Result.KillUI == nil {
+		return
+	}
+	signal.Ignore(syscall.SIGHUP)
+	r.Result.KillUI(ctx)
 }
 
 type statusResult struct {

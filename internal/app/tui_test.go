@@ -161,6 +161,39 @@ func TestDownKillsUISession(t *testing.T) {
 	}
 }
 
+// The CLI defers the kill so its output flushes before the session —
+// possibly the one the command runs inside — goes down: no inline
+// kill, and the returned KillUI does exactly the inline one's job.
+func TestDownDeferredUIKill(t *testing.T) {
+	a, _ := newTestApp(t)
+	rt := &recordingTmux{}
+	a.deps.Tmux = rt
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := a.Down(ctx, DownRequest{Dir: dir, DeferUIKill: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.killed) != 0 {
+		t.Fatalf("deferred down killed inline: %v", rt.killed)
+	}
+	if res.KillUI == nil {
+		t.Fatal("deferred down returned no KillUI")
+	}
+	res.KillUI(ctx)
+	want := tmux.SessionFor(reg.Record.ID)
+	if len(rt.killed) != 1 || rt.killed[0] != want {
+		t.Fatalf("KillUI killed %v, want exactly [%s]", rt.killed, want)
+	}
+}
+
 func TestMaterializeTuiConfAppendsUserConf(t *testing.T) {
 	a, _ := newTestApp(t)
 	ctx := context.Background()

@@ -123,6 +123,13 @@ func run(ctx context.Context, a *app.App, args []string, stdout, stderr io.Write
 			fmt.Fprintf(stderr, "vibe %s: render: %v\n", cmd.Name, renderErr)
 			return ExitFailure
 		}
+		// Post-render actions: a result may act only after its bytes
+		// are flushed — e.g. down killing the UI session this very
+		// command may be running inside (render first, then saw off
+		// the branch).
+		if pr, ok := res.(interface{ AfterRender(context.Context) }); ok {
+			pr.AfterRender(ctx)
+		}
 		// Container commands propagate the process's exit code verbatim.
 		if coder, ok := res.(interface{ ExitCode() int }); ok {
 			return coder.ExitCode()
