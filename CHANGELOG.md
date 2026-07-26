@@ -420,11 +420,13 @@ The v1 line and its history remain in git up to the cutover commit.
   the menu enables all-motion tracking and a bare motion event is
   release-coded. Both menu scripts now pass `display-menu -M -O`
   (motion hovers and aims, a press fires the aimed item, a press
-  outside closes; pinned above the tray with `-y S`), and the two
-  menu doors dispatch on `MouseUp1Status` so the opening click's
-  release is spent before the menu exists (both layers established
-  with a PTY mouse-injection rig against the pinned tmux, plus
-  `menu.c`). The palette keeps the full command set
+  outside closes), and the two menu doors dispatch on
+  `MouseUp1Status` so the opening click's release is spent before the
+  menu exists (both layers established with a PTY mouse-injection rig
+  against the pinned tmux, plus `menu.c`). The chooser pins above the
+  tray (`-y S`); the palette keeps display-menu's default centered
+  position, and the tray's `+` cell gets a default-background spacer
+  so it no longer fuses with the last ghost cell. The palette keeps the full command set
   under 🥡 / `prefix+Space`, its bare "agent" item replaced by the
   chooser. Parallel instances of one CLI stay inside the CLI by
   decision record (BACKLOG): "another claude" is Claude Code's own

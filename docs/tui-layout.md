@@ -369,11 +369,15 @@ Three intents, one owner each:
      earlier "`-O` press-chooses-last-hover" rejection was measured on
      a NOMOUSE menu (no `-M`), where no motion was processed at all —
      wrong conclusion, right observation.
-  Both scripts pass `display-menu -M -O` with `-y S` pinning above the
-  tray; the two menu DOORS dispatch on `MouseUp1Status` — the opening
-  click's release is already spent before the menu exists. Immediate
-  actions (tabs, dock, req, ghost cells) stay on MouseDown: press-act
-  is tmux-native there and no menu is involved.
+  Both scripts pass `display-menu -M -O`; the two menu DOORS dispatch
+  on `MouseUp1Status` — the opening click's release is already spent
+  before the menu exists. Immediate actions (tabs, dock, req, ghost
+  cells) stay on MouseDown: press-act is tmux-native there and no menu
+  is involved. Position: the chooser pins above the tray (`-y S` — it
+  is the `+` button's menu); the palette takes display-menu's default,
+  centered both axes — the look it always had (a `-y S` on the palette
+  bottom-anchored the tall menu and read as broken centering,
+  2026-07-26 dogfood).
 - **Status range names clip at 15 bytes, so ghost ranges carry an
   index** (found 2026-07-26 dogfood: tmux's `struct style_range` keeps
   the name in `char string[16]`, so the ghost cell range

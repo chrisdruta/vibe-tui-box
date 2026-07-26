@@ -24,13 +24,17 @@ set --
 # records the mechanism): without -M the CLI-opened menu is NOMOUSE
 # (clicks swallowed, any release closes it); -M alone dies on the
 # first pointer motion outside the box (bare motion is release-coded);
-# -M -O lets motion aim and a press fire. -y S pins it above the tray;
-# the tray door opens on MouseUp so the opening click's release is
-# already spent. The bare "agent" item is retired for the agents
-# chooser: its label promised "new" while `vibe agent`'s -A semantics
-# delivered attach-or-launch — a second viewer on the same inner
-# session when one was already running.
-exec tmux display-menu "$@" -M -O -y S -T " vibe " \
+# -M -O lets motion aim and a press fire. No position flags: the
+# palette is the full command surface, and display-menu's default is
+# centered both axes — the look it always had (a -y S here once
+# bottom-anchored this tall menu and read as broken centering; the
+# tray-button chooser is the menu that anchors above the tray). The
+# tray door opens on MouseUp so the opening click's release is already
+# spent. The bare "agent" item is retired for the agents chooser: its
+# label promised "new" while `vibe agent`'s -A semantics delivered
+# attach-or-launch — a second viewer on the same inner session when
+# one was already running.
+exec tmux display-menu "$@" -M -O -T " vibe " \
   "agents" a "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/chooser.sh' '#{client_name}'\"" \
   "restart agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\" ; set-option -w @vibe_session agent" \
   "stop agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 40% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \

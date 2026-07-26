@@ -136,7 +136,10 @@ func winlist() string {
 		`#[range=user|dock]#[fg=#{@thm_dim}] ▤ #[norange]#[default]` +
 		`#{W:` + stockWindowCell + `,` + stockCurrentWindowCell + `}` +
 		`#{E:@vibe_ghosts}` +
-		`#[range=user|newwin]#[fg=#{@thm_dim}]#[bg=#{@thm_surface}] + #[norange]#[default]`
+		// One default-background space before the + cell: ghost cells
+		// and the + share the surface color, and without the gap the
+		// last ghost and the button fuse into one block.
+		` #[range=user|newwin]#[fg=#{@thm_dim}]#[bg=#{@thm_surface}] + #[norange]#[default]`
 }
 
 // themeSH renders the whole of theme.sh: palette variables and the
