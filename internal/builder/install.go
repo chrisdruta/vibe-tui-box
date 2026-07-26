@@ -77,11 +77,13 @@ const (
 // plugin manager, no runtime network, no plugin bytes on volumes (the
 // marketplace-install rejection record). These SHAs are executable
 // Lua: bump them deliberately, with a look at the upstream diff, never
-// by reflex. diffview pins the maintained fork — upstream sindrets is
-// dormant since mid-2024.
+// by reflex. diffview.nvim was here for one day and was retired by
+// dogfood (2026-07-26): lazygit owns diff review, and oil.nvim owns
+// the files surface (mini.files' floating columns read as broken
+// inside a full-screen popup).
 var reviewPlugins = []struct{ Repo, SHA string }{
 	{"echasnovski/mini.nvim", "946ae64e0ee807ae3c41f382f0114b4ed4915b2c"},
-	{"dlyongemallo/diffview.nvim", "62dc5adf4e77489a2a6d3bf36ef6e4ac5738b634"},
+	{"stevearc/oil.nvim", "b73018b75affd13fa38e2fc94ef753b465f770d7"},
 	{"lewis6991/gitsigns.nvim", "31d6fb2d618bca1482b9f274751ead5f03461408"},
 	{"folke/tokyonight.nvim", "cdc07ac78467a233fd62c493de29a17e0cf2b2b6"},
 	{"nvim-treesitter/nvim-treesitter", "8b3a191c015dd66a92d51a112ed96af0aac13b63"},

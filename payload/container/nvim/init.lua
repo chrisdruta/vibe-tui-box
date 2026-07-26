@@ -63,11 +63,10 @@ vim.api.nvim_create_autocmd('FileType', {
   end,
 })
 
--- mini.nvim: picker, file browser, statusline, keymap hints — ascii
--- throughout.
+-- mini.nvim: picker, statusline, keymap hints, ascii icon marks.
+require('mini.icons').setup({ style = 'ascii' })
 require('mini.statusline').setup({ use_icons = false })
 require('mini.pick').setup()
-require('mini.files').setup()
 local clue = require('mini.clue')
 clue.setup({
   triggers = {
@@ -104,35 +103,23 @@ require('gitsigns').setup({
   end,
 })
 
--- diffview: the review surface. q closes the view from anywhere in
--- it, and in review mode (edit.sh sets VIBE_REVIEW for the prefix+G
--- popup) closing the view closes the popup with it.
-require('diffview').setup({
-  use_icons = false,
+-- oil: the files surface — the directory IS the window (`nvim .`
+-- lands in it via default_file_explorer), `-` climbs, editing the
+-- listing edits the filesystem. Diff review is lazygit's job
+-- (prefix+g); gitsigns covers hunks while reading here.
+require('oil').setup({
+  default_file_explorer = true,
+  view_options = { show_hidden = true },
   keymaps = {
-    view = { { 'n', 'q', '<Cmd>DiffviewClose<CR>', { desc = 'close review' } } },
-    file_panel = { { 'n', 'q', '<Cmd>DiffviewClose<CR>', { desc = 'close review' } } },
-    file_history_panel = { { 'n', 'q', '<Cmd>DiffviewClose<CR>', { desc = 'close review' } } },
+    ['q'] = { 'actions.close', mode = 'n' },
   },
 })
-if vim.env.VIBE_REVIEW then
-  vim.api.nvim_create_autocmd('User', {
-    pattern = 'DiffviewViewClosed',
-    command = 'quitall',
-  })
-end
 
 local map = vim.keymap.set
-map('n', '-', function()
-  local name = vim.api.nvim_buf_get_name(0)
-  require('mini.files').open(name ~= '' and name or nil)
-end, { desc = 'browse files' })
+map('n', '-', '<Cmd>Oil<CR>', { desc = 'browse parent dir' })
 map('n', '<Leader>f', function() require('mini.pick').builtin.files() end, { desc = 'find file' })
 map('n', '<Leader>/', function() require('mini.pick').builtin.grep_live() end, { desc = 'grep' })
 map('n', '<Leader>b', function() require('mini.pick').builtin.buffers() end, { desc = 'buffers' })
-map('n', '<Leader>d', '<Cmd>DiffviewOpen<CR>', { desc = 'review diff' })
-map('n', '<Leader>h', '<Cmd>DiffviewFileHistory %<CR>', { desc = 'file history' })
-map('n', '<Leader>H', '<Cmd>DiffviewFileHistory<CR>', { desc = 'repo history' })
 map({ 'n', 'x' }, '<Leader>y', '"+y', { desc = 'copy to host clipboard' })
 map('n', '<Leader>q', '<Cmd>quitall<CR>', { desc = 'quit' })
 map('n', '<Esc>', '<Cmd>nohlsearch<CR>')

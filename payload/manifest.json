@@ -58,8 +58,8 @@
     {
       "path": "container/edit.sh",
       "mode": "0755",
-      "size": 1185,
-      "digest": "sha256:28b912591968f8a778b6548bf085ca812bd17e8f4c97ceb16fc4e175b4b7dc3f"
+      "size": 1054,
+      "digest": "sha256:8a6f7a5fa53703da9e0364d1c9cef80ef1bfd3bfbacb6395edb3182f5e445f66"
     },
     {
       "path": "container/entrypoint.sh",
@@ -82,8 +82,8 @@
     {
       "path": "container/nvim/init.lua",
       "mode": "0644",
-      "size": 4919,
-      "digest": "sha256:971540f36035195731dff554f5b6ad6f29f76248328aa4e5d3159e3eaa0adbb2"
+      "size": 4337,
+      "digest": "sha256:6b4da34ef20c130aaa361479613c099f31eb5f750b47fb49175c526a0f178acd"
     },
     {
       "path": "container/nvim/lua/vibe/theme.lua",
@@ -136,8 +136,8 @@
     {
       "path": "host/scripts/palette.sh",
       "mode": "0644",
-      "size": 2834,
-      "digest": "sha256:79997e02d918a7f9e1f6e65a395b27196a3035a0c4d327b003d55d6fb0dc2913"
+      "size": 2687,
+      "digest": "sha256:d4a167d161d2765b53f9fd73084542cf728e55442381db32ce5f47acb80be94f"
     },
     {
       "path": "host/scripts/popup.sh",
@@ -148,8 +148,8 @@
     {
       "path": "host/scripts/review.sh",
       "mode": "0755",
-      "size": 1312,
-      "digest": "sha256:27a182cdca91d2af9abde68d8473b2c3f7f6603ac9687e47d4b001850419de6c"
+      "size": 1399,
+      "digest": "sha256:a8d91e1c44877421ff3b954157c8dded54cf7da346a5f92ebad16cf31e4f1d7f"
     },
     {
       "path": "host/scripts/sidebar.sh",
@@ -172,8 +172,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 24609,
-      "digest": "sha256:ea7faf3b76181f801e8e40866d3baf1c89697712bedc878aec9de84c73164354"
+      "size": 24553,
+      "digest": "sha256:36cf837bb715c3275fa14d70a5544b271625394db4d199bc606aee4ef26c4bb1"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -236,5 +236,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:7c3132240e47589ab37317b53ea8350f2e53e268ef65e6cc68f18e1ec8740cd7"
+  "digest": "sha256:2b787571f9dcdfc130f9095320b123fd4bcf4504f7f9ce48fc5831a675560903"
 }

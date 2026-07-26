@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# The vibe editor-popup router — ONE definition behind prefix+f/g/G
-# and the palette's files/git/review items (docs/tui-layout.md
-# "Editor surfaces"). Routes into the CONTAINER's image-baked review
-# stack over `vibe exec` (a cold host needs nothing installed),
-# through the same run-shell detour as popup.sh: display-popup does
-# not format-expand its shell-command, so the caller expands
+# The vibe editor-popup router — ONE definition behind prefix+f/g and
+# the palette's files/git items (docs/tui-layout.md "Editor
+# surfaces"). Routes into the CONTAINER's image-baked review stack
+# over `vibe exec` (a cold host needs nothing installed), through the
+# same run-shell detour as popup.sh: display-popup does not
+# format-expand its shell-command, so the caller expands
 # client/exe/path here and the popup receives plain text. The popup's
 # -d puts the shell in the workspace so the engine resolves the right
-# project.
+# project. (A `review` mode — diffview — lived here for one day;
+# dogfood retired it in lazygit's favor, 2026-07-26.)
 #
-# Usage: review.sh CLIENT EXE SESSION_PATH files|review|git
+# Usage: review.sh CLIENT EXE SESSION_PATH files|git
 set -euo pipefail
 
 client="${1:?client}"
@@ -17,7 +18,7 @@ exe="${2:?engine path}"
 path="${3:?session path}"
 mode="${4:?mode}"
 case "$mode" in
-files | review | git) ;;
+files | git) ;;
 *) echo "review.sh: unknown mode '$mode'" >&2; exit 2 ;;
 esac
 

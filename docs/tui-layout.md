@@ -40,9 +40,8 @@ the transient layer, lazygit-pattern):
 │ 🥡 vibe-tui-box    ▤    ● claude    +               ⌨ · ● · 18:51 │
 └───────────────────────────────────────────────────────────────────┘
 
-prefix+f → ╭─ files · nvim ───────╮   prefix+G → ╭─ review · diffview ─╮
-prefix+g → ╭─ git · lazygit ──────╮   (90% popups, container-side via
-                                       vibe exec — a cold host needs
+prefix+f → ╭─ files · nvim/oil ───╮   (90% popups, container-side via
+prefix+g → ╭─ git · lazygit ──────╮    vibe exec — a cold host needs
                                        nothing installed)
 ```
 
@@ -156,10 +155,14 @@ replaceable, verdict capture stays engine-owned, and no `@vibe` knob.
   an engine-owned language list compiled at image build.
 - **The stack** (sharp = few pins, review-focused, deliberately NOT
   an IDE — no LSP, no completion, no nerd-font glyphs): mini.nvim
-  (pick/files/statusline/clue from one pin), diffview.nvim as the
-  review surface (pin the maintained fork — upstream is dormant since
-  2024), gitsigns.nvim, tokyonight.nvim under generated palette
-  overrides, nvim-treesitter.
+  (pick/statusline/clue/ascii icons from one pin), oil.nvim as the
+  files surface (the directory fills the window; mini.files' floating
+  columns read as broken inside a full-screen popup — dogfood,
+  2026-07-26), gitsigns.nvim, tokyonight.nvim under generated palette
+  overrides, nvim-treesitter. **Diff review is lazygit's job**: the
+  diffview.nvim surface (`prefix+G`) shipped and was retired the same
+  day — lazygit's built-in diff browsing covered it better, and a
+  second diff surface was one surface too many.
 - **Config** lives in `payload/container/nvim/` (read-only payload,
   XDG state dirs pointed at scratch), so keymap/option iteration
   rides a payload sync — only binaries, plugins, and parsers need an
@@ -168,22 +171,20 @@ replaceable, verdict capture stays engine-owned, and no `@vibe` knob.
   block: the TUI and the editor read as one product. lazygit gets a
   small generated yml the same way (`nerdFontsVersion: ""`).
 - **Keymap contract:** leader Space with clue hints on press; `-`
-  parent-dir browse, `<leader>f` files, `<leader>/` grep, `<leader>b`
-  buffers, `<leader>d` DiffviewOpen, `<leader>h`/`<leader>H`
-  file/repo history, `<leader>g…` hunk ops (preview/stage/reset/
-  blame), `]h`/`[h` hunk nav, `<leader>y` OSC 52 copy to the host
-  clipboard, `q` dismisses review panels (and, in review mode, the
-  popup with them).
-- **Binds (wired 2026-07-26):** `prefix+f/g/G` and the three palette
-  items all route through one host router, `scripts/review.sh CLIENT
-  EXE SESSION_PATH files|git|review` — the popup runs `vibe exec --
+  parent-dir browse (oil — editing the listing edits the
+  filesystem), `<leader>f` files, `<leader>/` grep, `<leader>b`
+  buffers, `<leader>g…` hunk ops (preview/stage/reset/blame),
+  `]h`/`[h` hunk nav, `<leader>y` OSC 52 copy to the host clipboard,
+  `<leader>q` quit.
+- **Binds (wired 2026-07-26):** `prefix+f/g` and the two palette
+  items route through one host router, `scripts/review.sh CLIENT
+  EXE SESSION_PATH files|git` — the popup runs `vibe exec --
   bash /vibe/payload/container/edit.sh <mode>` with `-d` on the
   workspace so the engine resolves the project, and a failed exec
   (stopped container) holds the popup open with the `vibe up` hint
   instead of flashing away. edit.sh owns the container side: it
   points `XDG_CONFIG_HOME` at the payload (nvim and lazygit both
   resolve under it), scratches data/state/cache, and execs the mode.
-  diffview's empty panel answers a clean tree — no gate needed.
 - **Customization:** the host passthrough (your own editor and
   config) stays one `~/.config/vibe/tui.conf` rebind away and is
   recorded in the backlog; the knob list stays honest.
@@ -273,7 +274,7 @@ The spec's regressions are owned by tests: `_state` display form in
 `internal/app/tui_test.go`. The manual check that has caught what
 tests miss: resize the sidebar and click every row type — the
 click-skew regression class. For the editor popups: with the
-container stopped, `prefix+f/g/G` must hold the popup open with the
-`vibe up` hint, never flash-and-close; and the parser layer's first
-real proof is a `vibe rebuild` (the headless nvim-treesitter install
-is the one build step this repo's tests cannot execute).
+container stopped, `prefix+f/g` must hold the popup open with the
+`vibe up` hint, never flash-and-close; and the parser layer's proof
+is a `vibe rebuild` (the headless nvim-treesitter install is the one
+build step this repo's tests cannot execute).

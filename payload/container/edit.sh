@@ -8,7 +8,7 @@
 # outside the image (the binaries and packpath are image-baked,
 # internal/builder/install.go).
 #
-# Usage: edit.sh files|review|git
+# Usage: edit.sh files|git
 set -euo pipefail
 
 mode="${1:-files}"
@@ -20,18 +20,14 @@ mkdir -p "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 
 case "$mode" in
 files)
-  exec nvim "+lua require('mini.files').open()"
-  ;;
-review)
-  # VIBE_REVIEW: init.lua quits nvim when the diff view closes, so q
-  # dismisses the whole popup.
-  VIBE_REVIEW=1 exec nvim +DiffviewOpen
+  # oil is the default_file_explorer: the directory fills the window.
+  exec nvim .
   ;;
 git)
   exec lazygit
   ;;
 *)
-  echo "edit.sh: unknown mode '$mode' (files|review|git)" >&2
+  echo "edit.sh: unknown mode '$mode' (files|git)" >&2
   exit 2
   ;;
 esac

@@ -74,11 +74,12 @@ section at the bottom — as revisable records, not fences.
   logic (annotation capture — its annotations-to-stdout channel may
   eventually absorb the `vibe review` A/R verdict flow). (2026-07-26:
   the fallback is no longer the yazi diff-toggle Lua plugin — the
-  editor-as-surface decision ships `prefix+G` (`git difftool
-  --tool=nvimdiff -y`) as the default diff walk regardless, so revdiff
-  now competes only for the annotation-capture harness role; other
-  spare parts (fzf change-preview glue, diffnav) remain recorded in
-  git history.)
+  bundled review stack ships lazygit (`prefix+g`) as the default
+  diff-review surface (dogfood-approved; the interim `prefix+G`
+  difftool walk and its diffview successor both retired the same day
+  they shipped), so revdiff now competes only for the
+  annotation-capture harness role; other spare parts (fzf
+  change-preview glue, diffnav) remain recorded in git history.)
 
 - **Upstream a codex-plugin sandbox override.** The official
   codex-plugin-cc pins per-thread sandbox modes over the app-server API
@@ -208,7 +209,12 @@ section at the bottom — as revisable records, not fences.
   by building a pinned grammar to a working .so with that exact
   binary. The `requires` names in parsers.lua (ecma/html_tags/jsx)
   are query-only pseudo-parsers shipped inside the plugin — never
-  install-list entries.
+  install-list entries. First dogfood verdicts (2026-07-26, Chris):
+  lazygit approved and PROMOTED to the sole diff-review surface —
+  `prefix+G`/diffview retired the day it shipped (a second diff
+  surface was one too many); the files surface swapped mini.files →
+  oil.nvim (floating columns in a full-screen popup read as broken;
+  oil fills the window).
 
 - **Host editor passthrough (parked 2026-07-26).** The original
   editor-as-surface idea — your own host nvim/config as the viewer —
