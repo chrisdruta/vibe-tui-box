@@ -6,6 +6,7 @@ package tmuxui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
@@ -61,29 +62,47 @@ func State(v ProjectView) string {
 
 // Sidebar renders one project's detail block for `vibe _sidebar`: the
 // display lines the shell sidebar nests under a project's name row (the
-// name itself stays bash-drawn, so it never appears here). Roles and
-// versions are semi-trusted and go through the encoder like everything
-// else.
+// name itself stays bash-drawn, so it never appears here). Display form
+// (docs/tui-layout.md, detail display form): one line per container —
+// StateToken glyph + role, the engine version riding the first line
+// (`dev-` hashes stripped to their first 8, release versions as-is) —
+// and a short pending row. The frame renderer draws the whole block
+// dim, so the glyphs carry shape, not color. Roles and versions are
+// semi-trusted and go through the encoder like everything else.
 func Sidebar(v ProjectView, width int) []string {
 	if width <= 0 {
 		width = 40
 	}
-	lines := []string{
-		terminal.Line(fmt.Sprintf("  %s %s", v.Mode, v.Version), width),
+	ver := v.Version
+	if rest, ok := strings.CutPrefix(ver, "dev-"); ok {
+		if len(rest) > 8 {
+			rest = rest[:8]
+		}
+		ver = rest
 	}
-	for _, c := range v.Containers {
-		state := "stopped"
-		if c.Running {
-			state = "running"
+	var lines []string
+	for i, c := range v.Containers {
+		glyph := StateRunning
+		switch {
+		case !c.Running:
+			glyph = StateStopped
+		case !c.InSync:
+			glyph = StateStale
 		}
-		suffix := ""
-		if !c.InSync {
-			suffix = " (stale)"
+		line := fmt.Sprintf("  %s %s", glyph, c.Role)
+		if i == 0 && ver != "" {
+			line += " · " + ver
 		}
-		lines = append(lines, terminal.Line(fmt.Sprintf("  %-12s %s%s", c.Role, state, suffix), width))
+		lines = append(lines, terminal.Line(line, width))
+	}
+	// No containers yet: one dim facts line so the block never renders
+	// empty under a registered project's name.
+	if len(lines) == 0 && (v.Mode != "" || ver != "") {
+		line := strings.TrimRight(fmt.Sprintf("  %s %s %s", StateNone, v.Mode, ver), " ")
+		lines = append(lines, terminal.Line(line, width))
 	}
 	if v.Pending > 0 {
-		lines = append(lines, terminal.Line(fmt.Sprintf("  ▲ %d request(s) pending — vibe request list", v.Pending), width))
+		lines = append(lines, terminal.Line(fmt.Sprintf("  ▲ %d pending", v.Pending), width))
 	}
 	return lines
 }

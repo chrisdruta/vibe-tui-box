@@ -78,7 +78,7 @@ func themeBlock() string {
 
 // barBorderWidth is the fixed length of the status-format[0] rule —
 // wide enough for any plausible terminal; tmux clips the excess.
-const barBorderWidth = 400
+const barBorderWidth = 1000
 
 // tmux 3.7's stock window-list cells, verbatim from
 // `tmux show -g status-format` — the two halves of the `W:` construct.

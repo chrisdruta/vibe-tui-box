@@ -54,17 +54,42 @@ func TestSidebarDetailBlock(t *testing.T) {
 			}
 		}
 	}
-	// The block carries mode/version, one line per container, and the
-	// pending row — never the display name (that row is bash-drawn).
+	// One line per container (glyph + role, version riding the first),
+	// then the pending row — never the display name (bash-drawn) and
+	// never the old mode/state words.
 	lines := Sidebar(v, 60)
-	if len(lines) != 4 || !strings.Contains(lines[0], "release v2.0.0") ||
-		!strings.Contains(lines[3], "request(s) pending") {
+	if len(lines) != 3 || !strings.Contains(lines[0], "● dev · v2.0.0") ||
+		!strings.Contains(lines[1], "● sidecar:db") ||
+		!strings.Contains(lines[2], "▲ 1 pending") {
 		t.Fatalf("sidebar shape: %q", lines)
 	}
 	for _, line := range lines {
 		if strings.Contains(line, "myproj") {
 			t.Fatalf("detail block leaked the display name: %q", line)
 		}
+	}
+}
+
+func TestSidebarDetailGlyphsAndDevHash(t *testing.T) {
+	v := runningView()
+	v.Mode, v.Version = "dev", "dev-9766b8d8ddce0f00"
+	v.Containers[0].InSync = false
+	v.Containers[1].Running = false
+	lines := Sidebar(v, 60)
+	// Stale renders ◐, stopped ○; the dev hash drops its prefix and
+	// cuts to 8.
+	if !strings.Contains(lines[0], "◐ dev · 9766b8d8") || strings.Contains(lines[0], "ddce") {
+		t.Fatalf("stale/dev-hash line wrong: %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "○ sidecar:db") {
+		t.Fatalf("stopped line wrong: %q", lines[1])
+	}
+	// No containers: one StateNone facts line so the block never
+	// renders empty.
+	v.Containers = nil
+	lines = Sidebar(v, 60)
+	if len(lines) != 1 || !strings.Contains(lines[0], "· dev 9766b8d8") {
+		t.Fatalf("containerless block wrong: %q", lines)
 	}
 }
 

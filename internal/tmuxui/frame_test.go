@@ -114,26 +114,40 @@ func TestFrameRosterEntriesAndJumpTargets(t *testing.T) {
 	rows := frameRows(t, out.Body)
 	clicks := mapRows(t, out.Map)
 
-	// Roster starts at the midpoint (height 24 → row 12) with the ruled
-	// header, then two-line entries with a gap row; name and detail
-	// share the SESSION:WINDOW jump target.
-	if !strings.Contains(rows[12], "agents") {
-		t.Fatalf("roster header missing at midpoint: %q", rows[12])
+	// Roster flows directly after the fleet section (alpha rows 1-3,
+	// beta rows 4-5 → header at 6, the slop row separating) with the
+	// ruled header, then two-line entries with a gap row; name and
+	// detail share the SESSION:WINDOW jump target.
+	if !strings.Contains(rows[6], "agents") {
+		t.Fatalf("roster header missing after the fleet: %q", rows[6])
 	}
-	if _, ok := clicks[12]; ok {
+	if _, ok := clicks[6]; ok {
 		t.Fatal("the roster header must not be clickable")
 	}
-	if !strings.Contains(rows[13], "codex:review") {
-		t.Fatalf("first roster entry should be the self session's agent, got %q", rows[13])
+	if !strings.Contains(rows[7], "codex:review") {
+		t.Fatalf("first roster entry should be the self session's agent, got %q", rows[7])
 	}
-	if clicks[13] != "$1:@3" || clicks[14] != "$1:@3" {
-		t.Fatalf("roster rows must jump to session+window: %q / %q", clicks[13], clicks[14])
+	if clicks[7] != "$1:@3" || clicks[8] != "$1:@3" {
+		t.Fatalf("roster rows must jump to session+window: %q / %q", clicks[7], clicks[8])
 	}
-	if !strings.Contains(rows[17], "opus · beta") {
-		t.Fatalf("detail line should read model · project, got %q", rows[17])
+	if !strings.Contains(rows[11], "opus · beta") {
+		t.Fatalf("detail line should read model · project, got %q", rows[11])
 	}
-	if clicks[16] != "$2:@9" {
-		t.Fatalf("second entry target: %q", clicks[16])
+	if clicks[10] != "$2:@9" {
+		t.Fatalf("second entry target: %q", clicks[10])
+	}
+}
+
+func TestFrameFooterHint(t *testing.T) {
+	out := Frame(twoSessionInput())
+	rows := frameRows(t, out.Body)
+	clicks := mapRows(t, out.Map)
+	// Height 24 → the footer hint owns row 23, render-only.
+	if !strings.Contains(rows[23], "palette") {
+		t.Fatalf("footer hint missing on the last row: %q", rows[23])
+	}
+	if _, ok := clicks[23]; ok {
+		t.Fatal("the footer must not be clickable")
 	}
 }
 
@@ -185,7 +199,8 @@ func TestFrameRosterOverflowCount(t *testing.T) {
 			overflow = content
 		}
 	}
-	// height 12 → start 6, avail 5, two slots; slot two becomes the
+	// name row 1 + slop row 2 → header at 3; height 12 reserves the
+	// footer row, leaving avail 7 = two slots; slot two becomes the
 	// count: 6 agents − 1 shown = 5 hidden.
 	if !strings.Contains(overflow, "+5 more") {
 		t.Fatalf("overflow slot wrong: %q (body %v)", overflow, body)
@@ -208,11 +223,11 @@ func TestFrameLongFleetPushesRosterDown(t *testing.T) {
 			headerRow = row
 		}
 	}
-	// 4 sessions × 3 rows each fill rows 1-12; the midpoint (9) is
-	// inside the fleet, so the header lands below it (row 14: one blank
-	// row of separation), never over it.
-	if headerRow != 14 {
-		t.Fatalf("roster header must sit below the fleet at row 14, got %d", headerRow)
+	// 4 sessions × 3 rows each fill rows 1-12 (each ending in its slop
+	// row); the header flows straight on at row 13, the last slop row
+	// as the separator.
+	if headerRow != 13 {
+		t.Fatalf("roster header must flow after the fleet at row 13, got %d", headerRow)
 	}
 }
 
@@ -232,7 +247,7 @@ func TestFrameAttentionAndFacts(t *testing.T) {
 		{ID: "projbeta", Token: string(StateStale), Mode: "dev", Pending: 2, Name: "beta"},
 		{ID: "cold-project", Token: string(StateNone), Mode: "release", Name: "coldname"},
 	}
-	in.Detail = []string{"release v2.0.0", "dev          running"}
+	in.Detail = []string{"● dev · 9766b8d8", "▲ 2 pending"}
 	out := Frame(in)
 	rows := frameRows(t, out.Body)
 	clicks := mapRows(t, out.Map)
@@ -242,7 +257,7 @@ func TestFrameAttentionAndFacts(t *testing.T) {
 		t.Fatal("attention dot must render coral")
 	}
 	// Self session (alpha) carries its detail block under the branch.
-	if !strings.Contains(rows[3], "release v2.0.0") || clicks[3] != "$1" {
+	if !strings.Contains(rows[3], "● dev · 9766b8d8") || clicks[3] != "$1" {
 		t.Fatalf("detail block misplaced: %q -> %q", rows[3], clicks[3])
 	}
 	// The other session gets the one-line dim facts summary.

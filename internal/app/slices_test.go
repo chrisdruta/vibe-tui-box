@@ -582,8 +582,10 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 	if err != nil || len(state.Lines) != 1 || state.Lines[0] != "●" {
 		t.Fatalf("state render: %+v, %v", state, err)
 	}
+	// _sidebar is display form too: one glyph+role line per container
+	// (no pending, no version here — nothing else renders).
 	sidebar, err := a.RenderSidebar(ctx, RenderRequest{Project: rec.ID, Width: 40})
-	if err != nil || len(sidebar.Lines) < 2 {
+	if err != nil || len(sidebar.Lines) != 1 || !strings.Contains(sidebar.Lines[0], "● dev") {
 		t.Fatalf("sidebar render: %+v, %v", sidebar, err)
 	}
 	// _fleet porcelain: US-separated, version 1, project ID as join key.

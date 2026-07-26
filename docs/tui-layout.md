@@ -5,7 +5,9 @@ demanded a written spec before any wiring — layout arithmetic is where
 the sidebar bugs have lived (click-map skew, dot wrapping, resize
 ballooning). Wiring follows this file; disagreements edit it first.
 Updated 2026-07-25 to the shipped state (the `_frame` move and the
-bottom-bar tray included).
+bottom-bar tray included). Updated 2026-07-26 with the polish-pass
+calls (roster flow, sidebar footer, detail display form, status-right
+separators, editor popups), wired the same day.
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -13,6 +15,43 @@ construct), and the bar border are **generated** into marker-delimited
 regions of `tmux-tui.conf` from `internal/tmuxui/theme.go` /
 `internal/payload/gen` — edit the Go side; hand edits to those regions
 are CI drift failures.
+
+## The frame
+
+The target frame, agreed 2026-07-26 (dogfood project shown; popups are
+the transient layer, lazygit-pattern):
+
+```
+┌─ projects ────────────┬─ ● claude ────────────────────────────────┐
+│ ▍vibe-tui-box ●       │                                           │
+│    ⎇ main             │                                           │
+│    ● dev · 9766b8d8   │                                           │
+│    ▲ 2 pending        │              agent pane                   │
+│                       │                                           │
+│  · cold-project       │                                           │
+│                       │                                           │
+│ ─ agents ─────────────│                                           │
+│ ▍● claude             │                                           │
+│    Fable 5 · vibe-tu… │                                           │
+│                       ├─ host ────────────────────────────────────┤
+│ C-Space·Space palette │ chris@host:~/dev/vibe-tui-box$            │
+├───────────────────────┴───────────────────────────────────────────┤
+│ ─────────────────────────────── rule ─────────────────────────────│
+│ 🥡 vibe-tui-box    ▤    ● claude    +               ⌨ · ● · 18:51 │
+└───────────────────────────────────────────────────────────────────┘
+
+prefix+g → ╭─ lazygit ────────────╮   prefix+f → ╭─ nvim . ─────────╮
+prefix+G → ╭─ difftool diff walk ─╮   (85% popups, host binary,
+                                       `|| bash -l` fallback)
+```
+
+The outer box is the terminal window's edge, drawn only to frame the
+figure — the UI adds no outer border; pane borders and the two status
+lines are the only chrome. Left to right, top to bottom: sidebar
+(fleet section, then the agent roster flowing directly after it,
+footer hint on the last row), agent pane with role-gated border title,
+host dock collapsed to its 1-row strip, then the two status lines
+(rule + tray).
 
 ## Decisions
 
@@ -44,6 +83,14 @@ Top-preferrers set `status-position top` in the user conf.
 | prefix/copy | `⌨` / `copy` indicators (stamped `status-right`) |
 | engine state | state glyph, `▲n` only when pending > 0; click opens the request list (`#(vibe _state)` splice in user range `req`) |
 | clock | `%H:%M` (stamped `status-right`) |
+
+The right segments read `⌨ · ● · 18:51` — a dim ` · ` separator
+between prefix/copy, the engine-state cell, and the clock (2026-07-26;
+before, the bare state dot sat flush against the clock and nothing
+signaled it was a distinct, clickable cell). The cheatsheet's
+inventory includes the stock affordances people forget (`z` zoom, `[`
+scroll/copy, `x` close) alongside the vibe binds — it is the only
+discoverability surface once the prefix is down.
 
 The bar never carries project identity: the sidebar and the OS window
 title (`@vibe_name`) own it, and the ID-derived session name appears in
@@ -86,6 +133,33 @@ it wins. The store-owned conf is never forked, re-materialization never
 eats user edits, and `-q` keeps a missing file silent. Anything a knob
 would micro-manage lives here instead.
 
+### Editor surfaces: nvim popups, yazi dropped (2026-07-26)
+
+The stance is **editor-as-surface**: vibe ships tmux glue only, never
+an editor config — the flexibility comes from the user's own nvim
+setup, not from a vibe-owned distro (the v1 bash→yazi→Lua-plugin
+layering is on record as not wanted back, and a vibe-owned nvim
+config would be the same maintenance surface under a new name).
+
+- `prefix+f` — files/editor popup: `nvim . || bash -l` at
+  `#{session_path}`, 85%, the lazygit pattern verbatim (host binary,
+  bind-mounted workspace, store-owned glue only). Browsing, viewing,
+  and editing ride whatever the user's config provides (netrw is the
+  zero-config floor).
+- `prefix+G` — review walk: `git difftool --tool=nvimdiff -y`, gated
+  on a non-empty diff (`git diff --quiet` else a "no changes"
+  display-message). Plugin-free real vimdiff over every changed file;
+  zero config required.
+- Both are palette items too (`files (nvim)`, `review diff`) — one
+  definition per door, as ever.
+- No `@vibe_reviewer` knob: users who want `nvim +DiffviewOpen` or a
+  different walker rebind the key in `~/.config/vibe/tui.conf`, the
+  sanctioned customization point. The knob list stays honest.
+- A/R verdict capture stays engine-owned and viewer-replaceable
+  (BACKLOG "Review/image stack revival") — nothing here commits the
+  verdict flow to nvim; these popups are the default *viewing* path
+  regardless of how revdiff's trial lands.
+
 ### Default arrangement
 
 Agent pane dominant; sidebar far left at `@vibe_sidebar_w` fixed cols,
@@ -106,13 +180,32 @@ never does layout math. The contract the renderer implements:
   session as its click target. Cold registered projects (fleet entries
   with no live session) render dim and unclickable — click-dispatching
   `up` is a recorded open product call, not half-shipped here.
-- The **aggregate agent roster** starts at the pane midpoint (a long
-  fleet pushes it down instead of overlapping), under a ruled `agents`
-  header: two-line entries (dot + window name; dim model · project
-  detail) plus a gap row, all three sharing one `SESSION:WINDOW` jump
-  target. When only part fits, the last slot becomes an overflow count.
-  The roster is render-only — no dismiss/kill affordance (BACKLOG
-  decision record, 2026-07-25).
+- The **aggregate agent roster** flows directly after the fleet
+  section (supersedes "starts at the pane midpoint", 2026-07-26: with
+  a small fleet the midpoint rule left two separate dead blocks; the
+  flowing roster keeps one contiguous empty region below it — roster
+  rows shift only when fleet rows change, which the per-frame click
+  map republication already absorbs), under a ruled `agents` header:
+  two-line entries (dot + window name; dim model · project detail)
+  plus a gap row, all three sharing one `SESSION:WINDOW` jump target.
+  When only part fits, the last slot becomes an overflow count. The
+  roster is render-only — no dismiss/kill affordance (BACKLOG decision
+  record, 2026-07-25).
+- The **footer hint row** owns the last row: dim
+  `C-Space · Space palette`, truncated to the text budget, render-only
+  (no click target — the palette's mouse doors are the tray cells).
+  It exists for the cold start: the cheatsheet only appears once the
+  prefix is already known.
+- The **detail block display form** (`vibe _sidebar`, views.go): one
+  line per container — StateToken glyph + role (the renderer draws the
+  whole block dim, so the glyphs carry shape, not color) — with the
+  engine version riding the first line (`dev-` hashes stripped of the
+  prefix and cut to 8: `● dev · 9766b8d8`; release versions as-is).
+  Pending renders `▲ n pending`. This supersedes the
+  mode+version header line and the `%-12s`-padded state words
+  (2026-07-26: `dev dev-9766b8d8ddce` over `dev          running` was
+  three "dev"s meaning mode, version prefix, and role — and words
+  where every other surface speaks the `● ○ ◐` glyph vocabulary).
 - Budgets derive from pane width: text budget is `width−3` (floor 8);
   a session's name budget shrinks 2 cols per state dot (floor 8) so a
   long name can never wrap the dots and skew the click map; roster
@@ -151,4 +244,6 @@ The spec's regressions are owned by tests: `_state` display form in
 `internal/tmuxui/frame_test.go`, and the user-conf epilogue in
 `internal/app/tui_test.go`. The manual check that has caught what
 tests miss: resize the sidebar and click every row type — the
-click-skew regression class.
+click-skew regression class. For the editor popups: `prefix+G` on a
+clean tree must show the "no changes" message, never a
+flash-and-close popup.

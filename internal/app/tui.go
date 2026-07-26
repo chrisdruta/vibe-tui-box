@@ -240,11 +240,14 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 		}
 		// The tray's right cluster: the v1 prefix/copy flashes, the
 		// clickable engine-state cell (range "req" → request list in the
-		// conf's mouse dispatch), and the clock. The display name stays
+		// conf's mouse dispatch), and the clock, dim ` · ` between the
+		// segments (tui-layout.md 2026-07-26: the bare state dot flush
+		// against the clock read as one cell). The display name stays
 		// out — the sidebar and the OS title carry identity; the bar
 		// never repeats it.
-		status = fmt.Sprintf("#{?client_prefix,#[fg=#{@thm_coral}#,bold]⌨  ,}#{?pane_in_mode,#[fg=#{@thm_yellow}#,bold]copy ,}#[default]"+
-			"#[range=user|req]#(%s _state --project %s)#[norange] #[fg=#{@thm_dim}]%%H:%%M#[default] ",
+		status = fmt.Sprintf("#{?client_prefix,#[fg=#{@thm_coral}#,bold]⌨#[default]#[fg=#{@thm_dim}] · #[default],}"+
+			"#{?pane_in_mode,#[fg=#{@thm_yellow}#,bold]copy#[default]#[fg=#{@thm_dim}] · #[default],}"+
+			"#[range=user|req]#(%s _state --project %s)#[norange]#[fg=#{@thm_dim}] · %%H:%%M#[default] ",
 			a.deps.Executable, rec.ID)
 	}
 	if err := a.deps.Tmux.SetOption(ctx, session, "status-right", status); err != nil {

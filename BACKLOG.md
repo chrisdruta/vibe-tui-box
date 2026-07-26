@@ -64,16 +64,21 @@ section at the bottom — as revisable records, not fences.
   layered configs) is explicitly not wanted back. The v1 git history
   remains the reference for the A/R verdict *flow* and the decisions
   JSONL contract; the next design should put verdict capture at an
-  engine-owned layer and keep the viewer replaceable.
+  engine-owned layer and keep the viewer replaceable. (2026-07-26: the
+  default *viewing* path is now decided — editor-as-surface nvim
+  popups, docs/tui-layout.md "Editor surfaces"; this entry narrows to
+  the verdict-capture and image halves.)
 
 - **revdiff trial verdict (pending dogfood).** revdiff was the v1 trial
   diff-review surface; it gets a top-level verb only if it earns harness
   logic (annotation capture — its annotations-to-stdout channel may
-  eventually absorb the `vibe review` A/R verdict flow). If revdiff
-  disappoints, the fallback is the ~1-day yazi diff-toggle Lua plugin
-  (existence proof: vscode-git-gutter.yazi on the v1-pinned 26.5.6);
-  other spare parts (fzf change-preview glue, diffnav) are recorded in
-  git history.
+  eventually absorb the `vibe review` A/R verdict flow). (2026-07-26:
+  the fallback is no longer the yazi diff-toggle Lua plugin — the
+  editor-as-surface decision ships `prefix+G` (`git difftool
+  --tool=nvimdiff -y`) as the default diff walk regardless, so revdiff
+  now competes only for the annotation-capture harness role; other
+  spare parts (fzf change-preview glue, diffnav) remain recorded in
+  git history.)
 
 - **Upstream a codex-plugin sandbox override.** The official
   codex-plugin-cc pins per-thread sandbox modes over the app-server API
@@ -126,9 +131,9 @@ section at the bottom — as revisable records, not fences.
   menu-expanded palette door worked); the stop/park popups now ride
   popup.sh's `-w/-h` and the Q/K confirm prompts are command aliases
   (`vibe-quit-ui`/`vibe-kill-server`) shared by binds and palette —
-  this sub-item is done; (3) the bar's
-  rule line is a 400-glyph literal (clients wider
-  than 400 cols show it stopping mid-bar); (4) stop/restart plumbed as
+  this sub-item is done; (3) the bar's rule line was a 400-glyph
+  literal — regenerated at 1000 with the 2026-07-26 polish pass, this
+  sub-item is done; (4) stop/restart plumbed as
   two mutually-exclusive bools instead of one mode end to end (the
   script silently accepts `--restart` in stop mode); (5) startApproved's
   Docker Ping is redundant with the Status call's own error; (6)
@@ -168,6 +173,18 @@ section at the bottom — as revisable records, not fences.
   (Windows Terminal is sixel-only), so the revisit trigger is a
   kitty-capable frontend becoming real (then test
   `chafa -f kitty --passthrough tmux`).
+
+- **TUI polish pass — SHIPPED 2026-07-26.** Spec first
+  (docs/tui-layout.md, same-day update with the embedded target
+  frame), then wired: roster flows after the fleet section + footer
+  hint row (frame.go), detail block display form `● role · hash` /
+  `▲ n pending` (views.go Sidebar), ` · ` separators in the stamped
+  status-right (app/tui.go), cheatsheet gains
+  `z zoom · [ scroll · x close · f files · G review`,
+  `prefix+f`/`prefix+G` editor popups via scripts/review.sh + the two
+  palette items, and the bar-border rule literal generated at 1000
+  cols instead of 400 (closed branch-review remainder item 3).
+  Pending dogfood feedback — the layout calls are revisable once felt.
 
 - **Open flag:** should the root AGENTS.md import a project-level
   `.vibe/AGENTS.md` the way the future preset template will tell consumer
@@ -236,6 +253,16 @@ history). Read the mechanisms as historical; the calls stand.
   different OUTER containers (`--jailed`), never a nested inner sandbox
   (docs/security.md "Inner agent sandboxes" in the v1 line; the call
   carries to v2).
+- **Editor-as-surface; yazi dropped (2026-07-26, Chris).** The file
+  browser / code viewer / diff-review surface is the user's own nvim
+  launched through tmux glue (lazygit-pattern popups), never a
+  vibe-shipped viewer config — a vibe-owned yazi *or* nvim config
+  would recreate the v1 layered-config maintenance surface the
+  revival verdict rejected. Plugin-free floors keep it honest
+  (netrw, `git difftool --tool=nvimdiff -y`); customization is a key
+  rebind in `~/.config/vibe/tui.conf`, not a knob. Verdict capture
+  stays engine-owned and viewer-replaceable. Full contract:
+  docs/tui-layout.md "Editor surfaces".
 - **Roster stays render-only — no dismiss affordance (2026-07-25).** A
   ctrl-c-quit agent left a ✗ viewer window needing manual reaping, and
   "add dismiss to the roster" was considered and rejected: it would put

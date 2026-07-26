@@ -162,6 +162,7 @@ func fg(hex string) string {
 type frameCanvas struct {
 	body strings.Builder
 	maps []string
+	used int // highest row drawn so far — the footer must never overdraw
 }
 
 // putAt draws content at the 0-based row (map keys are 0-based mouse_y
@@ -170,6 +171,9 @@ func (c *frameCanvas) putAt(row int, content, target string) {
 	fmt.Fprintf(&c.body, "\x1b[%d;1H%s%s", row+1, content, ansiEOL)
 	if target != "" {
 		c.maps = append(c.maps, fmt.Sprintf("%d:%s", row, target))
+	}
+	if row > c.used {
+		c.used = row
 	}
 }
 
@@ -187,9 +191,10 @@ type rosterEntry struct {
 // project's detail block, and a blank slop row, all claiming the
 // session as click target; cold registered projects (fleet entries
 // with no live session) render dim and unclickable. The aggregate
-// agent roster starts at the pane midpoint (pushed down by a long
-// fleet), under a ruled header, as two-line entries with a gap row;
-// when only part fits, the last slot becomes an overflow count.
+// agent roster flows directly after the fleet section, under a ruled
+// header, as two-line entries with a gap row; when only part fits,
+// the last slot becomes an overflow count. The footer hint owns the
+// last row (render-only).
 func Frame(in FrameInput) FrameOutput {
 	var (
 		cFG     = fg(PaletteHex("fg"))
@@ -311,25 +316,29 @@ func Frame(in FrameInput) FrameOutput {
 	// Cold registered projects — fleet entries with no live session.
 	// Render-only dim rows: click dispatching `up` is a recorded product
 	// call, not half-shipped here.
+	cold := false
 	for _, f := range in.Fleet {
 		if seen[f.ID] {
 			continue
 		}
 		c.putAt(row, " "+cDim+"· "+terminal.Line(f.Name, max-2)+ansiReset, "")
 		row++
+		cold = true
 	}
 	// Clear everything below the fleet section before the roster draws.
 	fmt.Fprintf(&c.body, "\x1b[%d;1H\x1b[J", row+1)
 
-	// The aggregate agent roster, from the pane midpoint: projects own
-	// the top half, agents the bottom — a fleet past the midpoint pushes
-	// the roster down instead of overlapping it.
-	minStart := row + 1
-	start := in.Height / 2
-	if start < minStart {
-		start = minStart
+	// The aggregate agent roster flows directly after the fleet section
+	// (supersedes the midpoint rule, tui-layout.md 2026-07-26): the
+	// sessions' trailing slop row is the separator, cold rows get one
+	// added — a small fleet leaves one contiguous empty region below
+	// the roster instead of two dead blocks.
+	start := row
+	if cold {
+		start++
 	}
-	avail := in.Height - start - 1
+	// The footer hint owns the last row; roster entries stop above it.
+	avail := in.Height - start - 2
 	// Each entry is name + detail + gap, with no trailing gap.
 	nShow := min((avail+1)/3, len(roster))
 	if len(roster) > 0 && nShow >= 1 {
@@ -354,6 +363,13 @@ func Frame(in FrameInput) FrameOutput {
 			}
 			r += 3
 		}
+	}
+	// The footer hint row (render-only, never clickable): the cold-start
+	// pointer to the palette — the cheatsheet only appears once the
+	// prefix is already known. Skipped when an overfull frame already
+	// reached the last row.
+	if fr := in.Height - 1; fr > c.used {
+		c.putAt(fr, " "+cDim+terminal.Line("C-Space · Space palette", max)+ansiReset, "")
 	}
 	c.body.WriteString("\x1b[H") // park the cursor; a trailing newline cannot scroll
 	return FrameOutput{Map: strings.Join(c.maps, " "), Body: c.body.String()}
