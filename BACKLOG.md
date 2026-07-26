@@ -197,11 +197,18 @@ section at the bottom — as revisable records, not fences.
   the parser layer (headless nvim-treesitter main-branch install —
   the one build step engine tests cannot execute; if it fights back,
   the layer is independently droppable), and dogfood judges the
-  keymap contract. The first rebuild attempt (2026-07-26) caught the
-  prebuilt tree-sitter CLI linking glibc 2.39 against the base's
-  2.36 — every 0.26.x release binary does; fixed by cargo-building
-  the CLI in-layer with a pinned Rust toolchain that lives in scratch
-  and dies inside the same layer, only the binary remaining.
+  keymap contract. Rebuild attempts (2026-07-26) settled the CLI pin:
+  every tree-sitter 0.26.x release binary links glibc 2.39 against
+  the base's 2.36, and the cargo-built-CLI detour was tried and
+  rejected the same day (a Rust toolchain in the layer is exactly the
+  heavyweight dep this image avoids). The pin landed on the OFFICIAL
+  0.25.10 binary (glibc 2.34/2.29): the README's ">= 0.26.1" is a
+  docs floor, not enforcement — install.lua only runs `tree-sitter
+  build` for our parser set (none carry `generate = true`), verified
+  by building a pinned grammar to a working .so with that exact
+  binary. The `requires` names in parsers.lua (ecma/html_tags/jsx)
+  are query-only pseudo-parsers shipped inside the plugin — never
+  install-list entries.
 
 - **Host editor passthrough (parked 2026-07-26).** The original
   editor-as-surface idea — your own host nvim/config as the viewer —

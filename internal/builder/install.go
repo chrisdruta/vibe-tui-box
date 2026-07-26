@@ -53,16 +53,23 @@ const (
 	lazygitVersion     = "0.63.1"
 	lazygitSHA256AMD64 = "8e033bc78c8e192dee9510e951f6c9e154289b7198d22c924ed1d0a951b0dac1"
 	lazygitSHA256ARM64 = "555dbc9a8efcf2e33bc24e7fbd9463e9fa375e3c5e23cc270763733c38eeae36"
-	// nvim-treesitter's main branch requires the tree-sitter CLI
-	// (>= 0.26.1) for the build-time parser compile. Built from the
-	// crates.io source with a PINNED Rust toolchain, not the release
-	// binaries: every 0.26.x prebuilt links glibc 2.39 (Ubuntu 24.04
-	// runners) and the bookworm-era bases carry 2.36 — the first
-	// rebuild proved it (2026-07-26). The toolchain lives in the RUN's
-	// scratch dir and is deleted in the same layer; only the CLI
-	// binary lands in the image.
-	treesitterCLIVersion = "0.26.11"
-	rustVersion          = "1.97.1"
+	// nvim-treesitter's build-time parser compile shells out to the
+	// tree-sitter CLI. The 0.25 line is the newest OFFICIAL binary
+	// that runs on the bookworm-era bases: every 0.26.x prebuilt
+	// links glibc 2.39 (Ubuntu 24.04 runners) vs the base's 2.36 —
+	// the first rebuild proved it, and a cargo-built CLI was tried
+	// and rejected the same day (a Rust toolchain in the layer is
+	// exactly the heavyweight dep this image avoids). The README's
+	// "CLI >= 0.26.1" floor is documentation, not enforcement:
+	// install.lua only ever runs `tree-sitter build` for our parser
+	// set (none carry `generate = true` in parsers.lua at the pinned
+	// SHA — the one version-sensitive subcommand), verified end to
+	// end by building a pinned grammar to a working .so with this
+	// exact binary (2026-07-26). Release assets use x64/arm64 names;
+	// glibc floors: 2.34 (x64) / 2.29 (arm64).
+	treesitterCLIVersion     = "0.25.10"
+	treesitterCLISHA256AMD64 = "8283ddba69253c698f6e987ba0e2f9285e079c8db4d36ebe1394b5bb3a0ebdfd"
+	treesitterCLISHA256ARM64 = "07fbff8ae0eeb0d3e496e14fc1a30dcc730cc2c97d70e601e5357f2e51958af5"
 )
 
 // reviewPlugins are cloned into the root-owned native packpath
@@ -83,7 +90,12 @@ var reviewPlugins = []struct{ Repo, SHA string }{
 // reviewParsers is the engine-owned treesitter language list, compiled
 // once at image build (nvim-treesitter main branch, headless install)
 // into a root-owned site dir — no runtime compiles. Engine-owned on
-// purpose: a manifest knob here would grow without bound.
+// purpose: a manifest knob here would grow without bound. The
+// `requires` entries some of these carry in parsers.lua (ecma,
+// html_tags, jsx) are query-only pseudo-parsers with no install_info —
+// their queries ship inside the cloned plugin and nothing compiles, so
+// they must NOT appear in this list (they would produce no .so and
+// trip the exact-count guard below).
 var reviewParsers = []string{
 	"bash", "c", "css", "diff", "go", "gomod", "gosum", "html",
 	"javascript", "json", "lua", "luau", "markdown", "markdown_inline",
@@ -298,17 +310,20 @@ RUN mkdir -p /opt/vibe/nvim/pack/vibe/start`)
 	out = append(out, plugins.String())
 	out = append(out, `# Treesitter parsers for the engine-owned language list, compiled at
 # image build (the tmux layer's build-essential compiles, the pinned
-# tree-sitter CLI drives — a main-branch nvim-treesitter requirement)
-# into a root-owned site dir the payload nvim config puts on the
-# runtime path — no runtime compiles, no writable plugin state. The
-# CLI is cargo-built with a pinned toolchain (release prebuilts need
-# glibc 2.39 — newer than bookworm-era bases); the toolchain lives in
-# scratch and dies inside this layer, only the CLI binary remains.
+# OFFICIAL tree-sitter CLI drives — see the pin comment for why the
+# 0.25 line) into a root-owned site dir the payload nvim config puts
+# on the runtime path — no runtime compiles, no writable plugin state.
 RUN tmp="$(mktemp -d)" \
-    && export RUSTUP_HOME="$tmp/rustup" CARGO_HOME="$tmp/cargo" \
-    && curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain `+rustVersion+` --no-modify-path \
-    && "$tmp/cargo/bin/cargo" install tree-sitter-cli --version `+treesitterCLIVersion+` --locked --root /usr/local \
-    && rm -rf "$tmp" /usr/local/.crates.toml /usr/local/.crates2.json \
+    && case "$(uname -m)" in \
+         x86_64)  tsarch=x64;   ts_sha="`+treesitterCLISHA256AMD64+`" ;; \
+         aarch64) tsarch=arm64; ts_sha="`+treesitterCLISHA256ARM64+`" ;; \
+         *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o "$tmp/tree-sitter.gz" "https://github.com/tree-sitter/tree-sitter/releases/download/v`+treesitterCLIVersion+`/tree-sitter-linux-${tsarch}.gz" \
+    && echo "${ts_sha}  $tmp/tree-sitter.gz" | sha256sum -c - \
+    && gunzip "$tmp/tree-sitter.gz" \
+    && install -m 0755 "$tmp/tree-sitter" /usr/local/bin/tree-sitter \
+    && rm -rf "$tmp" \
     && mkdir -p /opt/vibe/nvim-data \
     && HOME=/tmp XDG_DATA_HOME=/opt/vibe/nvim-data nvim --headless \
        --cmd "set packpath^=/opt/vibe/nvim" \
