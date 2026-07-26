@@ -311,6 +311,49 @@ The v1 line and its history remain in git up to the cutover commit.
   hostile paths), which also single-sources the standard popup chrome
   for the palette's requests/ps/doctor items; fixture-tested via a
   fake tmux (`internal/payload/popup_test.go`).
+- tui polish pass (spec-first in docs/tui-layout.md, target frame
+  embedded as ASCII): the sidebar's agent roster flows directly after
+  the fleet section instead of parking at the pane midpoint, a dim
+  `C-Space · Space palette` footer owns the last row, the detail
+  block speaks the glyph vocabulary (`● dev · 9766b8d8` /
+  `▲ 2 pending` — no more mode/version/role stutter), the tray's
+  right segments gained ` · ` separators, the cheatsheet learned
+  `z zoom · [ scroll · x close`, and the bar's rule line is generated
+  at 1000 cols (clients wider than 400 no longer clip it).
+- **New: the bundled review stack** — `prefix+f` (files: nvim + oil,
+  the directory fills the window, editing the listing edits the
+  filesystem) and `prefix+g` (git: lazygit) as container-side popups
+  over `vibe exec`: a cold host needs nothing installed. nvim 0.12.4,
+  lazygit 0.63.1, and five plugins at pinned SHAs (mini.nvim, oil,
+  gitsigns, tokyonight, nvim-treesitter) bake into the tools image
+  with treesitter parsers for 23 languages compiled at build via the
+  official tree-sitter 0.25.10 CLI (the 0.26.x prebuilts link glibc
+  2.39 — newer than the bookworm base; the docs' "≥ 0.26.1" floor is
+  unenforced and `tree-sitter build` is all the installer runs).
+  Config lives in the read-only payload — no plugin manager, no
+  runtime network, no editor state outside scratch — and theme.lua +
+  lazygit's yml are generated from `internal/tmuxui/theme.go`, so the
+  TUI and the editors read as one product. Popup borders carry the
+  exit hints; `q` quits from anywhere (the lazygit convention).
+  Dogfood shaped it same-day: lazygit was promoted to the sole diff
+  surface (a trial `prefix+G` diffview popup shipped and retired
+  within hours), and mini.files gave way to oil. Your own editor
+  stays one `~/.config/vibe/tui.conf` rebind away (recipe in
+  usage.md).
+- Hot paths went fork-free: statusline.sh (per tick),
+  agent-state-hook.sh (per tool use), and subagent-statusline.sh
+  dropped `id`/`cat`/`whoami`/`awk`/`tr|head` pipelines for pure-bash
+  expansions; the records-dir derivation single-sources from the new
+  `payload/container/state-dir.sh`.
+- Branch-review remainder closed (all nine): one `AgentMode` replaces
+  the stop/restart bool pair (invalid combos unrepresentable;
+  agent-session.sh rejects `--restart` in stop mode), `vibe down`
+  renders its output before killing the UI session it may be running
+  inside (SIGHUP ignored around the kill, so `--json` consumers get
+  clean exits), the tui pre-flight dropped its redundant Docker ping,
+  bun/rokit layers moved ahead of the agent cache-buster so
+  `--refresh-agents` re-runs agents only, and palette.sh builds its
+  client flag bash-3.2-safely.
 
 ## v1 final state (unreleased, superseded by the v2 cutover)
 

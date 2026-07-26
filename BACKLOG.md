@@ -100,85 +100,36 @@ section at the bottom — as revisable records, not fences.
   the sixel-drop v1 pinned against. The host-side installer stays
   retired.)
 
-- **TUI: consume the engine renderers — SHIPPED 2026-07-24.** The
-  sidebar now renders engine truth through the `@vibe_engine_serial`
-  channel + cached background fetches (`_fleet` porcelain,
-  `_sidebar` detail block; docs/architecture.md "TUI and agent
-  sessions"). Surviving deferred bits, in order of pull: (1) a
+- **Tray phase 2 — agent-truth roster cells (QUEUED 2026-07-26:
+  second item of the DevX fast-follow arc, after rebuild-output UX).**
+  The bottom bar's window cells graduate into an agent-truth roster:
+  container-side agent sessions without host windows (via the `vibe
+  ps` fetch cache) render as dim clickable cells whose click spawns a
+  viewer (`vibe agent -s NAME` window). Needs the fetch-cache rows
+  plus a `mouse_status_range` cell per agent; the bar itself,
+  branding button, and range dispatch shipped with the bottom-bar
+  move. (Descends from the consume-the-renderers work, SHIPPED
+  2026-07-24 — see CHANGELOG.)
+
+- **Sidebar: event-driven refresh + the cold-project click call.**
+  The two bits deferred from the consume-the-renderers work: (1) a
   docker-events watcher for out-of-band container deaths — today the
-  `@vibe_engine_refresh` slow tick (30s) covers them; (2) cold
-  registered projects render as dim non-clickable rows — the product
-  call whether their click dispatches `up` stays open (brushes the
-  live-sessions-only picker record); (3) the richer roster —
-  container-side agent sessions without host windows via `vibe ps`
-  (deferred from agent-session slice 3) — can now ride the same fetch
-  cache. (2026-07-25: (3) grew a destination — **tray phase 2**: the
-  bottom bar's window cells should graduate into an agent-truth roster,
-  windowless agents rendered as dim clickable cells whose click spawns
-  a viewer (`vibe agent -s NAME` window). Needs the fetch-cache rows
-  plus a `mouse_status_range` cell per agent; the bar itself, branding
-  button, and range dispatch shipped with the bottom-bar move.)
+  `@vibe_engine_refresh` slow tick (30s) covers them (also listed on
+  the roadmap's after-v1.0 line); (2) cold registered projects render
+  as dim non-clickable rows — the product call whether their click
+  dispatches `up` stays open (brushes the live-sessions-only picker
+  record).
 
-- **Branch-review remainder (2026-07-25).** The pre-merge review's nine
-  correctness findings were fixed (45eaa14); the verified-but-unfixed
-  tail, in rough value order: (1) hot-path forks — fixed 2026-07-26:
-  statusline.sh, subagent-statusline.sh, and agent-state-hook.sh went
-  pure-bash (`$UID`, `read <file` behind `-r` guards, `${var//[^…]/}`
-  scrubs, `printf -v`/`%(%s)T`, bash dirtrim/rounding);
-  state-render.sh was already clean — the claim was stale. Cold-path
-  `id`/`head` in agent-ps.sh deliberately left for item (7)'s dedup.
-  This sub-item is done; (2) engine-verb
-  popups single-sourced 2026-07-26 into `scripts/popup.sh` (which also
-  fixed the real defect underneath: display-popup does not
-  format-expand its shell-command, so bind u/D/p and the tray's `req`
-  cell shipped a literal `#{@vibe_exe}` into bash — only the
-  menu-expanded palette door worked); the stop/park popups now ride
-  popup.sh's `-w/-h` and the Q/K confirm prompts are command aliases
-  (`vibe-quit-ui`/`vibe-kill-server`) shared by binds and palette —
-  this sub-item is done; (3) the bar's rule line was a 400-glyph
-  literal — regenerated at 1000 with the 2026-07-26 polish pass, this
-  sub-item is done; (4) stop/restart — fixed 2026-07-26 at pragmatic
-  depth: one `AgentMode` on AgentRequest (invalid combos
-  unrepresentable), wire format untouched, and agent-session.sh now
-  REJECTS `--restart` in stop mode instead of swallowing it — this
-  sub-item is done; (5) startApproved's redundant Docker Ping —
-  removed 2026-07-26 (a dead daemon surfaces the same connect error
-  from the reconcile's own calls), done; (6) refresh-busted
-  bun/rokit — fixed 2026-07-26: the engine-pinned user layers moved
-  BEFORE the agents and the cache-buster ARG, so refreshes re-run
-  agents only (one-time full re-run on the next rebuild pays for it),
-  done; (7) agent-state dir derivation — fixed 2026-07-26:
-  `payload/container/state-dir.sh` is the one sourced definition for
-  statusline/hook/agent-ps (the copies had already drifted) — this
-  sub-item is done; (8) palette.sh's empty-array expansion — fixed
-  2026-07-26 with positional params (`set --` + `"$@"`, empty-safe on
-  bash 3.2 under set -u), done; (9) `vibe down` self-HUP — fixed 2026-07-26: the CLI
-  defers the UI-session kill to a post-render hook (App default
-  unchanged for direct callers), and ignores SIGHUP around the kill so
-  a fully-rendered `--json` exit stays clean; residue: an interactive
-  shell inside the session still dies with its pane, inherent to
-  parking from inside — this sub-item is done. The
-  agent-state hooks, subagent statusline, and `/vibe:request` moved
-  into `payload/container/claude-plugin/`, loaded per session with
-  `--plugin-dir` from the read-only payload. Verified in-container:
-  hooks fire from a write-protected dir, commands namespace as
-  `/vibe:…`, and the only volume write is an empty per-plugin `data/`
-  dir — no content copies. Marketplace-style install is REJECTED
-  permanently: it copies plugin bytes onto the agent-state volume,
-  recreating the unpinned-mutable-plugin-state defect class recorded
-  above. A plugin cannot express `statusLine`, `autoMemoryEnabled`,
-  `autoUpdates`, or `sandbox` — those stay in the thin `--settings`
-  file; a pure-plugin end state is off the table upstream-permitting.
-  Candidate future content: an environment skill distilled from the
-  seeded `.vibe/AGENTS.md`.
-
-- **TUI layout pass — SHIPPED 2026-07-24.** Spec written first as
-  demanded ([docs/tui-layout.md](docs/tui-layout.md)), then wired:
-  `_state` display form, `@vibe_dock_size` + `@vibe_engine_refresh`
-  knobs, width-derived sidebar truncation, and the
-  `~/.config/vibe/tui.conf` user hook instead of per-property options.
-  Palette/glyphs single-source from `internal/tmuxui/theme.go` via
-  payload generation. Layout disagreements start by editing the spec.
+- **Claude-plugin future content.** The vibe claude-plugin
+  (`payload/container/claude-plugin/`, loaded per session with
+  `--plugin-dir` from the read-only payload) could grow an
+  environment SKILL distilled from the seeded `.vibe/AGENTS.md` —
+  teaching agents the container environment and broker protocol as a
+  skill instead of (or beside) instruction-file prose. Demand-gated
+  on agents visibly fumbling what AGENTS.md already says.
+  (The branch-review remainder that used to live here closed 9/9 on
+  2026-07-26 — see CHANGELOG; the plugin's marketplace-install
+  rejection moved to the decision records.)
 
 - **tui follow-ups (low priority).** Review-as-split
   — images in a tmux split survive redraws only via kitty-graphics Unicode
@@ -187,47 +138,6 @@ section at the bottom — as revisable records, not fences.
   kitty-capable frontend becoming real (then test
   `chafa -f kitty --passthrough tmux`).
 
-- **TUI polish pass — SHIPPED 2026-07-26.** Spec first
-  (docs/tui-layout.md, same-day update with the embedded target
-  frame), then wired: roster flows after the fleet section + footer
-  hint row (frame.go), detail block display form `● role · hash` /
-  `▲ n pending` (views.go Sidebar), ` · ` separators in the stamped
-  status-right (app/tui.go), cheatsheet gains
-  `z zoom · [ scroll · x close · f files · G review`,
-  `prefix+f`/`prefix+G` editor popups via scripts/review.sh + the two
-  palette items, and the bar-border rule literal generated at 1000
-  cols instead of 400 (closed branch-review remainder item 3).
-  Pending dogfood feedback — the layout calls are revisable once felt.
-
-- **Bundled review stack — WIRED 2026-07-26 (pending rebuild proof).**
-  All five work-list items landed same-day: install.go layers (nvim
-  0.12.4, lazygit 0.63.1, tree-sitter CLI 0.26.11, five plugins at
-  pinned SHAs, parser compile), the `payload/container/nvim` config
-  tree + `edit.sh` launcher, the theme.lua/lazygit-yml generated
-  renderings, and the `f`/`g`/`G` rewire through the
-  `scripts/review.sh` router (repurposed from the host difftool gate
-  it briefly was). What remains is empirical: a `vibe rebuild` proves
-  the parser layer (headless nvim-treesitter main-branch install —
-  the one build step engine tests cannot execute; if it fights back,
-  the layer is independently droppable), and dogfood judges the
-  keymap contract. Rebuild attempts (2026-07-26) settled the CLI pin:
-  every tree-sitter 0.26.x release binary links glibc 2.39 against
-  the base's 2.36, and the cargo-built-CLI detour was tried and
-  rejected the same day (a Rust toolchain in the layer is exactly the
-  heavyweight dep this image avoids). The pin landed on the OFFICIAL
-  0.25.10 binary (glibc 2.34/2.29): the README's ">= 0.26.1" is a
-  docs floor, not enforcement — install.lua only runs `tree-sitter
-  build` for our parser set (none carry `generate = true`), verified
-  by building a pinned grammar to a working .so with that exact
-  binary. The `requires` names in parsers.lua (ecma/html_tags/jsx)
-  are query-only pseudo-parsers shipped inside the plugin — never
-  install-list entries. First dogfood verdicts (2026-07-26, Chris):
-  lazygit approved and PROMOTED to the sole diff-review surface —
-  `prefix+G`/diffview retired the day it shipped (a second diff
-  surface was one too many); the files surface swapped mini.files →
-  oil.nvim (floating columns in a full-screen popup read as broken;
-  oil fills the window).
-
 - **Host editor passthrough (parked 2026-07-26; recipe documented
   same day).** The original editor-as-surface idea — your own host
   nvim/config as the viewer — survives as a `~/.config/vibe/tui.conf`
@@ -235,7 +145,8 @@ section at the bottom — as revisable records, not fences.
   usage.md's TUI section. First-classing it (e.g. a preferred-editor
   knob) stays demand-gated and against the knobs-stay-minimal record.
 
-- **Rebuild output cleanup (wanted 2026-07-26, Chris).** `vibe
+- **Rebuild output cleanup (NEXT UP 2026-07-26: first item of the
+  DevX fast-follow arc — design + implementation next session).** `vibe
   rebuild` (and `up`'s build path) streams raw Docker build output —
   Step X/Y noise, interleaved layer chatter — where a human wants a
   clean progress narrative: which layer is running (agents, review
@@ -327,6 +238,16 @@ history). Read the mechanisms as historical; the calls stand.
   manager. Full contract: docs/tui-layout.md "Editor surfaces
   (second call)"; customization stays a `tui.conf` rebind, not a
   knob.
+- **Marketplace-style claude-plugin install REJECTED (2026-07-26).**
+  The vibe claude-plugin loads per session with `--plugin-dir` from
+  the read-only payload; a marketplace-style install would copy
+  plugin bytes onto the agent-state volume, recreating the
+  unpinned-mutable-plugin-state defect class. Verified in-container:
+  hooks fire from a write-protected dir, commands namespace as
+  `/vibe:…`, and the only volume write is an empty per-plugin `data/`
+  dir. A plugin cannot express `statusLine`, `autoMemoryEnabled`,
+  `autoUpdates`, or `sandbox` — those stay in the thin `--settings`
+  file; a pure-plugin end state is off the table upstream-permitting.
 - **Roster stays render-only — no dismiss affordance (2026-07-25).** A
   ctrl-c-quit agent left a ✗ viewer window needing manual reaping, and
   "add dismiss to the roster" was considered and rejected: it would put

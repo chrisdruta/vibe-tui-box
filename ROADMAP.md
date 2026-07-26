@@ -38,6 +38,15 @@ R1 unblocks R2 and R3 (an installer and an attestation both need real
 release artifacts to point at). R4 and R5 are independent and can proceed
 in parallel at any time.
 
+**Current sequencing (2026-07-26, Chris).** One short DevX fast-follow
+arc precedes R1: (1) rebuild-output UX (design + implementation — also
+pre-pays part of R2's first-run story), (2) tray phase 2 (BACKLOG).
+Then R1 becomes the main thread, with TUI/DevX work dropping to
+dogfood-reactive only until `v1.0.0-beta.1` is tagged. Context: the
+2026-07-24→26 TUI arc (layout pass, polish pass, bundled review stack —
+see CHANGELOG) shipped unscheduled and is done; the funnel is still the
+constraint — nobody but the author can install the product.
+
 ## R1 — Release pipeline: ship something installable
 
 Everything else on this page is polish on a product nobody can install
@@ -76,7 +85,12 @@ page to first agent prompt.
 - [ ] End-to-end verification on the two real platforms — WSL2 and macOS:
       project discovery, file locking, snapshotting, tmux dispatch, Docker
       endpoint selection. (The old architecture doc claimed this as a
-      release gate; make it true.)
+      release gate; make it true.) Measure the north star's two-minute
+      budget here honestly: the first `vibe up` now also builds the
+      review-stack layers (nvim/lazygit/plugins/parser compile,
+      2026-07-26) — if the wall clock says otherwise, rescope the promise
+      ("agent prompt in two minutes; the image keeps building behind it")
+      rather than quietly missing it.
 - [ ] First-contact ceremony for repos that arrive with `.vibe/` already in
       them **(proposed)**: on first `register`/`up` of a manifest this host
       has never seen, show the manifest summary and extension status before
@@ -178,7 +192,9 @@ rebuilt container — the original v1.0 story from the port plan.
 
 Demand-gated work, detailed in [BACKLOG.md](BACKLOG.md): the reduced-trust
 `vibe agent --jailed` profile, per-project egress visibility, worktree
-productization, the review/image stack revival (yazi review, sixel
-pipeline, revdiff verdict), event-driven sidebar refresh, and a repo-side
-minimum-engine-version floor for teams if real multi-machine use asks for
-it.
+productization, the review stack's remaining halves — A/R verdict capture
+and the image/sixel pipeline (the *viewing* half shipped 2026-07-26 as
+the bundled nvim/lazygit stack; yazi is off the table by decision
+record) — plus the revdiff annotation-capture verdict, event-driven
+sidebar refresh, and a repo-side minimum-engine-version floor for teams
+if real multi-machine use asks for it.
