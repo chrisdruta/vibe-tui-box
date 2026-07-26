@@ -133,32 +133,52 @@ it wins. The store-owned conf is never forked, re-materialization never
 eats user edits, and `-q` keeps a missing file silent. Anything a knob
 would micro-manage lives here instead.
 
-### Editor surfaces: nvim popups, yazi dropped (2026-07-26)
+### Editor surfaces: the bundled review stack (2026-07-26, second call)
 
-The stance is **editor-as-surface**: vibe ships tmux glue only, never
-an editor config — the flexibility comes from the user's own nvim
-setup, not from a vibe-owned distro (the v1 bash→yazi→Lua-plugin
-layering is on record as not wanted back, and a vibe-owned nvim
-config would be the same maintenance surface under a new name).
+The first call the same day ("editor-as-surface": host nvim, zero
+shipped config, plugin-free floors) was falsified by its first
+dogfood: a stock WSL host has neither nvim nor lazygit, so the
+zero-config floor did not exist and `prefix+f/g/G` degraded to bare
+shell popups. The stance flips: **the container carries an
+opinionated, pinned review stack** — the engine already owns that
+toolchain (the tmux-pin precedent), and a cold host is the norm, not
+the edge. What survives from the first call: the viewer is glue-level
+replaceable, verdict capture stays engine-owned, and no `@vibe` knob.
 
-- `prefix+f` — files/editor popup: `nvim . || bash -l` at
-  `#{session_path}`, 85%, the lazygit pattern verbatim (host binary,
-  bind-mounted workspace, store-owned glue only). Browsing, viewing,
-  and editing ride whatever the user's config provides (netrw is the
-  zero-config floor).
-- `prefix+G` — review walk: `git difftool --tool=nvimdiff -y`, gated
-  on a non-empty diff (`git diff --quiet` else a "no changes"
-  display-message). Plugin-free real vimdiff over every changed file;
-  zero config required.
-- Both are palette items too (`files (nvim)`, `review diff`) — one
-  definition per door, as ever.
-- No `@vibe_reviewer` knob: users who want `nvim +DiffviewOpen` or a
-  different walker rebind the key in `~/.config/vibe/tui.conf`, the
-  sanctioned customization point. The knob list stays honest.
-- A/R verdict capture stays engine-owned and viewer-replaceable
-  (BACKLOG "Review/image stack revival") — nothing here commits the
-  verdict flow to nvim; these popups are the default *viewing* path
-  regardless of how revdiff's trial lands.
+- **Placement.** Binaries ride the tools image on the `wantsAgent`
+  gate exactly like tmux (core product UX, not a manifest choice):
+  nvim + lazygit as pinned release artifacts (version + per-arch
+  sha256 in `builder/install.go`); plugins git-cloned at **pinned
+  SHAs** into a root-owned native packpath (`/opt/vibe/nvim`) — no
+  plugin manager, no runtime network, and no plugin bytes on volumes
+  (that decision record is upheld, not bent); treesitter parsers for
+  an engine-owned language list compiled at image build.
+- **The stack** (sharp = few pins, review-focused, deliberately NOT
+  an IDE — no LSP, no completion, no nerd-font glyphs): mini.nvim
+  (pick/files/statusline/clue from one pin), diffview.nvim as the
+  review surface (pin the maintained fork — upstream is dormant since
+  2024), gitsigns.nvim, tokyonight.nvim under generated palette
+  overrides, nvim-treesitter.
+- **Config** lives in `payload/container/nvim/` (read-only payload,
+  XDG state dirs pointed at scratch), so keymap/option iteration
+  rides a payload sync — only binaries, plugins, and parsers need an
+  image rebuild. `theme.lua` becomes the THIRD generated rendering of
+  `internal/tmuxui/theme.go`, beside theme.sh and the conf's @thm
+  block: the TUI and the editor read as one product. lazygit gets a
+  small generated yml the same way (`nerdFontsVersion: ""`).
+- **Keymap contract:** leader Space with clue hints on press; `-`
+  parent-dir browse, `<leader>f` files, `<leader>/` grep, `<leader>d`
+  DiffviewOpen, `<leader>h` file history, `]h`/`[h` hunks, `q`
+  dismisses review panels (and the popup with them).
+- **Binds, once the bundle ships:** `prefix+f` → popup
+  `'#{@vibe_exe}' exec -- nvim .`, `prefix+G` → `… exec -- nvim
+  +DiffviewOpen` (diffview's empty panel answers a clean tree, so
+  scripts/review.sh and its gate retire), `prefix+g` → `… exec --
+  lazygit`; palette items follow. Until the bundle lands the
+  host-pattern binds stay as the interim.
+- **Customization:** the host passthrough (your own editor and
+  config) stays one `~/.config/vibe/tui.conf` rebind away and is
+  recorded in the backlog; the knob list stays honest.
 
 ### Default arrangement
 

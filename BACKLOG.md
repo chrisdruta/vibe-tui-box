@@ -186,6 +186,29 @@ section at the bottom — as revisable records, not fences.
   cols instead of 400 (closed branch-review remainder item 3).
   Pending dogfood feedback — the layout calls are revisable once felt.
 
+- **Bundled review stack — wire it (designed 2026-07-26).** The
+  container-side nvim/lazygit bundle specced in docs/tui-layout.md
+  "Editor surfaces" (second call). Work list, roughly in order:
+  (1) `builder/install.go` layers — nvim + lazygit pinned release
+  artifacts (version + per-arch sha256), plugin clones at pinned SHAs
+  into `/opt/vibe/nvim` (mini.nvim, diffview maintained fork,
+  gitsigns, tokyonight, nvim-treesitter), parser compile for the
+  engine-owned language list; (2) `payload/container/nvim/` config
+  tree (leader-Space keymap contract, no LSP, ascii-safe);
+  (3) `payload/gen` renders `theme.lua` and the lazygit yml from
+  theme.go (third and fourth theme renderings); (4) conf + palette
+  rewire `f`/`g`/`G` through `vibe exec` popups, retire
+  scripts/review.sh, message a stopped container instead of a dead
+  popup; (5) docs + install tests (checksum/layer-order coverage in
+  builder/install_test.go).
+
+- **Host editor passthrough (parked 2026-07-26).** The original
+  editor-as-surface idea — your own host nvim/config as the viewer —
+  survives as a `~/.config/vibe/tui.conf` rebind of `prefix+f/g/G`.
+  Needs at minimum a documented recipe (usage.md or the tui doc);
+  first-classing it (e.g. a preferred-editor knob) is demand-gated
+  and currently against the knobs-stay-minimal record.
+
 - **Open flag:** should the root AGENTS.md import a project-level
   `.vibe/AGENTS.md` the way the future preset template will tell consumer
   projects to?
@@ -253,16 +276,20 @@ history). Read the mechanisms as historical; the calls stand.
   different OUTER containers (`--jailed`), never a nested inner sandbox
   (docs/security.md "Inner agent sandboxes" in the v1 line; the call
   carries to v2).
-- **Editor-as-surface; yazi dropped (2026-07-26, Chris).** The file
-  browser / code viewer / diff-review surface is the user's own nvim
-  launched through tmux glue (lazygit-pattern popups), never a
-  vibe-shipped viewer config — a vibe-owned yazi *or* nvim config
-  would recreate the v1 layered-config maintenance surface the
-  revival verdict rejected. Plugin-free floors keep it honest
-  (netrw, `git difftool --tool=nvimdiff -y`); customization is a key
-  rebind in `~/.config/vibe/tui.conf`, not a knob. Verdict capture
-  stays engine-owned and viewer-replaceable. Full contract:
-  docs/tui-layout.md "Editor surfaces".
+- **Editor-as-surface; yazi dropped (2026-07-26, Chris; half
+  superseded same day).** The yazi half stands: never a vibe-shipped
+  yazi config, and the viewer stays glue-level replaceable with
+  verdict capture engine-owned. The zero-shipped-config half was
+  falsified by the first dogfood (a stock WSL host has neither nvim
+  nor lazygit — the "plugin-free floor" did not exist) and is
+  superseded by the bundled review stack: an opinionated, pinned
+  nvim/lazygit bundle in the CONTAINER image, config in the payload,
+  theme generated from theme.go. That differs from the v1
+  layered-config trap the revival verdict rejected in kind, not just
+  degree — image-pinned bytes, one config layer, no runtime plugin
+  manager. Full contract: docs/tui-layout.md "Editor surfaces
+  (second call)"; customization stays a `tui.conf` rebind, not a
+  knob.
 - **Roster stays render-only — no dismiss affordance (2026-07-25).** A
   ctrl-c-quit agent left a ✗ viewer window needing manual reaping, and
   "add dismiss to the roster" was considered and rejected: it would put
