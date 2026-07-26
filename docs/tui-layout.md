@@ -98,7 +98,10 @@ discoverability surface once the prefix is down.
 
 The bar never carries project identity: the sidebar and the OS window
 title (`@vibe_name`) own it, and the ID-derived session name appears in
-no chrome. The palette lives in `scripts/palette.sh` — one definition
+no chrome. (Reaffirmed 2026-07-26 against a `🥡 brand: project` cell —
+the coral gutter bar and per-project session already tie the tray to
+its project; revisit only on real multi-project dogfood confusion about
+which project a tray belongs to, e.g. fullscreen with no OS title.) The palette lives in `scripts/palette.sh` — one definition
 serving `prefix+Space` and both clickable cells. The title channel the
 tabs and roster consume is
 `vibe1|project|session|instance|state|display|model`
