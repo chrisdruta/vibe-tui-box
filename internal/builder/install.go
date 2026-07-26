@@ -40,7 +40,51 @@ const (
 	// apt tmux; re-pinned 2026-07-25.
 	tmuxVersion = "3.7b"
 	tmuxSHA256  = "87f2e99e3b685973f2ca002ffd6ed7e51a5744f7009daae5a15670b6d532db96"
+	// The bundled review stack (docs/tui-layout.md "Editor surfaces",
+	// second call): nvim + lazygit ride every agent image like tmux —
+	// the container carries the review surface because a cold host is
+	// the norm (stock WSL ships neither). Pinned release artifacts,
+	// per-arch checksums; the nvim asset arch names differ from Go's
+	// (x86_64/arm64), the constants keep the repo's AMD64/ARM64 names.
+	nvimVersion        = "0.12.4"
+	nvimSHA256AMD64    = "012bf3fcac5ade43914df3f174668bf64d05e049a4f032a388c027b1ebd78628"
+	nvimSHA256ARM64    = "ceb7e88c6b681f0515d135dcdfad54f5eb4373b25ce6172197cd9a69c758063f"
+	lazygitVersion     = "0.63.1"
+	lazygitSHA256AMD64 = "8e033bc78c8e192dee9510e951f6c9e154289b7198d22c924ed1d0a951b0dac1"
+	lazygitSHA256ARM64 = "555dbc9a8efcf2e33bc24e7fbd9463e9fa375e3c5e23cc270763733c38eeae36"
+	// nvim-treesitter's main branch requires the tree-sitter CLI
+	// (>= 0.26.1) for the build-time parser compile; its release
+	// binaries use x64/arm64 arch names.
+	treesitterCLIVersion     = "0.26.11"
+	treesitterCLISHA256AMD64 = "8dac3c89bb632eece700ea7a261ad963b251f2228c4aef3b58458ebea8dbe4eb"
+	treesitterCLISHA256ARM64 = "e47dd59bf2f21ad7c15771546a724464ee3c008a60fbb61c6860bd19a44b3060"
 )
+
+// reviewPlugins are cloned into the root-owned native packpath
+// (/opt/vibe/nvim/pack/vibe/start) at exactly these commits — no
+// plugin manager, no runtime network, no plugin bytes on volumes (the
+// marketplace-install rejection record). These SHAs are executable
+// Lua: bump them deliberately, with a look at the upstream diff, never
+// by reflex. diffview pins the maintained fork — upstream sindrets is
+// dormant since mid-2024.
+var reviewPlugins = []struct{ Repo, SHA string }{
+	{"echasnovski/mini.nvim", "946ae64e0ee807ae3c41f382f0114b4ed4915b2c"},
+	{"dlyongemallo/diffview.nvim", "62dc5adf4e77489a2a6d3bf36ef6e4ac5738b634"},
+	{"lewis6991/gitsigns.nvim", "31d6fb2d618bca1482b9f274751ead5f03461408"},
+	{"folke/tokyonight.nvim", "cdc07ac78467a233fd62c493de29a17e0cf2b2b6"},
+	{"nvim-treesitter/nvim-treesitter", "8b3a191c015dd66a92d51a112ed96af0aac13b63"},
+}
+
+// reviewParsers is the engine-owned treesitter language list, compiled
+// once at image build (nvim-treesitter main branch, headless install)
+// into a root-owned site dir — no runtime compiles. Engine-owned on
+// purpose: a manifest knob here would grow without bound.
+var reviewParsers = []string{
+	"bash", "c", "css", "diff", "go", "gomod", "gosum", "html",
+	"javascript", "json", "lua", "luau", "markdown", "markdown_inline",
+	"python", "regex", "rust", "toml", "tsx", "typescript", "vim",
+	"vimdoc", "yaml",
+}
 
 // AgentRefreshArg is the build arg that busts the Docker layer cache
 // for the channel-tracking (unversioned) agent installers. Every `vibe
@@ -164,6 +208,7 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 `)
+		out = append(out, reviewLayers()...)
 	}
 	if want[string(schema.ToolchainGo)] {
 		out = append(out, `# Go toolchain: official tarball pinned by version + per-arch checksum,
@@ -198,6 +243,77 @@ RUN command -v unzip >/dev/null 2>&1 \
          && rm -rf /var/lib/apt/lists/*; }
 `)
 	}
+	return out
+}
+
+// reviewLayers renders the bundled review stack (rides the wantsAgent
+// gate exactly like tmux — core product UX, not a manifest choice):
+// the nvim + lazygit binaries, the SHA-pinned plugin packpath, and the
+// build-time parser compile. Three separate layers on purpose — the
+// parser layer is the speculative one (nvim-treesitter main-branch
+// headless install) and stays independently droppable/cacheable. The
+// runtime config that loads all of this lives in the payload
+// (payload/container/nvim), so keymap iteration never rebuilds these
+// layers.
+func reviewLayers() []string {
+	var out []string
+	out = append(out, `# The bundled review stack (docs/tui-layout.md "Editor surfaces"):
+# nvim + lazygit as pinned release artifacts — the container carries
+# the review surface because a cold host is the norm.
+RUN tmp="$(mktemp -d)" \
+    && case "$(uname -m)" in \
+         x86_64)  arch=x86_64; nvim_sha="`+nvimSHA256AMD64+`"; lazygit_sha="`+lazygitSHA256AMD64+`" ;; \
+         aarch64) arch=arm64;  nvim_sha="`+nvimSHA256ARM64+`"; lazygit_sha="`+lazygitSHA256ARM64+`" ;; \
+         *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o "$tmp/nvim.tar.gz" "https://github.com/neovim/neovim/releases/download/v`+nvimVersion+`/nvim-linux-${arch}.tar.gz" \
+    && echo "${nvim_sha}  $tmp/nvim.tar.gz" | sha256sum -c - \
+    && tar -C /opt -xzf "$tmp/nvim.tar.gz" \
+    && ln -sfn "/opt/nvim-linux-${arch}" /opt/nvim \
+    && ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim \
+    && curl -fsSL -o "$tmp/lazygit.tar.gz" "https://github.com/jesseduffield/lazygit/releases/download/v`+lazygitVersion+`/lazygit_`+lazygitVersion+`_linux_${arch}.tar.gz" \
+    && echo "${lazygit_sha}  $tmp/lazygit.tar.gz" | sha256sum -c - \
+    && tar -C "$tmp" -xzf "$tmp/lazygit.tar.gz" lazygit \
+    && install -m 0755 "$tmp/lazygit" /usr/local/bin/lazygit \
+    && rm -rf "$tmp"
+`)
+	var plugins strings.Builder
+	plugins.WriteString(`# Review-stack plugins at pinned SHAs into a root-owned native
+# packpath — no plugin manager, no runtime network; .git dirs stripped
+# so the bytes are inert. diffview is the maintained fork (upstream
+# dormant since 2024).
+RUN mkdir -p /opt/vibe/nvim/pack/vibe/start`)
+	for _, p := range reviewPlugins {
+		name := p.Repo[strings.IndexByte(p.Repo, '/')+1:]
+		dst := "/opt/vibe/nvim/pack/vibe/start/" + name
+		plugins.WriteString(" \\\n    && git clone --no-checkout \"https://github.com/" + p.Repo + "\" \"" + dst + "\"")
+		plugins.WriteString(" \\\n    && git -C \"" + dst + "\" checkout --detach " + p.SHA)
+	}
+	plugins.WriteString(" \\\n    && rm -rf /opt/vibe/nvim/pack/vibe/start/*/.git\n")
+	out = append(out, plugins.String())
+	out = append(out, `# Treesitter parsers for the engine-owned language list, compiled at
+# image build (the tmux layer's build-essential compiles, the pinned
+# tree-sitter CLI drives — a main-branch nvim-treesitter requirement)
+# into a root-owned site dir the payload nvim config puts on the
+# runtime path — no runtime compiles, no writable plugin state.
+RUN tmp="$(mktemp -d)" \
+    && case "$(uname -m)" in \
+         x86_64)  tsarch=x64;   ts_sha="`+treesitterCLISHA256AMD64+`" ;; \
+         aarch64) tsarch=arm64; ts_sha="`+treesitterCLISHA256ARM64+`" ;; \
+         *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o "$tmp/tree-sitter.gz" "https://github.com/tree-sitter/tree-sitter/releases/download/v`+treesitterCLIVersion+`/tree-sitter-linux-${tsarch}.gz" \
+    && echo "${ts_sha}  $tmp/tree-sitter.gz" | sha256sum -c - \
+    && gunzip "$tmp/tree-sitter.gz" \
+    && install -m 0755 "$tmp/tree-sitter" /usr/local/bin/tree-sitter \
+    && rm -rf "$tmp" \
+    && mkdir -p /opt/vibe/nvim-data \
+    && HOME=/tmp XDG_DATA_HOME=/opt/vibe/nvim-data nvim --headless \
+       --cmd "set packpath^=/opt/vibe/nvim" \
+       -c "lua require('nvim-treesitter').install({'`+strings.Join(reviewParsers, `','`)+`'}):wait(900000)" \
+       -c "quitall!" \
+    && ls /opt/vibe/nvim-data/nvim/site/parser/*.so >/dev/null
+`)
 	return out
 }
 

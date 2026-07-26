@@ -193,6 +193,52 @@ func TestGenerateInstallUnversionedClaudeTracksLatest(t *testing.T) {
 	}
 }
 
+// The review stack rides the wantsAgent gate exactly like tmux: every
+// agent selection carries the pinned nvim/lazygit binaries, the
+// SHA-pinned plugin packpath, and the parser compile; agent-less
+// selections carry none of it.
+func TestGenerateInstallReviewStack(t *testing.T) {
+	out := string(GenerateInstall([]schema.AgentSpec{{Kind: schema.AgentClaude}}, nil, false))
+	for _, w := range []string{
+		"neovim/releases/download/v" + nvimVersion + "/nvim-linux-${arch}.tar.gz",
+		nvimSHA256AMD64, nvimSHA256ARM64,
+		"lazygit/releases/download/v" + lazygitVersion,
+		lazygitSHA256AMD64, lazygitSHA256ARM64,
+		"ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim",
+		"rm -rf /opt/vibe/nvim/pack/vibe/start/*/.git",
+		"nvim-treesitter').install(",
+		"/opt/vibe/nvim-data/nvim/site/parser",
+		"tree-sitter/releases/download/v" + treesitterCLIVersion,
+		treesitterCLISHA256AMD64, treesitterCLISHA256ARM64,
+	} {
+		if !strings.Contains(out, w) {
+			t.Errorf("missing %q in:\n%s", w, out)
+		}
+	}
+	// Every plugin pin appears as a detached checkout at its exact SHA.
+	for _, p := range reviewPlugins {
+		if !strings.Contains(out, "github.com/"+p.Repo+"\"") {
+			t.Errorf("missing plugin clone %q", p.Repo)
+		}
+		if !strings.Contains(out, "checkout --detach "+p.SHA) {
+			t.Errorf("missing pinned checkout for %q at %s", p.Repo, p.SHA)
+		}
+	}
+	// Every parser in the engine-owned list rides the compile command.
+	for _, parser := range reviewParsers {
+		if !strings.Contains(out, "'"+parser+"'") {
+			t.Errorf("missing parser %q in the install list", parser)
+		}
+	}
+	// Agent-less selections carry none of the stack.
+	out = string(GenerateInstall(nil, []schema.Toolchain{schema.ToolchainGo}, false))
+	for _, a := range []string{"/opt/nvim", "lazygit", "/opt/vibe/nvim"} {
+		if strings.Contains(out, a) {
+			t.Errorf("toolchain-only image must not carry %q:\n%s", a, out)
+		}
+	}
+}
+
 func TestGenerateInstallContent(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -212,6 +258,8 @@ func TestGenerateInstallContent(t *testing.T) {
 				"tmux/releases/download/" + tmuxVersion + "/tmux-" + tmuxVersion + ".tar.gz",
 				tmuxSHA256,
 				"--enable-sixel",
+				"nvim-linux-${arch}.tar.gz",
+				"/usr/local/bin/lazygit",
 			},
 			absent: []string{"nodesource", "bun.sh", "rokit", "go.dev"},
 		},
