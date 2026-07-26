@@ -170,12 +170,17 @@ replaceable, verdict capture stays engine-owned, and no `@vibe` knob.
   `internal/tmuxui/theme.go`, beside theme.sh and the conf's @thm
   block: the TUI and the editor read as one product. lazygit gets a
   small generated yml the same way (`nerdFontsVersion: ""`).
-- **Keymap contract:** leader Space with clue hints on press; `-`
-  parent-dir browse (oil — editing the listing edits the
-  filesystem), `<leader>f` files, `<leader>/` grep, `<leader>b`
-  buffers, `<leader>g…` hunk ops (preview/stage/reset/blame),
-  `]h`/`[h` hunk nav, `<leader>y` OSC 52 copy to the host clipboard,
-  `<leader>q` quit.
+- **Keymap contract:** the popup is a transient viewer, so `q` quits
+  it from ANYWHERE (`:confirm qa` — the lazygit convention; macro
+  recording forfeits its key on a reading surface, 2026-07-26
+  dogfood). Leader Space with clue hints on press; `-` parent-dir
+  browse (oil — editing the listing edits the filesystem, the way
+  BACK from a file, not out), `<leader>f` files, `<leader>/` grep,
+  `<leader>b` buffers, `<leader>g…` hunk ops (preview/stage/reset/
+  blame), `]h`/`[h` hunk nav, `<leader>y` OSC 52 copy to the host
+  clipboard. The popup BORDER TITLE carries the exit hints
+  (review.sh's `-T`) — always-visible helper text with zero editor
+  machinery.
 - **Binds (wired 2026-07-26):** `prefix+f/g` and the two palette
   items route through one host router, `scripts/review.sh CLIENT
   EXE SESSION_PATH files|git` — the popup runs `vibe exec --

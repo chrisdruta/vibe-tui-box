@@ -26,7 +26,12 @@ esac
 # popup.sh's quoting rule.
 q="'${exe//\'/\'\\\'\'}'"
 
+# The border title is the helper text — the always-visible "how do I
+# leave" answer (q quits nvim from anywhere; lazygit's own q quits).
+title=" files · q quit · - browse · Space keys "
+[ "$mode" = git ] && title=" git · q quit · ? keys "
+
 # A dead/stopped container makes `vibe exec` fail fast; hold the popup
 # open long enough to read why instead of flashing away.
-exec tmux display-popup -c "$client" -d "$path" -w 90% -h 90% -E \
+exec tmux display-popup -c "$client" -d "$path" -T "$title" -w 90% -h 90% -E \
   "$q exec -- bash /vibe/payload/container/edit.sh $mode || { printf '\\n[vibe] container unavailable? vibe up starts it · enter to close '; read -r _; }"

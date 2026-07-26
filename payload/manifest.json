@@ -82,8 +82,8 @@
     {
       "path": "container/nvim/init.lua",
       "mode": "0644",
-      "size": 4337,
-      "digest": "sha256:6b4da34ef20c130aaa361479613c099f31eb5f750b47fb49175c526a0f178acd"
+      "size": 4676,
+      "digest": "sha256:a390ce46394b02a279e695b87ff86f6ad5f98c1cc3a821b24d519bb5600ea7b3"
     },
     {
       "path": "container/nvim/lua/vibe/theme.lua",
@@ -148,8 +148,8 @@
     {
       "path": "host/scripts/review.sh",
       "mode": "0755",
-      "size": 1399,
-      "digest": "sha256:a8d91e1c44877421ff3b954157c8dded54cf7da346a5f92ebad16cf31e4f1d7f"
+      "size": 1659,
+      "digest": "sha256:0298de51b073e7388958b534c73b1935c9017bf14af8db0d2dc2517fbb159d35"
     },
     {
       "path": "host/scripts/sidebar.sh",
@@ -236,5 +236,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:2b787571f9dcdfc130f9095320b123fd4bcf4504f7f9ce48fc5831a675560903"
+  "digest": "sha256:a1d8c2fafc04b5a8b047c9a68131a6e8a91b69728a11df0a0b93787b491b9c62"
 }

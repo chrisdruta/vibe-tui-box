@@ -7,7 +7,7 @@ binary that owns the host command surface (project registry, immutable
 artifact/candidate store, Docker lifecycle, release updates, tmux UI,
 rebuild broker, dev-mode builds) and embeds the container payload it
 mounts into every project. Coding agents run *inside* the containers
-this engine manages; the engine itself is the host-side root of trust.
+this engine manages; the engine itself is the host-side root of trust.test
 
 The engine is the Go code under `cmd/vibe` and `internal/`, documented
 as-built in [docs/architecture.md](docs/architecture.md) and

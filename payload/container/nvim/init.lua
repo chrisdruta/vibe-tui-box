@@ -110,12 +110,16 @@ require('gitsigns').setup({
 require('oil').setup({
   default_file_explorer = true,
   view_options = { show_hidden = true },
-  keymaps = {
-    ['q'] = { 'actions.close', mode = 'n' },
-  },
 })
 
 local map = vim.keymap.set
+-- The popup is a transient viewer, so q leaves it from ANYWHERE —
+-- the lazygit convention (the popup border carries the hint,
+-- review.sh's -T). Macro recording loses its key on this surface by
+-- design: it is for reading, not recording. confirm prompts before
+-- dropping unsaved edits; `-` is the way BACK (file → listing), not
+-- out.
+map('n', 'q', '<Cmd>confirm qa<CR>', { desc = 'quit' })
 map('n', '-', '<Cmd>Oil<CR>', { desc = 'browse parent dir' })
 map('n', '<Leader>f', function() require('mini.pick').builtin.files() end, { desc = 'find file' })
 map('n', '<Leader>/', function() require('mini.pick').builtin.grep_live() end, { desc = 'grep' })
