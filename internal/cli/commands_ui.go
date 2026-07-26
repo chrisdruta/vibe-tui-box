@@ -218,10 +218,11 @@ var uiCommands = map[string]Command{
 			if err != nil {
 				return nil, err
 			}
-			// Three protocol lines: the click map, the tray's ghost
-			// cells, then the newline-free ANSI body the sidebar loop
-			// paints verbatim.
-			return &renderResult{Lines: []string{res.Map, res.Ghosts, res.Body}}, nil
+			// Four protocol lines: the click map, the tray's ghost
+			// cells, the ghost map their indexed ranges resolve
+			// through, then the newline-free ANSI body the sidebar
+			// loop paints verbatim.
+			return &renderResult{Lines: []string{res.Map, res.Ghosts, res.GhostMap, res.Body}}, nil
 		},
 	},
 }

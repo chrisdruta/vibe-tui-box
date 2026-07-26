@@ -67,6 +67,20 @@ if [ "$mode" = "attach" ]; then
     echo "agent-session.sh attach: already inside the inner tmux; use tmux switch-client" >&2
     exit 2
   fi
+  # Agent-convention names attach EXISTING sessions only: `vibe agent`
+  # is the door that launches, and the -A create below would otherwise
+  # mint a bare-shell session under an agent address on any typo or
+  # stale viewer click (the truncated-range dogfood conjured exactly
+  # such a junk "agent-cod"). Non-agent names keep -A's create — an
+  # empty `services` session is a feature.
+  case "$session" in
+    agent | agent-*)
+      if ! tmux has-session -t "=$session" 2>/dev/null; then
+        echo "agent-session.sh attach: no session '$session' — launch agents with 'vibe agent'" >&2
+        exit 1
+      fi
+      ;;
+  esac
   exec tmux -u -f "$script_dir/tmux-agent.conf" new-session -A -s "$session"
 fi
 

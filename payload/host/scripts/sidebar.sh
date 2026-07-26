@@ -125,6 +125,7 @@ toggle)
     # roster nothing refreshes.
     for s in $(tmux list-sessions -F '#{session_id}' 2>/dev/null); do
       tmux set-option -t "$s" -u @vibe_ghosts 2>/dev/null
+      tmux set-option -t "$s" -u @vibe_ghost_map 2>/dev/null
     done
   else
     tmux set-option -g @vibe_sidebar_on 1
@@ -294,10 +295,12 @@ frame() {
       tmux list-windows -a -F "W$us#{session_id}$us#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}$us#{@vibe_state}$us#{@vibe_session}" 2>/dev/null
     } | "$exe" _frame --cache "$cache_dir" 2>/dev/null
   )" || return 0
-  case "$out" in *"$nl"*"$nl"*) ;; *) return 0 ;; esac # malformed: keep last frame
+  case "$out" in *"$nl"*"$nl"*"$nl"*) ;; *) return 0 ;; esac # malformed: keep last frame
   map="${out%%"$nl"*}"
   rest="${out#*"$nl"}"
   ghosts="${rest%%"$nl"*}"
+  rest="${rest#*"$nl"}"
+  gmap="${rest%%"$nl"*}"
   printf '%s' "${rest#*"$nl"}"
   if [ "$map" != "$last_map" ]; then
     tmux set-option -p -t "${TMUX_PANE:-}" @vibe_sidebar_map "$map" 2>/dev/null
@@ -307,18 +310,24 @@ frame() {
   # already joined `vibe ps` truth against this server's windows, so
   # publishing its answer as a SESSION option keeps the winlist's one
   # #{E:@vibe_ghosts} splice honest without a second engine call (the
-  # conf's splice budget stays the single #(vibe _state)). Every
-  # window's sidebar computes the same string for the same session, so
-  # the writes are idempotent.
-  if [ "$ghosts" != "$last_ghosts" ]; then
-    tmux set-option -t "${geo##*"$us"}" @vibe_ghosts "$ghosts" 2>/dev/null
+  # conf's splice budget stays the single #(vibe _state)). The ghost
+  # map rides beside it — the session names the cells' indexed ghost-N
+  # ranges resolve through (a range name truncates at 15 bytes, an
+  # option value never; tui-layout.md "Launch surfaces"). Every
+  # window's sidebar computes the same strings for the same session,
+  # so the writes are idempotent.
+  if [ "$ghosts" != "$last_ghosts" ] || [ "$gmap" != "$last_gmap" ]; then
+    tmux set-option -t "${geo##*"$us"}" @vibe_ghosts "$ghosts" \; \
+      set-option -t "${geo##*"$us"}" @vibe_ghost_map "$gmap" 2>/dev/null
     last_ghosts="$ghosts"
+    last_gmap="$gmap"
   fi
 }
 
 
 last_map=""
 last_ghosts=""
+last_gmap=""
 last_serial=""
 last_eserial=""
 tick=0

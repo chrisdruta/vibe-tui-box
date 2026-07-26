@@ -211,15 +211,20 @@ func TestFrameGhostCells(t *testing.T) {
 
 	// Presence and reach: every container-side session of the OWN
 	// project with no window here, idle included, each its own user
-	// mouse range. The session that already has a viewer window is a
-	// tab, never also a ghost.
-	for _, want := range []string{"range=user|agent-agent-ghost", "range=user|agent-agent-quiet"} {
+	// mouse range. Ranges carry INDEXES (tmux clips range names at 15
+	// bytes — a session name would truncate into a name nobody minted);
+	// the names ride the ghost map in range order. The session that
+	// already has a viewer window is a tab, never also a ghost.
+	for _, want := range []string{"range=user|ghost-0", "range=user|ghost-1"} {
 		if !strings.Contains(out.Ghosts, want) {
 			t.Fatalf("ghost cells missing %q: %q", want, out.Ghosts)
 		}
 	}
-	if strings.Contains(out.Ghosts, "agent-agent-codex-review") {
-		t.Fatalf("a session with a viewer window must not also be a ghost: %q", out.Ghosts)
+	if out.GhostMap != "agent-ghost agent-quiet" {
+		t.Fatalf("ghost map must carry the session names in range order: %q", out.GhostMap)
+	}
+	if strings.Contains(out.GhostMap, "agent-codex-review") {
+		t.Fatalf("a session with a viewer window must not also be a ghost: %q", out.GhostMap)
 	}
 	// The dot carries real state: attention is visible with no window.
 	if !strings.Contains(out.Ghosts, "#[fg="+PaletteHex("coral")+"]●") {
@@ -432,8 +437,8 @@ func TestFrameSanitizesAgentCacheRows(t *testing.T) {
 			t.Fatalf("ghost cells must not carry %q: %q", bad, out.Ghosts)
 		}
 	}
-	if !strings.Contains(out.Ghosts, "range=user|agent-agent-evil") {
-		t.Fatalf("the sanitized ghost should still render: %q", out.Ghosts)
+	if !strings.Contains(out.Ghosts, "range=user|ghost-0") || out.GhostMap != "agent-evil" {
+		t.Fatalf("the sanitized ghost should still render, and the unaddressable session must be dropped from the map: %q / %q", out.Ghosts, out.GhostMap)
 	}
 }
 

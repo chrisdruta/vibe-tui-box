@@ -57,12 +57,16 @@ type FrameInput struct {
 // @vibe_sidebar_map format ("row:target" pairs, space-separated,
 // 0-based mouse_y rows), the tray's ghost cells (a tmux format
 // fragment published as the self session's @vibe_ghosts, spliced into
-// the generated winlist), and the ANSI body, newline-free (every row is
-// absolutely positioned) so it transports as a single protocol line.
+// the generated winlist), the ghost map (the cells' session names in
+// range order, space-separated, published as @vibe_ghost_map — the
+// name table the indexed ghost-N ranges resolve through), and the ANSI
+// body, newline-free (every row is absolutely positioned) so it
+// transports as a single protocol line.
 type FrameOutput struct {
-	Map    string
-	Ghosts string
-	Body   string
+	Map      string
+	Ghosts   string
+	GhostMap string
+	Body     string
 }
 
 // FleetEntry is one parsed `vibe _fleet` line — the read twin of
@@ -290,7 +294,7 @@ func Frame(in FrameInput) FrameOutput {
 	}
 	c.body.WriteString("\x1b[H\x1b[K")
 	row := 1
-	ghosts := ""
+	ghosts, ghostMap := "", ""
 	seen := map[string]bool{}
 	for _, s := range sessions {
 		self := s.ID == in.SelfSession
@@ -357,7 +361,7 @@ func Frame(in FrameInput) FrameOutput {
 			})
 		}
 		if self {
-			ghosts = ghostCells(agentsByProject[s.Project], viewed)
+			ghosts, ghostMap = ghostCells(agentsByProject[s.Project], viewed)
 		}
 		// The dots shrink the name budget (2 cols each) so a long name
 		// can never push them onto a wrapped row and skew the click map.
@@ -450,7 +454,7 @@ func Frame(in FrameInput) FrameOutput {
 		c.putAt(fr, " "+cDim+terminal.Line("C-Space · Space palette", max)+ansiReset, "")
 	}
 	c.body.WriteString("\x1b[H") // park the cursor; a trailing newline cannot scroll
-	return FrameOutput{Map: strings.Join(c.maps, " "), Ghosts: ghosts, Body: c.body.String()}
+	return FrameOutput{Map: strings.Join(c.maps, " "), Ghosts: ghosts, GhostMap: ghostMap, Body: c.body.String()}
 }
 
 // agentLabel renders a nested row's text: the CLI actually running,
@@ -475,21 +479,31 @@ var ghostLabelRe = regexp.MustCompile(`[^A-Za-z0-9:._-]`)
 
 // ghostCells renders the tray's ghost cells for one project: every
 // container-side agent session with NO viewer window, as a clickable
-// cell in its own user mouse range (agent-SESSION — the conf routes it
-// to the attach-only viewer spawn). Presence and reach is the tray's
+// cell in its own user mouse range. Presence and reach is the tray's
 // whole contract, so the only filter is "no window": an idle agent
 // still deserves one click. The dot carries real state — an attention
 // coral is visible with no window open at all.
 //
-// The result is a tmux FORMAT spliced into the generated winlist, so it
-// obeys the conf's cell rules: one attribute per #[...] block (the
+// The range carries an INDEX (ghost-N), never the session name: tmux
+// stores a status range's name in a fixed 16-byte buffer (proven on
+// the pinned 3.7b — struct style_range), so a name-carrying range
+// silently truncates and the click dispatches a name nobody minted
+// (the first dogfood attached "agent-agent-codex" as "agent-cod" and
+// conjured a junk session by that name). The session names ride the
+// second return in range order — published as @vibe_ghost_map beside
+// @vibe_ghosts, resolved back to a name by agent-open.sh at click
+// time, an option-value channel with no length cliff.
+//
+// The cells are a tmux FORMAT spliced into the generated winlist, so
+// they obey the conf's cell rules: one attribute per #[...] block (the
 // winlist is expanded through #{?…} comma parsing) and no byte outside
 // the sanitized session/CLI charsets. Styling is the layout doc's
 // proposal — dim italics on the surface color behind a hairline inset;
 // the recorded fallback, if a terminal fights the italics, is dropping
 // #[italics] and the hairline for dim alone.
-func ghostCells(agents []AgentEntry, viewed map[string]bool) string {
+func ghostCells(agents []AgentEntry, viewed map[string]bool) (cells, ghostMap string) {
 	var b strings.Builder
+	var names []string
 	for _, ag := range agents {
 		if viewed[ag.Session] || !sessionNameRe.MatchString(ag.Session) {
 			continue
@@ -509,11 +523,12 @@ func ghostCells(agents []AgentEntry, viewed map[string]bool) string {
 		if label == "" {
 			continue
 		}
-		fmt.Fprintf(&b, " #[range=user|agent-%s]#[fg=%s]#[bg=%s]#[italics] ▏#[fg=%s]%s#[fg=%s] %s #[norange]#[noitalics]#[default]",
-			ag.Session, PaletteHex("dim"), PaletteHex("surface"),
+		fmt.Fprintf(&b, " #[range=user|ghost-%d]#[fg=%s]#[bg=%s]#[italics] ▏#[fg=%s]%s#[fg=%s] %s #[norange]#[noitalics]#[default]",
+			len(names), PaletteHex("dim"), PaletteHex("surface"),
 			hex, glyph, PaletteHex("dim"), label)
+		names = append(names, ag.Session)
 	}
-	return b.String()
+	return b.String(), strings.Join(names, " ")
 }
 
 // ghostLabelMax bounds one ghost cell's label; the tray is shared with

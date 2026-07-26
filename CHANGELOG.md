@@ -416,16 +416,32 @@ The v1 line and its history remain in git up to the cutover commit.
   (any `run-shell` → `display-menu`) carries no mouse event and tmux
   marks it NOMOUSE — item clicks were swallowed and any button
   release closed it, which is why clicking palette items never
-  worked. Both menu scripts now pass `display-menu -M` (pinned above
-  the tray with `-y S`), and the two menu doors dispatch on
-  `MouseUp1Status` so the opening click's release is spent before the
-  menu exists (established with a PTY mouse-injection rig against the
-  pinned tmux; `-O` rejected — its press-chooses-last-hover semantics
-  silently dismiss motionless clicks). The palette keeps the full command set
+  worked; `-M` alone then died on the first pointer motion, because
+  the menu enables all-motion tracking and a bare motion event is
+  release-coded. Both menu scripts now pass `display-menu -M -O`
+  (motion hovers and aims, a press fires the aimed item, a press
+  outside closes; pinned above the tray with `-y S`), and the two
+  menu doors dispatch on `MouseUp1Status` so the opening click's
+  release is spent before the menu exists (both layers established
+  with a PTY mouse-injection rig against the pinned tmux, plus
+  `menu.c`). The palette keeps the full command set
   under 🥡 / `prefix+Space`, its bare "agent" item replaced by the
   chooser. Parallel instances of one CLI stay inside the CLI by
   decision record (BACKLOG): "another claude" is Claude Code's own
   background-session manager, not a vibe-minted twin.
+- Fixed: a tray ghost-cell click could MINT a junk inner session
+  instead of opening a viewer — tmux clips status range names at 15
+  bytes (`struct style_range`), so the ghost range `agent-agent-codex`
+  dispatched as truncated `agent-cod` and `vibe attach` created a
+  bare-shell session by that name. Ghost ranges now carry an index
+  (`ghost-N`) resolved through the frame render's new
+  `@vibe_ghost_map` session option (session names have no length
+  cliff there); `agent-session.sh attach` refuses to create
+  agent-convention sessions (attach means attach — `vibe agent` is
+  the launch door); and every launch/viewer window is stamped
+  `@vibe_session` at birth, so the ghost/chooser dedup no longer
+  waits on title events a hookless CLI (codex, a bare shell) never
+  sends — the gap that let ghost clicks pile up duplicate viewers.
 - Fixed: an all-pinned agent selection no longer sends the
   `VIBE_AGENT_REFRESH` build arg its Dockerfile never declares, which
   drew the daemon's unconsumed-build-arg warning on every build.

@@ -106,11 +106,11 @@ func TestRenderFrame(t *testing.T) {
 		!strings.Contains(res.Map, "$1:agent-agent-ghost") {
 		t.Fatalf("click map missing session, window, or spawn targets: %q", res.Map)
 	}
-	if !strings.Contains(res.Ghosts, "range=user|agent-agent-ghost") {
+	if !strings.Contains(res.Ghosts, "range=user|ghost-0") {
 		t.Fatalf("tray ghost cells missing the viewer-less session: %q", res.Ghosts)
 	}
-	if strings.Contains(res.Ghosts, "|agent-agent]") {
-		t.Fatalf("the session with a viewer window must not be a ghost: %q", res.Ghosts)
+	if res.GhostMap != "agent-ghost" {
+		t.Fatalf("ghost map must carry exactly the viewer-less session: %q", res.GhostMap)
 	}
 
 	// No cache dir: the frame still renders from tmux truth alone.

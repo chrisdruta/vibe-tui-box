@@ -19,18 +19,20 @@ client="${1:-}"
 set --
 [ -n "$client" ] && set -- -c "$client"
 
-# -M makes the menu mouse-interactive: opened by a CLI client, it
-# carries no mouse event and tmux would mark it NOMOUSE — item clicks
-# swallowed, any release closes it (why clicking palette items never
-# worked; tui-layout.md "Launch surfaces"). -y S pins it above the
-# tray; the tray door opens on MouseUp so the opening click's release
-# is already spent. The bare "agent" item is retired for the agents
+# -M -O is the only working flag pair for a script-opened menu
+# (chooser.sh documents the matrix; tui-layout.md "Launch surfaces"
+# records the mechanism): without -M the CLI-opened menu is NOMOUSE
+# (clicks swallowed, any release closes it); -M alone dies on the
+# first pointer motion outside the box (bare motion is release-coded);
+# -M -O lets motion aim and a press fire. -y S pins it above the tray;
+# the tray door opens on MouseUp so the opening click's release is
+# already spent. The bare "agent" item is retired for the agents
 # chooser: its label promised "new" while `vibe agent`'s -A semantics
 # delivered attach-or-launch — a second viewer on the same inner
 # session when one was already running.
-exec tmux display-menu "$@" -M -y S -T " vibe " \
+exec tmux display-menu "$@" -M -O -y S -T " vibe " \
   "agents" a "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/chooser.sh' '#{client_name}'\"" \
-  "restart agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\"" \
+  "restart agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\" ; set-option -w @vibe_session agent" \
   "stop agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 40% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \
   "container shell" s "new-window -c \"#{session_path}\" -n shell \"'#{@vibe_exe}' shell\"" \
   "attach main proc" e "new-window -c \"#{session_path}\" -n attach \"'#{@vibe_exe}' attach\"" \

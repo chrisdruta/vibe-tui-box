@@ -16,17 +16,21 @@
 #
 # Item COMMAND strings keep their #{...} constructs LITERAL — like
 # palette.sh, display-menu expands them against the choosing client's
-# context when an item is picked. -M makes the menu mouse-interactive:
-# a menu opened by a CLI client (this script, under run-shell) carries
-# no mouse event, and without -M tmux marks it NOMOUSE — item clicks
-# are swallowed and any button release closes it (the "menu you can
-# only drive by keyboard" the first dogfood hit; mechanism recorded in
-# tui-layout.md "Launch surfaces"). -y S pins it above the tray. -O
-# was tried and REJECTED: in stay-open mode a press chooses the last
-# HOVERED item, so a click without prior hover motion silently
-# dismisses. Porcelain fields become shell words and tmux targets, so
-# every arg is charset-vetted here even though the engine already
-# vetted them.
+# context when an item is picked. -M -O together are the ONLY working
+# flag pair for a script-opened menu (tui-layout.md "Launch surfaces"
+# records the mechanism, proven against the pinned tmux):
+#   no -M   the CLI-opened menu is NOMOUSE — clicks swallowed,
+#           any release closes it (keyboard-only).
+#   -M      opens all-motion tracking, but a bare motion event is
+#           release-coded (SGR 35 & MASK_BUTTONS == 3), so the first
+#           pointer twitch outside the box closes the menu.
+#   -M -O   stay-open: motion hovers and AIMS the choice, a press
+#           fires the aimed item, a press outside closes. Correct —
+#           motion always precedes a real pointer's press because the
+#           menu itself turned 1003 on.
+# -y S pins it above the tray. Porcelain fields become shell words and
+# tmux targets, so every arg is charset-vetted here even though the
+# engine already vetted them.
 #
 # Host-side: bash-3.2-safe (stock macOS). Runs under the vibe server
 # via run-shell, which provides TMUX pointing at that server. Any
@@ -70,15 +74,17 @@ rows="$(tmux list-windows -t "$sid" -F "W${us}#{window_id}${us}#{@vibe_session}"
 
 args=()
 [ -n "$client" ] && args+=(-c "$client")
-args+=(-M -y S -T " agents ")
+args+=(-M -O -y S -T " agents ")
 while IFS="$us" read -r ver label key verb arg; do
   [ "$ver" = "1" ] || continue
   case "$verb" in
     launch | launcha)
       case "$arg" in "" | *[!A-Za-z0-9_-]*) continue ;; esac
-      flag=""
-      [ "$verb" = "launcha" ] && flag=" -a $arg"
-      cmd="new-window -c \"#{session_path}\" -n $arg \"'#{@vibe_exe}' agent$flag\""
+      flag="" addr="agent"
+      [ "$verb" = "launcha" ] && { flag=" -a $arg"; addr="agent-$arg"; }
+      # Stamp @vibe_session at birth: the ghost/chooser dedup join key
+      # must not wait on title events a hookless CLI never sends.
+      cmd="new-window -c \"#{session_path}\" -n $arg \"'#{@vibe_exe}' agent$flag\" ; set-option -w @vibe_session $addr"
       ;;
     attach)
       case "$arg" in "" | *[!A-Za-z0-9_-]*) continue ;; esac

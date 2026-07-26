@@ -87,7 +87,7 @@ Top-preferrers set `status-position top` in the user conf.
 | branding | `🥡 vibe-tui-box` start button — click opens the palette |
 | `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
-| ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`agent-NAME` range → attach-only viewer spawn), rendered into `@vibe_ghosts` by `vibe _frame` |
+| ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`ghost-N` index range resolved through `@vibe_ghost_map` → attach-only viewer spawn — range names clip at 15 bytes, "Launch surfaces"), rendered into `@vibe_ghosts` by `vibe _frame` |
 | `+` cell | clickable — opens the **agents chooser** (launch what's down, reach what's up — "Launch surfaces" below) |
 | cheatsheet | key hints, shown only while prefix held (replaces tabs) |
 | prefix/copy | `⌨` / `copy` indicators (stamped `status-right`) |
@@ -233,7 +233,8 @@ name).
   render in the winlist as dim cells (shipped as the proposal: italic
   + hairline inset over the surface color; dim-only stays the recorded
   fallback if a terminal fights the italics), each a
-  `mouse_status_range` user range (`agent-NAME`) like the brand/▤/+
+  `mouse_status_range` user range (`ghost-N` — an index, because range
+  names clip at 15 bytes; "Launch surfaces") like the brand/▤/+
   cells. The dot carries real state (an attention coral is visible
   with no window). Click dispatches the **attach-only** viewer spawn:
   it never starts or restarts an agent; the ghost graduates to a real
@@ -255,12 +256,13 @@ name).
 - **The ghost channel.** No conf-side engine call: the sidebar's frame
   renderer already joins `vibe ps` truth against this server's windows,
   so it publishes the rendered cells as the session option
-  `@vibe_ghosts` (a third `vibe _frame` protocol line) and the
-  generated winlist splices them with `#{E:@vibe_ghosts}`. The tray and
-  the sidebar therefore read one join and can never disagree about what
-  exists. The sidebar is that channel's only publisher: toggling it off
-  clears the option rather than leaving the bar advertising a roster
-  nothing refreshes.
+  `@vibe_ghosts` plus the cells' session names in range order as
+  `@vibe_ghost_map` (`vibe _frame` protocol lines two and three) and
+  the generated winlist splices the cells with `#{E:@vibe_ghosts}`.
+  The tray and the sidebar therefore read one join and can never
+  disagree about what exists. The sidebar is that channel's only
+  publisher: toggling it off clears both options rather than leaving
+  the bar advertising a roster nothing refreshes.
 - **Sidebar nesting.** Agent rows sit inside their project's fleet
   block, one line per agent (state dot + CLI name + dim model — the
   project context is positional, so the `model · project` detail line
@@ -342,24 +344,56 @@ Three intents, one owner each:
   that becomes a shell word or target, like agent-open.sh) and falls
   back to the palette if anything upstream is missing, so a dead
   chooser can never eat the tray's only launch door.
-- **Script-opened menus need `-M`, and menu doors open on MouseUp**
-  (established 2026-07-26 against the pinned 3.7b with a PTY
-  mouse-injection rig, after the first `-O` fix failed dogfood). The
-  mechanism: a menu opened by a CLI client (a script under
-  `run-shell`) carries no mouse event, and tmux marks it NOMOUSE —
-  item clicks are swallowed outright, and a button RELEASE reads as
-  "other button" and closes it. That made every script menu
-  keyboard-only (the palette's "click bait"), and killed any menu that
-  opened while the tray click's button was still down. Two calls
-  follow: both scripts pass `display-menu -M` (mouse-interactive
-  despite the CLI origin) with `-y S` pinning above the tray, and the
-  two menu DOORS dispatch on `MouseUp1Status` — the opening click's
-  release is already spent before the menu exists. Immediate actions
-  (tabs, dock, req, ghost cells) stay on MouseDown: press-act is
-  tmux-native there and no menu is involved. `-O` was tried and
-  REJECTED: in stay-open mode a press chooses the last HOVERED item,
-  so a click without prior hover motion (touchpad taps, fast clicks)
-  silently dismisses instead of selecting.
+- **Script-opened menus need `-M -O` together, and menu doors open on
+  MouseUp** (established 2026-07-26 against the pinned 3.7b, twice:
+  PTY mouse-injection rigs plus reading `menu.c` after both
+  single-flag fixes failed dogfood in turn). The full mechanism —
+  three layers, each masked the next:
+  1. *No `-M`*: a menu opened by a CLI client (a script under
+     `run-shell`) carries no mouse event and tmux marks it NOMOUSE —
+     item clicks are swallowed outright and a button RELEASE reads as
+     "other button" and closes it. Every script menu was born
+     keyboard-only (the palette's "click bait"), and any menu that
+     opened while the tray click's button was still down died on that
+     click's release — hence the MouseUp door.
+  2. *`-M` alone*: the menu itself switches the client to all-motion
+     tracking (1003), and a bare motion event is RELEASE-CODED
+     (SGR button 35 & MOUSE_MASK_BUTTONS == 3). The first pointer
+     twitch outside the box is treated as a release outside → close
+     ("disappears when I move my mouse"). Motion inside with nothing
+     aimed yet is just as fatal.
+  3. *`-M -O` (stay-open)*: motion events hover and AIM the choice, a
+     press fires the aimed item, a press outside closes, and motion
+     outside is tolerated. Correct for every real pointer: the menu
+     turned 1003 on, so aiming motion always precedes the press. The
+     earlier "`-O` press-chooses-last-hover" rejection was measured on
+     a NOMOUSE menu (no `-M`), where no motion was processed at all —
+     wrong conclusion, right observation.
+  Both scripts pass `display-menu -M -O` with `-y S` pinning above the
+  tray; the two menu DOORS dispatch on `MouseUp1Status` — the opening
+  click's release is already spent before the menu exists. Immediate
+  actions (tabs, dock, req, ghost cells) stay on MouseDown: press-act
+  is tmux-native there and no menu is involved.
+- **Status range names clip at 15 bytes, so ghost ranges carry an
+  index** (found 2026-07-26 dogfood: tmux's `struct style_range` keeps
+  the name in `char string[16]`, so the ghost cell range
+  `agent-agent-codex` dispatched as `agent-agent-cod`, the conf
+  stripped a prefix, and `vibe attach agent-cod` MINTED a junk
+  bare-shell inner session named `agent-cod` — four viewer windows of
+  nothing). Three fixes, each independently sufficient for that bug:
+  ghost cells render `#[range=user|ghost-N]` and publish the session
+  names in range order as `@vibe_ghost_map` (a fourth `vibe _frame`
+  protocol line riding the same render as `@vibe_ghosts`; option
+  values have no length cliff) which `agent-open.sh -g N` resolves and
+  re-vets; container-side `agent-session.sh attach` now REFUSES to
+  create agent-convention sessions (attach means attach — `vibe agent`
+  is the launch door; non-agent names keep `-A`'s create, an empty
+  `services` session is a feature); and every viewer/launch window is
+  stamped `@vibe_session` at birth (chooser launch items, palette
+  restart, agent-open) so the ghost/chooser dedup join never waits on
+  title events a hookless CLI (codex, a bare shell) will never send —
+  that stamp gap is why ghost clicks piled up duplicate viewers
+  instead of clearing the ghost.
 - **Palette hygiene.** 🥡 / `prefix+Space` keep the full palette; its
   bare "agent" item retires in favor of the chooser (the label
   promised "new", the semantics delivered attach-or-launch).
@@ -474,11 +508,15 @@ The chooser's reach-vs-launch verdicts and porcelain live in
 `internal/tmuxui/chooser_test.go` and the manifest/cache join in
 `internal/app/chooser_test.go` (a running entry must reach, never
 double-launch); the manual mouse check is opening the chooser by
-CLICKING `+` and then clicking an item — the NOMOUSE/-M regression
-class, provable headlessly with a PTY that injects SGR mouse
-sequences into an attached scratch client (the 2026-07-26 rig:
-press+release on the range cell, then press+release on the item row,
-then assert the item's window exists). For the editor popups: with the
+CLICKING `+`, MOVING the pointer (the menu must survive — the
+`-M`-without-`-O` regression class), and clicking an item — provable
+headlessly with a PTY that injects SGR mouse sequences into an
+attached scratch client (the 2026-07-26 rig: press+release on the
+range cell, bare-motion events (button 35) outside the box, a hover
+motion onto the item row, press+release there, then assert the item's
+window exists AND carries the `@vibe_session` birth stamp; a second
+pass clicks a `ghost-N` cell and asserts the `@vibe_ghost_map`
+resolution). For the editor popups: with the
 container stopped, `prefix+f/g` must hold the popup open with the
 `vibe up` hint, never flash-and-close; and the parser layer's proof
 is a `vibe rebuild` (the headless nvim-treesitter install is the one
