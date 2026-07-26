@@ -148,8 +148,8 @@
     {
       "path": "host/scripts/review.sh",
       "mode": "0755",
-      "size": 1659,
-      "digest": "sha256:0298de51b073e7388958b534c73b1935c9017bf14af8db0d2dc2517fbb159d35"
+      "size": 1682,
+      "digest": "sha256:6aaca2dc78c6fba42c1334d2243beb33a15844f6b251a3d85683427e15637e7a"
     },
     {
       "path": "host/scripts/sidebar.sh",
@@ -236,5 +236,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:a1d8c2fafc04b5a8b047c9a68131a6e8a91b69728a11df0a0b93787b491b9c62"
+  "digest": "sha256:24a900f211fbdc7007f55ef68d5a38e4531317ba0412f74c3a842d3d30bfddf6"
 }

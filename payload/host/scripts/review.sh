@@ -28,7 +28,7 @@ q="'${exe//\'/\'\\\'\'}'"
 
 # The border title is the helper text — the always-visible "how do I
 # leave" answer (q quits nvim from anywhere; lazygit's own q quits).
-title=" files · q quit · - browse · Space keys "
+title=" files · enter open · - close file/back · q quit · Space keys "
 [ "$mode" = git ] && title=" git · q quit · ? keys "
 
 # A dead/stopped container makes `vibe exec` fail fast; hold the popup
