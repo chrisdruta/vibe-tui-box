@@ -263,3 +263,17 @@ history). Read the mechanisms as historical; the calls stand.
   different OUTER containers (`--jailed`), never a nested inner sandbox
   (docs/security.md "Inner agent sandboxes" in the v1 line; the call
   carries to v2).
+- **Roster stays render-only — no dismiss affordance (2026-07-25).** A
+  ctrl-c-quit agent left a ✗ viewer window needing manual reaping, and
+  "add dismiss to the roster" was considered and rejected: it would put
+  an interactive (and destructive) control on the render-only fleet
+  glance (see the herdr ceded-ledger record), fight tmux's stock
+  right-click pane menus, and institutionalize a cleanup chore instead
+  of removing it. "Treat exit 130 as clean" was also rejected as
+  unimplementable: a tmux client exits 0 regardless of the pane
+  command's status (verified on 3.7b), so agent exit codes never cross
+  the inner-tmux boundary and the host cannot see a 130. The fix that
+  shipped keys on recorded truth instead: the pane-died hook self-cleans
+  a dead viewer whose @vibe_state is exited* (the run's own end was
+  recorded — the death is explained), and corpses keep to unexplained
+  deaths, now with a close hint beside the respawn hint.
