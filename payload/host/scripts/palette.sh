@@ -25,12 +25,12 @@ exec tmux display-menu "${target[@]}" -T " vibe " \
   "" \
   "project sidebar" b "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/sidebar.sh' toggle '#{window_id}'\"" \
   "host dock" t "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/dock.sh' '#{window_id}'\"" \
-  "clip image → agent" v "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/clip-to-pane.sh' '#{@vibe_payload_dir}' '#{window_id}'\"" \
+  "clip image → agent" v "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/clip-to-pane.sh' '#{window_id}'\"" \
   "switch project" o "choose-tree -Zs" \
   "git (lazygit)" g "display-popup -d \"#{session_path}\" -w 85% -h 85% -E \"lazygit || bash -l\"" \
-  "requests" u "display-popup -w 85% -h 70% -E \"'#{@vibe_exe}' request list; printf '\\n[enter to close] '; read _\"" \
-  "agents (vibe ps)" p "display-popup -w 85% -h 70% -E \"'#{@vibe_exe}' ps; printf '\\n[enter to close] '; read _\"" \
-  "doctor" D "display-popup -w 85% -h 70% -E \"'#{@vibe_exe}' doctor; printf '\\n[enter to close] '; read _\"" \
+  "requests" u "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' request list\"" \
+  "agents (vibe ps)" p "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' ps\"" \
+  "doctor" D "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' doctor\"" \
   "" \
   "detach (keep running)" d "detach-client" \
   "park project (down + quit)" z "display-popup -w 70% -h 45% -E \"'#{@vibe_exe}' down; printf '\\n[enter to close] '; read _\"" \
