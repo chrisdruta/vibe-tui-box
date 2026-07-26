@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
+	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
 	"github.com/chrisdruta/vibe-tui-box/internal/version"
@@ -53,10 +56,86 @@ type configResult struct {
 	Result app.ConfigResult
 }
 
-// The canonical plan is JSON by construction; both modes emit it, the
-// JSON mode wrapped in the versioned envelope.
+// RenderHuman prints a readable summary of the compiled plan; the
+// canonical JSON stays behind --json.
 func (r *configResult) RenderHuman(w io.Writer) error {
-	_, err := w.Write(r.Result.Canonical)
+	p := r.Result.Plan
+	short := func(d domain.Digest) string {
+		if d.IsZero() {
+			return "unresolved"
+		}
+		return d.Hex()[:12]
+	}
+	img := func(id model.ImageID) string {
+		if id.Digest.IsZero() {
+			return id.Ref
+		}
+		return id.Ref + " @" + short(id.Digest)
+	}
+	var b strings.Builder
+	line := func(label, format string, args ...any) {
+		fmt.Fprintf(&b, "%-11s%s\n", label, fmt.Sprintf(format, args...))
+	}
+	container := func(c model.Container) {
+		for _, m := range c.Mounts {
+			mode := "rw"
+			if m.ReadOnly {
+				mode = "ro"
+			}
+			line("  mount", "%s ← %s (%s, %s)", m.Target, m.Source, m.Kind, mode)
+		}
+		for _, pt := range c.Ports {
+			line("  port", "%s:%d → %d", pt.HostIP, pt.HostPort, pt.ContainerPort)
+		}
+		for _, e := range c.Environment {
+			line("  env", "%s=%s", e.Key, e.Value)
+		}
+	}
+
+	line("project", "%s (%s)", p.Project.DisplayName, p.Project.ID)
+	line("root", "%s", p.Project.Root)
+	if p.Artifact.Digest.IsZero() {
+		line("artifact", "none installed")
+	} else {
+		line("artifact", "%s @%s", p.Artifact.Version, short(p.Artifact.Digest))
+	}
+	if p.Tools != nil {
+		parts := ""
+		if len(p.Tools.Agents) > 0 {
+			parts = "agents: " + strings.Join(p.Tools.Agents, ", ")
+		}
+		if len(p.Tools.Toolchains) > 0 {
+			if parts != "" {
+				parts += " · "
+			}
+			parts += "toolchains: " + strings.Join(p.Tools.Toolchains, ", ")
+		}
+		line("tools", "%s", parts)
+	}
+	if p.Extension != nil {
+		line("extension", "%s (digest-approved build)", p.Extension.Dockerfile)
+	}
+	line("dev", "%s", img(p.Dev.Image))
+	container(p.Dev)
+	for _, s := range p.Services {
+		line("service", "%s — %s", s.Name, img(s.Image))
+		container(s)
+	}
+	if len(p.Volumes) > 0 {
+		names := make([]string, 0, len(p.Volumes))
+		for _, v := range p.Volumes {
+			names = append(names, v.Name)
+		}
+		line("volumes", "%s", strings.Join(names, ", "))
+	}
+	if p.Inputs.EnvFile != "" {
+		line("env file", "%s (frozen; loaded by `vibe run` and the agent CLI only)", p.Inputs.EnvFile)
+	}
+	if !p.Inputs.Snapshot.IsZero() {
+		line("snapshot", "@%s", short(p.Inputs.Snapshot))
+	}
+	line("plan", "@%s (`vibe config --json` prints the canonical plan)", short(p.CanonicalHash))
+	_, err := io.WriteString(w, b.String())
 	return err
 }
 
