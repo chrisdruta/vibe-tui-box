@@ -168,6 +168,7 @@ var uiCommands = map[string]Command{
 	"_sidebar": renderCommand("_sidebar", (*app.App).RenderSidebar),
 	"_state":   renderCommand("_state", (*app.App).RenderState),
 	"_fleet":   renderCommand("_fleet", (*app.App).RenderFleet),
+	"_agents":  renderCommand("_agents", (*app.App).RenderAgents),
 	"_frame": {
 		Name:    "_frame",
 		Summary: "internal sidebar frame renderer",
@@ -188,9 +189,10 @@ var uiCommands = map[string]Command{
 			if err != nil {
 				return nil, err
 			}
-			// Two protocol lines: the click map, then the newline-free
-			// ANSI body the sidebar loop paints verbatim.
-			return &renderResult{Lines: []string{res.Map, res.Body}}, nil
+			// Three protocol lines: the click map, the tray's ghost
+			// cells, then the newline-free ANSI body the sidebar loop
+			// paints verbatim.
+			return &renderResult{Lines: []string{res.Map, res.Ghosts, res.Body}}, nil
 		},
 	},
 }

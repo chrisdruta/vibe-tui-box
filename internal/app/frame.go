@@ -23,10 +23,12 @@ type FrameRequest struct {
 }
 
 // FrameResult is the rendered frame: the click map for
-// @vibe_sidebar_map and the newline-free ANSI body.
+// @vibe_sidebar_map, the tray's ghost cells for @vibe_ghosts, and the
+// newline-free ANSI body.
 type FrameResult struct {
-	Map  string
-	Body string
+	Map    string
+	Ghosts string
+	Body   string
 }
 
 // maxFrameInput bounds the porcelain read; a sidebar frame's tmux
@@ -54,6 +56,9 @@ func (a *App) RenderFrame(ctx context.Context, req FrameRequest) (FrameResult, e
 		if fleet, err := os.ReadFile(filepath.Join(req.CacheDir, "fleet")); err == nil {
 			in.Fleet = tmuxui.ParseFleet(strings.Split(string(fleet), "\n"))
 		}
+		if agents, err := os.ReadFile(filepath.Join(req.CacheDir, "agents")); err == nil {
+			in.Agents = tmuxui.ParseAgents(strings.Split(string(agents), "\n"))
+		}
 		for _, s := range in.Sessions {
 			if s.ID != in.SelfSession || s.Project == "" {
 				continue
@@ -65,7 +70,7 @@ func (a *App) RenderFrame(ctx context.Context, req FrameRequest) (FrameResult, e
 		}
 	}
 	out := tmuxui.Frame(in)
-	return FrameResult{Map: out.Map, Body: out.Body}, nil
+	return FrameResult{Map: out.Map, Ghosts: out.Ghosts, Body: out.Body}, nil
 }
 
 // gitBranch reads .git/HEAD directly — no git subprocess on the frame

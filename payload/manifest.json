@@ -10,8 +10,8 @@
     {
       "path": "container/agent-ps.sh",
       "mode": "0755",
-      "size": 5458,
-      "digest": "sha256:142d36da497cb2c59148deac0ed2a6e342291869a3a237f316795adee4ed40a1"
+      "size": 5804,
+      "digest": "sha256:d0f1a790029a7d2e159dad6c30eecb023bf16a55ad4dcc887ad5641d7b74451b"
     },
     {
       "path": "container/agent-session.sh",
@@ -122,6 +122,12 @@
       "digest": "sha256:fd02e5aad1a03539dc50900ddc898e4e24d33b23945d952baa500eb6ca3b3048"
     },
     {
+      "path": "host/scripts/agent-open.sh",
+      "mode": "0755",
+      "size": 2472,
+      "digest": "sha256:31e20b5414d0c9f9091bbd5c22016cad724af4a87f95ded0c222c0f6955d3d47"
+    },
+    {
       "path": "host/scripts/clip-image.sh",
       "mode": "0755",
       "size": 4103,
@@ -160,14 +166,14 @@
     {
       "path": "host/scripts/sidebar.sh",
       "mode": "0755",
-      "size": 14275,
-      "digest": "sha256:50893ae9b76216d87b7244f6b64fe37bb7f6d91eddd489d719eaac00fd055901"
+      "size": 16070,
+      "digest": "sha256:7b23c021faf9e7b692c4c90cadf5aadb57dded41acf39fc446de1488752eae4c"
     },
     {
       "path": "host/scripts/state-render.sh",
       "mode": "0755",
-      "size": 6324,
-      "digest": "sha256:f638ef8d0f6760f2f9bbbdaef5cab212f5a72cfaf49c01af8b405cfe842b57b3"
+      "size": 6892,
+      "digest": "sha256:6273e3ab2eac85386684a66a7dc0d52da07c248f8d078fa7d5967b123498b74c"
     },
     {
       "path": "host/scripts/theme.sh",
@@ -178,8 +184,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 24553,
-      "digest": "sha256:36cf837bb715c3275fa14d70a5544b271625394db4d199bc606aee4ef26c4bb1"
+      "size": 25668,
+      "digest": "sha256:bede1157374e13ef748499c5cb57fca6215d28c85dab96cefe837ce399b94506"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -242,5 +248,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:2499daea9334a90970a19653201d13e773f512ec97dd2bb32a815672a5bc6d16"
+  "digest": "sha256:610f730eb9d95cab04441c507c92e75a25bb1ec46b0a8c802072cc1c5f369d50"
 }

@@ -465,6 +465,39 @@ func (a *App) RenderState(ctx context.Context, req RenderRequest) (RenderResult,
 	return RenderResult{Lines: []string{tmuxui.State(a.projectView(ctx, rec))}}, nil
 }
 
+// RenderAgents renders `vibe _agents`: every container-side agent
+// session the fleet knows about, keyed to its project — the truth the
+// sidebar's viewer-less rows and the tray's ghost cells join against
+// tmux's own windows. Project scopes it to one record.
+//
+// Cost: one container exec per project whose dev container is running
+// (the inspect that answers "running" is the same one _fleet already
+// pays). It is a FETCH-path renderer by design — the sidebar calls it
+// on the engine cadence, never per frame.
+func (a *App) RenderAgents(ctx context.Context, req RenderRequest) (RenderResult, error) {
+	fail := opFail[RenderResult]("_agents", "")
+	records, err := a.deps.Registry.List(ctx)
+	if err != nil {
+		return fail(err)
+	}
+	var entries []tmuxui.AgentEntry
+	for _, rec := range records {
+		if req.Project != "" && rec.ID != req.Project {
+			continue
+		}
+		for _, row := range a.agentRows(ctx, rec) {
+			entries = append(entries, tmuxui.AgentEntry{
+				Project: string(rec.ID),
+				Session: row.Name,
+				State:   row.State,
+				CLI:     row.CLI,
+				Model:   row.Model,
+			})
+		}
+	}
+	return RenderResult{Lines: tmuxui.Agents(entries, req.Width)}, nil
+}
+
 func (a *App) RenderFleet(ctx context.Context, req RenderRequest) (RenderResult, error) {
 	fail := opFail[RenderResult]("_fleet", "")
 	records, err := a.deps.Registry.List(ctx)

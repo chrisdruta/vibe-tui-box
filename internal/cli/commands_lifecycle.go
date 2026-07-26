@@ -194,7 +194,14 @@ var lifecycleCommands = map[string]Command{
 			r := req.(*AttachCmdRequest)
 			cmd, restore := r.containerCommand(dir)
 			defer restore()
-			res, err := a.Attach(ctx, app.AttachRequest{ContainerCommand: cmd, Session: r.Session})
+			res, err := a.Attach(ctx, app.AttachRequest{
+				ContainerCommand: cmd,
+				Session:          r.Session,
+				// Same marker as `vibe agent`: a viewer opened from the
+				// tui (a tray ghost cell, a sidebar row) must be reapable
+				// when the UI dies.
+				Nested: os.Getenv("VIBE_NESTED") == "1",
+			})
 			if err != nil {
 				return nil, err
 			}

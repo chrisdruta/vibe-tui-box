@@ -372,6 +372,33 @@ The v1 line and its history remain in git up to the cutover commit.
   already used — and the app layer stamps each step with its BoM part.
   `vibe config` prints the same parts statically as `part` rows, with
   re-pull-on-rebuild verdicts.
+- New: the agent surfaces split three ways — the tray is presence, the
+  sidebar is signal, `vibe ps` is full truth
+  ([docs/tui-layout.md](docs/tui-layout.md) "Agent surfaces"), and no
+  agent is drawn twice on one surface. **Tray ghost cells:** a
+  container-side agent session with no window on this server renders
+  in the winlist as a dim italic cell on the surface color behind a
+  hairline inset, its dot carrying real state (an attention coral is
+  visible with no window open), each its own `mouse_status_range`;
+  clicking one opens a viewer — attach-only (`vibe attach SESSION`:
+  never starts, never restarts), after which the ghost graduates to a
+  real tab. **Nested sidebar roster:** the `─ agents ─` section folds
+  into the fleet blocks as one row per agent that wants eyes (state
+  dot + the CLI actually running + dim model), while idle agents
+  collapse to their dot on the project's name row; viewer-less agents
+  with signal get rows whose click is the same attach-only spawn.
+  Project blocks now sit under 2-col **gutter bars** (coral for the
+  session you are in, border-hex for another project in use, none for
+  a cold one) and overflow per block (`… +n agents`) instead of one
+  fleet-wide count. Both surfaces read ONE join — the frame renderer
+  matches the new `vibe _agents` fetch-cache rows against this
+  server's windows and publishes the tray's cells as `@vibe_ghosts`,
+  so the conf keeps its single `#(vibe _state)` splice and the tray
+  and sidebar cannot disagree about what exists. Also: the frame now
+  clips at the footer row instead of painting (and click-mapping) rows
+  the pane cannot show, `vibe ps` rows carry cli/model as their own
+  columns, and a viewer opened from the UI carries `VIBE_NESTED` so it
+  is reapable on quit.
 - Fixed: an all-pinned agent selection no longer sends the
   `VIBE_AGENT_REFRESH` build arg its Dockerfile never declares, which
   drew the daemon's unconsumed-build-arg warning on every build.

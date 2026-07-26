@@ -2,19 +2,16 @@
 #
 # vibe tui project sidebar — the cross-project glance as a vertical pane
 # on the far left (graduated from the 2026-07-22 spike; it REPLACES the
-# old status-line-2 strip). Two sections:
-#   top    — the fleet: every project session on the vibe socket with its
-#            state dots (the same @vibe_glyph / @vibe_dot_fg / @vibe_attn
-#            data state-render.sh maintains for the tabs), the workspace
-#            name in bold (bright = the session this sidebar lives in),
-#            and the checkout's git branch underneath; click = switch
-#   bottom — the agent roster, AGGREGATE across all projects, from the
-#            pane's midpoint (projects own the top half, agents the
-#            bottom half) under a ruled header matching the pane
-#            border's "projects" title. Fleet-style two-line entries —
-#            "dot name" over a dim "model · project" — for every
-#            stateful window on the socket; click = jump to that
-#            project AND that window
+# old status-line-2 strip). ONE section, the fleet: every project
+# session on the vibe socket as a block under its gutter bar — the
+# workspace name in bold (bright = the session this sidebar lives in)
+# carrying the idle agents' state dots (the same @vibe_glyph /
+# @vibe_dot_fg / @vibe_attn data state-render.sh maintains for the
+# tabs), the checkout's git branch, engine facts, and NESTED agent rows
+# for the agents that want eyes (docs/tui-layout.md "Agent surfaces":
+# the sidebar is activity and signal, the tray is presence and reach,
+# `vibe ps` is full truth). Click = switch to that project, jump to
+# that window, or spawn a viewer for an agent that has none.
 #
 # GLOBAL across the whole UI: @vibe_sidebar_on (conf defaults it to 1) is
 # the one switch, and the conf's ensure hooks (after-new-window /
@@ -54,8 +51,8 @@
 # stays cache-only: a second serial, @vibe_engine_serial (bumped by
 # state-mutating engine commands, internal/app/notify.go), or the
 # @vibe_engine_refresh slow tick (default 30s) triggers a double-forked
-# background fetch of `vibe _fleet` / `vibe _sidebar` into a
-# socket-derived cache; _frame only ever READS the cache — never
+# background fetch of `vibe _fleet` / `vibe _agents` / `vibe _sidebar`
+# into a socket-derived cache; _frame only ever READS the cache — never
 # Docker — so a slow daemon costs frames nothing and the last good
 # truth keeps rendering. The engine binary itself is a prerequisite
 # (the sidebar only exists under `vibe tui`): if it vanishes
@@ -123,6 +120,12 @@ toggle)
       awk -F "$tab" '$2 == "sidebar" { print $1 }'); do
       tmux kill-pane -t "$p" 2>/dev/null
     done
+    # The render loop is the tray ghosts' only publisher; with no
+    # sidebar left, drop them rather than leave the bar advertising a
+    # roster nothing refreshes.
+    for s in $(tmux list-sessions -F '#{session_id}' 2>/dev/null); do
+      tmux set-option -t "$s" -u @vibe_ghosts 2>/dev/null
+    done
   else
     tmux set-option -g @vibe_sidebar_on 1
     ensure_in "$win"
@@ -150,12 +153,19 @@ click)
   [ -n "$sid" ] || exit 0 # gutter/blank row — not a target
   case "$sid" in
     *:@*)
-      # agent roster row: "SESSION:WINDOW" — make that window current in
-      # its session, then bring this client over
+      # nested agent row with a viewer: "SESSION:WINDOW" — make that
+      # window current in its session, then bring this client over
       win="${sid##*:}"
       sess="${sid%%:*}"
       tmux select-window -t "$win" 2>/dev/null
       sid="$sess"
+      ;;
+    *:agent-*)
+      # nested agent row with NO viewer: "SESSION:agent-NAME" — the same
+      # attach-only spawn a tray ghost cell dispatches (one definition,
+      # agent-open.sh), which brings the client over itself.
+      here="$(cd "$(dirname "$0")" && pwd)"
+      exec bash "$here/agent-open.sh" "$client" "${sid%%:*}" "${sid#*:agent-}"
       ;;
   esac
   if [ -n "$client" ]; then
@@ -232,6 +242,15 @@ fetch_engine() {
       else
         rm -f "$cache_dir/fleet.tmp" 2>/dev/null
       fi
+      # Container-side agent truth (`vibe ps` rows for every running
+      # project): the sidebar's viewer-less rows and the TRAY's ghost
+      # cells both join against this. Fleet-wide, one exec per running
+      # project — the reason it rides the slow fetch and never a frame.
+      if "$exe" _agents --width "$fw" >"$cache_dir/agents.tmp" 2>/dev/null; then
+        mv -f "$cache_dir/agents.tmp" "$cache_dir/agents" 2>/dev/null
+      else
+        rm -f "$cache_dir/agents.tmp" 2>/dev/null
+      fi
       if [ -n "$proj" ]; then
         # Width leaves room for the dim gutter frame() adds; a pane
         # narrower than the knob is transient (the fit hook snaps back).
@@ -247,14 +266,16 @@ fetch_engine() {
 }
 
 # frame — one redraw. The layout arithmetic (budgets, truncation, the
-# two-line records, the midpoint split, the click map) lives in the
+# gutter bars, the nested agent rows, the click map) lives in the
 # engine's `vibe _frame` renderer (internal/tmuxui/frame.go), where it
 # is table-tested; this side only gathers the raw tmux porcelain and
-# paints the returned bytes. The renderer answers two protocol lines:
+# paints the returned bytes. The renderer answers three protocol lines:
 # the click map (published as @vibe_sidebar_map for the click mode
-# above — no second copy of the layout arithmetic to drift) and the
+# above — no second copy of the layout arithmetic to drift), the tray's
+# ghost cells (published as the session's @vibe_ghosts), and the
 # newline-free ANSI body. Engine facts still come cache-only: _frame
-# reads the fleet/detail caches, never Docker, so frames stay cheap.
+# reads the fleet/agents/detail caches, never Docker, so frames stay
+# cheap.
 nl='
 '
 frame() {
@@ -270,20 +291,34 @@ frame() {
     {
       printf 'G%s%s\n' "$us" "$geo"
       tmux list-sessions -F "S$us#{session_id}$us#{?#{@vibe_name},#{@vibe_name},#{session_name}}$us#{session_path}$us#{@vibe_project}" 2>/dev/null
-      tmux list-windows -a -F "W$us#{session_id}$us#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}" 2>/dev/null
+      tmux list-windows -a -F "W$us#{session_id}$us#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}$us#{@vibe_state}$us#{@vibe_session}" 2>/dev/null
     } | "$exe" _frame --cache "$cache_dir" 2>/dev/null
   )" || return 0
-  case "$out" in *"$nl"*) ;; *) return 0 ;; esac # malformed: keep last frame
+  case "$out" in *"$nl"*"$nl"*) ;; *) return 0 ;; esac # malformed: keep last frame
   map="${out%%"$nl"*}"
-  printf '%s' "${out#*"$nl"}"
+  rest="${out#*"$nl"}"
+  ghosts="${rest%%"$nl"*}"
+  printf '%s' "${rest#*"$nl"}"
   if [ "$map" != "$last_map" ]; then
     tmux set-option -p -t "${TMUX_PANE:-}" @vibe_sidebar_map "$map" 2>/dev/null
     last_map="$map"
+  fi
+  # The TRAY's ghost cells ride the same render: the frame renderer
+  # already joined `vibe ps` truth against this server's windows, so
+  # publishing its answer as a SESSION option keeps the winlist's one
+  # #{E:@vibe_ghosts} splice honest without a second engine call (the
+  # conf's splice budget stays the single #(vibe _state)). Every
+  # window's sidebar computes the same string for the same session, so
+  # the writes are idempotent.
+  if [ "$ghosts" != "$last_ghosts" ]; then
+    tmux set-option -t "${geo##*"$us"}" @vibe_ghosts "$ghosts" 2>/dev/null
+    last_ghosts="$ghosts"
   fi
 }
 
 
 last_map=""
+last_ghosts=""
 last_serial=""
 last_eserial=""
 tick=0

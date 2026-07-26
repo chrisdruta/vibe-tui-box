@@ -10,6 +10,7 @@ import (
 
 	"github.com/chrisdruta/vibe-tui-box/internal/broker"
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
+	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
@@ -565,7 +566,7 @@ func TestDevOffHandoffFailureKeepsDevMode(t *testing.T) {
 }
 
 func TestRenderersProduceProtocolLines(t *testing.T) {
-	a, _ := newTestApp(t)
+	a, docker := newTestApp(t)
 	ctx := context.Background()
 	dir := newProject(t)
 	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
@@ -596,5 +597,25 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 	fields := strings.Split(fleet.Lines[0], "\x1f")
 	if len(fields) != 7 || fields[0] != "1" || fields[1] != string(rec.ID) {
 		t.Fatalf("fleet porcelain fields: %q", fields)
+	}
+	// _agents porcelain: the container-side `vibe ps` join, one line per
+	// agent session, keyed to its project. The feeder's optional cli and
+	// model columns become their own fields; a row whose session name
+	// could not survive a tmux target or a mouse range is dropped.
+	docker.ExecOutputs[dockerfake.ExecKey([]string{"bash", model.PayloadAgentPS})] =
+		"agent|working|0|claude - opus|claude|opus\nagent-ghost|idle|0||\nbad name|idle|0||\n"
+	agents, err := a.RenderAgents(ctx, RenderRequest{Width: 80})
+	if err != nil || len(agents.Lines) != 2 {
+		t.Fatalf("agents render: %+v, %v", agents, err)
+	}
+	fields = strings.Split(agents.Lines[0], "\x1f")
+	if len(fields) != 6 || fields[0] != "1" || fields[1] != string(rec.ID) ||
+		fields[2] != "agent" || fields[3] != "working" || fields[4] != "claude" || fields[5] != "opus" {
+		t.Fatalf("agents porcelain fields: %q", fields)
+	}
+	// Scoped to one project, and empty for a project that has none.
+	scoped, err := a.RenderAgents(ctx, RenderRequest{Project: "no-such-project"})
+	if err != nil || len(scoped.Lines) != 0 {
+		t.Fatalf("scoped agents render: %+v, %v", scoped, err)
 	}
 }

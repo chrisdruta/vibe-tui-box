@@ -70,12 +70,20 @@ func TestRenderFrame(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(cache, "detail.projself"), []byte("  release v2.0.0\n  dev running\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	agents := strings.Join([]string{
+		"1" + us + "projself" + us + "agent" + us + "working" + us + "claude" + us + "opus",
+		"1" + us + "projself" + us + "agent-ghost" + us + "attention" + us + "codex" + us + "",
+	}, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(cache, "agents"), []byte(agents), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	porcelain := strings.Join([]string{
 		"G" + us + "30" + us + "24" + us + "$1",
 		"S" + us + "$1" + us + "selfname" + us + t.TempDir() + us + "projself",
 		"S" + us + "$2" + us + "othername" + us + t.TempDir() + us + "projother",
-		"W" + us + "$1" + us + "●" + us + "#9ece6a" + us + "0" + us + "@1" + us + "claude" + us + "1" + us + "opus",
+		"W" + us + "$1" + us + "●" + us + "#9ece6a" + us + "0" + us + "@1" + us + "claude" + us + "1" + us + "opus" +
+			us + "working" + us + "agent",
 	}, "\n")
 
 	res, err := a.RenderFrame(ctx, FrameRequest{
@@ -86,14 +94,23 @@ func TestRenderFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The self session carries its detail block; the other one gets the
-	// dim facts summary from the fleet cache; the roster has the agent.
-	for _, want := range []string{"release v2.0.0", "◐ stale", "▲1", "claude"} {
+	// dim facts summary from the fleet cache; the working agent gets a
+	// nested row, and the viewer-less one in the agents cache gets its
+	// own row plus a tray ghost cell.
+	for _, want := range []string{"release v2.0.0", "◐ stale", "▲1", "claude", "codex"} {
 		if !strings.Contains(res.Body, want) {
 			t.Fatalf("frame body missing %q", want)
 		}
 	}
-	if !strings.Contains(res.Map, ":$1") || !strings.Contains(res.Map, "$1:@1") {
-		t.Fatalf("click map missing session or roster targets: %q", res.Map)
+	if !strings.Contains(res.Map, ":$1") || !strings.Contains(res.Map, "$1:@1") ||
+		!strings.Contains(res.Map, "$1:agent-agent-ghost") {
+		t.Fatalf("click map missing session, window, or spawn targets: %q", res.Map)
+	}
+	if !strings.Contains(res.Ghosts, "range=user|agent-agent-ghost") {
+		t.Fatalf("tray ghost cells missing the viewer-less session: %q", res.Ghosts)
+	}
+	if strings.Contains(res.Ghosts, "|agent-agent]") {
+		t.Fatalf("the session with a viewer window must not be a ghost: %q", res.Ghosts)
 	}
 
 	// No cache dir: the frame still renders from tmux truth alone.

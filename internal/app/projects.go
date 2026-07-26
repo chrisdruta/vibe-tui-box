@@ -56,13 +56,18 @@ type PSRequest struct {
 
 // AgentPSRow is one agent session inside the current project's dev
 // container, as reported by the container-side agent-ps.sh join of the
-// inner tmux server and the state records.
+// inner tmux server and the state records. CLI and Model are the same
+// truth Detail renders for humans, kept as fields for the tmux
+// surfaces that lay them out themselves (the sidebar's nested rows,
+// the tray's ghost cells).
 type AgentPSRow struct {
 	Name   string
 	State  string
 	Since  int64  // unix epoch of the state's reference time; 0 unknown
 	Age    string // compact human age rendered against the engine clock
 	Detail string
+	CLI    string
+	Model  string
 }
 
 // PSResult lists registered projects in deterministic fleet order,
@@ -84,39 +89,57 @@ func (a *App) PS(ctx context.Context, req PSRequest) (PSResult, error) {
 	// Agent rows are strictly best-effort decoration: no project here,
 	// no running container, no payload — the fleet listing stands alone.
 	if _, rec, err := a.resolveProject(ctx, req.Dir); err == nil {
-		if name, err := a.requireDevContainer(ctx, rec); err == nil {
-			var out bytes.Buffer
-			res, err := a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
-				Container: name,
-				User:      devContainerUser,
-				Argv:      []string{"bash", model.PayloadAgentPS},
-				Streams:   dockerapi.Streams{Out: &out},
-			})
-			if err == nil && res.ExitCode == 0 {
-				if rows := parseAgentPS(out.String(), a.deps.Clock.Now()); len(rows) > 0 {
-					result.AgentProject = rec.DisplayName
-					result.Agents = rows
-				}
-			}
+		if rows := a.agentRows(ctx, rec); len(rows) > 0 {
+			result.AgentProject = rec.DisplayName
+			result.Agents = rows
 		}
 	}
 	return result, nil
 }
 
-// parseAgentPS decodes agent-ps.sh's `name|state|epoch|detail` rows.
-// The bytes are container-controlled: fields are stripped to printable
-// ASCII and bounded before they can reach a terminal or JSON output.
+// agentRows runs the container-side `vibe ps` feeder for one project.
+// Best-effort by contract — no running dev container, no payload, a
+// nonzero feeder: no rows, never an error. Callers decorate with what
+// comes back.
+func (a *App) agentRows(ctx context.Context, rec registry.Record) []AgentPSRow {
+	name, err := a.requireDevContainer(ctx, rec)
+	if err != nil {
+		return nil
+	}
+	var out bytes.Buffer
+	res, err := a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
+		Container: name,
+		User:      devContainerUser,
+		Argv:      []string{"bash", model.PayloadAgentPS},
+		Streams:   dockerapi.Streams{Out: &out},
+	})
+	if err != nil || res.ExitCode != 0 {
+		return nil
+	}
+	return parseAgentPS(out.String(), a.deps.Clock.Now())
+}
+
+// parseAgentPS decodes agent-ps.sh's
+// `name|state|epoch|detail[|cli|model]` rows. The bytes are
+// container-controlled: fields are stripped to printable ASCII and
+// bounded before they can reach a terminal or JSON output. The trailing
+// pair is optional — an image built before the split feeds four fields
+// and its rows keep rendering, CLI and model folded into Detail alone.
 func parseAgentPS(out string, now time.Time) []AgentPSRow {
 	var rows []AgentPSRow
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		parts := strings.Split(strings.TrimRight(line, "\r"), "|")
-		if len(parts) != 4 || parts[0] == "" {
+		if len(parts) < 4 || parts[0] == "" {
 			continue
 		}
 		row := AgentPSRow{
 			Name:   sanitizeField(parts[0]),
 			State:  sanitizeField(parts[1]),
 			Detail: sanitizeField(parts[3]),
+		}
+		if len(parts) >= 6 {
+			row.CLI = sanitizeField(parts[4])
+			row.Model = sanitizeField(parts[5])
 		}
 		if ts, err := strconv.ParseInt(parts[2], 10, 64); err == nil && ts > 0 {
 			row.Since = ts

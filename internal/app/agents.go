@@ -116,10 +116,14 @@ func (a *App) Shell(ctx context.Context, cmd ContainerCommand) (ExecResult, erro
 
 // AttachRequest connects to the dev container: without Session, the
 // container's main process; with one, that named in-container tmux
-// session (e.g. the `services` session lifecycle hooks populate).
+// session (e.g. the `services` session lifecycle hooks populate, or an
+// agent session a tray ghost cell reaches for). Nested marks the exec
+// as spawned under `vibe tui`, exactly as on AgentRequest, so the inner
+// tmux client it creates is reapable when the UI dies.
 type AttachRequest struct {
 	ContainerCommand
 	Session string
+	Nested  bool
 }
 
 // sessionNameRe matches the shared inner-session charset (tmux session
@@ -156,6 +160,9 @@ func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error)
 	}
 	cmd := req.ContainerCommand
 	cmd.Argv = []string{"bash", model.PayloadAgentSession, "attach", req.Session}
+	if req.Nested {
+		cmd.Env = append(cmd.Env, envfile.Entry{Key: "VIBE_NESTED", Value: "1"})
+	}
 	res, err := a.execIn(ctx, name, cmd)
 	if err != nil {
 		return fail(err)

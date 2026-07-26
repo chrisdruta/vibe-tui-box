@@ -46,6 +46,25 @@ func TestAttachSession(t *testing.T) {
 		}
 	}
 
+	// Under `vibe tui` the exec carries the nested marker, so the inner
+	// client a tray ghost's viewer creates is reapable when the UI dies.
+	if _, err := a.Attach(ctx, AttachRequest{
+		ContainerCommand: ContainerCommand{Dir: dir}, Session: "agent-ghost", Nested: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	execs = docker.CallsTo("Exec")
+	nested := execs[len(execs)-1].Request.(dockerapi.ExecRequest)
+	found := false
+	for _, e := range nested.Env {
+		if e == "VIBE_NESTED=1" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("nested attach must carry the marker: %v", nested.Env)
+	}
+
 	// Hostile session names never reach the container.
 	before := len(docker.CallsTo("Exec"))
 	if _, err := a.Attach(ctx, AttachRequest{ContainerCommand: ContainerCommand{Dir: dir}, Session: "a;rm -rf"}); !errors.Is(err, domain.ErrInvalid) {

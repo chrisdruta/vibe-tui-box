@@ -118,14 +118,24 @@ const (
 )
 
 // winlist composes the tray middle: list scaffolding, the clickable
-// dock cell, the stock window list, and the clickable new-window cell.
-// Cells deliberately avoid commas — one attribute per #[...] block —
-// so the construct survives #{?…} comma-parsing wherever it is spliced.
+// dock cell, the stock window list, the agent-truth ghost cells, and
+// the clickable new-window cell. Cells deliberately avoid commas — one
+// attribute per #[...] block — so the construct survives #{?…}
+// comma-parsing wherever it is spliced.
+//
+// The ghost cells are a whole rendered fragment, not a construct: the
+// sidebar's frame renderer joins `vibe ps` truth against this server's
+// windows and publishes the cells as the session's @vibe_ghosts
+// (internal/tmuxui/frame.go ghostCells). #{E:} expands it here the same
+// way the tray swaps in the cheatsheet — so container-side sessions
+// with no window are one click away without a second #() engine splice
+// in the conf.
 func winlist() string {
 	return `#[list=on align=#{status-justify}]` +
 		`#[list=left-marker]<#[list=right-marker]>#[list=on]` +
 		`#[range=user|dock]#[fg=#{@thm_dim}] ▤ #[norange]#[default]` +
 		`#{W:` + stockWindowCell + `,` + stockCurrentWindowCell + `}` +
+		`#{E:@vibe_ghosts}` +
 		`#[range=user|newwin]#[fg=#{@thm_dim}]#[bg=#{@thm_surface}] + #[norange]#[default]`
 }
 

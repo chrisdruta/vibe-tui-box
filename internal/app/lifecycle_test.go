@@ -473,7 +473,7 @@ func TestPSAgentRows(t *testing.T) {
 	psKey := dockerfake.ExecKey([]string{"bash", model.PayloadAgentPS})
 	base := time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC).Unix()
 	docker.ExecOutputs[psKey] = fmt.Sprintf(
-		"agent|working|%d|\nagent-codex|exited(3)|%d|detached\nbad line\nevil|id\x1ble|%d|\n",
+		"agent|working|%d|claude - opus|claude|opus\nagent-codex|exited(3)|%d|detached\nbad line\nevil|id\x1ble|%d|\n",
 		base-90, base-7200, base-5)
 	res, err = a.PS(ctx, PSRequest{Dir: dir})
 	if err != nil {
@@ -485,7 +485,14 @@ func TestPSAgentRows(t *testing.T) {
 	if res.Agents[0].Name != "agent" || res.Agents[0].State != "working" || res.Agents[0].Age != "1m" {
 		t.Fatalf("row 0 wrong: %+v", res.Agents[0])
 	}
-	if res.Agents[1].State != "exited(3)" || res.Agents[1].Age != "2h" || res.Agents[1].Detail != "detached" {
+	// The feeder's trailing cli/model columns land as fields; the human
+	// detail column keeps the same joined form it always had.
+	if res.Agents[0].CLI != "claude" || res.Agents[0].Model != "opus" || res.Agents[0].Detail != "claude - opus" {
+		t.Fatalf("row 0 truth columns: %+v", res.Agents[0])
+	}
+	// A four-field row (an image built before the split) still decodes.
+	if res.Agents[1].State != "exited(3)" || res.Agents[1].Age != "2h" || res.Agents[1].Detail != "detached" ||
+		res.Agents[1].CLI != "" {
 		t.Fatalf("row 1 wrong: %+v", res.Agents[1])
 	}
 	if res.Agents[2].State != "idle" {

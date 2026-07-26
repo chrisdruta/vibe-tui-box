@@ -7,13 +7,17 @@
 # writes. Rendering moved engine-side with the v2 language split — this
 # emits one machine row per agent session on stdout:
 #
-#   <name>|<state>|<epoch>|<detail>
+#   <name>|<state>|<epoch>|<detail>|<cli>|<model>
 #
 # state is the folded verdict (working/attention/idle/exited(RC)/
 # running/gone), epoch is the state's reference time (empty when
-# unknown), detail is a free-text qualifier ("detached",
-# "no-tmux pid N", ""). Field charset is safe by construction: names
-# are harness-minted, states are this script's literals.
+# unknown), detail is the human column — the cli/model truth prefix
+# plus a free-text qualifier ("detached", "no-tmux pid N", ""). cli and
+# model repeat that truth as their own fields for the tmux surfaces
+# that lay it out themselves (sidebar rows, tray ghost cells) instead
+# of re-splitting a display string. Field charset is safe by
+# construction: names are harness-minted, states are this script's
+# literals, cli/model are allowlisted below.
 #
 # Staleness is evaluated HERE, at read time — never in the live path
 # (no TTL, no timers). Liveness layers, most authoritative first, and
@@ -113,18 +117,19 @@ while IFS= read -r name; do
   # let `|` reach the field protocol; the substitutions carry `|| true`
   # because a session can vanish between the snapshot above and this
   # row — set -e must not kill the feeder mid-listing.
-  who=""
+  cli="" model=""
   if [ -n "${s_attached[$name]:-}" ]; then
-    who="$(tmux list-windows -t "=$name" -F '#{window_name}' 2>/dev/null | head -1 || true)"
-    who="${who//[^a-zA-Z0-9:._-]/}"
-    who="${who:0:32}"
+    cli="$(tmux list-windows -t "=$name" -F '#{window_name}' 2>/dev/null | head -1 || true)"
+    cli="${cli//[^a-zA-Z0-9:._-]/}"
+    cli="${cli:0:32}"
   fi
   if [ -r "$state_dir/$name.model" ]; then
-    m="$(head -c 32 "$state_dir/$name.model" 2>/dev/null || true)"
-    m="${m//[^a-zA-Z0-9 ._-]/}"
-    [ -n "$m" ] && who="${who:+$who - }$m"
+    model="$(head -c 32 "$state_dir/$name.model" 2>/dev/null || true)"
+    model="${model//[^a-zA-Z0-9 ._-]/}"
   fi
+  who="$cli"
+  [ -n "$model" ] && who="${who:+$who - }$model"
   [ -n "$who" ] && detail="${who}${detail:+ - $detail}"
-  printf '%s|%s|%s|%s\n' "$name" "$state" "$ts" "$detail"
+  printf '%s|%s|%s|%s|%s|%s\n' "$name" "$state" "$ts" "$detail" "$cli" "$model"
 done < <(printf '%s\n' "${!candidates[@]}" | sort)
 exit 0

@@ -19,6 +19,12 @@
 #   pane   @vibe_state  raw state, @vibe_title (the display name — the
 #                       CLI actually running, never the raw encoding)
 #   pane+window @vibe_glyph / @vibe_dot_fg  the pre-chosen dot + color
+#   pane+window @vibe_state  raw state; the WINDOW copy is what the
+#                       sidebar's signal filter reads (a glyph alone
+#                       cannot tell working from idle)
+#   window @vibe_session  the container-side session this window views —
+#                       the join key against `vibe ps` truth, so a
+#                       session with a viewer is never also a ghost
 #   window @vibe_attn   1 while the agent wants a human (tab flash)
 #   window @vibe_model  the statusline-fed model, roster's dim suffix
 #   window NAME         renamed to the display — session names are the
@@ -66,6 +72,7 @@ if [ -n "$forced" ]; then
     set-option -p -t "$pane" @vibe_dot_fg "$vibe_state_hex" \; \
     set-option -w -t "$pane" @vibe_glyph "$vibe_glyph" \; \
     set-option -w -t "$pane" @vibe_dot_fg "$vibe_state_hex" \; \
+    set-option -w -t "$pane" @vibe_state "$forced" \; \
     set-option -w -t "$pane" @vibe_attn 0 \; \
     set-option -g @vibe_state_serial "$$$RANDOM" 2>/dev/null
   exit 0
@@ -121,6 +128,8 @@ tmux set-option -p -t "$pane" @vibe_state "$state" \; \
   set-option -p -t "$pane" @vibe_dot_fg "$dot_fg" \; \
   set-option -w -t "$pane" @vibe_glyph "$vibe_glyph" \; \
   set-option -w -t "$pane" @vibe_dot_fg "$dot_fg" \; \
+  set-option -w -t "$pane" @vibe_state "$state" \; \
+  set-option -w -t "$pane" @vibe_session "$session" \; \
   set-option -w -t "$pane" @vibe_attn "$attn" \; \
   set-option -w -t "$pane" @vibe_model "$model" \; \
   set-option -g @vibe_state_serial "$$$RANDOM" 2>/dev/null || exit 0

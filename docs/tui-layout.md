@@ -10,7 +10,8 @@ calls (roster flow, sidebar footer, detail display form, status-right
 separators, editor popups), wired the same day. Updated 2026-07-26
 (second pass) with the agent-surfaces contract — tray ghost cells
 (phase 2) and the nested sidebar roster; design agreed on mockups,
-wiring queued (BACKLOG).
+wired the same day (one deviation, recorded in place: a ghost's click
+dispatches `vibe attach SESSION`, not `vibe agent -s NAME`).
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -82,6 +83,7 @@ Top-preferrers set `status-position top` in the user conf.
 | branding | `🥡 vibe-tui-box` start button — click opens the palette |
 | `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
+| ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`agent-NAME` range → attach-only viewer spawn), rendered into `@vibe_ghosts` by `vibe _frame` |
 | `+` cell | clickable — opens the palette (the "new" chooser) |
 | cheatsheet | key hints, shown only while prefix held (replaces tabs) |
 | prefix/copy | `⌨` / `copy` indicators (stamped `status-right`) |
@@ -223,16 +225,37 @@ name).
 | `vibe ps` | **Full truth** — every session with CLI/model detail, scriptable |
 
 - **Tray ghost cells (phase 2).** Sessions without viewer windows
-  render in the winlist as dim cells (proposal: italic + hairline
-  inset over the surface color; dim-only is the fallback — the one
-  open styling call), each a `mouse_status_range` user range
-  (`agent-NAME`) like the brand/▤/+ cells. The dot carries real state
-  (an attention coral is visible with no window). Click dispatches
-  `vibe agent -s NAME` into a new window — **attach-only**: it never
-  starts or restarts an agent; the ghost graduates to a real tab on
-  the next refresh. Rows come from the `vibe ps` fetch cache (the
-  sidebar's cached engine layer) — the `#(vibe _state)` splice stays
-  the conf's whole splice budget.
+  render in the winlist as dim cells (shipped as the proposal: italic
+  + hairline inset over the surface color; dim-only stays the recorded
+  fallback if a terminal fights the italics), each a
+  `mouse_status_range` user range (`agent-NAME`) like the brand/▤/+
+  cells. The dot carries real state (an attention coral is visible
+  with no window). Click dispatches the **attach-only** viewer spawn:
+  it never starts or restarts an agent; the ghost graduates to a real
+  tab on the next refresh. Rows come from the `vibe ps` fetch cache
+  (the sidebar's cached engine layer) — the `#(vibe _state)` splice
+  stays the conf's whole splice budget.
+- **The attach-only spawn is `vibe attach SESSION`** (wiring, 2026-07-26;
+  supersedes this section's original `vibe agent -s NAME`). `-s` takes a
+  session SUFFIX, and the address grammar is `agent(-cmd)(-name)(-cold)`
+  — so `-s` cannot name the default `agent` session or an `-a` variant,
+  the two most likely ghosts, and `vibe agent` would launch a CLI if the
+  session had died since the fetch. `vibe attach` takes the full address
+  the `vibe ps` join already reports and does exactly one thing:
+  `tmux new-session -A` on it. One host script (`scripts/agent-open.sh`)
+  owns the spawn for both doors — the tray range dispatch and the
+  sidebar's viewer-less rows — the palette.sh precedent. It carries the
+  `VIBE_NESTED` marker like `vibe agent`, so the viewer it opens is
+  reapable when the UI dies.
+- **The ghost channel.** No conf-side engine call: the sidebar's frame
+  renderer already joins `vibe ps` truth against this server's windows,
+  so it publishes the rendered cells as the session option
+  `@vibe_ghosts` (a third `vibe _frame` protocol line) and the
+  generated winlist splices them with `#{E:@vibe_ghosts}`. The tray and
+  the sidebar therefore read one join and can never disagree about what
+  exists. The sidebar is that channel's only publisher: toggling it off
+  clears the option rather than leaving the bar advertising a roster
+  nothing refreshes.
 - **Sidebar nesting.** Agent rows sit inside their project's fleet
   block, one line per agent (state dot + CLI name + dim model — the
   project context is positional, so the `model · project` detail line
@@ -243,7 +266,14 @@ name).
   the project name row — presence without a row. Hiding by
   "inactivity" was considered and rejected: `exited` is inactive and
   is precisely the highest-value glance. Full presence lives in the
-  tray and `vibe ps`.
+  tray and `vibe ps`. The name row's dots are the VIEWER windows' —
+  a viewer-less idle session earns neither a row nor a dot here, only
+  its tray cell and its `vibe ps` line. Reading the filter needs the
+  raw state, which a glyph cannot carry (● is working, running, and
+  idle), so state-render.sh stamps `@vibe_state` on the window beside
+  the pane and `@vibe_session` as the join key against `vibe ps`;
+  windows from an artifact older than that stamp degrade to
+  glyph-only signal (✗/◌ and the attention flag) and keep their dots.
 - **Viewer-less rows.** A container-side session with signal earns a
   sidebar row even without a window; its click uses the same
   attach-only spawn as the tray ghost. One filter rule regardless of
@@ -301,7 +331,21 @@ never does layout math. The contract the renderer implements:
   long name can never wrap the dots and skew the click map; nested
   agent rows spend the gutter bar + indent + dot (`budget−4`, floor
   8) with the dim model suffix dropped first when the name and model
-  can't share the line.
+  can't share the line. The gutter is 2 cols (blank, then the bar),
+  every row of a block sits under it, and each row ends one col clear
+  of the right edge.
+- Content **clips** at the footer's row instead of drawing past the
+  pane: a row the pane cannot show enters neither the body nor the
+  click map (a frame that overran used to paint into the last row and
+  map clicks to invisible rows). Per-block `… +n agents` covers the
+  common case; a whole block pushed off the bottom is silent, as
+  before.
+- The engine truth the frame reads is cache-only and fleet-wide:
+  `vibe _agents` (the `vibe ps` join, one row per container-side
+  session keyed to its project) joins the fleet and detail caches the
+  background fetch fills. It costs one container exec per project
+  whose dev container is running, on the engine cadence — never on a
+  frame.
 
 ### Dead panes: two corpse fates
 
@@ -332,11 +376,14 @@ surface stays honest.
 ## Verification
 
 The spec's regressions are owned by tests: `_state` display form in
-`internal/tmuxui/views_test.go`, frame layout/click-map/truncation in
-`internal/tmuxui/frame_test.go`, and the user-conf epilogue in
-`internal/app/tui_test.go`. The manual check that has caught what
-tests miss: resize the sidebar and click every row type — the
-click-skew regression class. For the editor popups: with the
+`internal/tmuxui/views_test.go`, frame layout/click-map/truncation,
+the signal filter, the gutter bars, and the ghost cells' format
+escaping in `internal/tmuxui/frame_test.go`, the porcelain round trips
+(`_fleet`, `_agents`, the frame's tmux records) beside them, and the
+user-conf epilogue in `internal/app/tui_test.go`. The manual check that
+has caught what tests miss: resize the sidebar and click every row type
+— the click-skew regression class; with the nested rows that now
+includes a ghost row (it must open a viewer, never start an agent). For the editor popups: with the
 container stopped, `prefix+f/g` must hold the popup open with the
 `vibe up` hint, never flash-and-close; and the parser layer's proof
 is a `vibe rebuild` (the headless nvim-treesitter install is the one
