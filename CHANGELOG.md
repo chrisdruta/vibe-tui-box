@@ -383,10 +383,10 @@ The v1 line and its history remain in git up to the cutover commit.
   clicking one opens a viewer — attach-only (`vibe attach SESSION`:
   never starts, never restarts), after which the ghost graduates to a
   real tab. **Nested sidebar roster:** the `─ agents ─` section folds
-  into the fleet blocks as one row per agent that wants eyes (state
-  dot + the CLI actually running + dim model), while idle agents
-  collapse to their dot on the project's name row; viewer-less agents
-  with signal get rows whose click is the same attach-only spawn.
+  into the fleet blocks as one row per live agent (state dot + the
+  CLI actually running + dim model — idle rows render dim, per the
+  same-day roster decision below); viewer-less agents get rows whose
+  click is the same attach-only spawn.
   Project blocks now sit under 2-col **gutter bars** (coral for the
   session you are in, border-hex for another project in use, none for
   a cold one) and overflow per block (`… +n agents`) instead of one
@@ -472,8 +472,9 @@ The v1 line and its history remain in git up to the cutover commit.
   which the per-spawner stamps missed (those are removed from
   chooser.sh/palette.sh/agent-open.sh); and a stamped viewer whose
   cache state is presence-not-signal (a restored `idle` claude that
-  has not spoken yet, so no glyph exists) now draws its dim idle dot
-  on the sidebar's name row from cache truth.
+  has not spoken yet, so no glyph exists) now renders in the sidebar
+  from cache truth — as the dim roster row, per the roster entry
+  above.
 - Fixed: the viewer join now counts birth stamps, not glyphs — the
   frame's viewed-map only counted windows with a state glyph, so a
   hookless CLI's ghost survived its own open viewers (a zombie button
