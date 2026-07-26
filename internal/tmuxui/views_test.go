@@ -54,13 +54,12 @@ func TestSidebarDetailBlock(t *testing.T) {
 			}
 		}
 	}
-	// One line per container (glyph + role, version riding the first),
-	// then the pending row — never the display name (bash-drawn) and
-	// never the old mode/state words.
+	// ONE compact line: a segment per container (bare role when
+	// nominal — no ● here, that dot belongs to agents; the version
+	// rides the first), then ▲n — never the display name (bash-drawn)
+	// and never the old mode/state words.
 	lines := Sidebar(v, 60)
-	if len(lines) != 3 || !strings.Contains(lines[0], "● dev · v2.0.0") ||
-		!strings.Contains(lines[1], "● sidecar:db") ||
-		!strings.Contains(lines[2], "▲ 1 pending") {
+	if len(lines) != 1 || lines[0] != "dev v2.0.0 · sidecar:db · ▲1" {
 		t.Fatalf("sidebar shape: %q", lines)
 	}
 	for _, line := range lines {
@@ -77,19 +76,16 @@ func TestSidebarDetailGlyphsAndDevHash(t *testing.T) {
 	v.Containers[1].Running = false
 	lines := Sidebar(v, 60)
 	// Stale renders ◐, stopped ○; the dev hash drops its prefix and
-	// cuts to 8.
-	if !strings.Contains(lines[0], "◐ dev · 9766b8d8") || strings.Contains(lines[0], "ddce") {
-		t.Fatalf("stale/dev-hash line wrong: %q", lines[0])
+	// cuts to 8. One line, segments joined.
+	if len(lines) != 1 || lines[0] != "◐ dev 9766b8d8 · ○ sidecar:db" {
+		t.Fatalf("stale/dev-hash line wrong: %q", lines)
 	}
-	if !strings.Contains(lines[1], "○ sidecar:db") {
-		t.Fatalf("stopped line wrong: %q", lines[1])
-	}
-	// No containers: one StateNone facts line so the block never
-	// renders empty.
+	// No containers: mode + version keep the line from rendering
+	// empty.
 	v.Containers = nil
 	lines = Sidebar(v, 60)
-	if len(lines) != 1 || !strings.Contains(lines[0], "· dev 9766b8d8") {
-		t.Fatalf("containerless block wrong: %q", lines)
+	if len(lines) != 1 || lines[0] != "dev 9766b8d8" {
+		t.Fatalf("containerless line wrong: %q", lines)
 	}
 }
 

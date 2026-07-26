@@ -422,7 +422,8 @@ func TestFrameAttentionAndFacts(t *testing.T) {
 		{ID: "projbeta", Token: string(StateStale), Mode: "dev", Pending: 2, Name: "beta"},
 		{ID: "cold-project", Token: string(StateNone), Mode: "release", Name: "coldname"},
 	}
-	in.Detail = []string{"● dev · 9766b8d8", "▲ 2 pending"}
+	in.Detail = []string{"dev 9766b8d8 · ▲2"}
+	in.Width = 40 // the merged meta line needs more than the default fixture width
 	out := Frame(in)
 	rows := frameRows(t, out.Body)
 	clicks := mapRows(t, out.Map)
@@ -431,9 +432,10 @@ func TestFrameAttentionAndFacts(t *testing.T) {
 	if !strings.Contains(out.Body, coral+"●") {
 		t.Fatal("attention dot must render coral")
 	}
-	// Self session (alpha) carries its detail block under the branch.
-	if !strings.Contains(rows[3], "● dev · 9766b8d8") || clicks[3] != "$1" {
-		t.Fatalf("detail block misplaced: %q -> %q", rows[3], clicks[3])
+	// Self session (alpha): branch and engine facts share the ONE dim
+	// meta line under the name.
+	if !strings.Contains(rows[2], "⎇ main · dev 9766b8d8 · ▲2") || clicks[2] != "$1" {
+		t.Fatalf("meta line misplaced: %q -> %q", rows[2], clicks[2])
 	}
 	// The other session gets the one-line dim facts summary.
 	var facts string

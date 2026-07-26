@@ -66,15 +66,19 @@ func State(v ProjectView) string {
 	return string(v.Token())
 }
 
-// Sidebar renders one project's detail block for `vibe _sidebar`: the
-// display lines the shell sidebar nests under a project's name row (the
-// name itself stays bash-drawn, so it never appears here). Display form
-// (docs/tui-layout.md, detail display form): one line per container —
-// StateToken glyph + role, the engine version riding the first line
-// (`dev-` hashes stripped to their first 8, release versions as-is) —
-// and a short pending row. The frame renderer draws the whole block
-// dim, so the glyphs carry shape, not color. Roles and versions are
-// semi-trusted and go through the encoder like everything else.
+// Sidebar renders one project's detail for `vibe _sidebar`: the ONE
+// compact engine-facts line the frame merges into a project block's
+// meta row (docs/tui-layout.md, the meta line — 2026-07-26,
+// supersedes the multi-line detail block: three near-identical
+// indented rows read as mush, and the detail's ● collided with the
+// roster's agents-only dot). Segments join with ` · `: one per
+// container — bare role when nominal (absence of a glyph IS the
+// nominal signal), ◐/○ prefixed when stale/stopped — with the engine
+// version riding the first (`dev-` hashes stripped to their first 8,
+// release versions as-is), then `▲n` for pending. The frame draws the
+// line dim; the name row above it stays bash-drawn and never appears
+// here. Roles and versions are semi-trusted and go through the
+// encoder like everything else.
 func Sidebar(v ProjectView, width int) []string {
 	if width <= 0 {
 		width = 40
@@ -86,31 +90,32 @@ func Sidebar(v ProjectView, width int) []string {
 		}
 		ver = rest
 	}
-	var lines []string
+	var segs []string
 	for i, c := range v.Containers {
-		glyph := StateRunning
+		seg := c.Role
 		switch {
 		case !c.Running:
-			glyph = StateStopped
+			seg = string(StateStopped) + " " + seg
 		case !c.InSync:
-			glyph = StateStale
+			seg = string(StateStale) + " " + seg
 		}
-		line := fmt.Sprintf("  %s %s", glyph, c.Role)
 		if i == 0 && ver != "" {
-			line += " · " + ver
+			seg += " " + ver
 		}
-		lines = append(lines, terminal.Line(line, width))
+		segs = append(segs, seg)
 	}
-	// No containers yet: one dim facts line so the block never renders
+	// No containers yet: mode + version keep the line from rendering
 	// empty under a registered project's name.
-	if len(lines) == 0 && (v.Mode != "" || ver != "") {
-		line := strings.TrimRight(fmt.Sprintf("  %s %s %s", StateNone, v.Mode, ver), " ")
-		lines = append(lines, terminal.Line(line, width))
+	if len(segs) == 0 && (v.Mode != "" || ver != "") {
+		segs = append(segs, strings.TrimSpace(v.Mode+" "+ver))
 	}
 	if v.Pending > 0 {
-		lines = append(lines, terminal.Line(fmt.Sprintf("  ▲ %d pending", v.Pending), width))
+		segs = append(segs, fmt.Sprintf("▲%d", v.Pending))
 	}
-	return lines
+	if len(segs) == 0 {
+		return nil
+	}
+	return []string{terminal.Line(strings.Join(segs, " · "), width)}
 }
 
 // fleetSep separates `vibe _fleet` fields: US (0x1f) survives tmux

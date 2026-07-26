@@ -386,43 +386,42 @@ func Frame(in FrameInput) FrameOutput {
 		}
 		c.putAt(row, gutter+ansiBold+nameC+terminal.Line(s.Name, max)+ansiReset, s.ID)
 		row++
+		// ONE dim meta line under the name (2026-07-26, supersedes the
+		// separate branch row + multi-line detail block): branch, then
+		// engine facts — the own project's compact `vibe _sidebar`
+		// line (cache-only), other projects' fleet facts — joined with
+		// ` · `. Engine state speaks ◐/○/▲; on this surface ● belongs
+		// to agents alone. The row keeps the session as click slop.
+		var meta []string
 		if s.Branch != "" {
-			c.putAt(row, gutter+"  "+cDim+"⎇ "+terminal.Line(s.Branch, max-4)+ansiReset, s.ID)
-			row++
+			meta = append(meta, "⎇ "+s.Branch)
 		}
-		// Engine truth, cache-only. The own session gets its detail
-		// block; other sessions (and the own one while its detail cache
-		// hasn't landed) get one dim facts line when anything is
-		// interesting. All rows keep the session as click slop.
 		if s.Project != "" {
 			seen[s.Project] = true
 		}
 		if self && s.Project != "" && len(in.Detail) > 0 {
 			for _, dline := range in.Detail {
-				if dline == "" {
-					continue
+				if d := strings.TrimSpace(dline); d != "" {
+					meta = append(meta, d)
 				}
-				c.putAt(row, gutter+cDim+terminal.Line(dline, max)+ansiReset, s.ID)
-				row++
 			}
 		} else if f, ok := fleetByID[s.Project]; ok && s.Project != "" {
-			var parts []string
 			switch f.Token {
 			case string(StateStale):
-				parts = append(parts, string(StateStale)+" stale")
+				meta = append(meta, string(StateStale)+" stale")
 			case string(StateStopped):
-				parts = append(parts, string(StateStopped)+" stopped")
+				meta = append(meta, string(StateStopped)+" stopped")
 			}
 			if f.Pending > 0 {
-				parts = append(parts, fmt.Sprintf("▲%d", f.Pending))
+				meta = append(meta, fmt.Sprintf("▲%d", f.Pending))
 			}
 			if f.Mode == "dev" {
-				parts = append(parts, "dev")
+				meta = append(meta, "dev")
 			}
-			if len(parts) > 0 {
-				c.putAt(row, gutter+"  "+cDim+terminal.Line(strings.Join(parts, " · "), max-2)+ansiReset, s.ID)
-				row++
-			}
+		}
+		if len(meta) > 0 {
+			c.putAt(row, gutter+"  "+cDim+terminal.Line(strings.Join(meta, " · "), max-2)+ansiReset, s.ID)
+			row++
 		}
 		// The nested rows close the block. When they don't fit, this
 		// block's last slot becomes its OWN overflow count (per-block,

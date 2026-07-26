@@ -15,7 +15,9 @@ dispatches `vibe attach SESSION`, not `vibe agent -s NAME`). Updated
 2026-07-26 (third pass) with the launch-surface contract — the `+`
 cell becomes the agents chooser and parallel instances stay inside
 the CLI; design agreed on the first agent-surfaces dogfood, wired the
-same day.
+same day. Updated 2026-07-26 (fourth pass) with the roster and the
+meta line: every live agent is a sidebar row (idle dim), each block
+reads identity → meta → roster, and ● is agents-only on that surface.
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -495,9 +497,12 @@ All sidebar layout arithmetic lives in the engine renderer
 never does layout math. The contract the renderer implements:
 
 - Row 0 stays blank. The **fleet section** flows from row 1: per
-  session a project block under its gutter bar — a name row, a
-  `⎇ branch` row when known, engine facts (stale/stopped glyph, `▲n`,
-  `dev`) or the own project's detail block, the **nested agent
+  session a project block under its gutter bar — a name row, ONE dim
+  **meta line** (2026-07-26, supersedes the separate branch row +
+  multi-line detail block: three near-identical indented rows read as
+  mush): `⎇ branch` then engine facts joined with ` · ` — the own
+  project's compact `vibe _sidebar` line, other projects' fleet facts
+  (stale/stopped glyph, `▲n`, `dev`) — then the **nested agent
   rows**, and a blank slop row. Non-agent rows claim the session as
   click target. Cold registered projects (fleet entries with no live
   session) render dim, barless, and unclickable — click-dispatching
@@ -518,16 +523,17 @@ never does layout math. The contract the renderer implements:
   (no click target — the palette's mouse doors are the tray cells).
   It exists for the cold start: the cheatsheet only appears once the
   prefix is already known.
-- The **detail block display form** (`vibe _sidebar`, views.go): one
-  line per container — StateToken glyph + role (the renderer draws the
-  whole block dim, so the glyphs carry shape, not color) — with the
-  engine version riding the first line (`dev-` hashes stripped of the
-  prefix and cut to 8: `● dev · 9766b8d8`; release versions as-is).
-  Pending renders `▲ n pending`. This supersedes the
-  mode+version header line and the `%-12s`-padded state words
-  (2026-07-26: `dev dev-9766b8d8ddce` over `dev          running` was
-  three "dev"s meaning mode, version prefix, and role — and words
-  where every other surface speaks the `● ○ ◐` glyph vocabulary).
+- The **engine-facts display form** (`vibe _sidebar`, views.go): ONE
+  compact line of ` · `-joined segments for the meta line — per
+  container its bare role when nominal (absence of a glyph IS the
+  nominal signal; the sidebar's ● belongs to agents alone), `◐ role`
+  stale / `○ role` stopped otherwise, the engine version riding the
+  first segment (`dev-` hashes stripped of the prefix and cut to 8:
+  `dev 9766b8d8`; release versions as-is), then `▲n` pending. This
+  supersedes the multi-line detail block with its `● dev · hash` rows
+  (2026-07-26, same dogfood as the meta line: the detail's ● read as
+  an agent named "dev"), which itself superseded the mode+version
+  header line and the `%-12s`-padded state words.
 - Budgets derive from pane width: text budget is `width−3` (floor 8);
   nested agent rows spend the gutter bar + indent + dot (`budget−4`,
   floor 8) with the dim model suffix dropped first when the name and

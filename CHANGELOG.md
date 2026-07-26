@@ -455,6 +455,13 @@ The v1 line and its history remain in git up to the cutover commit.
   cadence). The sentinel is leashed to the stream by stdin-EOF so
   daemon reconnects never stack orphan pollers
   ([docs/tui-layout.md](docs/tui-layout.md) "The watch channel").
+- Changed: each sidebar project block now reads as **identity → meta →
+  roster**: the separate branch row and multi-line detail block merge
+  into ONE dim meta line (`⎇ main · dev 9766b8d8 · ▲2`), and engine
+  facts drop their `●` (a nominal container is its bare role; ◐/○
+  still mark stale/stopped) so on the sidebar a `●` row always means
+  an agent — the old `● dev · hash` line read as an agent named
+  "dev".
 - Changed: the sidebar shows the full agent **roster** — every live
   agent gets a row, with idle rows rendered dim (name in the dim
   color, dot keeping its state color) instead of collapsing to a bare
