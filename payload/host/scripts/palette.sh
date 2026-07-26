@@ -11,11 +11,14 @@
 # and payload dir resolve through the stamped globals, never argv.
 set -euo pipefail
 
+# Positional params, not an array: "$@" expands empty-safely under
+# set -u on bash 3.2 (the host pledge), where an empty "${arr[@]}"
+# does not.
 client="${1:-}"
-target=()
-[ -n "$client" ] && target=(-c "$client")
+set --
+[ -n "$client" ] && set -- -c "$client"
 
-exec tmux display-menu "${target[@]}" -T " vibe " \
+exec tmux display-menu "$@" -T " vibe " \
   "agent" a "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent\"" \
   "restart agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\"" \
   "stop agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 40% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \

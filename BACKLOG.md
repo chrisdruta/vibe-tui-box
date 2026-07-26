@@ -141,16 +141,18 @@ section at the bottom — as revisable records, not fences.
   depth: one `AgentMode` on AgentRequest (invalid combos
   unrepresentable), wire format untouched, and agent-session.sh now
   REJECTS `--restart` in stop mode instead of swallowing it — this
-  sub-item is done; (5) startApproved's
-  Docker Ping is redundant with the Status call's own error; (6)
-  a rebuild's agent refresh busts the engine-pinned bun/rokit layers
-  too (they sit after the agent layers — reorder for warm refreshes);
-  (7) agent-state dir derivation — fixed 2026-07-26:
+  sub-item is done; (5) startApproved's redundant Docker Ping —
+  removed 2026-07-26 (a dead daemon surfaces the same connect error
+  from the reconcile's own calls), done; (6) refresh-busted
+  bun/rokit — fixed 2026-07-26: the engine-pinned user layers moved
+  BEFORE the agents and the cache-buster ARG, so refreshes re-run
+  agents only (one-time full re-run on the next rebuild pays for it),
+  done; (7) agent-state dir derivation — fixed 2026-07-26:
   `payload/container/state-dir.sh` is the one sourced definition for
   statusline/hook/agent-ps (the copies had already drifted) — this
-  sub-item is done; (8) palette.sh's empty-`"${target[@]}"` expansion
-  violates the bash-3.2 pledge if ever invoked clientless (no shipped
-  caller does); (9) `vibe down` self-HUP — fixed 2026-07-26: the CLI
+  sub-item is done; (8) palette.sh's empty-array expansion — fixed
+  2026-07-26 with positional params (`set --` + `"$@"`, empty-safe on
+  bash 3.2 under set -u), done; (9) `vibe down` self-HUP — fixed 2026-07-26: the CLI
   defers the UI-session kill to a post-render hook (App default
   unchanged for direct callers), and ignores SIGHUP around the kill so
   a fully-rendered `--json` exit stays clean; residue: an interactive
@@ -232,6 +234,17 @@ section at the bottom — as revisable records, not fences.
   rebind of `prefix+f/g`, now documented with an example in
   usage.md's TUI section. First-classing it (e.g. a preferred-editor
   knob) stays demand-gated and against the knobs-stay-minimal record.
+
+- **Rebuild output cleanup (wanted 2026-07-26, Chris).** `vibe
+  rebuild` (and `up`'s build path) streams raw Docker build output —
+  Step X/Y noise, interleaved layer chatter — where a human wants a
+  clean progress narrative: which layer is running (agents, review
+  stack, parsers), what was cached, what changed, one summary line at
+  the end. The engine already owns a Progress seam (`a.deps.Progress`,
+  stderr side-band) — the work is parsing/condensing the build stream
+  into it, with the raw firehose demoted to a `--verbose` or log-file
+  escape hatch. Scope with care: BuildKit vs legacy stream formats
+  differ.
 
 - **Open flag:** should the root AGENTS.md import a project-level
   `.vibe/AGENTS.md` the way the future preset template will tell consumer

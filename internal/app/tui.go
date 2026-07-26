@@ -295,9 +295,10 @@ func (a *App) startApproved(ctx context.Context, rec registry.Record) error {
 	if rec.Approved == nil {
 		return fmt.Errorf("%w: no approved candidate to start (run `vibe up` first)", domain.ErrUnavailable)
 	}
-	if err := a.deps.Docker.Ping(ctx); err != nil {
-		return err
-	}
+	// No Docker pre-ping (branch-review remainder item 5): a dead
+	// daemon surfaces from the reconcile's own calls with the same
+	// connect error the ping would have produced — the extra round
+	// trip bought nothing on the happy path.
 	cand, lease, err := a.runtime.LoadCandidate(ctx, *rec.Approved)
 	if err != nil {
 		return err

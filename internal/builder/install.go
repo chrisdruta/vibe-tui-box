@@ -350,14 +350,14 @@ func refreshBust(bust bool) string {
 }
 
 // userLayers renders the layers that install as vscode into the home
-// directory. Fixed order: agents (claude, codex, grok), then bun,
-// rokit. Unversioned agents track their channel and, when refresh is
-// set, gain the AgentRefreshArg cache-buster (declared once, up front);
-// manifest-pinned agents install their exact version in a plain layer
-// the buster never touches. bun and rokit stay engine-pinned but,
-// sitting after the agents, re-run too when a refresh busts the chain
-// (cheap — the expensive system toolchains live in rootLayers, before
-// USER vscode).
+// directory. Fixed order: bun, rokit, then agents (claude, codex,
+// grok) — the engine-pinned toolchains sit BEFORE the agents so a
+// refresh-busted agent chain never re-runs them (branch-review
+// remainder item 6; the old order re-ran both on every refresh).
+// Unversioned agents track their channel and, when refresh is set,
+// gain the AgentRefreshArg cache-buster (declared once, just before
+// the agent layers); manifest-pinned agents install their exact
+// version in a plain layer the buster never touches.
 func userLayers(want map[string]bool, pin map[schema.AgentKind]string, refresh bool) []string {
 	// A version starting with a digit is an exact pin (frozen layer);
 	// anything else ("stable", "latest", an npm dist-tag) names a
@@ -377,6 +377,19 @@ func userLayers(want map[string]bool, pin map[schema.AgentKind]string, refresh b
 		}
 	}
 	var out []string
+	if want[string(schema.ToolchainBun)] {
+		out = append(out, `RUN curl -fsSL https://bun.sh/install | bash -s -- "bun-v`+bunVersion+`" \
+    && test -x /home/vscode/.bun/bin/bun
+`)
+	}
+	if want[string(schema.ToolchainRokit)] {
+		out = append(out, `RUN tmp="$(mktemp -d)" && cd "$tmp" \
+    && curl -fsSL -o rokit.zip "https://github.com/rojo-rbx/rokit/releases/download/v`+rokitVersion+`/rokit-`+rokitVersion+`-linux-$(uname -m).zip" \
+    && unzip -q rokit.zip \
+    && ./rokit self-install \
+    && rm -rf "$tmp"
+`)
+	}
 	if anyBust {
 		out = append(out, `# Agent refresh: this build arg's value (a fresh token per rebuild)
 # is woven into the channel-tracking installers below so their Docker
@@ -427,19 +440,6 @@ RUN `+refreshBust(bustFor(schema.AgentGrok))+`mkdir -p /vibe/agent-state/grok \
     && cp "$bin" /home/vscode/.local/bin/grok \
     && ln -s grok /home/vscode/.local/bin/agent \
     && rm -rf /vibe/agent-state/grok/downloads
-`)
-	}
-	if want[string(schema.ToolchainBun)] {
-		out = append(out, `RUN curl -fsSL https://bun.sh/install | bash -s -- "bun-v`+bunVersion+`" \
-    && test -x /home/vscode/.bun/bin/bun
-`)
-	}
-	if want[string(schema.ToolchainRokit)] {
-		out = append(out, `RUN tmp="$(mktemp -d)" && cd "$tmp" \
-    && curl -fsSL -o rokit.zip "https://github.com/rojo-rbx/rokit/releases/download/v`+rokitVersion+`/rokit-`+rokitVersion+`-linux-$(uname -m).zip" \
-    && unzip -q rokit.zip \
-    && ./rokit self-install \
-    && rm -rf "$tmp"
 `)
 	}
 	return out

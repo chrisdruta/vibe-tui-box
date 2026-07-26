@@ -120,6 +120,14 @@ func TestGenerateInstallRefresh(t *testing.T) {
 			t.Fatalf("missing pinned layer %q", layer)
 		}
 	}
+	// bun/rokit precede the cache-buster declaration, so a refresh
+	// never re-runs the engine-pinned user layers (remainder item 6).
+	buster := strings.Index(out, "ARG "+AgentRefreshArg)
+	for _, layer := range []string{"bun-v" + bunVersion, "rokit-" + rokitVersion} {
+		if strings.Index(out, layer) > buster {
+			t.Fatalf("pinned layer %q sits after the cache-buster:\n%s", layer, out)
+		}
+	}
 }
 
 // Manifest-pinned agents install their exact version in plain layers
