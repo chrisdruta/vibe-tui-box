@@ -60,4 +60,23 @@ func TestPopupScript(t *testing.T) {
 	if !strings.Contains(shell, "[enter to close]") {
 		t.Fatalf("chrome missing: %s", shell)
 	}
+	if !strings.Contains(join, "-w 85% -h 70%") {
+		t.Fatalf("default size missing: %q", argv)
+	}
+
+	// Size flags override the standard chrome (the palette's stop/park
+	// popups ride these).
+	cmd = exec.Command("bash", script, "-w", "70%", "-h", "40%", "c", "/bin/vibe", "agent", "--stop")
+	cmd.Env = []string{"PATH=" + bin}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("popup.sh -w/-h: %v\n%s", err, out)
+	}
+	data, err = os.ReadFile(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	join = strings.Join(strings.Split(strings.TrimRight(string(data), "\n"), "\n"), " ")
+	if !strings.Contains(join, "-w 70% -h 40%") || !strings.Contains(join, "'agent' '--stop'") {
+		t.Fatalf("sized popup wrong: %q", join)
+	}
 }

@@ -18,7 +18,7 @@ target=()
 exec tmux display-menu "${target[@]}" -T " vibe " \
   "agent" a "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent\"" \
   "restart agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\"" \
-  "stop agent" x "display-popup -w 70% -h 40% -E \"'#{@vibe_exe}' agent --stop; printf '\\n[enter to close] '; read _\"" \
+  "stop agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 40% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \
   "container shell" s "new-window -c \"#{session_path}\" -n shell \"'#{@vibe_exe}' shell\"" \
   "attach main proc" e "new-window -c \"#{session_path}\" -n attach \"'#{@vibe_exe}' attach\"" \
   "host shell" h "new-window -c \"#{session_path}\"" \
@@ -33,6 +33,6 @@ exec tmux display-menu "${target[@]}" -T " vibe " \
   "doctor" D "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' doctor\"" \
   "" \
   "detach (keep running)" d "detach-client" \
-  "park project (down + quit)" z "display-popup -w 70% -h 45% -E \"'#{@vibe_exe}' down; printf '\\n[enter to close] '; read _\"" \
-  "quit ui" Q "confirm-before -p \"quit vibe tui? agents & containers keep running — palette: park project (y/n)\" kill-session" \
-  "kill ui server (ALL)" K "confirm-before -p \"kill the whole vibe tui server? ALL projects' UI sessions end; agents keep running — 'vibe agent --stop' ends one (y/n)\" kill-server"
+  "park project (down + quit)" z "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 45% '#{client_name}' '#{@vibe_exe}' down\"" \
+  "quit ui" Q "vibe-quit-ui" \
+  "kill ui server (ALL)" K "vibe-kill-server"

@@ -123,9 +123,10 @@ section at the bottom — as revisable records, not fences.
   fixed the real defect underneath: display-popup does not
   format-expand its shell-command, so bind u/D/p and the tray's `req`
   cell shipped a literal `#{@vibe_exe}` into bash — only the
-  menu-expanded palette door worked); still duplicated: the stop-agent
-  and park popups (their sizes differ from the standard chrome) and
-  the Q/K confirm prompts between conf and palette.sh; (3) the bar's
+  menu-expanded palette door worked); the stop/park popups now ride
+  popup.sh's `-w/-h` and the Q/K confirm prompts are command aliases
+  (`vibe-quit-ui`/`vibe-kill-server`) shared by binds and palette —
+  this sub-item is done; (3) the bar's
   rule line is a 400-glyph literal (clients wider
   than 400 cols show it stopping mid-bar); (4) stop/restart plumbed as
   two mutually-exclusive bools instead of one mode end to end (the

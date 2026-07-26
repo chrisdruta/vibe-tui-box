@@ -8,8 +8,17 @@
 # receives plain text. The explicit client matters for the same reason
 # as palette.sh: a run-shell job has no current client.
 #
-# Usage: popup.sh CLIENT EXE VERB [ARGS…]
+# Usage: popup.sh [-w WIDTH] [-h HEIGHT] CLIENT EXE VERB [ARGS…]
 set -euo pipefail
+
+width="85%" height="70%"
+while [ $# -gt 0 ]; do
+  case "$1" in
+  -w) width="${2:?-w value}"; shift 2 ;;
+  -h) height="${2:?-h value}"; shift 2 ;;
+  *) break ;;
+  esac
+done
 
 client="${1:?client}"
 exe="${2:?engine path}"
@@ -23,5 +32,5 @@ for word in "$exe" "$@"; do
   cmd="$cmd '${word//\'/\'\\\'\'}'"
 done
 
-exec tmux display-popup -c "$client" -w 85% -h 70% -E \
+exec tmux display-popup -c "$client" -w "$width" -h "$height" -E \
   "$cmd; printf '\\n[enter to close] '; read _"
