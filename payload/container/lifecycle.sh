@@ -35,6 +35,14 @@ if [ "$mode" = "post-create" ]; then
   if [ -r "$script_dir/agent-plugins.sh" ]; then
     (bash "$script_dir/agent-plugins.sh" </dev/null >/dev/null 2>&1 &)
   fi
+  # Grok keeps its state behind a ~/.grok symlink onto the agent-state
+  # volume (no env override exists, unlike claude/codex). Fresh volumes
+  # inherit the dir from the image; a volume created before grok joined
+  # the image leaves the symlink dangling — materialize the target so
+  # logins land on the volume and survive rebuilds.
+  if [ -L "$HOME/.grok" ] && [ ! -e "$HOME/.grok" ]; then
+    mkdir -p "$(readlink "$HOME/.grok")" 2>/dev/null || true
+  fi
   # The marker lives in container-local state: it survives stop/start,
   # dies with the container — exactly "once per container". It is only
   # written after the hook succeeds.

@@ -12,6 +12,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
 
 // EngineModule identifies the engine repository for dev-mode source
@@ -49,6 +50,26 @@ func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) 
 	}
 	if err := dev.VerifyEngineRepo(sourceRoot.Path, EngineModule); err != nil {
 		return fail(err)
+	}
+	// Entering dev mode is the source-trust ceremony: the build output
+	// becomes the host `vibe` binary, so flipping a release-mode project
+	// to dev builds takes a distinct confirmation. A sync of a project
+	// already in dev mode repeats that decision and stays quiet.
+	if rec.Mode != registry.ModeDev {
+		if a.deps.Prompt == nil {
+			return fail(fmt.Errorf("%w: entering dev mode needs interactive confirmation", domain.ErrConflict))
+		}
+		ok, err := a.deps.Prompt.Confirm(ctx, terminal.Confirmation{
+			Title:    "Enter dev mode? Engine binaries built from this source will run on the host.",
+			Chrome:   []string{"source: " + sourceRoot.Path},
+			Question: "trust this source?",
+		})
+		if err != nil {
+			return fail(err)
+		}
+		if !ok {
+			return fail(fmt.Errorf("%w: not confirmed", domain.ErrCanceled))
+		}
 	}
 	if err := a.deps.Docker.Ping(ctx); err != nil {
 		return fail(err)

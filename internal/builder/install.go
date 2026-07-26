@@ -277,18 +277,21 @@ RUN `+refreshBust(bustFor(schema.AgentClaude))+`curl -fsSL https://claude.ai/ins
 	}
 	if want[string(schema.AgentGrok)] {
 		out = append(out, `# Grok (xAI official). Its state (auth.json, config.toml) lives in
-# ~/.grok with no env override, so ~/.grok is symlinked into the state
-# volume BEFORE install. The installer symlinks grok/agent into
-# GROK_BIN_DIR pointing at ~/.grok/downloads/, which the runtime volume
-# mount would shadow — so the real binary is materialized instead.
-RUN `+refreshBust(bustFor(schema.AgentGrok))+`mkdir -p /home/vscode/.agents/grok \
-    && ln -s /home/vscode/.agents/grok /home/vscode/.grok \
+# ~/.grok with no env override, so ~/.grok is symlinked onto the
+# agent-state volume path BEFORE install (fresh volumes inherit the
+# dir from the image; lifecycle.sh materializes it on older volumes),
+# making logins survive rebuilds like claude/codex relocation does.
+# The installer symlinks grok/agent into GROK_BIN_DIR pointing at
+# ~/.grok/downloads/, which the runtime volume mount would shadow — so
+# the real binary is materialized instead.
+RUN `+refreshBust(bustFor(schema.AgentGrok))+`mkdir -p /vibe/agent-state/grok \
+    && ln -s /vibe/agent-state/grok /home/vscode/.grok \
     && curl -fsSL https://x.ai/cli/install.sh | GROK_BIN_DIR=/home/vscode/.local/bin bash -s -- \
     && bin="$(readlink -f /home/vscode/.local/bin/grok)" \
     && rm -f /home/vscode/.local/bin/grok /home/vscode/.local/bin/agent \
     && cp "$bin" /home/vscode/.local/bin/grok \
     && ln -s grok /home/vscode/.local/bin/agent \
-    && rm -rf /home/vscode/.agents/grok/downloads
+    && rm -rf /vibe/agent-state/grok/downloads
 `)
 	}
 	if want[string(schema.ToolchainBun)] {

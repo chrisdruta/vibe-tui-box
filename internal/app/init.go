@@ -119,9 +119,20 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 		DisplayName: filepath.Base(root.Path),
 		Mode:        registry.ModeRelease,
 	}
-	if artifacts, err := a.deps.Store.ListArtifactRecords(); err == nil && len(artifacts) > 0 {
-		newRec.Artifact = artifacts[0].Digest
-		newRec.ReleaseVersion = artifacts[0].Version
+	// Release-mode projects pin release artifacts only — on a dogfood
+	// host the newest artifact is often a dev build, which only `vibe
+	// dev on` may pin (same filter as DevOff's revert). No release
+	// artifact means no pin: `vibe up` then names provision/update as
+	// the fix instead of silently running unreleased engine payload.
+	if artifacts, err := a.deps.Store.ListArtifactRecords(); err == nil {
+		for i := range artifacts {
+			if artifacts[i].Release.Source == "dev-build" {
+				continue
+			}
+			newRec.Artifact = artifacts[i].Digest
+			newRec.ReleaseVersion = artifacts[i].Version
+			break
+		}
 	}
 	rec, err := a.deps.Registry.Create(ctx, newRec)
 	if err != nil {

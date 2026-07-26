@@ -115,9 +115,8 @@ func (a *App) Shell(ctx context.Context, cmd ContainerCommand) (ExecResult, erro
 }
 
 // AttachRequest connects to the dev container: without Session, the
-// container's main process; with one, the named in-container tmux
-// session (default target: the `services` session lifecycle hooks
-// populate).
+// container's main process; with one, that named in-container tmux
+// session (e.g. the `services` session lifecycle hooks populate).
 type AttachRequest struct {
 	ContainerCommand
 	Session string

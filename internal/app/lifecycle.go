@@ -83,7 +83,6 @@ func (a *App) Config(ctx context.Context, req ConfigRequest) (ConfigResult, erro
 type frozenInputs struct {
 	Manifest schema.Manifest
 	Snapshot snapshot.Result
-	Env      []envfile.Entry
 }
 
 // Snapshot layout constants live in the model package
@@ -130,20 +129,19 @@ func (a *App) freezeInputs(ctx context.Context, root paths.Root, rec registry.Re
 		return frozenInputs{}, fieldErrs(ferrs)
 	}
 
-	frozen := frozenInputs{Manifest: doc.Manifest, Snapshot: snap}
+	// Parse the frozen env file now so a malformed one fails the freeze;
+	// its entries are only ever loaded per exec, never carried further.
 	if doc.Manifest.EnvFile != "" {
 		f, err := os.Open(filepath.Join(snap.Path, model.SnapshotEnvFilePath))
 		if err != nil {
 			return frozenInputs{}, fmt.Errorf("open snapshotted env file: %w", err)
 		}
 		defer f.Close()
-		entries, err := envfile.Parse(f, envfile.Limits{})
-		if err != nil {
+		if _, err := envfile.Parse(f, envfile.Limits{}); err != nil {
 			return frozenInputs{}, fmt.Errorf("env file %s: %w", doc.Manifest.EnvFile, err)
 		}
-		frozen.Env = entries
 	}
-	return frozen, nil
+	return frozenInputs{Manifest: doc.Manifest, Snapshot: snap}, nil
 }
 
 func loadManifestFile(path string) (*schema.Document, error) {

@@ -183,11 +183,13 @@ func TestBrokerRequestFlow(t *testing.T) {
 
 // capturingPrompt records the last confirmation for assertion.
 type capturingPrompt struct {
-	approve bool
-	last    terminal.Confirmation
+	approve  bool
+	confirms int
+	last     terminal.Confirmation
 }
 
 func (p *capturingPrompt) Confirm(_ context.Context, c terminal.Confirmation) (bool, error) {
+	p.confirms++
 	p.last = c
 	return p.approve, nil
 }
@@ -420,9 +422,25 @@ func TestDevModeFlow(t *testing.T) {
 		}
 	}
 
+	// Entering dev mode is the source-trust ceremony: refused without a
+	// prompt, canceled on decline, confirmed exactly once — a later sync
+	// of an already-dev project repeats the decision quietly.
+	if _, err := a.DevOn(ctx, DevOnRequest{Dir: dir}); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("dev on without a prompt should conflict, got %v", err)
+	}
+	a.deps.Prompt = terminal.AutoApprove{Approve: false}
+	if _, err := a.DevOn(ctx, DevOnRequest{Dir: dir}); !errors.Is(err, domain.ErrCanceled) {
+		t.Fatalf("declined dev on should cancel, got %v", err)
+	}
+	entry := &capturingPrompt{approve: true}
+	a.deps.Prompt = entry
+
 	on, err := a.DevOn(ctx, DevOnRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if entry.confirms != 1 || !strings.Contains(entry.last.Title, "dev mode") {
+		t.Fatalf("entering dev mode should confirm once: %d %+v", entry.confirms, entry.last)
 	}
 	if on.Project.Mode != registry.ModeDev || on.Project.Artifact != on.Artifact.Digest {
 		t.Fatalf("dev on project: %+v", on.Project)
@@ -444,6 +462,15 @@ func TestDevModeFlow(t *testing.T) {
 	status, err := a.DevStatus(ctx, DevStatusRequest{Dir: dir})
 	if err != nil || status.Record == nil || status.Record.Output != on.Record.Output {
 		t.Fatalf("dev status: %+v, %v", status, err)
+	}
+
+	// A sync of an already-dev project repeats the trusted decision
+	// without re-prompting.
+	if _, err := a.DevOn(ctx, DevOnRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if entry.confirms != 1 {
+		t.Fatalf("dev sync re-prompted: %d confirms", entry.confirms)
 	}
 
 	// A real release artifact exists to hand back to: dev off reverts the
@@ -505,6 +532,7 @@ func TestDevOffHandoffFailureKeepsDevMode(t *testing.T) {
 			}
 		}
 	}
+	a.deps.Prompt = terminal.AutoApprove{Approve: true}
 	on, err := a.DevOn(ctx, DevOnRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)

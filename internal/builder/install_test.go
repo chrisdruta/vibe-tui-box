@@ -247,11 +247,11 @@ func TestGenerateInstallContent(t *testing.T) {
 			},
 		},
 		{
-			name:   "grok materializes the real binary",
+			name:   "grok materializes the real binary and volume-backed state",
 			agents: []schema.AgentSpec{{Kind: schema.AgentGrok}},
 			want: []string{
 				"x.ai/cli/install.sh",
-				"ln -s /home/vscode/.agents/grok /home/vscode/.grok",
+				"ln -s /vibe/agent-state/grok /home/vscode/.grok",
 				"ln -s grok /home/vscode/.local/bin/agent",
 			},
 		},

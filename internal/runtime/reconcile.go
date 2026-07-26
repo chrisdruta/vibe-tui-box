@@ -77,8 +77,11 @@ func (s *Service) Up(ctx context.Context, cand Candidate, opts UpOptions) (State
 		snapPath = snapLease.Object.Path
 	}
 
-	envEntries, err := s.loadEnvFile(plan, snapPath)
-	if err != nil {
+	// Validate the frozen env file now so a malformed one fails `up`,
+	// but never inject it here: env values reach a workload only at
+	// exec time (`vibe run`, the agent CLI), never as ambient container
+	// environment every shell and hook would inherit.
+	if _, err := s.loadEnvFile(plan, snapPath); err != nil {
 		return State{}, err
 	}
 
@@ -98,7 +101,7 @@ func (s *Service) Up(ctx context.Context, cand Candidate, opts UpOptions) (State
 	devAction := actionNone
 	desired := append(append([]model.Container{}, plan.Services...), plan.Dev)
 	for _, c := range desired {
-		req := s.createRequest(plan, cand.Record, c, envEntries)
+		req := s.createRequest(plan, cand.Record, c)
 		action, err := s.reconcileContainer(ctx, req, opts)
 		if err != nil {
 			return State{}, fmt.Errorf("container %s: %w", c.Name, err)
@@ -186,8 +189,9 @@ func mountsPayload(c model.Container) bool {
 	return false
 }
 
-// loadEnvFile parses the snapshotted env file; its entries are handed
-// to Docker as container environment and never to a host process.
+// loadEnvFile parses the snapshotted env file. Reconciliation only
+// validates it; the entries are injected per exec by the app layer and
+// never become container-ambient or host-process environment.
 func (s *Service) loadEnvFile(plan model.Plan, snapPath string) ([]envfile.Entry, error) {
 	if plan.Inputs.EnvFile == "" {
 		return nil, nil
@@ -208,14 +212,10 @@ func (s *Service) loadEnvFile(plan model.Plan, snapPath string) ([]envfile.Entry
 }
 
 // createRequest translates one planned container into a Docker create
-// request. Env-file entries come first so explicit manifest env wins.
-func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c model.Container, envEntries []envfile.Entry) dockerapi.CreateRequest {
+// request. Only planned (manifest) environment is baked in; env-file
+// values stay exec-scoped.
+func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c model.Container) dockerapi.CreateRequest {
 	var env []string
-	if c.Name == plan.Dev.Name {
-		for _, e := range envEntries {
-			env = append(env, e.Key+"="+e.Value)
-		}
-	}
 	for _, e := range c.Environment {
 		env = append(env, e.Key+"="+e.Value)
 	}
