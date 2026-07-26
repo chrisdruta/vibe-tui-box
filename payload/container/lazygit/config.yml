@@ -1,0 +1,17 @@
+# GENERATED from internal/tmuxui/theme.go — do not edit. Change the
+# Go source and run `go generate ./internal/payload`; CI fails on a
+# stale rendering (payload manifest drift).
+gui:
+  nerdFontsVersion: ""
+  showFileIcons: false
+  border: rounded
+  theme:
+    activeBorderColor: ['#7aa2f7', bold]
+    inactiveBorderColor: ['#2a3554']
+    searchingActiveBorderColor: ['#e0af68', bold]
+    optionsTextColor: ['#5c6b96']
+    selectedLineBgColor: ['#1a2440']
+    inactiveViewSelectedLineBgColor: ['#1a2440']
+    unstagedChangesColor: ['#f7768e']
+    defaultFgColor: ['#a9b6d8']
+promptToReturnFromSubprocess: false

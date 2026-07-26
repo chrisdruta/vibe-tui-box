@@ -56,16 +56,40 @@
       "digest": "sha256:6d87672017e64c786a4dd089736fffe27372df44ee47369598baf49d1ab5df66"
     },
     {
+      "path": "container/edit.sh",
+      "mode": "0755",
+      "size": 1185,
+      "digest": "sha256:28b912591968f8a778b6548bf085ca812bd17e8f4c97ceb16fc4e175b4b7dc3f"
+    },
+    {
       "path": "container/entrypoint.sh",
       "mode": "0755",
       "size": 441,
       "digest": "sha256:4a5a0a3fb0c95bc102ad7c4712eca922609b781faa349d1370543ff4bf5e7985"
     },
     {
+      "path": "container/lazygit/config.yml",
+      "mode": "0644",
+      "size": 614,
+      "digest": "sha256:9b4e4a3f2e7cf4178dde84738b2eae6084a8b9f9e629df2d46bafce2b37edf0e"
+    },
+    {
       "path": "container/lifecycle.sh",
       "mode": "0644",
       "size": 2449,
       "digest": "sha256:52e2d2620a66b6e340aa3eae51574844938b989db3179995339bde81b331aff3"
+    },
+    {
+      "path": "container/nvim/init.lua",
+      "mode": "0644",
+      "size": 4919,
+      "digest": "sha256:971540f36035195731dff554f5b6ad6f29f76248328aa4e5d3159e3eaa0adbb2"
+    },
+    {
+      "path": "container/nvim/lua/vibe/theme.lua",
+      "mode": "0644",
+      "size": 488,
+      "digest": "sha256:9b794cb239e5e4bba217db2732fe8e106dcd2beaf748fee71312394937c4d593"
     },
     {
       "path": "container/statusline.sh",
@@ -112,8 +136,8 @@
     {
       "path": "host/scripts/palette.sh",
       "mode": "0644",
-      "size": 2719,
-      "digest": "sha256:f1020c3311399c6beb0cad65da2df1b5f2a020145098b0547095dbef8d08892e"
+      "size": 2834,
+      "digest": "sha256:79997e02d918a7f9e1f6e65a395b27196a3035a0c4d327b003d55d6fb0dc2913"
     },
     {
       "path": "host/scripts/popup.sh",
@@ -124,8 +148,8 @@
     {
       "path": "host/scripts/review.sh",
       "mode": "0755",
-      "size": 1384,
-      "digest": "sha256:de9d6c9bb4896bbc2b4955d18dcefed10787c8d96bb5d650a60ba030c5b386be"
+      "size": 1312,
+      "digest": "sha256:27a182cdca91d2af9abde68d8473b2c3f7f6603ac9687e47d4b001850419de6c"
     },
     {
       "path": "host/scripts/sidebar.sh",
@@ -148,8 +172,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 24572,
-      "digest": "sha256:f797beb15e1f272f8071985b6fd8f7a1eccc8e71960a80d68ebe793b7064d92a"
+      "size": 24609,
+      "digest": "sha256:ea7faf3b76181f801e8e40866d3baf1c89697712bedc878aec9de84c73164354"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -212,5 +236,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:161a728ad082138803922b044d3eb7e52ad460d4ce281d8b30cb2d7b21801ad3"
+  "digest": "sha256:7c3132240e47589ab37317b53ea8350f2e53e268ef65e6cc68f18e1ec8740cd7"
 }

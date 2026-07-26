@@ -186,21 +186,18 @@ section at the bottom — as revisable records, not fences.
   cols instead of 400 (closed branch-review remainder item 3).
   Pending dogfood feedback — the layout calls are revisable once felt.
 
-- **Bundled review stack — wire it (designed 2026-07-26).** The
-  container-side nvim/lazygit bundle specced in docs/tui-layout.md
-  "Editor surfaces" (second call). Work list, roughly in order:
-  (1) `builder/install.go` layers — nvim + lazygit pinned release
-  artifacts (version + per-arch sha256), plugin clones at pinned SHAs
-  into `/opt/vibe/nvim` (mini.nvim, diffview maintained fork,
-  gitsigns, tokyonight, nvim-treesitter), parser compile for the
-  engine-owned language list; (2) `payload/container/nvim/` config
-  tree (leader-Space keymap contract, no LSP, ascii-safe);
-  (3) `payload/gen` renders `theme.lua` and the lazygit yml from
-  theme.go (third and fourth theme renderings); (4) conf + palette
-  rewire `f`/`g`/`G` through `vibe exec` popups, retire
-  scripts/review.sh, message a stopped container instead of a dead
-  popup; (5) docs + install tests (checksum/layer-order coverage in
-  builder/install_test.go).
+- **Bundled review stack — WIRED 2026-07-26 (pending rebuild proof).**
+  All five work-list items landed same-day: install.go layers (nvim
+  0.12.4, lazygit 0.63.1, tree-sitter CLI 0.26.11, five plugins at
+  pinned SHAs, parser compile), the `payload/container/nvim` config
+  tree + `edit.sh` launcher, the theme.lua/lazygit-yml generated
+  renderings, and the `f`/`g`/`G` rewire through the
+  `scripts/review.sh` router (repurposed from the host difftool gate
+  it briefly was). What remains is empirical: the first
+  `vibe rebuild` proves the parser layer (headless nvim-treesitter
+  main-branch install — the one build step engine tests cannot
+  execute; if it fights back, the layer is independently droppable),
+  and dogfood judges the keymap contract.
 
 - **Host editor passthrough (parked 2026-07-26).** The original
   editor-as-surface idea — your own host nvim/config as the viewer —

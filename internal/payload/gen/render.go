@@ -20,11 +20,14 @@ const (
 
 // renderTheme materializes the generated payload pieces: the whole of
 // host/scripts/theme.sh from the palette/glyph source of truth
-// (internal/tmuxui/theme.go), and the marker-delimited blocks inside
+// (internal/tmuxui/theme.go), the marker-delimited blocks inside
 // host/tmux-tui.conf (the @thm palette, the tray winlist composed
-// around tmux's stock W: construct, the bar border rule). It runs
-// before the manifest walk so the digests capture the rendered bytes —
-// the CI drift gate then covers drift with zero new machinery.
+// around tmux's stock W: construct, the bar border rule), and the
+// review-stack theme renderings (container/nvim/lua/vibe/theme.lua,
+// container/lazygit/config.yml) — the TUI and the editor read as one
+// product. It runs before the manifest walk so the digests capture
+// the rendered bytes — the CI drift gate then covers drift with zero
+// new machinery.
 func renderTheme(root string) error {
 	for _, s := range tmuxui.AgentStates {
 		if tmuxui.PaletteHex(s.Color) == "" {
@@ -33,6 +36,20 @@ func renderTheme(root string) error {
 	}
 	shPath := filepath.Join(root, "host", "scripts", "theme.sh")
 	if err := os.WriteFile(shPath, []byte(themeSH()), 0o644); err != nil {
+		return err
+	}
+	luaPath := filepath.Join(root, "container", "nvim", "lua", "vibe", "theme.lua")
+	if err := os.MkdirAll(filepath.Dir(luaPath), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(luaPath, []byte(themeLua()), 0o644); err != nil {
+		return err
+	}
+	ymlPath := filepath.Join(root, "container", "lazygit", "config.yml")
+	if err := os.MkdirAll(filepath.Dir(ymlPath), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(ymlPath, []byte(lazygitYML()), 0o644); err != nil {
 		return err
 	}
 	confPath := filepath.Join(root, "host", "tmux-tui.conf")
@@ -116,6 +133,57 @@ func winlist() string {
 // state map from theme.go, plus the verbatim vibe_fg helper and the
 // state-vocabulary contract. Must stay bash-3.2-pure (stock macOS) and
 // ShellCheck-clean.
+// themeLua renders the palette as a Lua module for the container nvim
+// config (payload/container/nvim/init.lua requires 'vibe.theme' and
+// feeds it to tokyonight's on_colors).
+func themeLua() string {
+	var b strings.Builder
+	b.WriteString(`-- GENERATED from internal/tmuxui/theme.go — do not edit. Change the
+-- Go source and run ` + "`go generate ./internal/payload`" + `; CI fails on a
+-- stale rendering (payload manifest drift). theme.sh and the conf's
+-- @thm block render from the same source.
+return {
+`)
+	for _, c := range tmuxui.Palette {
+		fmt.Fprintf(&b, "  %s = '%s',\n", c.Name, c.Hex)
+	}
+	b.WriteString("}\n")
+	return b.String()
+}
+
+// lazygitYML renders the container lazygit config: the engine palette
+// plus the ascii-safe posture (no nerd fonts, no icons) the review
+// stack pledges. edit.sh points XDG_CONFIG_HOME at
+// /vibe/payload/container so lazygit finds this beside the nvim tree.
+func lazygitYML() string {
+	hex := tmuxui.PaletteHex
+	var b strings.Builder
+	b.WriteString(`# GENERATED from internal/tmuxui/theme.go — do not edit. Change the
+# Go source and run ` + "`go generate ./internal/payload`" + `; CI fails on a
+# stale rendering (payload manifest drift).
+gui:
+  nerdFontsVersion: ""
+  showFileIcons: false
+  border: rounded
+  theme:
+`)
+	for _, line := range []struct{ key, val string }{
+		{"activeBorderColor", "['" + hex("blue") + "', bold]"},
+		{"inactiveBorderColor", "['" + hex("border") + "']"},
+		{"searchingActiveBorderColor", "['" + hex("yellow") + "', bold]"},
+		{"optionsTextColor", "['" + hex("dim") + "']"},
+		{"selectedLineBgColor", "['" + hex("surface") + "']"},
+		{"inactiveViewSelectedLineBgColor", "['" + hex("surface") + "']"},
+		{"unstagedChangesColor", "['" + hex("red") + "']"},
+		{"defaultFgColor", "['" + hex("fg") + "']"},
+	} {
+		fmt.Fprintf(&b, "    %s: %s\n", line.key, line.val)
+	}
+	b.WriteString(`promptToReturnFromSubprocess: false
+`)
+	return b.String()
+}
+
 func themeSH() string {
 	var b strings.Builder
 	b.WriteString(`# shellcheck shell=bash

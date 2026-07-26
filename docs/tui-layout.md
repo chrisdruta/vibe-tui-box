@@ -40,9 +40,10 @@ the transient layer, lazygit-pattern):
 │ 🥡 vibe-tui-box    ▤    ● claude    +               ⌨ · ● · 18:51 │
 └───────────────────────────────────────────────────────────────────┘
 
-prefix+g → ╭─ lazygit ────────────╮   prefix+f → ╭─ nvim . ─────────╮
-prefix+G → ╭─ difftool diff walk ─╮   (85% popups, host binary,
-                                       `|| bash -l` fallback)
+prefix+f → ╭─ files · nvim ───────╮   prefix+G → ╭─ review · diffview ─╮
+prefix+g → ╭─ git · lazygit ──────╮   (90% popups, container-side via
+                                       vibe exec — a cold host needs
+                                       nothing installed)
 ```
 
 The outer box is the terminal window's edge, drawn only to frame the
@@ -167,15 +168,22 @@ replaceable, verdict capture stays engine-owned, and no `@vibe` knob.
   block: the TUI and the editor read as one product. lazygit gets a
   small generated yml the same way (`nerdFontsVersion: ""`).
 - **Keymap contract:** leader Space with clue hints on press; `-`
-  parent-dir browse, `<leader>f` files, `<leader>/` grep, `<leader>d`
-  DiffviewOpen, `<leader>h` file history, `]h`/`[h` hunks, `q`
-  dismisses review panels (and the popup with them).
-- **Binds, once the bundle ships:** `prefix+f` → popup
-  `'#{@vibe_exe}' exec -- nvim .`, `prefix+G` → `… exec -- nvim
-  +DiffviewOpen` (diffview's empty panel answers a clean tree, so
-  scripts/review.sh and its gate retire), `prefix+g` → `… exec --
-  lazygit`; palette items follow. Until the bundle lands the
-  host-pattern binds stay as the interim.
+  parent-dir browse, `<leader>f` files, `<leader>/` grep, `<leader>b`
+  buffers, `<leader>d` DiffviewOpen, `<leader>h`/`<leader>H`
+  file/repo history, `<leader>g…` hunk ops (preview/stage/reset/
+  blame), `]h`/`[h` hunk nav, `<leader>y` OSC 52 copy to the host
+  clipboard, `q` dismisses review panels (and, in review mode, the
+  popup with them).
+- **Binds (wired 2026-07-26):** `prefix+f/g/G` and the three palette
+  items all route through one host router, `scripts/review.sh CLIENT
+  EXE SESSION_PATH files|git|review` — the popup runs `vibe exec --
+  bash /vibe/payload/container/edit.sh <mode>` with `-d` on the
+  workspace so the engine resolves the project, and a failed exec
+  (stopped container) holds the popup open with the `vibe up` hint
+  instead of flashing away. edit.sh owns the container side: it
+  points `XDG_CONFIG_HOME` at the payload (nvim and lazygit both
+  resolve under it), scratches data/state/cache, and execs the mode.
+  diffview's empty panel answers a clean tree — no gate needed.
 - **Customization:** the host passthrough (your own editor and
   config) stays one `~/.config/vibe/tui.conf` rebind away and is
   recorded in the backlog; the knob list stays honest.
@@ -264,6 +272,8 @@ The spec's regressions are owned by tests: `_state` display form in
 `internal/tmuxui/frame_test.go`, and the user-conf epilogue in
 `internal/app/tui_test.go`. The manual check that has caught what
 tests miss: resize the sidebar and click every row type — the
-click-skew regression class. For the editor popups: `prefix+G` on a
-clean tree must show the "no changes" message, never a
-flash-and-close popup.
+click-skew regression class. For the editor popups: with the
+container stopped, `prefix+f/g/G` must hold the popup open with the
+`vibe up` hint, never flash-and-close; and the parser layer's first
+real proof is a `vibe rebuild` (the headless nvim-treesitter install
+is the one build step this repo's tests cannot execute).
