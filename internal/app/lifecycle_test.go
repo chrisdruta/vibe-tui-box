@@ -402,7 +402,7 @@ func TestAgentStopRestart(t *testing.T) {
 	// the frozen env file (secrets) never rides a kill — identity only.
 	if _, err := a.Agent(ctx, AgentRequest{
 		ContainerCommand: ContainerCommand{Dir: dir},
-		Stop:             true,
+		Mode:             AgentStop,
 		Session:          "review",
 	}); err != nil {
 		t.Fatal(err)
@@ -424,7 +424,7 @@ func TestAgentStopRestart(t *testing.T) {
 	// --restart rides agent mode as a flag and keeps the full launch env.
 	if _, err := a.Agent(ctx, AgentRequest{
 		ContainerCommand: ContainerCommand{Dir: dir},
-		Restart:          true,
+		Mode:             AgentRestart,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -439,10 +439,10 @@ func TestAgentStopRestart(t *testing.T) {
 
 	// Without the carrier there is no session to address.
 	docker.ExecResults[agentProbeKey] = dockerapi.ExecResult{ExitCode: 1}
-	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Stop: true}); err == nil {
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Mode: AgentStop}); err == nil {
 		t.Fatal("--stop without the carrier should fail")
 	}
-	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Restart: true}); err == nil {
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Mode: AgentRestart}); err == nil {
 		t.Fatal("--restart without the carrier should fail")
 	}
 }

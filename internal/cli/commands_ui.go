@@ -66,13 +66,20 @@ var uiCommands = map[string]Command{
 			r := req.(*AgentCmdRequest)
 			cmd, restore := r.containerCommand(dir)
 			defer restore()
+			// The two exclusive flags collapse to one mode here — the
+			// parse already rejected both together.
+			mode := app.AgentAttach
+			if r.Stop {
+				mode = app.AgentStop
+			} else if r.Restart {
+				mode = app.AgentRestart
+			}
 			res, err := a.Agent(ctx, app.AgentRequest{
 				ContainerCommand: cmd,
 				Cold:             r.Cold,
 				Agent:            r.Agent,
 				Session:          r.Session,
-				Stop:             r.Stop,
-				Restart:          r.Restart,
+				Mode:             mode,
 				// The tui conf exports VIBE_NESTED=1 server-wide; the
 				// marker rides into the container so its inner tmux
 				// client is reapable when the UI dies.

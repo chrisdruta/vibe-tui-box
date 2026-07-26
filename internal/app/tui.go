@@ -20,6 +20,19 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
 )
 
+// AgentMode selects what an Agent call does with the addressed
+// persistent session: attach (the zero value), stop it, or replace it.
+// One mode instead of two bools so the invalid stop+restart combo is
+// unrepresentable (branch-review remainder item 4) — the CLI's
+// mutual-exclusion check is a flag-surface nicety, not the guard.
+type AgentMode string
+
+const (
+	AgentAttach  AgentMode = "" // reattach or launch — the default
+	AgentStop    AgentMode = "stop"
+	AgentRestart AgentMode = "restart"
+)
+
 // AgentRequest runs the agent CLI in the dev container. Agent
 // overrides the manifest's agent.cmd for this invocation (it must
 // still be listed in image.agents); Cold and Session pass through to
@@ -32,11 +45,10 @@ type AgentRequest struct {
 	Agent   string
 	Session string
 	Nested  bool
-	// Stop ends the addressed persistent session instead of attaching;
-	// Restart replaces it (end, then a fresh launch). Both are
-	// carrier-only: without agent.tmux there is no session to address.
-	Stop    bool
-	Restart bool
+	// Mode stops or replaces the addressed persistent session instead
+	// of attaching. Non-attach modes are carrier-only: without
+	// agent.tmux there is no session to address.
+	Mode AgentMode
 }
 
 // Probe targets for the session carrier: the tools recipe builds the
@@ -94,8 +106,11 @@ func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
 	}
 	cmd := req.ContainerCommand
 	if session {
+		// The wire format is the script's asymmetric grammar: stop is a
+		// MODE, restart is a FLAG on agent mode (agent-session.sh usage)
+		// — the one-mode request fans back out here.
 		scriptMode := "agent"
-		if req.Stop {
+		if req.Mode == AgentStop {
 			scriptMode = "stop"
 		}
 		cmd.Argv = []string{"bash", model.PayloadAgentSession, scriptMode}
@@ -108,13 +123,13 @@ func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
 		if req.Session != "" {
 			cmd.Argv = append(cmd.Argv, "-s", req.Session)
 		}
-		if req.Restart {
+		if req.Mode == AgentRestart {
 			cmd.Argv = append(cmd.Argv, "--restart")
 		}
 		cmd.Argv = append(cmd.Argv, "--", agentCmd)
 	} else {
 		// The cold/session/stop variants only exist inside the carrier.
-		if req.Cold || req.Session != "" || req.Stop || req.Restart {
+		if req.Cold || req.Session != "" || req.Mode != AgentAttach {
 			return fail(fmt.Errorf("%w: --cold, -s, --stop, and --restart need agent.tmux and a tmux-capable image", domain.ErrUnavailable))
 		}
 		cmd.Argv = []string{agentCmd}
@@ -122,7 +137,7 @@ func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
 	// A stop exec only addresses the inner tmux server — the frozen env
 	// file (secrets) has no business riding along on a kill.
 	var entries []envfile.Entry
-	if !req.Stop {
+	if req.Mode != AgentStop {
 		entries, err = a.approvedEnvFile(ctx, rec)
 		if err != nil {
 			return fail(err)

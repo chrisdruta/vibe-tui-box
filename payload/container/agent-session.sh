@@ -107,6 +107,12 @@ while [ "$#" -gt 0 ]; do
       shift
       ;;
     --restart)
+      # Restart is a flag on AGENT mode only (the usage grammar); stop
+      # mode used to swallow it silently — reject, don't ignore.
+      if [ "$mode" != "agent" ]; then
+        echo "vibe agent: --restart is not a stop flag (use one of --stop | --restart)" >&2
+        exit 2
+      fi
       restart=1
       shift
       ;;

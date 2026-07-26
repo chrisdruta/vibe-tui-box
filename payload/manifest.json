@@ -16,8 +16,8 @@
     {
       "path": "container/agent-session.sh",
       "mode": "0755",
-      "size": 11578,
-      "digest": "sha256:d1412448074b3e07740b117c2da41937beebd3543ee36d2a95f38c25e35c28b2"
+      "size": 11870,
+      "digest": "sha256:7c7a0745f3cf7ae039ca42312154b848ae90feb6fce91612ee464837fb42eddd"
     },
     {
       "path": "container/agent-state-hook.sh",
@@ -242,5 +242,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:0c59683ab3f3bd28ebbf35f18c167b167df15943573d65fc36217eff739d5e89"
+  "digest": "sha256:acee738daf73c9e6419026d1e4f8f30085cd9ebb445c0695650f678e98bb66a9"
 }
