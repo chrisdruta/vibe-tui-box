@@ -301,7 +301,7 @@ func (r *Renderer) paint() {
 		b.WriteString("\n")
 	}
 	b.WriteString("\x1b[J")
-	io.WriteString(r.out, b.String())
+	fmt.Fprint(r.out, b.String())
 	r.painted = len(lines)
 	r.lastPaint = r.now()
 }
