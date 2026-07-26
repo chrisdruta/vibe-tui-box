@@ -548,3 +548,68 @@ func TestUpDoesNotApproveOnFailure(t *testing.T) {
 		t.Fatal("failed up must not move the approved candidate")
 	}
 }
+
+func TestViewerWindowSelfStamp(t *testing.T) {
+	a, _ := newTestApp(t)
+	rt := &recordingTmux{}
+	a.deps.Tmux = rt
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Outside the vibe-engine server no stamp lands: pane ids are
+	// per-server counters, and a personal tmux's %3 could collide with
+	// a real window on ours.
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,123,0")
+	t.Setenv("TMUX_PANE", "%3")
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.winOptions) != 0 {
+		t.Fatalf("a foreign server must not be stamped: %v", rt.winOptions)
+	}
+
+	// Inside the engine server, every launch door self-stamps its own
+	// window with the composed session address — the grammar mirror of
+	// agent-session.sh's agent(-cmd)(-name)(-cold).
+	t.Setenv("TMUX", "/tmp/tmux-1000/vibe-engine,123,0")
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Agent(ctx, AgentRequest{
+		ContainerCommand: ContainerCommand{Dir: dir},
+		Cold:             true,
+		Agent:            "claude",
+		Session:          "review",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := []recordedWinOption{
+		{Pane: "%3", Option: "@vibe_session", Value: "agent"},
+		{Pane: "%3", Option: "@vibe_session", Value: "agent-claude-review-cold"},
+	}
+	if fmt.Sprint(rt.winOptions) != fmt.Sprint(want) {
+		t.Fatalf("agent stamps wrong: %v", rt.winOptions)
+	}
+
+	// A stop runs in a popup pane, never a viewer: no stamp.
+	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}, Mode: AgentStop}); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.winOptions) != len(want) {
+		t.Fatalf("stop must not stamp: %v", rt.winOptions)
+	}
+
+	// The attach-only viewer spawn stamps the full address it was given.
+	if _, err := a.Attach(ctx, AttachRequest{ContainerCommand: ContainerCommand{Dir: dir}, Session: "agent-codex"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.winOptions[len(rt.winOptions)-1].Value; got != "agent-codex" {
+		t.Fatalf("attach stamp wrong: %q", got)
+	}
+}

@@ -362,7 +362,25 @@ func Frame(in FrameInput) FrameOutput {
 		// when none does. Cache rows are only as fresh as the last
 		// fetch.
 		for _, ag := range agentsByProject[s.Project] {
-			if drawn[ag.Session] || !AgentSignal(ag.State) {
+			if drawn[ag.Session] {
+				continue
+			}
+			if !AgentSignal(ag.State) {
+				// Presence, not signal — but a stamped viewer whose
+				// window has no glyph yet still deserves the design's
+				// idle dot on the name row (the startup claude: its
+				// record persisted `idle` across the reopen, its first
+				// title event hasn't). Cache truth substitutes for the
+				// missing glyph; viewer-less presence stays the tray
+				// ghost's job.
+				if viewed[ag.Session] && AgentLive(ag.State) {
+					if glyph, hex, ok := AgentStyle(ag.State); ok {
+						ndots++
+						dots.WriteString(" ")
+						dots.WriteString(fg(hex))
+						dots.WriteString(glyph)
+					}
+				}
 				continue
 			}
 			glyph, hex, ok := AgentStyle(ag.State)

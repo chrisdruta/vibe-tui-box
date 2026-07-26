@@ -23,17 +23,20 @@ type recordingTmux struct {
 	hasSession    bool
 	hasSessionErr error
 
-	configured []string           // ConfigureServer conf paths
-	ensured    []tmux.SessionSpec // EnsureSession specs
-	attached   []tmux.SessionID   // Attach targets
-	options    []recordedOption   // SetOption calls
-	envs       []recordedEnv      // SetEnvironment calls
+	configured []string            // ConfigureServer conf paths
+	ensured    []tmux.SessionSpec  // EnsureSession specs
+	attached   []tmux.SessionID    // Attach targets
+	options    []recordedOption    // SetOption calls
+	winOptions []recordedWinOption // SetWindowOption calls
+	envs       []recordedEnv       // SetEnvironment calls
 }
 
 type recordedOption struct {
 	ID            tmux.SessionID
 	Option, Value string
 }
+
+type recordedWinOption struct{ Pane, Option, Value string }
 
 type recordedEnv struct{ Name, Value string }
 
@@ -58,6 +61,10 @@ func (r *recordingTmux) Attach(_ context.Context, id tmux.SessionID) error {
 }
 func (r *recordingTmux) SetOption(_ context.Context, id tmux.SessionID, option, value string) error {
 	r.options = append(r.options, recordedOption{ID: id, Option: option, Value: value})
+	return nil
+}
+func (r *recordingTmux) SetWindowOption(_ context.Context, pane, option, value string) error {
+	r.winOptions = append(r.winOptions, recordedWinOption{Pane: pane, Option: option, Value: value})
 	return nil
 }
 func (r *recordingTmux) SetGlobalOption(_ context.Context, option, value string) error {

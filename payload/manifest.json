@@ -130,14 +130,14 @@
     {
       "path": "host/scripts/agent-open.sh",
       "mode": "0755",
-      "size": 3930,
-      "digest": "sha256:1d913787ae430c866b64973e1141ae6fa1e68bf7d8dc02898221c12c3379b403"
+      "size": 3721,
+      "digest": "sha256:e49168cd49a810cfb1229077829ccebc34f3114e4af1ffd972dc4e3e8fa60e88"
     },
     {
       "path": "host/scripts/chooser.sh",
       "mode": "0755",
-      "size": 4561,
-      "digest": "sha256:f4a63449f66a6fc905e546075972a2dfd265ac2f393d11106879c0e0c04054c6"
+      "size": 4545,
+      "digest": "sha256:59069c5f65af057302d71366626397e54e3d04999c37987ee3478645fabd998f"
     },
     {
       "path": "host/scripts/clip-image.sh",
@@ -160,8 +160,8 @@
     {
       "path": "host/scripts/palette.sh",
       "mode": "0644",
-      "size": 3901,
-      "digest": "sha256:92094ac62f2e432a073fb23fe51086be05d3f99243015424f0009c130e1d7dd5"
+      "size": 3865,
+      "digest": "sha256:affb110ddf61214ba2044ad0afbe5db40c93561b3339db22f364252185ae7f84"
     },
     {
       "path": "host/scripts/popup.sh",
@@ -260,5 +260,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:2ebcac6b22ff510875a05054518e790dbee4f7073abb97a19ba2b4afd5d09061"
+  "digest": "sha256:29813ed15481bdc1b182af8a6f913265311f1aeabb1d8740a9149189be2cc6f8"
 }

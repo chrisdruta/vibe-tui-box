@@ -106,6 +106,12 @@ func (a *App) Agent(ctx context.Context, req AgentRequest) (ExecResult, error) {
 	}
 	cmd := req.ContainerCommand
 	if session {
+		// Self-stamp the viewer join key before the long-lived exec: a
+		// stop runs in a popup, everything else IS this window's
+		// session view.
+		if req.Mode != AgentStop {
+			a.stampViewerWindow(ctx, agentSessionAddress(req))
+		}
 		// The wire format is the script's asymmetric grammar: stop is a
 		// MODE, restart is a FLAG on agent mode (agent-session.sh usage)
 		// — the one-mode request fans back out here.

@@ -282,6 +282,38 @@ func TestFrameGlyphlessViewerClearsGhost(t *testing.T) {
 	}
 }
 
+func TestFrameCachePresenceDotForGlyphlessViewer(t *testing.T) {
+	// The startup claude: its idle record persisted across the TUI
+	// reopen, its viewer window is self-stamped but has no glyph yet
+	// (title events only start with the first message). The design's
+	// idle presence — a dim dot on the name row — must come from cache
+	// truth, not vanish: no ghost, no nested row, just the dot.
+	in := twoSessionInput()
+	in.Sessions[1].Windows = append(in.Sessions[1].Windows,
+		FrameWindow{ID: "@8", Name: "claude", Session: "agent-quiet"})
+	out := Frame(in)
+	if strings.Contains(out.GhostMap, "agent-quiet") {
+		t.Fatalf("a stamped viewer must clear the ghost: %q", out.GhostMap)
+	}
+	for _, target := range []string{"$1:@8", "$1:agent-agent-quiet"} {
+		if strings.Contains(out.Map, target) {
+			t.Fatalf("idle presence is a dot, not a row: map carries %q", target)
+		}
+	}
+	nameRow := func(body string) string {
+		for _, content := range frameRows(t, body) {
+			if strings.Contains(content, "alpha") {
+				return content
+			}
+		}
+		return ""
+	}
+	base, got := nameRow(Frame(twoSessionInput()).Body), nameRow(out.Body)
+	if strings.Count(got, "●") != strings.Count(base, "●")+1 {
+		t.Fatalf("the glyphless viewer's session must add its idle dot to the name row: %q vs %q", base, got)
+	}
+}
+
 func TestFrameFooterHint(t *testing.T) {
 	out := Frame(twoSessionInput())
 	rows := frameRows(t, out.Body)

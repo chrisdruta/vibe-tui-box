@@ -79,12 +79,9 @@ path="$(tmux display-message -p -t "$sess" '#{session_path}' 2>/dev/null)"
 
 # Bring the client over first, then create: new-window makes the fresh
 # window current in its session, so the viewer lands in front of the
-# operator either way. Stamp @vibe_session at birth — the join key the
-# ghost/chooser dedup reads. Waiting for the agent's own title events
-# to stamp it leaves hookless CLIs (codex, a bare shell) invisible to
-# the dedup forever: the ghost never clears and every click grows
-# another viewer.
+# operator either way. The viewer join key (@vibe_session) needs no
+# stamping here: `vibe attach` self-stamps its own window (the one
+# definition for every launch door — app.stampViewerWindow).
 [ -n "$client" ] && tmux switch-client -c "$client" -t "$sess" 2>/dev/null
-wid="$(tmux new-window -t "$sess" -c "$path" -n "$name" -P -F '#{window_id}' "exec '$exe' attach '$name'" 2>/dev/null)"
-[ -n "$wid" ] && tmux set-option -w -t "$wid" @vibe_session "$name" 2>/dev/null
+tmux new-window -t "$sess" -c "$path" -n "$name" "exec '$exe' attach '$name'" 2>/dev/null
 exit 0

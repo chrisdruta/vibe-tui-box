@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 
+	"time"
+
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
@@ -15,6 +17,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
 )
 
 // ContainerCommand is the shared shape for commands that run inside the
@@ -158,6 +161,9 @@ func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error)
 	if !ok {
 		return fail(fmt.Errorf("%w: attaching a session needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
 	}
+	// Self-stamp the viewer join key before the long-lived exec (the
+	// stamp is a no-op outside the vibe-engine server).
+	a.stampViewerWindow(ctx, req.Session)
 	cmd := req.ContainerCommand
 	cmd.Argv = []string{"bash", model.PayloadAgentSession, "attach", req.Session}
 	if req.Nested {
@@ -168,6 +174,54 @@ func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error)
 		return fail(err)
 	}
 	return res, nil
+}
+
+// agentSessionAddress mirrors agent-session.sh's address grammar —
+// agent(-cmd)(-name)(-cold) — for the one host-side consumer that
+// needs the address before the container ever runs: the viewer
+// window's @vibe_session self-stamp. The script stays the authority
+// (it composes the display twin too); this mirror is pinned by test
+// and by the chooser porcelain, whose verdicts already speak the same
+// addresses.
+func agentSessionAddress(req AgentRequest) string {
+	addr := "agent"
+	if req.Agent != "" {
+		addr += "-" + req.Agent
+	}
+	if req.Session != "" {
+		addr += "-" + req.Session
+	}
+	if req.Cold {
+		addr += "-cold"
+	}
+	return addr
+}
+
+// stampViewerWindow marks the tmux window this engine process runs
+// inside with the inner session address it carries (@vibe_session —
+// the viewer join key the ghost cells, sidebar rows, and chooser
+// verdicts dedup on). Self-stamping is the ONE definition for every
+// launch door: the tui's startup window, the chooser's launch items,
+// the palette's restart, and agent-open viewers all run `vibe agent`
+// or `vibe attach` in their pane. Waiting for the agent's own title
+// events instead leaves hookless CLIs — and a freshly restored claude
+// that has not spoken yet — invisible to the join.
+//
+// Gated on actually running inside the vibe-engine server: pane ids
+// are per-server counters, so a bare TMUX_PANE from a personal tmux
+// could collide with a real pane on ours.
+func (a *App) stampViewerWindow(ctx context.Context, session string) {
+	if a.deps.Tmux == nil || session == "" {
+		return
+	}
+	pane := os.Getenv("TMUX_PANE")
+	sock, _, _ := strings.Cut(os.Getenv("TMUX"), ",")
+	if pane == "" || filepath.Base(sock) != tmux.Socket {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
+	_ = a.deps.Tmux.SetWindowOption(ctx, pane, "@vibe_session", session)
 }
 
 // devContainer resolves the project and requires its dev container to

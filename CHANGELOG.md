@@ -455,6 +455,16 @@ The v1 line and its history remain in git up to the cutover commit.
   cadence). The sentinel is leashed to the stream by stdin-EOF so
   daemon reconnects never stack orphan pollers
   ([docs/tui-layout.md](docs/tui-layout.md) "The watch channel").
+- Fixed: the startup agent window is no longer invisible until the
+  first message. Two halves: the `@vibe_session` viewer stamp is now a
+  SELF-stamp — `vibe agent` / `vibe attach` mark their own window from
+  inside the pane (gated on the vibe-engine socket), one definition
+  covering every launch door including the tui's own startup window,
+  which the per-spawner stamps missed (those are removed from
+  chooser.sh/palette.sh/agent-open.sh); and a stamped viewer whose
+  cache state is presence-not-signal (a restored `idle` claude that
+  has not spoken yet, so no glyph exists) now draws its dim idle dot
+  on the sidebar's name row from cache truth.
 - Fixed: the viewer join now counts birth stamps, not glyphs — the
   frame's viewed-map only counted windows with a state glyph, so a
   hookless CLI's ghost survived its own open viewers (a zombie button

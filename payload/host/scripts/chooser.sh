@@ -80,11 +80,12 @@ while IFS="$us" read -r ver label key verb arg; do
   case "$verb" in
     launch | launcha)
       case "$arg" in "" | *[!A-Za-z0-9_-]*) continue ;; esac
-      flag="" addr="agent"
-      [ "$verb" = "launcha" ] && { flag=" -a $arg"; addr="agent-$arg"; }
-      # Stamp @vibe_session at birth: the ghost/chooser dedup join key
-      # must not wait on title events a hookless CLI never sends.
-      cmd="new-window -c \"#{session_path}\" -n $arg \"'#{@vibe_exe}' agent$flag\" ; set-option -w @vibe_session $addr"
+      flag=""
+      [ "$verb" = "launcha" ] && flag=" -a $arg"
+      # The viewer join key (@vibe_session) needs no stamping here:
+      # `vibe agent` self-stamps its own window (the one definition
+      # for every launch door — app.stampViewerWindow).
+      cmd="new-window -c \"#{session_path}\" -n $arg \"'#{@vibe_exe}' agent$flag\""
       ;;
     attach)
       case "$arg" in "" | *[!A-Za-z0-9_-]*) continue ;; esac

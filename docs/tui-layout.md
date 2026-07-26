@@ -393,11 +393,17 @@ Three intents, one owner each:
   create agent-convention sessions (attach means attach — `vibe agent`
   is the launch door; non-agent names keep `-A`'s create, an empty
   `services` session is a feature); and every viewer/launch window is
-  stamped `@vibe_session` at birth (chooser launch items, palette
-  restart, agent-open) so the ghost/chooser dedup join never waits on
-  title events a hookless CLI (codex, a bare shell) will never send —
-  that stamp gap is why ghost clicks piled up duplicate viewers
-  instead of clearing the ghost.
+  stamped `@vibe_session` so the ghost/chooser dedup join never waits
+  on title events a hookless CLI (codex, a bare shell) will never
+  send — that stamp gap is why ghost clicks piled up duplicate
+  viewers instead of clearing the ghost. The stamp is a SELF-stamp
+  (2026-07-26, fourth pass — supersedes the same day's per-spawner
+  stamps): `vibe agent` and `vibe attach` mark their own window from
+  inside the pane (`app.stampViewerWindow`, gated on the vibe-engine
+  socket), which covers every door with one definition — including
+  the tui's own startup window, the one door the spawner-stamp round
+  missed, which is why the restored-but-silent startup claude stayed
+  invisible until its first message.
 - **The viewer join counts stamps, not glyphs** (second dogfood,
   2026-07-26: codex's ghost survived three open viewers — a zombie
   button spawning another viewer per click — because the frame's
@@ -409,7 +415,12 @@ Three intents, one owner each:
   viewer's session keeps its cache-fed roster row. Same principle in
   the chooser: a stamped viewer wins even with a cold/missing fetch
   cache (verdict `open`, never a `vibe agent` whose `-A` would mint a
-  second viewer); a recorded-dead session still launches.
+  second viewer); a recorded-dead session still launches. The idle
+  form of the same rule: a stamped-but-glyphless viewer whose cache
+  state is presence-not-signal (the startup claude — record persisted
+  `idle`, no title event yet) contributes the design's dim dot to the
+  name row from CACHE truth, since the dot's usual source is the
+  glyph it does not have.
 - **Palette hygiene.** 🥡 / `prefix+Space` keep the full palette; its
   bare "agent" item retires in favor of the chooser (the label
   promised "new", the semantics delivered attach-or-launch).

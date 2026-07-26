@@ -61,6 +61,11 @@ type Client interface {
 	KillSession(ctx context.Context, id SessionID) error
 	Attach(ctx context.Context, id SessionID) error
 	SetOption(ctx context.Context, id SessionID, option, value string) error
+	// SetWindowOption sets a window option on the window holding the
+	// given pane id (tmux -w resolution) — the self-stamp channel a
+	// pane-resident engine process (`vibe agent`, `vibe attach`) uses
+	// to mark its own window.
+	SetWindowOption(ctx context.Context, pane, option, value string) error
 	SetGlobalOption(ctx context.Context, option, value string) error
 	SetEnvironment(ctx context.Context, name, value string) error
 	ListSessions(ctx context.Context) ([]Session, error)
@@ -177,6 +182,17 @@ func (b *Binary) SetOption(ctx context.Context, id SessionID, option, value stri
 	}
 	if out.ExitCode != 0 {
 		return fmt.Errorf("%w: tmux set-option %s: %s", domain.ErrInvalid, option, strings.TrimSpace(string(out.Stderr)))
+	}
+	return nil
+}
+
+func (b *Binary) SetWindowOption(ctx context.Context, pane, option, value string) error {
+	out, err := b.exec(ctx, false, "set-option", "-w", "-t", pane, option, value)
+	if err != nil {
+		return err
+	}
+	if out.ExitCode != 0 {
+		return fmt.Errorf("%w: tmux set-option -w %s: %s", domain.ErrInvalid, option, strings.TrimSpace(string(out.Stderr)))
 	}
 	return nil
 }
