@@ -31,7 +31,21 @@ sep=""
 while IFS= read -r type; do
   [[ "$type" =~ ^[A-Za-z0-9_-]+$ ]] || continue
   [ -f "$repo/.claude/agents/$type.md" ] || continue
-  effort=$(awk '/^---$/{n++; next} n==1 && /^effort:/ {print $2; exit}' "$repo/.claude/agents/$type.md")
+  # First `effort:` line inside the frontmatter fences, first token of
+  # its value — pure bash (this renders per tick, per agent type).
+  effort=""
+  fences=0
+  while IFS= read -r line; do
+    case "$line" in
+    ---) fences=$((fences + 1)); [ "$fences" -ge 2 ] && break ;;
+    effort:*)
+      if [ "$fences" -eq 1 ]; then
+        read -r effort _ <<<"${line#effort:}"
+        break
+      fi
+      ;;
+    esac
+  done <"$repo/.claude/agents/$type.md"
   [[ "$effort" =~ ^[A-Za-z0-9_-]+$ ]] || continue
   pairs="${pairs}${sep}\"${type}\":\"${effort}\""
   sep=","

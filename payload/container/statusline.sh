@@ -34,9 +34,13 @@ input=$(cat)
 # tick. Best-effort throughout: the model is cosmetic, the prompt is
 # not.
 if [ -n "$model" ] && [ -n "${VIBE_AGENT_SESSION:-}" ]; then
-  sd="${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-$(id -u)"
+  sd="${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-$UID"
   mf="$sd/$VIBE_AGENT_SESSION.model"
-  if [ "$(cat "$mf" 2>/dev/null)" != "$model" ]; then
+  prev_model=""
+  if [ -r "$mf" ]; then
+    IFS= read -r prev_model <"$mf" || true
+  fi
+  if [ "$prev_model" != "$model" ]; then
     { mkdir -p "$sd" &&
       printf '%s' "$model" >"$mf.tmp.$$" &&
       mv -f "$mf.tmp.$$" "$mf"; } 2>/dev/null || true
@@ -52,17 +56,17 @@ MAGENTA=$'\033[0;35m'
 GRAY=$'\033[2;37m'
 RESET=$'\033[0m'
 
-user="${GITHUB_USER:-$(whoami)}"
+user="${GITHUB_USER:-${USER:-$(whoami)}}"
 
 # Trim like PROMPT_DIRTRIM=4: show the full path if it's short, otherwise the
-# last 4 path components.
-dir=$(awk -F'/' -v full="$cwd" 'BEGIN {
-  n = split(full, parts, "/")
-  if (n <= 5) { print full; exit }
-  out = "..."
-  for (i = n - 3; i <= n; i++) out = out "/" parts[i]
-  print out
-}')
+# last 4 path components. Pure bash — this renders every tick.
+IFS=/ read -ra parts <<<"$cwd"
+n=${#parts[@]}
+if [ "$n" -le 5 ]; then
+  dir="$cwd"
+else
+  dir=".../${parts[n - 4]}/${parts[n - 3]}/${parts[n - 2]}/${parts[n - 1]}"
+fi
 
 # HEAD resolution doubles as the are-we-in-a-repo probe; the branch guard
 # keeps `diff --quiet` (and its dirty mark) inside real repos only.
@@ -89,13 +93,15 @@ fi
 # green/yellow/red by pressure. Fall back to a compact "85k/200k" token
 # ratio if the percentage isn't available. Skipped entirely if neither is.
 fmt_tokens() {
-  awk -v n="$1" 'BEGIN {
-    if (n >= 1000) { printf "%.0fk", n / 1000 } else { printf "%d", n }
-  }'
+  if [ "$1" -ge 1000 ] 2>/dev/null; then
+    printf '%dk' $((($1 + 500) / 1000))
+  else
+    printf '%s' "$1"
+  fi
 }
 
 if [ -n "$used_pct" ]; then
-  pct=$(awk -v p="$used_pct" 'BEGIN { printf "%.0f", p }')
+  printf -v pct '%.0f' "$used_pct" 2>/dev/null || pct=0
   if [ "$pct" -ge 80 ]; then
     ctx_color="$RED"
   elif [ "$pct" -ge 50 ]; then

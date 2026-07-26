@@ -133,13 +133,25 @@ The prefix is `C-Space` (`C-a` also works). The keys that matter:
 
 | Key | Action |
 | --- | --- |
-| `prefix+Space` | palette: agent/shell windows, git, requests, ps, doctor |
+| `prefix+Space` | palette: agent/shell windows, files, git, requests, ps, doctor |
+| `prefix+f` | files popup: nvim + oil in the container — browse, read, light edits |
+| `prefix+g` | git popup: lazygit in the container — diffs, staging, commits |
 | `prefix+b` | toggle the project sidebar |
 | `prefix+t` | toggle the bottom host dock |
 | `prefix+v` | host clipboard image → agent prompt |
 | `prefix+o` | switch project (live sessions tree) |
 | `prefix+r` | respawn a dead pane (reattaches the agent session); `prefix+x` closes it |
 | `prefix+Q` / `prefix+K` | quit this project's UI / kill every project's UI (both confirm; agents and containers keep running) |
+
+`prefix+f` and `prefix+g` are the **review stack**: nvim and lazygit
+baked into the tools image at pinned versions with an opinionated,
+ascii-safe config — reviewing an agent's work needs nothing installed
+on the host. Both popups say how to leave in their border; inside
+nvim, `q` quits from anywhere, `-` closes an open file back to the
+listing, and `Space` shows the keymap. To use your OWN editor instead,
+rebind the key in the user conf — e.g.
+`bind f display-popup -d "#{session_path}" -w 90% -h 90% -E "nvim ."`
+runs your host nvim with your config against the same checkout.
 
 Layout knobs (tmux user options on the vibe socket; see
 [tui-layout.md](tui-layout.md)): `@vibe_sidebar_on` (default 1),

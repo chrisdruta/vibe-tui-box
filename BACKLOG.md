@@ -121,10 +121,13 @@ section at the bottom — as revisable records, not fences.
 
 - **Branch-review remainder (2026-07-25).** The pre-merge review's nine
   correctness findings were fixed (45eaa14); the verified-but-unfixed
-  tail, in rough value order: (1) hot-path forks — statusline.sh spawns
-  `id`/`cat` per tick and agent-state-hook/state-render spawn
-  subshell+tr+head per event where pure-bash expansions
-  (`${var//[^…]/}`, `$UID`, `read <file`) are free; (2) engine-verb
+  tail, in rough value order: (1) hot-path forks — fixed 2026-07-26:
+  statusline.sh, subagent-statusline.sh, and agent-state-hook.sh went
+  pure-bash (`$UID`, `read <file` behind `-r` guards, `${var//[^…]/}`
+  scrubs, `printf -v`/`%(%s)T`, bash dirtrim/rounding);
+  state-render.sh was already clean — the claim was stale. Cold-path
+  `id`/`head` in agent-ps.sh deliberately left for item (7)'s dedup.
+  This sub-item is done; (2) engine-verb
   popups single-sourced 2026-07-26 into `scripts/popup.sh` (which also
   fixed the real defect underneath: display-popup does not
   format-expand its shell-command, so bind u/D/p and the tray's `req`
@@ -216,12 +219,12 @@ section at the bottom — as revisable records, not fences.
   oil.nvim (floating columns in a full-screen popup read as broken;
   oil fills the window).
 
-- **Host editor passthrough (parked 2026-07-26).** The original
-  editor-as-surface idea — your own host nvim/config as the viewer —
-  survives as a `~/.config/vibe/tui.conf` rebind of `prefix+f/g/G`.
-  Needs at minimum a documented recipe (usage.md or the tui doc);
-  first-classing it (e.g. a preferred-editor knob) is demand-gated
-  and currently against the knobs-stay-minimal record.
+- **Host editor passthrough (parked 2026-07-26; recipe documented
+  same day).** The original editor-as-surface idea — your own host
+  nvim/config as the viewer — survives as a `~/.config/vibe/tui.conf`
+  rebind of `prefix+f/g`, now documented with an example in
+  usage.md's TUI section. First-classing it (e.g. a preferred-editor
+  knob) stays demand-gated and against the knobs-stay-minimal record.
 
 - **Open flag:** should the root AGENTS.md import a project-level
   `.vibe/AGENTS.md` the way the future preset template will tell consumer

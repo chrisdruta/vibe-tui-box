@@ -56,7 +56,7 @@ case "$event" in
   *) exit 0 ;;
 esac
 
-state_dir="${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-$(id -u)"
+state_dir="${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-$UID"
 state_file="$state_dir/$session"
 
 # Straggler guard: instances are <pid>.<epoch> (agent-session.sh); if the
@@ -73,7 +73,8 @@ fi
 
 # Atomic write; VIBE_AGENT_EXIT rides in from the run-mode trap.
 mkdir -p "$state_dir" 2>/dev/null || exit 0
-record="$state $instance $(date +%s) ${VIBE_AGENT_EXIT:-}"
+printf -v now '%(%s)T' -1
+record="$state $instance $now ${VIBE_AGENT_EXIT:-}"
 { printf '%s\n' "$record" >"$state_file.tmp.$$" &&
   mv -f "$state_file.tmp.$$" "$state_file"; } 2>/dev/null || true
 
@@ -92,9 +93,16 @@ command -v tmux >/dev/null 2>&1 || exit 0
 # frozen into the exec env — container-side scripts never parse
 # workspace files for identity), sanitized: the title string transits
 # terminals as an OSC payload and is parsed host-side — keep it to a
-# safe charset and bounded length. session/instance are harness-minted.
-proj="$(printf '%s' "${VIBE_PROJECT_NAME:-}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
-[ -n "$proj" ] || proj="$(basename "${CLAUDE_PROJECT_DIR:-$PWD}" | tr -cd 'A-Za-z0-9._-' | head -c 48)"
+# safe charset and bounded length (pure-bash scrubs — this fires on
+# every tool use). session/instance are harness-minted.
+proj="${VIBE_PROJECT_NAME:-}"
+proj="${proj//[^A-Za-z0-9._-]/}"
+if [ -z "$proj" ]; then
+  proj="${CLAUDE_PROJECT_DIR:-$PWD}"
+  proj="${proj##*/}"
+  proj="${proj//[^A-Za-z0-9._-]/}"
+fi
+proj="${proj:0:48}"
 
 # Truth fields: the display label minted beside the session address
 # (VIBE_AGENT_DISPLAY — agent-session.sh owns the grammar; identities
@@ -102,10 +110,15 @@ proj="$(printf '%s' "${VIBE_PROJECT_NAME:-}" | tr -cd 'A-Za-z0-9._-' | head -c 4
 # statusline sidecar recorded (statusline.sh — the one place the CLI
 # reports it). Same sanitize-and-bound rule as proj; model keeps
 # spaces ("Fable 5"). Empty is fine — positions are fixed.
-disp="$(printf '%s' "${VIBE_AGENT_DISPLAY:-${VIBE_AGENT_CMD:-}}" | tr -cd 'A-Za-z0-9:._-' | head -c 32)"
+disp="${VIBE_AGENT_DISPLAY:-${VIBE_AGENT_CMD:-}}"
+disp="${disp//[^A-Za-z0-9:._-]/}"
+disp="${disp:0:32}"
 model=""
-[ -r "$state_dir/$session.model" ] &&
-  model="$(tr -cd 'A-Za-z0-9 ._-' <"$state_dir/$session.model" 2>/dev/null | head -c 32)"
+if [ -r "$state_dir/$session.model" ]; then
+  IFS= read -r model <"$state_dir/$session.model" || true
+fi
+model="${model//[^A-Za-z0-9 ._-]/}"
+model="${model:0:32}"
 
 # Exact-match targeting. 3.7b's set-option rejects "=" exact syntax,
 # and a plain -t NAME PREFIX-matches once the exact session is gone —
@@ -114,7 +127,8 @@ model=""
 # like agent-codex as exited. Resolve the unique session ID with an
 # exact filter (no prefix fallback — verified on 3.7b) and stamp THAT;
 # a gone session resolves to nothing and nothing is stamped.
-sid="$(tmux list-sessions -f "#{==:#{session_name},$session}" -F '#{session_id}' 2>/dev/null | head -1)"
+sid="$(tmux list-sessions -f "#{==:#{session_name},$session}" -F '#{session_id}' 2>/dev/null)" || sid=""
+sid="${sid%%$'\n'*}" # exact filter yields at most one; belt for a duplicate name
 [ -n "$sid" ] || exit 0
 tmux set-option -t "$sid" set-titles on \; \
   set-option -t "$sid" set-titles-string "vibe1|$proj|$session|$instance|$state|$disp|$model" \
