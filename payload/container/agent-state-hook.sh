@@ -10,9 +10,10 @@
 # whatever semantic state was last written.
 #
 # Two outputs per event, both best-effort and both container-side:
-#   1. A state record in ${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-<uid>/,
-#      one file per agent session, read by `vibe ps` (runtime tmpfs only —
-#      never the workspace, never the agent-state volume).
+#   1. A state record in the runtime records dir (state-dir.sh owns the
+#      derivation), one file per agent session, read by `vibe ps`
+#      (runtime tmpfs only — never the workspace, never the agent-state
+#      volume).
 #   2. The title channel: `set-titles-string` on this agent's inner tmux
 #      session. The inner server re-emits it as an OSC title through the
 #      docker-exec TTY, the host `vibe tui` server sees its pane title
@@ -56,7 +57,12 @@ case "$event" in
   *) exit 0 ;;
 esac
 
-state_dir="${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-$UID"
+# The records dir contract lives in state-dir.sh (BASH_SOURCE, not $0
+# — the agent harness invokes this hook, so $0 is its to set).
+case "${BASH_SOURCE[0]}" in */*) here="${BASH_SOURCE[0]%/*}" ;; *) here=. ;; esac
+# shellcheck source=state-dir.sh disable=SC1091
+. "$here/state-dir.sh"
+state_dir="$VIBE_STATE_DIR"
 state_file="$state_dir/$session"
 
 # Straggler guard: instances are <pid>.<epoch> (agent-session.sh); if the

@@ -34,14 +34,18 @@ input=$(cat)
 # tick. Best-effort throughout: the model is cosmetic, the prompt is
 # not.
 if [ -n "$model" ] && [ -n "${VIBE_AGENT_SESSION:-}" ]; then
-  sd="${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-$UID"
-  mf="$sd/$VIBE_AGENT_SESSION.model"
+  # The records dir contract lives in state-dir.sh (BASH_SOURCE, not
+  # $0 — the harness invokes this script, so $0 is its to set).
+  case "${BASH_SOURCE[0]}" in */*) here="${BASH_SOURCE[0]%/*}" ;; *) here=. ;; esac
+  # shellcheck source=state-dir.sh disable=SC1091
+  . "$here/state-dir.sh"
+  mf="$VIBE_STATE_DIR/$VIBE_AGENT_SESSION.model"
   prev_model=""
   if [ -r "$mf" ]; then
     IFS= read -r prev_model <"$mf" || true
   fi
   if [ "$prev_model" != "$model" ]; then
-    { mkdir -p "$sd" &&
+    { mkdir -p "$VIBE_STATE_DIR" &&
       printf '%s' "$model" >"$mf.tmp.$$" &&
       mv -f "$mf.tmp.$$" "$mf"; } 2>/dev/null || true
   fi

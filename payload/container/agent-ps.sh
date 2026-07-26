@@ -28,7 +28,12 @@
 set -euo pipefail
 
 base="agent"
-state_dir="${XDG_RUNTIME_DIR:-/tmp}/vibe-agent-state-$(id -u)"
+# The records dir contract lives in state-dir.sh — one derivation for
+# the writer hooks and this reader.
+case "${BASH_SOURCE[0]}" in */*) here="${BASH_SOURCE[0]%/*}" ;; *) here=. ;; esac
+# shellcheck source=state-dir.sh disable=SC1091
+. "$here/state-dir.sh"
+state_dir="$VIBE_STATE_DIR"
 
 # One pass over the inner server; empty when no server runs. `=`
 # targets below mean exact-match — a bare -t name prefix-matches, and

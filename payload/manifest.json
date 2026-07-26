@@ -10,8 +10,8 @@
     {
       "path": "container/agent-ps.sh",
       "mode": "0755",
-      "size": 5232,
-      "digest": "sha256:ac9970b8ac6ac93dc9830693fb29d2c33a0adced9c654555aaeca44fd73cc7d3"
+      "size": 5458,
+      "digest": "sha256:142d36da497cb2c59148deac0ed2a6e342291869a3a237f316795adee4ed40a1"
     },
     {
       "path": "container/agent-session.sh",
@@ -22,8 +22,8 @@
     {
       "path": "container/agent-state-hook.sh",
       "mode": "0755",
-      "size": 6413,
-      "digest": "sha256:bba1cfb098b868784dd8d26f65ab9774f346145f8761c6bc9c8c0921d527f7b6"
+      "size": 6687,
+      "digest": "sha256:e346ff9b41c761002c203094d6235e3e7527e9b239e0b3af1a8f3d6223838e28"
     },
     {
       "path": "container/claude-plugin/.claude-plugin/plugin.json",
@@ -92,10 +92,16 @@
       "digest": "sha256:9b794cb239e5e4bba217db2732fe8e106dcd2beaf748fee71312394937c4d593"
     },
     {
+      "path": "container/state-dir.sh",
+      "mode": "0644",
+      "size": 782,
+      "digest": "sha256:5c06d27bc1e68112b617dcd7d1f581e98844ba72f0325bd144afa48fcec8dd6d"
+    },
+    {
       "path": "container/statusline.sh",
       "mode": "0755",
-      "size": 4045,
-      "digest": "sha256:48a4d9db1edb20f278aa1255b06b178635aa7251c6d006cf72e9dea290695099"
+      "size": 4309,
+      "digest": "sha256:bd18926ff38c8caa48f6ad7513dbcc6666416c620d883de1b7fe10c17be04dad"
     },
     {
       "path": "container/subagent-statusline.sh",
@@ -236,5 +242,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:7f04722d704e53e700e3ce34cd9eceb82a6d37ed2d365f50a1f7122ff57c7dfa"
+  "digest": "sha256:0c59683ab3f3bd28ebbf35f18c167b167df15943573d65fc36217eff739d5e89"
 }
