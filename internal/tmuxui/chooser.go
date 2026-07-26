@@ -117,6 +117,14 @@ func Chooser(in ChooserInput) []string {
 					verb, arg, note = "attach", addr, "attach"
 				}
 			}
+		} else if wid, ok := viewer[addr]; ok {
+			// No cache row (cold or missing fetch cache) but a stamped
+			// viewer window exists: reach it. The launch fallback would
+			// run `vibe agent`, whose -A semantics reattach — a second
+			// viewer on the same session, the exact dup the chooser
+			// exists to prevent. A recorded-dead session never lands
+			// here (its row is in the cache), so dead still launches.
+			verb, arg, note = "jump", wid, "open"
 		}
 		key := ""
 		if i < 9 {

@@ -249,6 +249,39 @@ func TestFrameGhostCells(t *testing.T) {
 	}
 }
 
+func TestFrameGlyphlessViewerClearsGhost(t *testing.T) {
+	// A hookless CLI's viewer window: @vibe_session stamped at birth
+	// (chooser/palette/agent-open), but no glyph — no title events ever
+	// arrive. The viewer join must still count it: no ghost, and the
+	// session's cache row jumps to the window instead of offering the
+	// attach-only spawn (which would mint viewer after viewer).
+	in := twoSessionInput()
+	in.Sessions[1].Windows = append(in.Sessions[1].Windows,
+		FrameWindow{ID: "@7", Name: "codex", Session: "agent-ghost"})
+	out := Frame(in)
+	if out.GhostMap != "agent-quiet" {
+		t.Fatalf("a stamped glyphless viewer must clear its ghost: %q", out.GhostMap)
+	}
+	if !strings.Contains(out.Map, "$1:@7") {
+		t.Fatalf("the session's row must jump to the glyphless viewer: %q", out.Map)
+	}
+	if strings.Contains(out.Map, "$1:agent-agent-ghost") {
+		t.Fatalf("a session with a viewer must not offer the spawn target: %q", out.Map)
+	}
+	// The row itself still renders — the window pass drew nothing for
+	// it (no glyph), and vanishing from the roster would be worse.
+	rows := frameRows(t, out.Body)
+	found := false
+	for _, content := range rows {
+		if strings.Contains(content, "claude") && strings.Contains(content, "fable") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the glyphless-viewer session must keep its roster row")
+	}
+}
+
 func TestFrameFooterHint(t *testing.T) {
 	out := Frame(twoSessionInput())
 	rows := frameRows(t, out.Body)

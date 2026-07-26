@@ -398,6 +398,18 @@ Three intents, one owner each:
   title events a hookless CLI (codex, a bare shell) will never send —
   that stamp gap is why ghost clicks piled up duplicate viewers
   instead of clearing the ghost.
+- **The viewer join counts stamps, not glyphs** (second dogfood,
+  2026-07-26: codex's ghost survived three open viewers — a zombie
+  button spawning another viewer per click — because the frame's
+  viewed-map only counted windows with a `@vibe_glyph`, which hookless
+  CLIs never earn). The rule: `viewed` = any window carrying a
+  `@vibe_session` stamp, glyph or not — it clears ghosts and turns the
+  sidebar cache row's click into a window jump; `drawn` (glyph
+  windows) stays the narrower no-double-draw filter, so a glyphless
+  viewer's session keeps its cache-fed roster row. Same principle in
+  the chooser: a stamped viewer wins even with a cold/missing fetch
+  cache (verdict `open`, never a `vibe agent` whose `-A` would mint a
+  second viewer); a recorded-dead session still launches.
 - **Palette hygiene.** 🥡 / `prefix+Space` keep the full palette; its
   bare "agent" item retires in favor of the chooser (the label
   promised "new", the semantics delivered attach-or-launch).

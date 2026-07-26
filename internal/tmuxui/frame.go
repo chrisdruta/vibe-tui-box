@@ -311,13 +311,30 @@ func Frame(in FrameInput) FrameOutput {
 		var dots strings.Builder
 		ndots := 0
 		var agents []agentRow
+		// viewed is the VIEWER-EXISTS join: any window stamped with a
+		// container session, glyph or not. The stamp arrives at window
+		// birth (chooser launch, palette restart, agent-open) precisely
+		// because hookless CLIs never earn a glyph — gating this map on
+		// the glyph once left codex's ghost alive with three viewers
+		// open, a zombie button that spawned another viewer per click.
+		// drawn is narrower: the sessions this window pass actually put
+		// on the surface (glyph windows), the no-double-draw rule for
+		// the cache rows below.
 		viewed := map[string]bool{}
+		viewerWin := map[string]string{}
+		drawn := map[string]bool{}
 		for _, w := range s.Windows {
+			if w.Session != "" {
+				viewed[w.Session] = true
+				if _, ok := viewerWin[w.Session]; !ok {
+					viewerWin[w.Session] = w.ID
+				}
+			}
 			if w.Glyph == "" {
 				continue
 			}
 			if w.Session != "" {
-				viewed[w.Session] = true
+				drawn[w.Session] = true
 			}
 			dotc := fg(w.DotHex)
 			if w.Attn {
@@ -337,12 +354,15 @@ func Frame(in FrameInput) FrameOutput {
 				target: s.ID + ":" + w.ID,
 			})
 		}
-		// Container-side sessions with no viewer window (the `vibe ps`
-		// fetch cache): one filter rule regardless of whether a viewer
-		// exists, with the tray ghost's attach-only spawn as click
-		// target. Cache rows are only as fresh as the last fetch.
+		// Container-side sessions the window pass did not draw (the
+		// `vibe ps` fetch cache): hookless CLIs land here even with a
+		// viewer open — their windows carry the birth stamp but no
+		// glyph. The click target honors the viewer join: jump to the
+		// stamped window when one exists, the attach-only spawn only
+		// when none does. Cache rows are only as fresh as the last
+		// fetch.
 		for _, ag := range agentsByProject[s.Project] {
-			if viewed[ag.Session] || !AgentSignal(ag.State) {
+			if drawn[ag.Session] || !AgentSignal(ag.State) {
 				continue
 			}
 			glyph, hex, ok := AgentStyle(ag.State)
@@ -353,11 +373,15 @@ func Frame(in FrameInput) FrameOutput {
 			if name == "" {
 				name = ag.Session // pre-truth rows: the address is all there is
 			}
+			target := s.ID + ":agent-" + ag.Session
+			if wid, ok := viewerWin[ag.Session]; ok {
+				target = s.ID + ":" + wid
+			}
 			agents = append(agents, agentRow{
 				dot:    fg(hex) + glyph,
 				name:   name,
 				model:  ag.Model,
-				target: s.ID + ":agent-" + ag.Session,
+				target: target,
 			})
 		}
 		if self {

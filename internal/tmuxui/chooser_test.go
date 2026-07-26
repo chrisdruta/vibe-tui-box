@@ -73,6 +73,27 @@ func TestChooserDeadSessionLaunchesAgain(t *testing.T) {
 	}
 }
 
+func TestChooserColdCacheViewerStillJumps(t *testing.T) {
+	// No agents cache at all (cold socket dir, fetch not yet run) but a
+	// birth-stamped viewer window exists: the verdict must reach it.
+	// The launch fallback would run `vibe agent`, whose -A semantics
+	// reattach — a second viewer on the running session.
+	out := Chooser(ChooserInput{
+		Default: "claude",
+		Kinds:   []string{"claude", "codex"},
+		Windows: []ChooserWindow{{ID: "@3", Session: "agent"}},
+	})
+	f := chooserFields(t, out[0])
+	if f[1] != "○ claude · open" || f[3] != "jump" || f[4] != "@3" {
+		t.Fatalf("cold-cache viewer entry: %q", f)
+	}
+	// Still nothing known about codex: launch stays the honest verdict.
+	f = chooserFields(t, out[1])
+	if f[3] != "launcha" || f[4] != "codex" {
+		t.Fatalf("cold-cache viewerless entry: %q", f)
+	}
+}
+
 func TestChooserOrderAndVetting(t *testing.T) {
 	// The manifest default leads even when image.agents lists it later,
 	// and appears once; a kind that could not survive a shell word or

@@ -444,6 +444,16 @@ The v1 line and its history remain in git up to the cutover commit.
   `@vibe_session` at birth, so the ghost/chooser dedup no longer
   waits on title events a hookless CLI (codex, a bare shell) never
   sends — the gap that let ghost clicks pile up duplicate viewers.
+- Fixed: the viewer join now counts birth stamps, not glyphs — the
+  frame's viewed-map only counted windows with a state glyph, so a
+  hookless CLI's ghost survived its own open viewers (a zombie button
+  spawning another `agent-codex` viewer per click) and its sidebar
+  row kept offering the spawn. A stamped glyphless window now clears
+  the ghost and turns the sidebar row's click into a window jump; the
+  chooser likewise jumps to a stamped viewer even when the fetch
+  cache is cold (previously that degraded to launch, whose `-A`
+  reattach minted a second viewer of the running session — the
+  duplicate-claude path).
 - Fixed: an all-pinned agent selection no longer sends the
   `VIBE_AGENT_REFRESH` build arg its Dockerfile never declares, which
   drew the daemon's unconsumed-build-arg warning on every build.
