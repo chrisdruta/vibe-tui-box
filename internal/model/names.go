@@ -88,6 +88,10 @@ const PayloadAgentSession = PayloadTarget + "/container/agent-session.sh"
 // it joins the inner tmux server with the agent-state records.
 const PayloadAgentPS = PayloadTarget + "/container/agent-ps.sh"
 
+// PayloadAgentWatch is the container-side sentinel the `vibe _watch`
+// daemon streams: one line per inner-tmux/state-record change.
+const PayloadAgentWatch = PayloadTarget + "/container/agent-watch.sh"
+
 // PayloadLifecycle runs the project's post-create/post-start hooks
 // (workspace files, workload trust) inside the container; the engine
 // execs it after reconcile when the payload is mounted.

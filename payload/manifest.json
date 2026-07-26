@@ -26,6 +26,12 @@
       "digest": "sha256:e346ff9b41c761002c203094d6235e3e7527e9b239e0b3af1a8f3d6223838e28"
     },
     {
+      "path": "container/agent-watch.sh",
+      "mode": "0755",
+      "size": 2266,
+      "digest": "sha256:b0c23d918f025155aa64a1306a341572b54109e162fad8df6d6cc7ba229692ca"
+    },
+    {
       "path": "container/claude-plugin/.claude-plugin/plugin.json",
       "mode": "0644",
       "size": 262,
@@ -172,8 +178,8 @@
     {
       "path": "host/scripts/sidebar.sh",
       "mode": "0755",
-      "size": 16527,
-      "digest": "sha256:da0e4696728765eb3a08faffcc6fe37860faf7cb1bbba38f596a9dc74b3cb875"
+      "size": 17679,
+      "digest": "sha256:c12cc9a0dbc456b7e2d33def6161ef6c91325221ff934275f32ada32b6ceaa33"
     },
     {
       "path": "host/scripts/state-render.sh",
@@ -254,5 +260,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:934fc57bc3ee29571e6c435a44229b4787a35803c71514fdb3e098ec090afdd1"
+  "digest": "sha256:2ebcac6b22ff510875a05054518e790dbee4f7073abb97a19ba2b4afd5d09061"
 }

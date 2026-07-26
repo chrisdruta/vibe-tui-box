@@ -444,6 +444,17 @@ The v1 line and its history remain in git up to the cutover commit.
   `@vibe_session` at birth, so the ghost/chooser dedup no longer
   waits on title events a hookless CLI (codex, a bare shell) never
   sends — the gap that let ghost clicks pile up duplicate viewers.
+- New: the **watch channel** — `vibe _watch`, a per-project daemon the
+  sidebar loop spawns (flock-singleton beside the cache), holding one
+  long-lived exec stream on a container sentinel
+  (`agent-watch.sh`) that emits a line when the inner tmux topology or
+  the agent state records change. On each event the daemon re-runs the
+  agents fetch, atomically replaces the cache the tray/sidebar/chooser
+  read, and bumps the frame serial: agent presence now lands in ~1-3s
+  instead of the 30s slow-tick poll (which remains as the fallback
+  cadence). The sentinel is leashed to the stream by stdin-EOF so
+  daemon reconnects never stack orphan pollers
+  ([docs/tui-layout.md](docs/tui-layout.md) "The watch channel").
 - Fixed: the viewer join now counts birth stamps, not glyphs — the
   frame's viewed-map only counted windows with a state glyph, so a
   hookless CLI's ghost survived its own open viewers (a zombie button

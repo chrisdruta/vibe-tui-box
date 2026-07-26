@@ -198,6 +198,37 @@ var uiCommands = map[string]Command{
 			return &renderResult{Lines: res.Lines}, nil
 		},
 	},
+	"_watch": {
+		Name:    "_watch",
+		Summary: "internal engine-truth push daemon",
+		Usage:   "vibe _watch --cache DIR --project ID [--width N]",
+		Hidden:  true,
+		// A daemon, not a renderer: holds one exec stream on the
+		// container sentinel and rewrites the agents cache on real
+		// change events. Spawned by the sidebar loop; self-guarding
+		// (flock beside the cache), so redundant spawns exit quietly.
+		NoCwd: true,
+		Parse: func(args []string) (Request, error) {
+			var req WatchCmdRequest
+			return parseInto(args, "_watch", &req.Options, func(fs *flag.FlagSet) any {
+				fs.StringVar(&req.Cache, "cache", "", "engine cache directory beside the tmux socket")
+				fs.StringVar(&req.Project, "project", "", "project ID")
+				fs.IntVar(&req.Width, "width", 0, "width budget for the cache rows")
+				return &req
+			})
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*WatchCmdRequest)
+			if err := a.Watch(ctx, app.WatchRequest{
+				CacheDir: r.Cache,
+				Project:  domain.ProjectID(r.Project),
+				Width:    r.Width,
+			}); err != nil {
+				return nil, err
+			}
+			return &renderResult{}, nil
+		},
+	},
 	"_frame": {
 		Name:    "_frame",
 		Summary: "internal sidebar frame renderer",
@@ -231,6 +262,14 @@ var uiCommands = map[string]Command{
 type FrameCmdRequest struct {
 	Options
 	Cache string
+}
+
+// WatchCmdRequest drives the hidden engine-truth push daemon.
+type WatchCmdRequest struct {
+	Options
+	Cache   string
+	Project string
+	Width   int
 }
 
 // ChooserCmdRequest drives the hidden agents-chooser renderer.

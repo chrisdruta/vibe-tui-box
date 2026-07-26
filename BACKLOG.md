@@ -113,12 +113,29 @@ section at the bottom — as revisable records, not fences.
 
 - **Sidebar: event-driven refresh + the cold-project click call.**
   The two bits deferred from the consume-the-renderers work: (1) a
-  docker-events watcher for out-of-band container deaths — today the
-  `@vibe_engine_refresh` slow tick (30s) covers them (also listed on
-  the roadmap's after-v1.0 line); (2) cold registered projects render
+  docker-events watcher for out-of-band container deaths — the watch
+  channel (`vibe _watch`, prototyped 2026-07-26, tui-layout.md "The
+  watch channel") now covers INNER change classes (sessions, viewers,
+  state records) in ~1-2s, but container-level death still rides the
+  `@vibe_engine_refresh` slow tick (30s; also listed on the roadmap's
+  after-v1.0 line) — a docker-events subscription in the same daemon
+  is the natural next slice; (2) cold registered projects render
   as dim non-clickable rows — the product call whether their click
   dispatches `up` stays open (brushes the live-sessions-only picker
   record).
+
+- **Watch channel follow-ups (prototyped 2026-07-26).** (1) Upgrade
+  the container sentinel from its 1s local fingerprint poll to a
+  control-mode tmux client on the inner server — true push, plus
+  window-level granularity — once the channel earns it; the sentinel
+  protocol (E/H lines over one exec stream, stdin leash) was shaped so
+  only the script body changes. (2) The sidebar signal-filter
+  asymmetry the watch dogfood surfaced: a hookless CLI caps at
+  `running` (signal → full row while it naps) while a hooked agent
+  reports `idle` (presence → dot) — the better-instrumented agent
+  looks LESS present. Candidate: demote long-quiet `running` to
+  presence at read time using the activity timestamps agent-ps already
+  reads (read-time evaluation, no TTLs in the live path).
 
 - **Claude-plugin future content.** The vibe claude-plugin
   (`payload/container/claude-plugin/`, loaded per session with

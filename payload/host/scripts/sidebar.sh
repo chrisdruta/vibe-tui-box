@@ -266,6 +266,27 @@ fetch_engine() {
   )
 }
 
+# watch_engine — ensure the push channel runs (`vibe _watch`, the
+# watch-channel daemon): one per project per server, self-guarding via
+# a flock beside the cache, so this spawn is idempotent — redundant
+# attempts (every sidebar retries on the slow tick) exit in
+# milliseconds. The daemon streams container-side change events and
+# rewrites the agents cache within ~2s of an inner change; the slow
+# tick below stays as the fallback cadence whenever the daemon cannot
+# run (no docker, container down, older engine).
+watch_engine() {
+  [ -n "$cache_dir" ] || return 0
+  exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null)"
+  { [ -n "$exe" ] && [ -x "$exe" ]; } || return 0
+  proj="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{@vibe_project}' 2>/dev/null)"
+  [ -n "$proj" ] || return 0
+  # Double-fork like fetch_engine: the daemon reparents to init and
+  # this loop never waits on it.
+  (
+    ("$exe" _watch --cache "$cache_dir" --project "$proj" --width "$(sidebar_w)" >/dev/null 2>&1) &
+  )
+}
+
 # frame — one redraw. The layout arithmetic (budgets, truncation, the
 # gutter bars, the nested agent rows, the click map) lives in the
 # engine's `vibe _frame` renderer (internal/tmuxui/frame.go), where it
@@ -343,6 +364,7 @@ eticks=$((er / 2))
 printf '\033[?25l'
 trap 'printf "\033[?25h"' EXIT
 fetch_engine # warm the cache so engine rows appear within a tick or two
+watch_engine # start the push channel (idempotent; slow tick retries)
 frame
 while :; do
   sleep 2
@@ -369,6 +391,7 @@ EOF5
     fetch_engine
   elif [ "$etick" -eq 0 ]; then
     fetch_engine
+    watch_engine # respawn if the daemon died; a live one holds the lock
   fi
   tick=$(((tick + 1) % 5))
   if [ "$serial" = "$last_serial" ] && [ "$frames_due" -eq 0 ] && [ "$tick" -ne 0 ]; then

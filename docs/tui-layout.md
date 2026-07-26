@@ -422,6 +422,55 @@ Three intents, one owner each:
   Needs input — then the statusline JSON's awaiting-input count
   feeds the dot (and maybe the `▲n` pattern).
 
+### The watch channel (`vibe _watch`, 2026-07-26, prototype)
+
+The engine-truth latency fix ("agent updates feel slow" dogfood): the
+agents cache — the `vibe ps` join feeding the tray's ghost cells, the
+sidebar's cache rows, and the chooser's verdicts — used to refresh
+only on the sidebar's 30s slow tick, so a hookless agent appearing or
+dying took up to 30s to show anywhere. Rendering was never the
+bottleneck (it is already Go, cache-only, serial-gated at 2s); the
+POLL was. The watch channel replaces polling with push:
+
+- **One daemon per project per server** (`vibe _watch`, hidden;
+  spawned by the sidebar loop, self-guarding via a flock beside the
+  cache so redundant spawns exit in milliseconds). It holds ONE
+  long-lived `docker exec` on the container sentinel and reacts to its
+  lines; the sidebar's slow tick stays as the fallback cadence, so the
+  daemon is an accelerator, never a dependency.
+- **The sentinel** (`payload/container/agent-watch.sh`) fingerprints
+  the inner tmux sessions (names + attached counts — deliberately NOT
+  `session_activity`, which moves per output byte) plus the state
+  records dir listing, every 1s LOCALLY (a stat beside a unix socket
+  is noise; the docker round trips stay host-side and fire only on
+  change). Protocol: `E` per change (one at start = the sync fetch),
+  `H` heartbeat ~15s. Upgrade path recorded in BACKLOG: a control-mode
+  tmux client for true push.
+- **The stdin leash.** Docker keeps exec'd processes alive after the
+  client detaches, so an unleashed sentinel would stack one poller per
+  daemon reconnect. The sentinel's poll sleep IS a 1s `read -t` on
+  stdin: the daemon holds stdin open for the stream's life, and
+  teardown (daemon exit, tmux server death, ctx cancel) closes it —
+  EOF ends the sentinel within a second. Verified live: create/kill an
+  inner session and touch a record → three `E`s; close stdin → clean
+  exit, no orphans.
+- **On `E`: fetch, publish, frame.** The daemon re-runs the fleet
+  agents fetch (the sidebar's exact `_agents` path), replaces the
+  cache tmp+rename (own tmp name — the slow tick writes beside it,
+  last rename wins), and bumps `@vibe_state_serial` — the FRAME-only
+  serial, deliberately not `@vibe_engine_serial`, which would tell the
+  sidebar to refetch what was just fetched. Fetches are floored at 2s
+  apart (state records churn while an agent works; each fetch is a
+  docker exec), so bursts coalesce. Chain: inner change → ≤1s sentinel
+  → fetch (~0.2s) → ≤2s sidebar tick → frame. **~1-3s worst case,
+  down from 30.**
+- **Lifecycle.** The tmux server owns the daemon: a 10s liveness probe
+  exits it when the server dies (and the canceled exec closes the
+  leash). Container down or stream death → capped backoff (1-10s)
+  reconnect. A stale stream (no line for 60s despite heartbeats) is
+  reaped and reconnected. The flock dies with the process — no pidfile
+  staleness dance.
+
 ### Sidebar frame contract (`vibe _frame` owns this)
 
 All sidebar layout arithmetic lives in the engine renderer
