@@ -8,7 +8,12 @@ Commands run from anywhere inside a project (the engine walks up to
 run inside an existing project. Every command takes `--json` for a
 versioned machine-readable result (interactive and streaming commands
 emit only an exit-code envelope; `tui` and `logs` emit none) and
-`--quiet` to suppress human output, and exits with a stable code: 0 ok,
+`--quiet` to suppress human output. Build/pull progress renders on
+stderr as a live bill-of-materials view (each tools-image part flips
+pending → building → cached/built; a failing step replays its last
+output lines) — `--verbose` streams the raw build output instead, and
+non-terminal stderr stays silent. Every command exits with a stable
+code: 0 ok,
 1 failure, 2 usage, 3 invalid configuration, 4 not registered / not
 found, 5 conflict, 6 unavailable or unsupported, 130 interrupted. This
 is the one home of that exit-code table.
@@ -23,7 +28,7 @@ is the one home of that exit-code table.
 | `vibe rebuild` | Same, but recreate containers even when already in sync — and always re-pull the unversioned (channel-tracking) agents to latest; pin one in `image.agents` (`claude@2.1.220`) to hold it |
 | `vibe down [--volumes]` | Stop and remove containers and network; also closes the project's tui session; volumes survive unless asked |
 | `vibe status` | Containers vs the approved candidate (running / stopped / stale) |
-| `vibe config` | Human summary of the plan compiled from current inputs (`--json` for the canonical plan JSON) |
+| `vibe config` | Human summary of the plan compiled from current inputs, including the tools image bill of materials (`--json` for the canonical plan JSON) |
 | `vibe ps` | All registered projects, plus this project's agent sessions |
 | `vibe forget` | Remove the registration; the workspace is untouched |
 

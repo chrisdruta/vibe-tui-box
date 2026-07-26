@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/chrisdruta/vibe-tui-box/internal/builder"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
@@ -31,6 +32,10 @@ type ConfigResult struct {
 	Plan      model.Plan
 	Canonical []byte
 	Snapshot  snapshot.Result
+	// BoM is the tools image bill of materials this manifest selects —
+	// the same parts a rebuild reports progress on. Derived, so it
+	// rides outside the canonical plan; nil without a tools image.
+	BoM []builder.InstallPart
 }
 
 func (a *App) Config(ctx context.Context, req ConfigRequest) (ConfigResult, error) {
@@ -73,7 +78,18 @@ func (a *App) Config(ctx context.Context, req ConfigRequest) (ConfigResult, erro
 	if err != nil {
 		return fail(err)
 	}
-	return ConfigResult{Plan: plan, Canonical: canonical, Snapshot: frozen.Snapshot}, nil
+	res := ConfigResult{Plan: plan, Canonical: canonical, Snapshot: frozen.Snapshot}
+	if hasTools(frozen.Manifest) {
+		if ip := builder.GenerateInstallPlan(frozen.Manifest.Image.Agents, frozen.Manifest.Image.Toolchains, rec.AgentRefresh != ""); ip != nil {
+			res.BoM = ip.Parts
+			for i := range res.BoM {
+				if res.BoM[i].ID == "base" {
+					res.BoM[i].Detail = frozen.Manifest.Image.Base
+				}
+			}
+		}
+	}
+	return res, nil
 }
 
 // frozenInputs is the outcome of freezing a project's configuration

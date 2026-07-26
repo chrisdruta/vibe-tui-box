@@ -48,8 +48,9 @@ release artifacts to point at). R4 and R5 are independent and can proceed
 in parallel at any time.
 
 **Current sequencing (2026-07-26, Chris).** One short DevX fast-follow
-arc precedes R1: (1) rebuild-output UX (design + implementation — also
-pre-pays part of R2's first-run story), (2) tray phase 2 (BACKLOG).
+arc precedes R1: (1) rebuild-output UX (shipped 2026-07-26: the live
+bill-of-materials build view — see CHANGELOG), (2) tray phase 2
+(BACKLOG).
 Then R1 becomes the main thread, with TUI/DevX work dropping to
 dogfood-reactive only until `v1.0.0-beta.1` is tagged. Context: the
 2026-07-24→26 TUI arc (layout pass, polish pass, bundled review stack —

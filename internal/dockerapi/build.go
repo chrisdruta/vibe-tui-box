@@ -11,6 +11,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
@@ -42,6 +45,7 @@ func (s *SDK) buildSDK(ctx context.Context, req BuildRequest, sink ProgressSink)
 		return BuiltImage{}, mapErr("build image "+req.Tag, err)
 	}
 	defer resp.Body.Close()
+	sink.Emit(Progress{Stage: StageBuildStart, Message: req.Tag})
 	if err := forwardBuildProgress(resp.Body, sink); err != nil {
 		return BuiltImage{}, fmt.Errorf("build image %s: %w", req.Tag, err)
 	}
@@ -54,7 +58,7 @@ func (s *SDK) buildSDK(ctx context.Context, req BuildRequest, sink ProgressSink)
 	if err != nil {
 		return BuiltImage{}, fmt.Errorf("built image %s has unparseable id %q", req.Tag, inspect.ID)
 	}
-	sink.Emit(Progress{Stage: "build", Message: req.Tag, Done: true})
+	sink.Emit(Progress{Stage: StageBuild, Message: req.Tag, Done: true})
 	return BuiltImage{Ref: ImageRef(req.Tag), Digest: digest}, nil
 }
 
@@ -65,21 +69,68 @@ type buildMessage struct {
 	} `json:"errorDetail"`
 }
 
+// stepLineRE matches the classic builder's step transition line. The
+// daemon numbers every Dockerfile instruction, so N/M arrive complete
+// on the first line of the stream.
+var stepLineRE = regexp.MustCompile(`^Step (\d+)/(\d+) : (.*)$`)
+
+// forwardBuildProgress classifies the daemon's classic-builder stream
+// into step transitions, cache verdicts, and raw layer output. The
+// stream payloads carry their own newlines and may split or batch
+// lines, so it re-buffers into whole lines. Builder bookkeeping lines
+// ("---> <id>", intermediate-container chatter, the final Successfully
+// pair) inform nothing and are dropped.
 func forwardBuildProgress(r io.Reader, sink ProgressSink) error {
 	dec := json.NewDecoder(r)
+	var buf strings.Builder
+	step, steps := 0, 0
+	emitLine := func(line string) {
+		line = strings.TrimRight(line, "\r")
+		switch {
+		case line == "":
+		case stepLineRE.MatchString(line):
+			m := stepLineRE.FindStringSubmatch(line)
+			step, _ = strconv.Atoi(m[1])
+			steps, _ = strconv.Atoi(m[2])
+			sink.Emit(Progress{Stage: StageBuild, Message: m[3], Step: step, Steps: steps, StepStart: true})
+		case strings.HasPrefix(line, " ---> Using cache"):
+			sink.Emit(Progress{Stage: StageBuild, Step: step, Steps: steps, Cached: true})
+		case strings.HasPrefix(line, " ---> "),
+			strings.HasPrefix(line, "Removing intermediate container"),
+			strings.HasPrefix(line, "Successfully built "),
+			strings.HasPrefix(line, "Successfully tagged "):
+		default:
+			sink.Emit(Progress{Stage: StageBuild, Message: line, Step: step, Steps: steps})
+		}
+	}
+	fail := func(err error) error {
+		sink.Emit(Progress{Stage: StageBuild, Message: err.Error(), Step: step, Steps: steps, Failed: true})
+		return err
+	}
 	for {
 		var msg buildMessage
 		if err := dec.Decode(&msg); err != nil {
 			if errors.Is(err, io.EOF) {
+				if buf.Len() > 0 {
+					emitLine(buf.String())
+				}
 				return nil
 			}
-			return err
+			return fail(err)
 		}
 		if msg.Error != nil {
-			return errors.New(msg.Error.Message)
+			return fail(errors.New(msg.Error.Message))
 		}
-		if msg.Stream != "" {
-			sink.Emit(Progress{Stage: "build", Message: msg.Stream})
+		for chunk := msg.Stream; chunk != ""; {
+			line, rest, found := strings.Cut(chunk, "\n")
+			if !found {
+				buf.WriteString(line)
+				break
+			}
+			buf.WriteString(line)
+			emitLine(buf.String())
+			buf.Reset()
+			chunk = rest
 		}
 	}
 }

@@ -114,6 +114,15 @@ func (r *configResult) RenderHuman(w io.Writer) error {
 			parts += "toolchains: " + strings.Join(p.Tools.Toolchains, ", ")
 		}
 		line("tools", "%s", parts)
+		// The tools image bill of materials — the same rows a rebuild
+		// reports progress on.
+		for _, part := range r.Result.BoM {
+			detail := part.Detail
+			if part.Refresh {
+				detail += " (re-pulled on rebuild)"
+			}
+			line("  part", "%-8s %s", part.Title, detail)
+		}
 	}
 	if p.Extension != nil {
 		line("extension", "%s (digest-approved build)", p.Extension.Dockerfile)

@@ -354,6 +354,27 @@ The v1 line and its history remain in git up to the cutover commit.
   bun/rokit layers moved ahead of the agent cache-buster so
   `--refresh-agents` re-runs agents only, and palette.sh builds its
   client flag bash-3.2-safely.
+- New: rebuild output is a live bill of materials instead of the raw
+  Docker firehose. The engine already knows the tools image's parts
+  before the build (`GenerateInstallPlan`: base, tmux, review stack,
+  plugins, parsers, toolchains, agents — with their pins), so `vibe
+  up`/`rebuild` now draw those rows on stderr and flip each one
+  pending → building → cached/built in place, with per-part timing,
+  the expected "will rebuild (refresh)" verdict up front, and one
+  `built <tag> in 42s · 9 cached · 2 built` summary line. Extension
+  builds (no engine plan) grow a row per Dockerfile instruction. Raw
+  layer output is suppressed but ring-buffered: a failing step replays
+  its last 30 lines under the marked row. `--verbose` (new global
+  flag) streams the unabridged build instead; non-TTY stderr stays
+  silent as before. Under the hood the classic-builder stream is
+  parsed once at the dockerapi seam (`Step N/M`, `---> Using cache`,
+  errorDetail) into typed Progress events — the same seam pulls
+  already used — and the app layer stamps each step with its BoM part.
+  `vibe config` prints the same parts statically as `part` rows, with
+  re-pull-on-rebuild verdicts.
+- Fixed: an all-pinned agent selection no longer sends the
+  `VIBE_AGENT_REFRESH` build arg its Dockerfile never declares, which
+  drew the daemon's unconsumed-build-arg warning on every build.
 
 ## v1 final state (unreleased, superseded by the v2 cutover)
 

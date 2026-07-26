@@ -29,6 +29,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/lock"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
+	"github.com/chrisdruta/vibe-tui-box/internal/progressui"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/release"
 	"github.com/chrisdruta/vibe-tui-box/internal/runner"
@@ -151,17 +152,27 @@ func construct() (*app.App, error) {
 	})
 }
 
-// stderrProgress renders pull/build progress as overwriting status
-// lines on stderr when it is a terminal, and stays silent otherwise.
+// stderrProgress selects the progress presentation for this process:
+// the raw stream under --verbose (any output), the live bill-of-
+// materials renderer when stderr is a terminal, silence otherwise.
+// The flag is peeked from argv because the sink is wired before the
+// command parser runs; the cli layer declares the same flag so parsing
+// accepts it.
 func stderrProgress() dockerapi.ProgressSink {
-	if !term.IsTerminal(int(os.Stderr.Fd())) {
+	for _, arg := range os.Args[1:] {
+		if arg == "--verbose" || arg == "-verbose" {
+			return progressui.Verbose(os.Stderr)
+		}
+	}
+	fd := int(os.Stderr.Fd())
+	if !term.IsTerminal(fd) {
 		return nil
 	}
-	return func(p dockerapi.Progress) {
-		if p.Done {
-			fmt.Fprintf(os.Stderr, "\r\x1b[2K%s: done\n", p.Message)
-			return
+	width := func() int {
+		if w, _, err := term.GetSize(fd); err == nil && w > 0 {
+			return w
 		}
-		fmt.Fprintf(os.Stderr, "\r\x1b[2K%s", p.Message)
+		return 80
 	}
+	return progressui.New(os.Stderr, width).Sink()
 }

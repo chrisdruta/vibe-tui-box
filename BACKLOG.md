@@ -145,18 +145,6 @@ section at the bottom — as revisable records, not fences.
   usage.md's TUI section. First-classing it (e.g. a preferred-editor
   knob) stays demand-gated and against the knobs-stay-minimal record.
 
-- **Rebuild output cleanup (NEXT UP 2026-07-26: first item of the
-  DevX fast-follow arc — design + implementation next session).** `vibe
-  rebuild` (and `up`'s build path) streams raw Docker build output —
-  Step X/Y noise, interleaved layer chatter — where a human wants a
-  clean progress narrative: which layer is running (agents, review
-  stack, parsers), what was cached, what changed, one summary line at
-  the end. The engine already owns a Progress seam (`a.deps.Progress`,
-  stderr side-band) — the work is parsing/condensing the build stream
-  into it, with the raw firehose demoted to a `--verbose` or log-file
-  escape hatch. Scope with care: BuildKit vs legacy stream formats
-  differ.
-
 - **Open flag:** should the root AGENTS.md import a project-level
   `.vibe/AGENTS.md` the way the future preset template will tell consumer
   projects to?

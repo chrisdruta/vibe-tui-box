@@ -55,10 +55,13 @@ type Command struct {
 	Run     func(ctx context.Context, a *app.App, req Request, dir string) (Result, error)
 }
 
-// Options carries output mode selected by global flags.
+// Options carries output mode selected by global flags. Verbose is
+// consumed by main's progress wiring (it must exist before parsing);
+// it is declared here so every command accepts it.
 type Options struct {
-	JSON  bool
-	Quiet bool
+	JSON    bool
+	Quiet   bool
+	Verbose bool
 }
 
 // Run dispatches args and returns the process exit code.
@@ -177,7 +180,7 @@ func printHelp(w io.Writer) {
 		}
 		fmt.Fprintf(w, "  %-10s %s\n", cmd.Name, cmd.Summary)
 	}
-	fmt.Fprintln(w, "\nGlobal flags: --json (versioned JSON output), --quiet")
+	fmt.Fprintln(w, "\nGlobal flags: --json (versioned JSON output), --quiet, --verbose (full build output)")
 	fmt.Fprintln(w, "Run `vibe help COMMAND` or `vibe COMMAND -h` for command details.")
 }
 
@@ -221,6 +224,7 @@ func newFlagSet(name string, opts *Options) *flag.FlagSet {
 	fs.SetOutput(io.Discard)
 	fs.BoolVar(&opts.JSON, "json", false, "emit versioned JSON")
 	fs.BoolVar(&opts.Quiet, "quiet", false, "suppress nonessential output")
+	fs.BoolVar(&opts.Verbose, "verbose", false, "stream full pull/build output")
 	return fs
 }
 

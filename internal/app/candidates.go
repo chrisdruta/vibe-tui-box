@@ -138,8 +138,8 @@ func (a *App) buildTools(ctx context.Context, rec registry.Record, frozen frozen
 	// Manifest-pinned agents live in plain layers the token never
 	// reaches.
 	refresh := rec.AgentRefresh != ""
-	dockerfile := builder.GenerateInstall(frozen.Manifest.Image.Agents, frozen.Manifest.Image.Toolchains, refresh)
-	if err := builder.ValidateDockerfile(dockerfile); err != nil {
+	plan := builder.GenerateInstallPlan(frozen.Manifest.Image.Agents, frozen.Manifest.Image.Toolchains, refresh)
+	if err := builder.ValidateDockerfile(plan.Dockerfile); err != nil {
 		return dockerapi.BuiltImage{}, fmt.Errorf("generated install dockerfile: %w", err)
 	}
 	contextDir, err := a.deps.Store.NewStaging("tools-context")
@@ -147,19 +147,59 @@ func (a *App) buildTools(ctx context.Context, rec registry.Record, frozen frozen
 		return dockerapi.BuiltImage{}, err
 	}
 	defer os.RemoveAll(contextDir)
-	if err := os.WriteFile(filepath.Join(contextDir, "Dockerfile"), dockerfile, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(contextDir, "Dockerfile"), plan.Dockerfile, 0o600); err != nil {
 		return dockerapi.BuiltImage{}, fmt.Errorf("stage tools context: %w", err)
 	}
 
 	base := frozen.Manifest.Image.Base
+	// The refresh token rides along only when the Dockerfile declares
+	// the arg — an all-pinned selection consumes no token, and passing
+	// one anyway draws the daemon's unconsumed-build-arg warning.
+	token := ""
+	if plan.RefreshArg {
+		token = rec.AgentRefresh
+	}
 	return a.builder.Build(ctx, builder.Candidate{
-		Digest:       domain.SHA256(dockerfile),
+		Digest:       domain.SHA256(plan.Dockerfile),
 		ContextDir:   contextDir,
 		Dockerfile:   "Dockerfile",
 		BaseImage:    dockerapi.ResolvedImage{Ref: dockerapi.ImageRef(base), Digest: digests[base]},
 		Tag:          model.ToolsImageRef(rec.ID),
-		RefreshToken: rec.AgentRefresh,
-	}, a.deps.Progress)
+		RefreshToken: token,
+	}, announceInstall(plan, base, a.deps.Progress))
+}
+
+// announceInstall presents a tools build as its bill of materials: it
+// announces the plan's parts as build-plan rows up front, then stamps
+// each step event from the stream with the part that owns it, so the
+// renderer works in named parts without ever parsing Dockerfile text.
+func announceInstall(plan *builder.InstallPlan, base string, sink dockerapi.ProgressSink) dockerapi.ProgressSink {
+	if sink == nil {
+		return nil
+	}
+	steps := make([]int, len(plan.Parts))
+	for _, idx := range plan.StepPart {
+		steps[idx]++
+	}
+	for i, part := range plan.Parts {
+		detail := part.Detail
+		if part.ID == "base" {
+			detail = base
+		}
+		sink.Emit(dockerapi.Progress{
+			Stage:   dockerapi.StageBuildPlan,
+			Part:    part.Title,
+			Detail:  detail,
+			Refresh: part.Refresh,
+			Total:   int64(steps[i]),
+		})
+	}
+	return func(p dockerapi.Progress) {
+		if p.Stage == dockerapi.StageBuild && p.Step >= 1 && p.Step <= len(plan.StepPart) {
+			p.Part = plan.Parts[plan.StepPart[p.Step-1]].Title
+		}
+		sink(p)
+	}
 }
 
 // loadArtifact leases the project's pinned artifact for the duration of

@@ -158,13 +158,43 @@ type BuiltImage struct {
 }
 
 // Progress is one normalized progress event from pulls and builds.
+//
+// Stages: "pull" (Message/Current/Total tick, Done closes), "build"
+// (the classified classic-builder stream below), "build-start"
+// (Message = tag, opens a build), "build-plan" (one BoM row announced
+// by the app layer before a tools build: Part/Detail/Refresh, Total =
+// the row's step count), and "dev-build" (a status line).
+//
+// Build classification: Step/Steps mirror the daemon's "Step N/M"
+// ordinals. StepStart marks the transition line (Message = the
+// instruction text); Cached is the daemon's cache verdict for the
+// current step; Failed carries the daemon's error (Message) before the
+// stream aborts. A plain event with Step > 0 is one raw line of layer
+// output. Part is stamped by the app layer on tools builds only.
 type Progress struct {
 	Stage   string
 	Message string
 	Current int64
 	Total   int64
 	Done    bool
+
+	Part      string
+	Detail    string
+	Refresh   bool
+	Step      int
+	Steps     int
+	StepStart bool
+	Cached    bool
+	Failed    bool
 }
+
+// Progress stages.
+const (
+	StagePull       = "pull"
+	StageBuild      = "build"
+	StageBuildStart = "build-start"
+	StageBuildPlan  = "build-plan"
+)
 
 // ProgressSink receives progress events; nil means discard.
 type ProgressSink func(Progress)
