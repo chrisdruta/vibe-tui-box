@@ -19,14 +19,16 @@ client="${1:-}"
 set --
 [ -n "$client" ] && set -- -c "$client"
 
-# -O keeps the menu open across the mouse release that follows a tray
-# click (MouseDown1Status fires on press; without it the release
-# dismissed the menu it just opened); -y S pins it above the tray. The
-# bare "agent" item is retired for the agents chooser (tui-layout.md
-# "Launch surfaces"): its label promised "new" while `vibe agent`'s -A
-# semantics delivered attach-or-launch — a second viewer on the same
-# inner session when one was already running.
-exec tmux display-menu "$@" -O -y S -T " vibe " \
+# -M makes the menu mouse-interactive: opened by a CLI client, it
+# carries no mouse event and tmux would mark it NOMOUSE — item clicks
+# swallowed, any release closes it (why clicking palette items never
+# worked; tui-layout.md "Launch surfaces"). -y S pins it above the
+# tray; the tray door opens on MouseUp so the opening click's release
+# is already spent. The bare "agent" item is retired for the agents
+# chooser: its label promised "new" while `vibe agent`'s -A semantics
+# delivered attach-or-launch — a second viewer on the same inner
+# session when one was already running.
+exec tmux display-menu "$@" -M -y S -T " vibe " \
   "agents" a "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/chooser.sh' '#{client_name}'\"" \
   "restart agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\"" \
   "stop agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 40% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \

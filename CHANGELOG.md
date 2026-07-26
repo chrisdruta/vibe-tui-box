@@ -412,10 +412,16 @@ The v1 line and its history remain in git up to the cutover commit.
   manifest joined with the same `vibe ps` fetch cache the tray's
   ghost cells read, so the chooser and the tray cannot disagree;
   cache-missing degrades to launch verdicts that `-A` semantics keep
-  honest). Tray-opened menus now pass `display-menu -O` pinned above
-  the tray (`-y S`) — without `-O`, the mouse release that follows a
-  tray click dismissed the menu it had just opened, which made the
-  palette read as unclickable. The palette keeps the full command set
+  honest). Menus are now actually mouse-usable: a script-opened menu
+  (any `run-shell` → `display-menu`) carries no mouse event and tmux
+  marks it NOMOUSE — item clicks were swallowed and any button
+  release closed it, which is why clicking palette items never
+  worked. Both menu scripts now pass `display-menu -M` (pinned above
+  the tray with `-y S`), and the two menu doors dispatch on
+  `MouseUp1Status` so the opening click's release is spent before the
+  menu exists (established with a PTY mouse-injection rig against the
+  pinned tmux; `-O` rejected — its press-chooses-last-hover semantics
+  silently dismiss motionless clicks). The palette keeps the full command set
   under 🥡 / `prefix+Space`, its bare "agent" item replaced by the
   chooser. Parallel instances of one CLI stay inside the CLI by
   decision record (BACKLOG): "another claude" is Claude Code's own

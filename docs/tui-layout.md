@@ -296,9 +296,8 @@ name).
 The first agent-surfaces dogfood broke the LAUNCH side three ways: the
 only launch door was the full palette behind `+` (destructive items
 one misclick from a "new" affordance); the menu was not mouse-usable
-when opened from the tray (MouseDown1Status fires on press,
-`run-shell -b` opens the menu async, and the release lands on the
-just-appeared menu — tmux dismisses it); and the palette's "agent"
+when opened from the tray (mechanism below — it was never usable by
+mouse at all); and the palette's "agent"
 item read as *new* agent while running attach-or-launch `vibe agent` —
 with claude live it opened a second viewer on the SAME inner session,
 where closing the duplicate merely detaches but Ctrl-C inside kills
@@ -343,9 +342,24 @@ Three intents, one owner each:
   that becomes a shell word or target, like agent-open.sh) and falls
   back to the palette if anything upstream is missing, so a dead
   chooser can never eat the tray's only launch door.
-- **Tray-opened menus get `-O` and a pinned position** (`-y S`,
-  above the tray) so the press-open/release-dismiss race stops eating
-  the first click — the palette too. Live-tmux verification class.
+- **Script-opened menus need `-M`, and menu doors open on MouseUp**
+  (established 2026-07-26 against the pinned 3.7b with a PTY
+  mouse-injection rig, after the first `-O` fix failed dogfood). The
+  mechanism: a menu opened by a CLI client (a script under
+  `run-shell`) carries no mouse event, and tmux marks it NOMOUSE —
+  item clicks are swallowed outright, and a button RELEASE reads as
+  "other button" and closes it. That made every script menu
+  keyboard-only (the palette's "click bait"), and killed any menu that
+  opened while the tray click's button was still down. Two calls
+  follow: both scripts pass `display-menu -M` (mouse-interactive
+  despite the CLI origin) with `-y S` pinning above the tray, and the
+  two menu DOORS dispatch on `MouseUp1Status` — the opening click's
+  release is already spent before the menu exists. Immediate actions
+  (tabs, dock, req, ghost cells) stay on MouseDown: press-act is
+  tmux-native there and no menu is involved. `-O` was tried and
+  REJECTED: in stay-open mode a press chooses the last HOVERED item,
+  so a click without prior hover motion (touchpad taps, fast clicks)
+  silently dismisses instead of selecting.
 - **Palette hygiene.** 🥡 / `prefix+Space` keep the full palette; its
   bare "agent" item retires in favor of the chooser (the label
   promised "new", the semantics delivered attach-or-launch).
@@ -460,7 +474,11 @@ The chooser's reach-vs-launch verdicts and porcelain live in
 `internal/tmuxui/chooser_test.go` and the manifest/cache join in
 `internal/app/chooser_test.go` (a running entry must reach, never
 double-launch); the manual mouse check is opening the chooser by
-CLICKING `+` and then clicking an item — the `-O` regression class. For the editor popups: with the
+CLICKING `+` and then clicking an item — the NOMOUSE/-M regression
+class, provable headlessly with a PTY that injects SGR mouse
+sequences into an attached scratch client (the 2026-07-26 rig:
+press+release on the range cell, then press+release on the item row,
+then assert the item's window exists). For the editor popups: with the
 container stopped, `prefix+f/g` must hold the popup open with the
 `vibe up` hint, never flash-and-close; and the parser layer's proof
 is a `vibe rebuild` (the headless nvim-treesitter install is the one

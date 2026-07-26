@@ -16,12 +16,17 @@
 #
 # Item COMMAND strings keep their #{...} constructs LITERAL — like
 # palette.sh, display-menu expands them against the choosing client's
-# context when an item is picked. -O keeps the menu open across the
-# mouse release that follows a tray click (MouseDown1Status fires on
-# press; without -O the release dismissed the menu it just opened) and
-# -y S pins it above the tray. Porcelain fields become shell words and
-# tmux targets, so every arg is charset-vetted here even though the
-# engine already vetted them.
+# context when an item is picked. -M makes the menu mouse-interactive:
+# a menu opened by a CLI client (this script, under run-shell) carries
+# no mouse event, and without -M tmux marks it NOMOUSE — item clicks
+# are swallowed and any button release closes it (the "menu you can
+# only drive by keyboard" the first dogfood hit; mechanism recorded in
+# tui-layout.md "Launch surfaces"). -y S pins it above the tray. -O
+# was tried and REJECTED: in stay-open mode a press chooses the last
+# HOVERED item, so a click without prior hover motion silently
+# dismisses. Porcelain fields become shell words and tmux targets, so
+# every arg is charset-vetted here even though the engine already
+# vetted them.
 #
 # Host-side: bash-3.2-safe (stock macOS). Runs under the vibe server
 # via run-shell, which provides TMUX pointing at that server. Any
@@ -65,7 +70,7 @@ rows="$(tmux list-windows -t "$sid" -F "W${us}#{window_id}${us}#{@vibe_session}"
 
 args=()
 [ -n "$client" ] && args+=(-c "$client")
-args+=(-O -y S -T " agents ")
+args+=(-M -y S -T " agents ")
 while IFS="$us" read -r ver label key verb arg; do
   [ "$ver" = "1" ] || continue
   case "$verb" in
