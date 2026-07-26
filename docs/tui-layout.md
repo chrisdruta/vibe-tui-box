@@ -7,7 +7,10 @@ ballooning). Wiring follows this file; disagreements edit it first.
 Updated 2026-07-25 to the shipped state (the `_frame` move and the
 bottom-bar tray included). Updated 2026-07-26 with the polish-pass
 calls (roster flow, sidebar footer, detail display form, status-right
-separators, editor popups), wired the same day.
+separators, editor popups), wired the same day. Updated 2026-07-26
+(second pass) with the agent-surfaces contract — tray ghost cells
+(phase 2) and the nested sidebar roster; design agreed on mockups,
+wiring queued (BACKLOG).
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -24,20 +27,20 @@ the transient layer, lazygit-pattern):
 ```
 ┌─ projects ────────────┬─ ● claude ────────────────────────────────┐
 │ ▍vibe-tui-box ●       │                                           │
-│    ⎇ main             │                                           │
-│    ● dev · 9766b8d8   │                                           │
-│    ▲ 2 pending        │              agent pane                   │
+│ ▍  ⎇ main             │                                           │
+│ ▍  ● dev · 9766b8d8   │                                           │
+│ ▍  ▲ 2 pending        │              agent pane                   │
+│ ▍  ● claude  Fable 5  │                                           │
+│                       │                                           │
+│ ▏rojo-game ●          │                                           │
+│ ▏  ● codex  needs in… │                                           │
 │                       │                                           │
 │  · cold-project       │                                           │
-│                       │                                           │
-│ ─ agents ─────────────│                                           │
-│ ▍● claude             │                                           │
-│    Fable 5 · vibe-tu… │                                           │
 │                       ├─ host ────────────────────────────────────┤
 │ C-Space·Space palette │ chris@host:~/dev/vibe-tui-box$            │
 ├───────────────────────┴───────────────────────────────────────────┤
 │ ─────────────────────────────── rule ─────────────────────────────│
-│ 🥡 vibe-tui-box    ▤    ● claude    +               ⌨ · ● · 18:51 │
+│ 🥡 vibe-tui-box  ▤  ● claude  ● codex  +           ⌨ · ● · 18:51 │
 └───────────────────────────────────────────────────────────────────┘
 
 prefix+f → ╭─ files · nvim/oil ───╮   (90% popups, container-side via
@@ -48,10 +51,11 @@ prefix+g → ╭─ git · lazygit ──────╮    vibe exec — a cold
 The outer box is the terminal window's edge, drawn only to frame the
 figure — the UI adds no outer border; pane borders and the two status
 lines are the only chrome. Left to right, top to bottom: sidebar
-(fleet section, then the agent roster flowing directly after it,
-footer hint on the last row), agent pane with role-gated border title,
-host dock collapsed to its 1-row strip, then the two status lines
-(rule + tray).
+(fleet section with agent rows nested inside each project block under
+its gutter bar, footer hint on the last row), agent pane with
+role-gated border title, host dock collapsed to its 1-row strip, then
+the two status lines (rule + tray — the second tray tab here is a
+ghost cell: a container-side session with no viewer window yet).
 
 ## Decisions
 
@@ -201,6 +205,54 @@ one per window kept in lockstep; dock parked collapsed (1 row) on
 session create, expanding to `@vibe_dock_size`; pane borders on top
 with role-gated dot + title.
 
+### Agent surfaces: presence vs activity (2026-07-26, supersedes the aggregate roster)
+
+Three surfaces show agents; each gets one contract, and no agent or
+project is drawn twice on the same surface (the aggregate roster broke
+this: every agent appeared as a dot on its project's fleet row AND as
+a two-line roster entry whose detail line re-printed the project
+name).
+
+| Surface | Contract |
+| --- | --- |
+| tray | **Presence & reach** — every container-side agent session, viewer window or not, one click away |
+| sidebar | **Activity & signal** — projects in use, with nested agent rows for states that need eyes |
+| `vibe ps` | **Full truth** — every session with CLI/model detail, scriptable |
+
+- **Tray ghost cells (phase 2).** Sessions without viewer windows
+  render in the winlist as dim cells (proposal: italic + hairline
+  inset over the surface color; dim-only is the fallback — the one
+  open styling call), each a `mouse_status_range` user range
+  (`agent-NAME`) like the brand/▤/+ cells. The dot carries real state
+  (an attention coral is visible with no window). Click dispatches
+  `vibe agent -s NAME` into a new window — **attach-only**: it never
+  starts or restarts an agent; the ghost graduates to a real tab on
+  the next refresh. Rows come from the `vibe ps` fetch cache (the
+  sidebar's cached engine layer) — the `#(vibe _state)` splice stays
+  the conf's whole splice budget.
+- **Sidebar nesting.** Agent rows sit inside their project's fleet
+  block, one line per agent (state dot + CLI name + dim model — the
+  project context is positional, so the `model · project` detail line
+  is gone). The `─ agents ─` ruled section is gone with it.
+- **The signal filter.** A nested row appears for states that ask
+  something of the operator: `working`, `running`, `attention`,
+  `exited*`, `gone`/frontend-dead. `idle` collapses to its dim dot on
+  the project name row — presence without a row. Hiding by
+  "inactivity" was considered and rejected: `exited` is inactive and
+  is precisely the highest-value glance. Full presence lives in the
+  tray and `vibe ps`.
+- **Viewer-less rows.** A container-side session with signal earns a
+  sidebar row even without a window; its click uses the same
+  attach-only spawn as the tray ghost. One filter rule regardless of
+  whether a viewer exists.
+- **Project boundaries: gutter bars, not boxes.** The 2-col gutter
+  carries a bar spanning the project's block — coral `▍` for the own
+  project (generalizing the existing self marker), border-hex `▏` for
+  other in-use projects, none for cold rows; the blank slop row stays
+  the vertical separator. Boxes were rejected: the chrome rule above
+  (pane borders + two status lines are the only chrome) and the
+  30-col budget both forbid border art.
+
 ### Sidebar frame contract (`vibe _frame` owns this)
 
 All sidebar layout arithmetic lives in the engine renderer
@@ -208,23 +260,24 @@ All sidebar layout arithmetic lives in the engine renderer
 never does layout math. The contract the renderer implements:
 
 - Row 0 stays blank. The **fleet section** flows from row 1: per
-  session a name row with agent state dots, a `⎇ branch` row when
-  known, engine facts (stale/stopped glyph, `▲n`, `dev`) or the own
-  project's detail block, and a blank slop row — every row claims the
-  session as its click target. Cold registered projects (fleet entries
-  with no live session) render dim and unclickable — click-dispatching
-  `up` is a recorded open product call, not half-shipped here.
-- The **aggregate agent roster** flows directly after the fleet
-  section (supersedes "starts at the pane midpoint", 2026-07-26: with
-  a small fleet the midpoint rule left two separate dead blocks; the
-  flowing roster keeps one contiguous empty region below it — roster
-  rows shift only when fleet rows change, which the per-frame click
-  map republication already absorbs), under a ruled `agents` header:
-  two-line entries (dot + window name; dim model · project detail)
-  plus a gap row, all three sharing one `SESSION:WINDOW` jump target.
-  When only part fits, the last slot becomes an overflow count. The
-  roster is render-only — no dismiss/kill affordance (BACKLOG decision
-  record, 2026-07-25).
+  session a project block under its gutter bar — a name row carrying
+  the idle-agent dots, a `⎇ branch` row when known, engine facts
+  (stale/stopped glyph, `▲n`, `dev`) or the own project's detail
+  block, the **nested agent rows**, and a blank slop row. Non-agent
+  rows claim the session as click target. Cold registered projects
+  (fleet entries with no live session) render dim, barless, and
+  unclickable — click-dispatching `up` is a recorded open product
+  call, not half-shipped here.
+- The **nested agent rows** close each project block (agent-surfaces
+  decision above; supersedes the flowing aggregate roster, itself the
+  2026-07-26 successor of the midpoint rule): one line per
+  signal-state agent — state dot + CLI name + dim model — with the
+  window jump (`SESSION:WINDOW`) as click target, or the attach-only
+  viewer spawn when the session has no window. Idle agents collapse
+  to their dim dot on the name row. When a block's rows don't fit,
+  its last slot becomes a per-block `… +n agents` overflow. The rows
+  stay render-only beyond their one click — no dismiss/kill
+  affordance (BACKLOG decision record, 2026-07-25).
 - The **footer hint row** owns the last row: dim
   `C-Space · Space palette`, truncated to the text budget, render-only
   (no click target — the palette's mouse doors are the tray cells).
@@ -241,9 +294,11 @@ never does layout math. The contract the renderer implements:
   three "dev"s meaning mode, version prefix, and role — and words
   where every other surface speaks the `● ○ ◐` glyph vocabulary).
 - Budgets derive from pane width: text budget is `width−3` (floor 8);
-  a session's name budget shrinks 2 cols per state dot (floor 8) so a
-  long name can never wrap the dots and skew the click map; roster
-  names get `budget−4` (floor 8).
+  a session's name budget shrinks 2 cols per idle dot (floor 8) so a
+  long name can never wrap the dots and skew the click map; nested
+  agent rows spend the gutter bar + indent + dot (`budget−4`, floor
+  8) with the dim model suffix dropped first when the name and model
+  can't share the line.
 
 ### Dead panes: two corpse fates
 

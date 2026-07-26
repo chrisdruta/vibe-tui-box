@@ -100,16 +100,39 @@ section at the bottom — as revisable records, not fences.
   the sixel-drop v1 pinned against. The host-side installer stays
   retired.)
 
-- **Tray phase 2 — agent-truth roster cells (QUEUED 2026-07-26:
-  second item of the DevX fast-follow arc, after rebuild-output UX).**
-  The bottom bar's window cells graduate into an agent-truth roster:
-  container-side agent sessions without host windows (via the `vibe
-  ps` fetch cache) render as dim clickable cells whose click spawns a
-  viewer (`vibe agent -s NAME` window). Needs the fetch-cache rows
-  plus a `mouse_status_range` cell per agent; the bar itself,
-  branding button, and range dispatch shipped with the bottom-bar
-  move. (Descends from the consume-the-renderers work, SHIPPED
-  2026-07-24 — see CHANGELOG.)
+- **Tray phase 2 — agent-truth roster cells (NEXT UP 2026-07-26:
+  rebuild-output UX shipped; design agreed same day on mockups —
+  spec: tui-layout.md "Agent surfaces").** The bottom bar's window
+  cells graduate into an agent-truth roster: container-side agent
+  sessions without host windows (via the `vibe ps` fetch cache)
+  render as dim clickable **ghost cells** — proposal: italic +
+  hairline inset over the surface color, dim-only fallback (the one
+  open styling call) — whose dot carries real state and whose click
+  spawns a viewer (`vibe agent -s NAME` window, attach-only: never
+  starts or restarts). Needs the fetch-cache rows plus a
+  `mouse_status_range` cell per agent; the bar itself, branding
+  button, and range dispatch shipped with the bottom-bar move.
+  (Descends from the consume-the-renderers work, SHIPPED 2026-07-24
+  — see CHANGELOG.)
+
+- **Sidebar: nested agent roster + signal filter (QUEUED
+  2026-07-26: rides the tray phase-2 arc — shared fetch-cache
+  plumbing; spec updated same day, supersedes the flowing aggregate
+  roster).** The `─ agents ─` section folds into the fleet blocks:
+  one line per agent under its project (dot + CLI name + dim model —
+  the `model · project` detail line dies with the duplication: today
+  every agent draws twice, dot on the fleet row plus a two-line
+  roster entry re-printing the project name). Nested rows appear for
+  signal states only (working / running / attention / exited /
+  frontend-dead); **idle collapses to its dim dot on the name row**
+  — presence lives in the tray roster and `vibe ps` (the
+  agent-surfaces contract). Viewer-less sessions with signal get
+  rows whose click is the same attach-only spawn as a tray ghost.
+  Project boundaries are **gutter bars** spanning each block (coral
+  `▍` self, border-hex `▏` other in-use, none cold) — boxes rejected
+  against the chrome rule and the 30-col budget. Per-block
+  `… +n agents` overflow replaces the aggregate roster's single
+  count.
 
 - **Sidebar: event-driven refresh + the cold-project click call.**
   The two bits deferred from the consume-the-renderers work: (1) a

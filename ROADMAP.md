@@ -49,8 +49,10 @@ in parallel at any time.
 
 **Current sequencing (2026-07-26, Chris).** One short DevX fast-follow
 arc precedes R1: (1) rebuild-output UX (shipped 2026-07-26: the live
-bill-of-materials build view — see CHANGELOG), (2) tray phase 2
-(BACKLOG).
+bill-of-materials build view — see CHANGELOG), (2) tray phase 2 plus
+the nested sidebar roster it unlocked (one arc item — shared
+fetch-cache plumbing; design agreed 2026-07-26, spec in
+tui-layout.md "Agent surfaces", scope in BACKLOG).
 Then R1 becomes the main thread, with TUI/DevX work dropping to
 dogfood-reactive only until `v1.0.0-beta.1` is tagged. Context: the
 2026-07-24→26 TUI arc (layout pass, polish pass, bundled review stack —
