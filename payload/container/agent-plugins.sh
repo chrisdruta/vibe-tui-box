@@ -24,7 +24,11 @@ log() {
 # Codex config seed: OpenAI's documented answer for an externally
 # sandboxed environment. Key-absent only — a user-set sandbox_mode
 # always wins — and PREPENDED, because top-level TOML keys must precede
-# any [table]. Runs every post-create: idempotent, self-healing.
+# any [table]. The presence check accepts leading whitespace (TOML
+# does), so an indented user setting is seen and never doubled — a
+# duplicate top-level key would brick codex's parser. A table-scoped
+# sandbox_mode also matches and suppresses the seed: skipping is the
+# safe direction. Runs every post-create: idempotent, self-healing.
 codex_seed_config() {
   codex_cfg="$CODEX_HOME/config.toml"
   mkdir -p "$CODEX_HOME" 2>/dev/null || return 0
@@ -32,7 +36,7 @@ codex_seed_config() {
     printf 'sandbox_mode = "danger-full-access"\n' >"$codex_cfg" 2>/dev/null || return 0
     chmod 600 "$codex_cfg" 2>/dev/null || true
     log "seeded $codex_cfg"
-  elif ! grep -Eq '^sandbox_mode[[:space:]]*=' "$codex_cfg" 2>/dev/null; then
+  elif ! grep -Eq '^[[:space:]]*sandbox_mode[[:space:]]*=' "$codex_cfg" 2>/dev/null; then
     tmp="$(mktemp 2>/dev/null)" || return 0
     if { printf 'sandbox_mode = "danger-full-access"\n'; cat "$codex_cfg"; } >"$tmp" 2>/dev/null &&
       mv -f "$tmp" "$codex_cfg" 2>/dev/null; then
@@ -47,20 +51,25 @@ codex_seed_config() {
 # The official codex plugin pins per-thread sandbox modes over its
 # app-server API — $CODEX_HOME/config.toml cannot override them — so
 # its review/task threads would bwrap-fail every shell command here.
-# Rewrite the pinned modes to danger-full-access. The patterns are
-# matched against plugin v1.0.6's source, so every file is classified
-# and LOGGED: patched, already patched, or — the case that used to be
-# silent — matching no known pattern after a plugin update, which means
-# codex threads will bwrap-fail until the patterns catch up (BACKLOG
-# tracks upstreaming a real override). Re-applied every post-create, so
-# a `claude plugin update` revert heals on the next up. Trade-off,
-# documented in configuration.md: patched review threads gain workspace
-# write access; git is the undo.
+# Rewrite the pinned modes to danger-full-access. Scope is twofold:
+# only the openai-codex marketplace tree is searched (an unrelated
+# plugin whose path or filenames merely mention codex is never
+# touched), and the patterns are matched against plugin v1.0.6's
+# source, so every file is classified and LOGGED: patched, already
+# patched, or — the case that used to be silent — matching no known
+# pattern after a plugin update, which means codex threads will
+# bwrap-fail until the patterns catch up (BACKLOG tracks upstreaming a
+# real override). Re-applied every post-create, so a `claude plugin
+# update` revert heals on the next up. Trade-off, documented in
+# configuration.md: patched review threads gain workspace write
+# access; git is the undo.
 codex_patch_plugin() {
   cc_plugins="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins"
   [ -d "$cc_plugins" ] || return 0
-  find "$cc_plugins" -type f \( -name codex.mjs -o -name codex-companion.mjs \) \
-    -path '*codex*' 2>/dev/null |
+  for codex_root in "$cc_plugins/cache/openai-codex" "$cc_plugins/marketplaces/openai-codex"; do
+    [ -d "$codex_root" ] || continue
+    find "$codex_root" -type f \( -name codex.mjs -o -name codex-companion.mjs \) 2>/dev/null
+  done |
     while IFS= read -r f; do
       rel="${f#"$cc_plugins"/}"
       if grep -Eq 'options\.sandbox \?\? "read-only"|sandbox: "(read-only|workspace-write)"|request\.write \? "workspace-write" : "read-only"' "$f" 2>/dev/null; then
@@ -105,8 +114,9 @@ if command -v codex >/dev/null 2>&1; then
   fi
 fi
 
-# Go code intelligence: when the image ships gopls beside claude (the
-# go preset's base does), install+enable the official gopls-lsp plugin
+# Go code intelligence: when the image ships gopls beside claude (none
+# of the stock presets install it — this arms only when a project's
+# extension or hook adds it), install+enable the official gopls-lsp plugin
 # at user scope so the recommendation popup never gates a fresh
 # container. The marketplace add must precede the install — a fresh
 # config dir knows no marketplaces at all (verified; both steps are
@@ -124,4 +134,7 @@ if [ ! -e "$gopls_plugin_marker" ] &&
   fi
 fi
 
-exit 0
+# No trailing `exit`: the script is best-effort (nothing above may fail
+# it) and must stay source-able — the payload tests source it to drive
+# the functions directly, and `exit` in a sourced file kills the caller.
+true

@@ -14,7 +14,7 @@
 # `--`; no env-run.sh — the engine injects the frozen env file into this
 # exec, and the inner server is dedicated to the agent, so panes
 # inheriting it is fine (the v1 concern was a server shared with
-# interactive shells). attach/reap modes arrive with later slices.
+# interactive shells).
 
 set -euo pipefail
 
