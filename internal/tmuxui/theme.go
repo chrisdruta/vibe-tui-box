@@ -96,10 +96,10 @@ func AgentStyle(state string) (glyph, hex string, ok bool) {
 }
 
 // AgentSignal reports whether a state asks something of the operator —
-// the sidebar's nested-row filter (docs/tui-layout.md "The signal
-// filter"). `idle` is presence, not signal: it collapses to its dim dot
-// on the project name row, and full presence lives in the tray and
-// `vibe ps`. An unrecognized state is nothing to show.
+// the sidebar's row STYLING (docs/tui-layout.md "The roster" —
+// 2026-07-26: every live agent is a row; signal no longer hides,
+// it styles). `idle` is presence, not signal: its roster row renders
+// dim instead of fg. An unrecognized state is nothing to show.
 func AgentSignal(state string) bool {
 	switch state {
 	case "working", "running", "attention", "gone", "frontend-dead":

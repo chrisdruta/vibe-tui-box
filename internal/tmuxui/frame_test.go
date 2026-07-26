@@ -94,7 +94,8 @@ func TestFrameClickMapAlignsWithRows(t *testing.T) {
 	clicks := mapRows(t, out.Map)
 
 	// Row 0 stays blank; sessions sort by name, so alpha leads. Its
-	// block: name, branch, the viewer-less attention row, slop.
+	// block: name, branch, the full agent roster (idle viewer, the
+	// viewer-less attention agent, the viewer-less idle agent), slop.
 	if _, ok := rows[0]; ok {
 		t.Fatalf("row 0 must stay blank, got %q", rows[0])
 	}
@@ -105,14 +106,14 @@ func TestFrameClickMapAlignsWithRows(t *testing.T) {
 		t.Fatalf("row 2 should carry alpha's branch, got %q", rows[2])
 	}
 	// Name, branch, and the blank slop row all claim the session; the
-	// nested agent row (3) claims the agent instead.
-	for _, r := range []int{1, 2, 4} {
+	// nested agent rows (3-5) claim their agents instead.
+	for _, r := range []int{1, 2, 6} {
 		if clicks[r] != "$1" {
 			t.Fatalf("row %d should click to $1, got %q (map %q)", r, clicks[r], out.Map)
 		}
 	}
-	if !strings.Contains(rows[5], "beta") || clicks[5] != "$2" {
-		t.Fatalf("beta's name row misplaced: rows[5]=%q clicks[5]=%q", rows[5], clicks[5])
+	if !strings.Contains(rows[7], "beta") || clicks[7] != "$2" {
+		t.Fatalf("beta's name row misplaced: rows[7]=%q clicks[7]=%q", rows[7], clicks[7])
 	}
 	// Every rendered row maps to a session, a window jump, or the
 	// attach-only spawn — the frame and the click map cannot skew.
@@ -131,42 +132,41 @@ func TestFrameNestedAgentRows(t *testing.T) {
 	rows := frameRows(t, out.Body)
 	clicks := mapRows(t, out.Map)
 
-	// The signal filter: alpha's idle viewer collapses to its dot on the
-	// name row (never a row of its own), while the viewer-less agent
-	// wanting attention earns one — inside alpha's block, under the
-	// branch row, with the attach-only spawn as its target.
-	if !strings.Contains(rows[1], "●") {
-		t.Fatalf("the idle agent's dot must ride the name row: %q", rows[1])
+	// The roster (2026-07-26, supersedes idle-collapses-to-dot): every
+	// live agent is a row. Alpha's idle viewer window leads, dim, with
+	// the window jump; the viewer-less attention agent follows with the
+	// attach-only spawn; the viewer-less idle agent closes the block.
+	if !strings.Contains(rows[3], "codex:review") || clicks[3] != "$1:@3" {
+		t.Fatalf("the idle viewer earns a dim row with its window jump: rows[3]=%q clicks[3]=%q", rows[3], clicks[3])
 	}
-	for _, content := range rows {
-		if strings.Contains(content, "codex:review") {
-			t.Fatalf("an idle agent must not also get a nested row: %q", content)
-		}
+	if !strings.Contains(rows[4], "claude") || !strings.Contains(rows[4], "fable") {
+		t.Fatalf("the viewer-less attention row should carry CLI + model: %q", rows[4])
 	}
-	if !strings.Contains(rows[3], "claude") || !strings.Contains(rows[3], "fable") {
-		t.Fatalf("the viewer-less attention row should carry CLI + model: %q", rows[3])
+	if clicks[4] != "$1:agent-agent-ghost" {
+		t.Fatalf("viewer-less rows spawn a viewer: %q", clicks[4])
 	}
-	if clicks[3] != "$1:agent-agent-ghost" {
-		t.Fatalf("viewer-less rows spawn a viewer: %q", clicks[3])
+	if !strings.Contains(rows[5], "codex") || clicks[5] != "$1:agent-agent-quiet" {
+		t.Fatalf("the viewer-less idle agent keeps a roster row: rows[5]=%q clicks[5]=%q", rows[5], clicks[5])
 	}
-	// An idle agent with no viewer earns nothing here — presence lives
-	// in the tray and `vibe ps`.
-	for row, content := range rows {
-		if strings.Contains(content, "codex") && row != 1 {
-			t.Fatalf("row %d should not exist for the idle viewer-less agent: %q", row, content)
-		}
+	// The name row carries no dots anymore — presence went to rows.
+	if strings.Contains(rows[1], "●") {
+		t.Fatalf("the name row must not carry agent dots: %q", rows[1])
+	}
+	// Idle whispers, signal speaks: the idle rows render their names
+	// dim, the attention row keeps the fg color.
+	dim, fgc := fg(PaletteHex("dim")), fg(PaletteHex("fg"))
+	if !strings.Contains(out.Body, dim+"codex:review") {
+		t.Fatal("an idle row's name must render dim")
+	}
+	if !strings.Contains(out.Body, fgc+"claude") {
+		t.Fatal("a signal row's name must keep the fg color")
 	}
 	// beta's working agent has a window, so its row jumps to it.
-	if !strings.Contains(rows[6], "claude") || !strings.Contains(rows[6], "opus") {
-		t.Fatalf("beta's working agent row: %q", rows[6])
+	if !strings.Contains(rows[8], "claude") || !strings.Contains(rows[8], "opus") {
+		t.Fatalf("beta's working agent row: %q", rows[8])
 	}
-	if clicks[6] != "$2:@9" {
-		t.Fatalf("viewer-backed rows jump to session+window: %q", clicks[6])
-	}
-	// The working agent is a row, so its dot must NOT also ride beta's
-	// name row: no agent is drawn twice on one surface.
-	if strings.Contains(rows[5], "●") {
-		t.Fatalf("a signal agent must not leave a dot on the name row too: %q", rows[5])
+	if clicks[8] != "$2:@9" {
+		t.Fatalf("viewer-backed rows jump to session+window: %q", clicks[8])
 	}
 }
 
@@ -179,12 +179,12 @@ func TestFrameGutterBars(t *testing.T) {
 	// The gutter is 2 cols: the bar spans its project's whole block —
 	// coral for the own project, border-hex for another in use, none
 	// for a cold row.
-	for _, row := range []int{1, 2, 3, 4} {
+	for _, row := range []int{1, 2, 3, 4, 5, 6} {
 		if !strings.HasPrefix(rows[row], " ▍") && rows[row] != "" {
 			t.Fatalf("row %d should sit under the self gutter bar: %q", row, rows[row])
 		}
 	}
-	for _, row := range []int{5, 6} {
+	for _, row := range []int{7, 8} {
 		if !strings.HasPrefix(rows[row], " ▏") {
 			t.Fatalf("row %d should sit under the other-project gutter bar: %q", row, rows[row])
 		}
@@ -282,12 +282,12 @@ func TestFrameGlyphlessViewerClearsGhost(t *testing.T) {
 	}
 }
 
-func TestFrameCachePresenceDotForGlyphlessViewer(t *testing.T) {
+func TestFrameGlyphlessViewerIdleRow(t *testing.T) {
 	// The startup claude: its idle record persisted across the TUI
 	// reopen, its viewer window is self-stamped but has no glyph yet
-	// (title events only start with the first message). The design's
-	// idle presence — a dim dot on the name row — must come from cache
-	// truth, not vanish: no ghost, no nested row, just the dot.
+	// (title events only start with the first message). The roster
+	// rule: a dim row from cache truth, jumping to the stamped window
+	// — never a ghost, never the attach-only spawn.
 	in := twoSessionInput()
 	in.Sessions[1].Windows = append(in.Sessions[1].Windows,
 		FrameWindow{ID: "@8", Name: "claude", Session: "agent-quiet"})
@@ -295,22 +295,14 @@ func TestFrameCachePresenceDotForGlyphlessViewer(t *testing.T) {
 	if strings.Contains(out.GhostMap, "agent-quiet") {
 		t.Fatalf("a stamped viewer must clear the ghost: %q", out.GhostMap)
 	}
-	for _, target := range []string{"$1:@8", "$1:agent-agent-quiet"} {
-		if strings.Contains(out.Map, target) {
-			t.Fatalf("idle presence is a dot, not a row: map carries %q", target)
-		}
+	if strings.Contains(out.Map, "$1:agent-agent-quiet") {
+		t.Fatalf("a session with a viewer must not offer the spawn: %q", out.Map)
 	}
-	nameRow := func(body string) string {
-		for _, content := range frameRows(t, body) {
-			if strings.Contains(content, "alpha") {
-				return content
-			}
-		}
-		return ""
+	if !strings.Contains(out.Map, "$1:@8") {
+		t.Fatalf("the idle row must jump to the stamped viewer: %q", out.Map)
 	}
-	base, got := nameRow(Frame(twoSessionInput()).Body), nameRow(out.Body)
-	if strings.Count(got, "●") != strings.Count(base, "●")+1 {
-		t.Fatalf("the glyphless viewer's session must add its idle dot to the name row: %q vs %q", base, got)
+	if !strings.Contains(out.Body, fg(PaletteHex("dim"))+"codex") {
+		t.Fatal("the idle roster row renders its CLI name dim")
 	}
 }
 
@@ -327,7 +319,7 @@ func TestFrameFooterHint(t *testing.T) {
 	}
 }
 
-func TestFrameLongNameNeverPushesDots(t *testing.T) {
+func TestFrameLongNameStaysOneRow(t *testing.T) {
 	in := twoSessionInput()
 	in.Sessions[1].Name = strings.Repeat("verylongname", 6)
 	in.Sessions[1].Windows = append(in.Sessions[1].Windows,
@@ -345,12 +337,12 @@ func TestFrameLongNameNeverPushesDots(t *testing.T) {
 	if !strings.Contains(name, "…") {
 		t.Fatalf("long name must truncate: %q (rows %v)", name, rows)
 	}
-	if strings.Count(name, "●") != 3 {
-		t.Fatalf("all three idle dots must survive a long name: %q", name)
+	// The name row must fit the pane (text budget width-3) so it never
+	// wraps and the click map below cannot skew; the idle windows live
+	// as dim roster rows of their own, never on this row.
+	if strings.Contains(name, "●") {
+		t.Fatalf("the name row must not carry agent dots: %q", name)
 	}
-	// The row must fit the pane: text budget is width-3, and the name
-	// budget shrank by 2 per dot, so the row never wraps and the click
-	// map below cannot skew.
 	if n := len([]rune(name)); n > in.Width {
 		t.Fatalf("name row overflows the pane: %d runes %q", n, name)
 	}

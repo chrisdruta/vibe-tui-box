@@ -228,6 +228,7 @@ type agentRow struct {
 	name   string
 	model  string
 	target string
+	dim    bool // presence-not-signal (idle): the row renders dim
 }
 
 // windowSignal reports whether a viewer window's agent asks something
@@ -246,10 +247,11 @@ func windowSignal(w FrameWindow) bool {
 // Frame renders one sidebar frame. Layout contract (tui-layout.md,
 // "Sidebar frame contract"): row 0 stays blank; the fleet section flows
 // from row 1 — per session a project block under its gutter bar (coral
-// for the own project, border-hex for another in-use one): a name row
-// carrying the idle dots, a `⎇ branch` row when known, engine facts or
-// the own project's detail block, the nested agent rows, and a blank
-// slop row, all claiming the session as click target. Cold registered
+// for the own project, border-hex for another in-use one): a name row,
+// a `⎇ branch` row when known, engine facts or the own project's
+// detail block, the nested agent rows (the full roster — idle rows
+// dim), and a blank slop row, all claiming the session as click
+// target. Cold registered
 // projects (fleet entries with no live session) render dim, barless,
 // and unclickable. The footer hint owns the last row (render-only) and
 // content clips above it. The same pass renders the tray's ghost cells
@@ -302,14 +304,13 @@ func Frame(in FrameInput) FrameOutput {
 		if self {
 			gutter, nameC = " "+selfB+ansiReset, cFG
 		}
-		// One pass over the windows splits presence from signal: an idle
-		// (or stateless) agent collapses to its dot on the name row, one
-		// that wants eyes earns a nested row instead — no agent is drawn
-		// twice on this surface. Dots keep the tabs' semantics:
-		// attention renders coral (the tab-blend @vibe_dot_fg would
-		// vanish here), plain windows emit nothing.
-		var dots strings.Builder
-		ndots := 0
+		// Every live agent is a ROW — the sidebar is the project's
+		// roster (2026-07-26, Chris; supersedes idle-collapses-to-dot:
+		// three dogfood rounds read the dim dot as "claude is
+		// missing"). Signal still styles: idle rows render dim, and
+		// attention keeps its coral dot (the tab-blend @vibe_dot_fg
+		// would vanish here). No agent is drawn twice — a session's
+		// window row wins over its cache row.
 		var agents []agentRow
 		// viewed is the VIEWER-EXISTS join: any window stamped with a
 		// container session, glyph or not. The stamp arrives at window
@@ -340,47 +341,24 @@ func Frame(in FrameInput) FrameOutput {
 			if w.Attn {
 				dotc = cCoral
 			}
-			if !windowSignal(w) {
-				ndots++
-				dots.WriteString(" ")
-				dots.WriteString(dotc)
-				dots.WriteString(w.Glyph)
-				continue
-			}
 			agents = append(agents, agentRow{
 				dot:    dotc + w.Glyph,
 				name:   w.Name,
 				model:  w.Model,
 				target: s.ID + ":" + w.ID,
+				dim:    !windowSignal(w),
 			})
 		}
 		// Container-side sessions the window pass did not draw (the
-		// `vibe ps` fetch cache): hookless CLIs land here even with a
-		// viewer open — their windows carry the birth stamp but no
-		// glyph. The click target honors the viewer join: jump to the
-		// stamped window when one exists, the attach-only spawn only
-		// when none does. Cache rows are only as fresh as the last
-		// fetch.
+		// `vibe ps` fetch cache): viewer-less agents, and hookless CLIs
+		// even with a viewer open — their windows carry the birth stamp
+		// but no glyph (the startup claude: its record persisted `idle`
+		// across the reopen, its first title event hasn't). The click
+		// target honors the viewer join: jump to the stamped window
+		// when one exists, the attach-only spawn only when none does.
+		// Cache rows are only as fresh as the last fetch.
 		for _, ag := range agentsByProject[s.Project] {
 			if drawn[ag.Session] {
-				continue
-			}
-			if !AgentSignal(ag.State) {
-				// Presence, not signal — but a stamped viewer whose
-				// window has no glyph yet still deserves the design's
-				// idle dot on the name row (the startup claude: its
-				// record persisted `idle` across the reopen, its first
-				// title event hasn't). Cache truth substitutes for the
-				// missing glyph; viewer-less presence stays the tray
-				// ghost's job.
-				if viewed[ag.Session] && AgentLive(ag.State) {
-					if glyph, hex, ok := AgentStyle(ag.State); ok {
-						ndots++
-						dots.WriteString(" ")
-						dots.WriteString(fg(hex))
-						dots.WriteString(glyph)
-					}
-				}
 				continue
 			}
 			glyph, hex, ok := AgentStyle(ag.State)
@@ -400,18 +378,13 @@ func Frame(in FrameInput) FrameOutput {
 				name:   name,
 				model:  ag.Model,
 				target: target,
+				dim:    !AgentSignal(ag.State),
 			})
 		}
 		if self {
 			ghosts, ghostMap = ghostCells(agentsByProject[s.Project], viewed)
 		}
-		// The dots shrink the name budget (2 cols each) so a long name
-		// can never push them onto a wrapped row and skew the click map.
-		nmax := max - ndots*2
-		if nmax < 8 {
-			nmax = 8
-		}
-		c.putAt(row, gutter+ansiBold+nameC+terminal.Line(s.Name, nmax)+ansiReset+dots.String()+ansiReset, s.ID)
+		c.putAt(row, gutter+ansiBold+nameC+terminal.Line(s.Name, max)+ansiReset, s.ID)
 		row++
 		if s.Branch != "" {
 			c.putAt(row, gutter+"  "+cDim+"⎇ "+terminal.Line(s.Branch, max-4)+ansiReset, s.ID)
@@ -501,17 +474,22 @@ func Frame(in FrameInput) FrameOutput {
 
 // agentLabel renders a nested row's text: the CLI actually running,
 // then its model dim — the model dropped first when the two cannot
-// share the line (tui-layout.md budgets).
+// share the line (tui-layout.md budgets). A dim (idle) row keeps its
+// place in the roster but whispers.
 func agentLabel(a agentRow, budget int, cFG, cDim string) string {
+	c := cFG
+	if a.dim {
+		c = cDim
+	}
 	name := terminal.Line(a.name, budget)
 	if a.model == "" {
-		return cFG + name + ansiReset
+		return c + name + ansiReset
 	}
 	model := terminal.Line(a.model, budget)
 	if len([]rune(name))+2+len([]rune(model)) > budget {
-		return cFG + name + ansiReset
+		return c + name + ansiReset
 	}
-	return cFG + name + ansiReset + "  " + cDim + model + ansiReset
+	return c + name + ansiReset + "  " + cDim + model + ansiReset
 }
 
 // ghostLabelRe strips everything outside the CLI display charset

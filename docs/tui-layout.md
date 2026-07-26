@@ -267,24 +267,29 @@ name).
   block, one line per agent (state dot + CLI name + dim model — the
   project context is positional, so the `model · project` detail line
   is gone). The `─ agents ─` ruled section is gone with it.
-- **The signal filter.** A nested row appears for states that ask
-  something of the operator: `working`, `running`, `attention`,
-  `exited*`, `gone`/frontend-dead. `idle` collapses to its dim dot on
-  the project name row — presence without a row. Hiding by
-  "inactivity" was considered and rejected: `exited` is inactive and
-  is precisely the highest-value glance. Full presence lives in the
-  tray and `vibe ps`. The name row's dots are the VIEWER windows' —
-  a viewer-less idle session earns neither a row nor a dot here, only
-  its tray cell and its `vibe ps` line. Reading the filter needs the
-  raw state, which a glyph cannot carry (● is working, running, and
-  idle), so state-render.sh stamps `@vibe_state` on the window beside
-  the pane and `@vibe_session` as the join key against `vibe ps`;
-  windows from an artifact older than that stamp degrade to
-  glyph-only signal (✗/◌ and the attention flag) and keep their dots.
-- **Viewer-less rows.** A container-side session with signal earns a
-  sidebar row even without a window; its click uses the same
-  attach-only spawn as the tray ghost. One filter rule regardless of
-  whether a viewer exists.
+- **The roster: every live agent is a row** (2026-07-26, Chris —
+  supersedes the signal FILTER, which collapsed `idle` to a dim dot
+  on the project name row; three dogfood rounds read that dot as
+  "claude is missing", and the asymmetry made it worse: a hookless
+  CLI caps at `running` and kept a full row while napping, so the
+  better-instrumented agent looked less present). Signal now STYLES
+  instead of hiding: `idle` rows render their name dim (the dot keeps
+  its state color), signal states — `working`, `running`,
+  `attention`, `exited*`, `gone`/frontend-dead — keep the fg color,
+  attention keeps its coral dot. The name row carries no agent dots
+  anymore. Hiding by "inactivity" stays rejected for the original
+  reason: `exited` is inactive and is precisely the highest-value
+  glance. Reading idle-vs-signal needs the raw state, which a glyph
+  cannot carry (● is working, running, and idle), so state-render.sh
+  stamps `@vibe_state` on the window beside the pane and
+  `@vibe_session` as the join key against `vibe ps`; windows from an
+  artifact older than that stamp degrade to glyph-only signal (✗/◌
+  and the attention flag).
+- **Viewer-less rows.** A container-side session earns a sidebar row
+  even without a window (idle included — the roster rule); its click
+  uses the same attach-only spawn as the tray ghost, or jumps to the
+  stamped window when one exists. One rule regardless of whether a
+  viewer exists.
 - **Project boundaries: gutter bars, not boxes.** The 2-col gutter
   carries a bar spanning the project's block — coral `▍` for the own
   project (generalizing the existing self marker), border-hex `▏` for
@@ -417,10 +422,11 @@ Three intents, one owner each:
   cache (verdict `open`, never a `vibe agent` whose `-A` would mint a
   second viewer); a recorded-dead session still launches. The idle
   form of the same rule: a stamped-but-glyphless viewer whose cache
-  state is presence-not-signal (the startup claude — record persisted
-  `idle`, no title event yet) contributes the design's dim dot to the
-  name row from CACHE truth, since the dot's usual source is the
-  glyph it does not have.
+  state is `idle` (the startup claude — record persisted across the
+  reopen, no title event yet) renders its dim roster row from CACHE
+  truth, jumping to the stamped window (the roster decision above —
+  this row was briefly a name-row dot, which the startup dogfood
+  couldn't see).
 - **Palette hygiene.** 🥡 / `prefix+Space` keep the full palette; its
   bare "agent" item retires in favor of the chooser (the label
   promised "new", the semantics delivered attach-or-launch).
@@ -489,24 +495,24 @@ All sidebar layout arithmetic lives in the engine renderer
 never does layout math. The contract the renderer implements:
 
 - Row 0 stays blank. The **fleet section** flows from row 1: per
-  session a project block under its gutter bar — a name row carrying
-  the idle-agent dots, a `⎇ branch` row when known, engine facts
-  (stale/stopped glyph, `▲n`, `dev`) or the own project's detail
-  block, the **nested agent rows**, and a blank slop row. Non-agent
-  rows claim the session as click target. Cold registered projects
-  (fleet entries with no live session) render dim, barless, and
-  unclickable — click-dispatching `up` is a recorded open product
-  call, not half-shipped here.
+  session a project block under its gutter bar — a name row, a
+  `⎇ branch` row when known, engine facts (stale/stopped glyph, `▲n`,
+  `dev`) or the own project's detail block, the **nested agent
+  rows**, and a blank slop row. Non-agent rows claim the session as
+  click target. Cold registered projects (fleet entries with no live
+  session) render dim, barless, and unclickable — click-dispatching
+  `up` is a recorded open product call, not half-shipped here.
 - The **nested agent rows** close each project block (agent-surfaces
   decision above; supersedes the flowing aggregate roster, itself the
-  2026-07-26 successor of the midpoint rule): one line per
-  signal-state agent — state dot + CLI name + dim model — with the
-  window jump (`SESSION:WINDOW`) as click target, or the attach-only
-  viewer spawn when the session has no window. Idle agents collapse
-  to their dim dot on the name row. When a block's rows don't fit,
-  its last slot becomes a per-block `… +n agents` overflow. The rows
-  stay render-only beyond their one click — no dismiss/kill
-  affordance (BACKLOG decision record, 2026-07-25).
+  2026-07-26 successor of the midpoint rule): one line per LIVE OR
+  SIGNAL agent — state dot + CLI name + dim model, the whole name dim
+  when idle (the roster decision above; idle previously collapsed to
+  a name-row dot) — with the window jump (`SESSION:WINDOW`) as click
+  target, or the attach-only viewer spawn when the session has no
+  window. When a block's rows don't fit, its last slot becomes a
+  per-block `… +n agents` overflow. The rows stay render-only beyond
+  their one click — no dismiss/kill affordance (BACKLOG decision
+  record, 2026-07-25).
 - The **footer hint row** owns the last row: dim
   `C-Space · Space palette`, truncated to the text budget, render-only
   (no click target — the palette's mouse doors are the tray cells).
@@ -523,11 +529,9 @@ never does layout math. The contract the renderer implements:
   three "dev"s meaning mode, version prefix, and role — and words
   where every other surface speaks the `● ○ ◐` glyph vocabulary).
 - Budgets derive from pane width: text budget is `width−3` (floor 8);
-  a session's name budget shrinks 2 cols per idle dot (floor 8) so a
-  long name can never wrap the dots and skew the click map; nested
-  agent rows spend the gutter bar + indent + dot (`budget−4`, floor
-  8) with the dim model suffix dropped first when the name and model
-  can't share the line. The gutter is 2 cols (blank, then the bar),
+  nested agent rows spend the gutter bar + indent + dot (`budget−4`,
+  floor 8) with the dim model suffix dropped first when the name and
+  model can't share the line. The gutter is 2 cols (blank, then the bar),
   every row of a block sits under it, and each row ends one col clear
   of the right edge.
 - Content **clips** at the footer's row instead of drawing past the

@@ -455,6 +455,15 @@ The v1 line and its history remain in git up to the cutover commit.
   cadence). The sentinel is leashed to the stream by stdin-EOF so
   daemon reconnects never stack orphan pollers
   ([docs/tui-layout.md](docs/tui-layout.md) "The watch channel").
+- Changed: the sidebar shows the full agent **roster** — every live
+  agent gets a row, with idle rows rendered dim (name in the dim
+  color, dot keeping its state color) instead of collapsing to a bare
+  dot on the project name row (Chris, 2026-07-26: three dogfood
+  rounds read that dot as "claude is missing", while a hookless
+  `running` codex kept a full row doing nothing). Signal states keep
+  the fg color and the attention coral; the name row carries no agent
+  dots anymore; viewer-less idle sessions get a row too (attach-only
+  spawn as the click, or the stamped-window jump).
 - Fixed: the startup agent window is no longer invisible until the
   first message. Two halves: the `@vibe_session` viewer stamp is now a
   SELF-stamp — `vibe agent` / `vibe attach` mark their own window from

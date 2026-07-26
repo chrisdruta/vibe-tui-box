@@ -124,18 +124,15 @@ section at the bottom — as revisable records, not fences.
   dispatches `up` stays open (brushes the live-sessions-only picker
   record).
 
-- **Watch channel follow-ups (prototyped 2026-07-26).** (1) Upgrade
+- **Watch channel follow-ups (prototyped 2026-07-26).** Upgrade
   the container sentinel from its 1s local fingerprint poll to a
   control-mode tmux client on the inner server — true push, plus
   window-level granularity — once the channel earns it; the sentinel
   protocol (E/H lines over one exec stream, stdin leash) was shaped so
-  only the script body changes. (2) The sidebar signal-filter
-  asymmetry the watch dogfood surfaced: a hookless CLI caps at
-  `running` (signal → full row while it naps) while a hooked agent
-  reports `idle` (presence → dot) — the better-instrumented agent
-  looks LESS present. Candidate: demote long-quiet `running` to
-  presence at read time using the activity timestamps agent-ps already
-  reads (read-time evaluation, no TTLs in the live path).
+  only the script body changes. (The signal-filter asymmetry this
+  dogfood surfaced — hookless `running` outranking hooked `idle` — is
+  RESOLVED by the roster decision, same day: every live agent is a
+  row, idle renders dim, so both read as present.)
 
 - **Claude-plugin future content.** The vibe claude-plugin
   (`payload/container/claude-plugin/`, loaded per session with
