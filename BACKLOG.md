@@ -100,6 +100,22 @@ section at the bottom — as revisable records, not fences.
   the sixel-drop v1 pinned against. The host-side installer stays
   retired.)
 
+- **Launch surface — the agents chooser (NEXT UP 2026-07-26:
+  agent-surfaces arc shipped; design agreed the same session on the
+  first dogfood — spec: tui-layout.md "Launch surfaces"; rides the
+  roadmap's dogfood-reactive carve-out).** Wiring: an engine porcelain
+  renders the chooser's display-menu items from `image.agents` joined
+  with the agents cache (state-aware: a CLI that is down launches via
+  `vibe agent`/`-a`, one that is up shows its dot and attaches through
+  the shipped doors); the `+` range dispatches it while 🥡 keeps the
+  full palette; every tray-opened menu gains `-O` plus a pinned
+  position above the tray (the press-open/release-dismiss race — the
+  reason clicking menu items "doesn't work" today); the palette's bare
+  "agent" item retires in favor of the chooser. Out of scope,
+  recorded in the spec as open calls: per-session stop/restart
+  addressing (the `vibe ps` popup is the likely door) and the
+  awaiting-input dot upgrade.
+
 - **Sidebar: event-driven refresh + the cold-project click call.**
   The two bits deferred from the consume-the-renderers work: (1) a
   docker-events watcher for out-of-band container deaths — today the
@@ -225,6 +241,23 @@ history). Read the mechanisms as historical; the calls stand.
   dir. A plugin cannot express `statusLine`, `autoMemoryEnabled`,
   `autoUpdates`, or `sandbox` — those stay in the thin `--settings`
   file; a pure-plugin end state is off the table upstream-permitting.
+- **Parallel agent instances stay inside the CLI (2026-07-26, Chris).**
+  The tui's launch unit is the installed CLI, one per project — the
+  `+` chooser never mints a second instance of a running CLI. The
+  expectation behind "add another claude" (a separate task-shaped
+  thing with its own lifecycle) is exactly Claude Code's built-in
+  background-session manager (`←` at the prompt: describe a task →
+  its own session, Needs input / Working / Completed triage,
+  survives the terminal); a second instance at the tmux or container
+  layer would reimplement that screen one level down with worse
+  information — and hand two writers one working tree.
+  `vibe agent -s NAME` stays a CLI-only power tool (deliberate,
+  named, knowingly shares the checkout). A UI door for parallel
+  instances returns only as container-per-instance with its OWN
+  checkout (worktree/volume clone, branch, merge-back — see
+  "Productize worktrees"), demand-gated on claude's own isolation
+  visibly not covering a real dogfood need.
+
 - **Roster stays render-only — no dismiss affordance (2026-07-25).** A
   ctrl-c-quit agent left a ✗ viewer window needing manual reaping, and
   "add dismiss to the roster" was considered and rejected: it would put

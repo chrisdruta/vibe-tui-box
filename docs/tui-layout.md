@@ -11,7 +11,11 @@ separators, editor popups), wired the same day. Updated 2026-07-26
 (second pass) with the agent-surfaces contract — tray ghost cells
 (phase 2) and the nested sidebar roster; design agreed on mockups,
 wired the same day (one deviation, recorded in place: a ghost's click
-dispatches `vibe attach SESSION`, not `vibe agent -s NAME`).
+dispatches `vibe attach SESSION`, not `vibe agent -s NAME`). Updated
+2026-07-26 (third pass) with the launch-surface contract — the `+`
+cell becomes the agents chooser and parallel instances stay inside
+the CLI; design agreed on the first agent-surfaces dogfood, wiring
+queued (BACKLOG NEXT UP).
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -84,7 +88,7 @@ Top-preferrers set `status-position top` in the user conf.
 | `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
 | ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`agent-NAME` range → attach-only viewer spawn), rendered into `@vibe_ghosts` by `vibe _frame` |
-| `+` cell | clickable — opens the palette (the "new" chooser) |
+| `+` cell | clickable — opens the **agents chooser** (launch what's down, reach what's up — "Launch surfaces" below; wired to the full palette until the chooser ships) |
 | cheatsheet | key hints, shown only while prefix held (replaces tabs) |
 | prefix/copy | `⌨` / `copy` indicators (stamped `status-right`) |
 | engine state | state glyph, `▲n` only when pending > 0; click opens the request list (`#(vibe _state)` splice in user range `req`) |
@@ -104,7 +108,8 @@ no chrome. (Reaffirmed 2026-07-26 against a `🥡 brand: project` cell —
 the coral gutter bar and per-project session already tie the tray to
 its project; revisit only on real multi-project dogfood confusion about
 which project a tray belongs to, e.g. fullscreen with no OS title.) The palette lives in `scripts/palette.sh` — one definition
-serving `prefix+Space` and both clickable cells. The title channel the
+serving `prefix+Space` and the 🥡 cell; the `+` cell graduates to the
+agents chooser ("Launch surfaces" below). The title channel the
 tabs and roster consume is
 `vibe1|project|session|instance|state|display|model`
 (`state-render.sh`).
@@ -286,6 +291,68 @@ name).
   (pane borders + two status lines are the only chrome) and the
   30-col budget both forbid border art.
 
+### Launch surfaces: the agents chooser (2026-07-26, third pass)
+
+The first agent-surfaces dogfood broke the LAUNCH side three ways: the
+only launch door was the full palette behind `+` (destructive items
+one misclick from a "new" affordance); the menu was not mouse-usable
+when opened from the tray (MouseDown1Status fires on press,
+`run-shell -b` opens the menu async, and the release lands on the
+just-appeared menu — tmux dismisses it); and the palette's "agent"
+item read as *new* agent while running attach-or-launch `vibe agent` —
+with claude live it opened a second viewer on the SAME inner session,
+where closing the duplicate merely detaches but Ctrl-C inside kills
+the shared session for both, and nothing on screen distinguishes the
+two.
+
+Three intents, one owner each:
+
+| Intent | Owner |
+| --- | --- |
+| open an agent that exists | tray tab / ghost cell / sidebar row (shipped, attach-only) |
+| start a new agent | the `+` agents chooser |
+| manage a running agent | palette stop/restart (default session; addressing is an open call) |
+
+- **The launch unit is the installed CLI, one per project.** The
+  chooser lists one entry per `image.agents` (manifest default
+  first), then container shell and host shell. Entries are
+  state-aware from the same `vibe ps` fetch cache the ghost cells
+  read — the chooser and the tray cannot disagree: a CLI that is
+  down launches (`vibe agent` / `-a CLI`); one that is up shows its
+  dot and ATTACHES (window jump when a viewer exists, the attach-only
+  spawn when not). "New" never silently reattaches and never mints a
+  hidden twin.
+- **Another claude is claude's job.** Claude Code's background-session
+  manager (`←` at the prompt: describe a task → its own session,
+  triaged Needs input / Working / Completed, survives the terminal)
+  IS the "separate thing" a second instance would reimplement one
+  level down — with two writers on one working tree. The chooser's
+  claude entry carries the `← for agents` hint; vibe hosts and
+  surfaces the CLI's parallelism, it does not manage it.
+  `vibe agent -s NAME` stays a CLI-only power tool (deliberate,
+  named, shares the checkout); the only UI-worthy parallel instance
+  is one with its OWN checkout — the container-per-instance escape
+  valve recorded in the BACKLOG beside "Productize worktrees",
+  demand-gated.
+- **The chooser is engine-rendered.** The shell cannot know
+  `image.agents` (the frame-renderer reasoning): a porcelain renders
+  the display-menu items from the manifest joined with the agents
+  cache; the `+` range and a palette item dispatch it.
+- **Tray-opened menus get `-O` and a pinned position** (anchored
+  above the tray) so the press-open/release-dismiss race stops eating
+  the first click — the palette too. Live-tmux verification class.
+- **Palette hygiene.** 🥡 / `prefix+Space` keep the full palette; its
+  bare "agent" item retires in favor of the chooser (the label
+  promised "new", the semantics delivered attach-or-launch).
+  stop/restart keep addressing the default session; per-session
+  management is an open call (the `vibe ps` popup is the likely
+  door — sidebar rows stay render-only by decision record).
+- **Dot semantics under N background sessions (open call).** The
+  hook-fed dot approximates "any session needs me" today. Revisit
+  trigger: the dot reads idle while claude's agents screen shows
+  Needs input — then the statusline JSON's awaiting-input count
+  feeds the dot (and maybe the `▲n` pattern).
+
 ### Sidebar frame contract (`vibe _frame` owns this)
 
 All sidebar layout arithmetic lives in the engine renderer
@@ -383,7 +450,11 @@ escaping in `internal/tmuxui/frame_test.go`, the porcelain round trips
 user-conf epilogue in `internal/app/tui_test.go`. The manual check that
 has caught what tests miss: resize the sidebar and click every row type
 — the click-skew regression class; with the nested rows that now
-includes a ghost row (it must open a viewer, never start an agent). For the editor popups: with the
+includes a ghost row (it must open a viewer, never start an agent).
+Once the chooser ships, its porcelain round trip is table-tested like
+the fleet's, a running entry must attach (never double-launch), and
+the manual mouse check is opening the chooser by CLICKING `+` and then
+clicking an item — the `-O` regression class. For the editor popups: with the
 container stopped, `prefix+f/g` must hold the popup open with the
 `vibe up` hint, never flash-and-close; and the parser layer's proof
 is a `vibe rebuild` (the headless nvim-treesitter install is the one
