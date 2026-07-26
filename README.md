@@ -18,6 +18,8 @@ my-project/
 └── .vibe/
     ├── vibe.yaml       # the entire project configuration (closed schema)
     ├── Dockerfile      # optional image extension (digest-approved)
+    ├── hooks/          # post-create / post-start, run in-container
+    ├── AGENTS.md       # seeded instructions teaching agents this environment
     └── requests/       # agents drop rebuild requests here
 ```
 
@@ -58,9 +60,10 @@ Unknown keys and enum values are errors; there is no raw Docker, Compose, or
 shell passthrough. Every `up` freezes the inputs into a content-addressed
 snapshot, compiles a canonical plan, and reconciles containers against it by
 digest — identical inputs produce the identical candidate, and what you
-approved is exactly what runs. Containers get a closed policy: non-root,
-all capabilities dropped, `no-new-privileges`, no Docker socket, no host
-home.
+approved is exactly what runs. Containers get a closed policy —
+capabilities dropped, `no-new-privileges`, loopback-only ports, no
+Docker socket, no host home; [docs/security.md](docs/security.md) is
+the authoritative statement of it.
 
 The architecture (with diagrams) is in
 [docs/architecture.md](docs/architecture.md), the contributor internals in

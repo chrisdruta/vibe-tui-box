@@ -1,5 +1,9 @@
 # Configuration — `.vibe/vibe.yaml`
 
+**Authority: as-built.** This page describes what the schema and engine
+actually do; where it disagrees with them, the page is the bug. The
+promises behind the policy live in [security.md](security.md).
+
 One closed, versioned document is the entire project configuration.
 Unknown keys, unknown enum values, YAML anchors/aliases, custom tags,
 and duplicate keys are errors — a typo fails loudly instead of being
@@ -37,6 +41,11 @@ bootstrap:
 
 ## Field notes
 
+- **`schema` / `harness`** — `schema` must be exactly `1`. `harness` is
+  required and shape-checked (`vX.Y.Z`) but otherwise inert: which
+  engine runs a project is the host registry's per-project artifact
+  pin, not a manifest field. (Its removal is an open R1 call on the
+  [roadmap](../ROADMAP.md).)
 - **`image.base`** — any image reference; the engine resolves it to a
   registry digest at candidate time and runs by digest from then on.
   Pin with `@sha256:…` yourself for full reproducibility.
@@ -78,15 +87,20 @@ bootstrap:
   source is copied into the immutable input snapshot and that copy is
   mounted; editing the source on the host does nothing until the next
   candidate. The workspace itself is the only live bind.
-- **`runtime.env` / `services.*.env`** — values are container data,
-  assigned through the Docker API; they never enter a host process
-  environment. Maps are sorted before hashing, so ordering can't change
-  the candidate digest.
+- **`runtime.env` / `services.*.env`** — planned configuration:
+  container-ambient and part of the plan digest (maps are sorted before
+  hashing, so ordering can't change it), never a host process
+  environment. Secrets belong in `env_file`, which is neither.
 - **`services`** — sidecars get the same closed policy as the dev
-  container and join the project network under their short name (the
-  dev container reaches `db` as `db`). Volumes are engine-named from
-  the project ID; there is no way to reference another project's
-  volume.
+  container (they do run as their image's own user, not `vscode`) and
+  join the project network under their short name (the dev container
+  reaches `db` as `db`). Volumes are engine-named from the project ID;
+  there is no way to reference another project's volume.
+- **`agent.tmux`** — selects the persistent in-container session
+  carrier. With it false (or a tmux-less image), `vibe agent` still
+  runs the CLI directly, but the session-shaped variants (`--cold`,
+  `-s NAME`, `--stop`, `--restart`) are unavailable. Read live from the
+  manifest like `agent.memory` — no rebuild to flip.
 - **`agent.memory`** — opt-in to the agent CLI's cross-session auto
   memory (Claude Code's `autoMemoryEnabled`; other agents ignore it for
   now). Off when absent: the payload settings pin memory off, and
@@ -96,8 +110,10 @@ bootstrap:
   memory directory lives under the agent-state volume, so it survives
   rebuilds until `vibe down --volumes`.
 - **`env_file`** — workspace-relative, parsed literally (no shell
-  syntax, no interpolation), frozen into the snapshot. `vibe run` and
-  `vibe agent` load it; `vibe exec` never does.
+  syntax, no interpolation), frozen into the snapshot. Exec-scoped by
+  design: `vibe run` and `vibe agent` inject it; `vibe exec`, shells,
+  hooks, and service windows never see it ambiently
+  ([security.md](security.md) "Environment values").
 - **`bootstrap.required`** — probed by `vibe bootstrap` and reported;
   names only, no shell.
 
@@ -148,6 +164,18 @@ well-formed rebuild request. The keys a plugin cannot express
 (`statusLine`, `autoMemoryEnabled`, `autoUpdates`, `sandbox`) ride a
 thin `--settings` file beside it.
 
+Claude settings otherwise layer exactly like plain Claude Code — the
+engine adds no config system of its own. The per-session `--settings`
+file pins only those four keys and outranks every file scope;
+everything else follows the CLI's normal precedence, which leaves two
+layers that are yours: the repo's `.claude/settings.json` (project
+scope, travels with the checkout) and user scope, which lives at
+`/vibe/agent-state/claude/settings.json` because `CLAUDE_CONFIG_DIR`
+points at the volume — edit it in-container and it persists across
+rebuilds exactly like a login. Don't fight the four pinned keys from a
+file (the flag wins); `agent.memory` is the manifest knob for the one
+pinned key that is meant to move.
+
 Agent logins relocate onto the agent-state volume per agent: claude via
 `CLAUDE_CONFIG_DIR=/vibe/agent-state/claude`, codex via
 `CODEX_HOME=/vibe/agent-state/codex` — log in once inside the container
@@ -171,9 +199,10 @@ update` reverts that rewrite until the next `vibe up` re-applies it,
 and patched review threads gain workspace write access — the
 container plus git history remain the boundary and the undo.
 
-When the image ships `gopls` beside claude (the go preset's base
-does), post-create likewise installs and enables Claude Code's
-official `gopls-lsp` plugin at user scope, so Go code intelligence
-works in a fresh container without the recommendation popup. Same
-contract as the codex plugin: best-effort, marker-guarded on the
-volume, retried on a later `up`.
+When the image ships `gopls` beside claude (no stock preset installs
+it — this arms when a project's extension or hook adds it),
+post-create likewise installs and enables Claude Code's official
+`gopls-lsp` plugin at user scope, so Go code intelligence works in a
+fresh container without the recommendation popup. Same contract as the
+codex plugin: best-effort, marker-guarded on the volume, retried on a
+later `up`.

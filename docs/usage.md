@@ -1,10 +1,17 @@
 # Usage
 
-Every command runs from anywhere inside a project (the engine walks up
-to `.vibe/vibe.yaml`), takes `--json` for a versioned machine-readable
-result, and exits with a stable code: 0 ok, 1 failure, 2 usage,
-3 invalid configuration, 4 not registered / not found, 5 conflict,
-6 external dependency unavailable, 130 interrupted.
+**Authority: as-built.** Where this page and the CLI disagree, the page
+is the bug — `vibe help` is the generated truth.
+
+Commands run from anywhere inside a project (the engine walks up to
+`.vibe/vibe.yaml`); `vibe init` is the one exception — it refuses to
+run inside an existing project. Every command takes `--json` for a
+versioned machine-readable result (interactive and streaming commands
+emit only an exit-code envelope; `tui` and `logs` emit none) and
+`--quiet` to suppress human output, and exits with a stable code: 0 ok,
+1 failure, 2 usage, 3 invalid configuration, 4 not registered / not
+found, 5 conflict, 6 unavailable or unsupported, 130 interrupted. This
+is the one home of that exit-code table.
 
 ## Project lifecycle
 
@@ -16,7 +23,7 @@ result, and exits with a stable code: 0 ok, 1 failure, 2 usage,
 | `vibe rebuild` | Same, but recreate containers even when already in sync — and always re-pull the unversioned (channel-tracking) agents to latest; pin one in `image.agents` (`claude@2.1.220`) to hold it |
 | `vibe down [--volumes]` | Stop and remove containers and network; also closes the project's tui session; volumes survive unless asked |
 | `vibe status` | Containers vs the approved candidate (running / stopped / stale) |
-| `vibe config` | Print the canonical plan JSON compiled from current inputs |
+| `vibe config` | Human summary of the plan compiled from current inputs (`--json` for the canonical plan JSON) |
 | `vibe ps` | All registered projects, plus this project's agent sessions |
 | `vibe forget` | Remove the registration; the workspace is untouched |
 
@@ -28,16 +35,17 @@ a failed `up` never moves the approved-candidate pointer.
 
 | Command | Environment |
 | --- | --- |
-| `vibe exec [-u USER] [-w DIR] [-e K=V]… -- CMD ARGS…` | explicit `-e` entries only |
+| `vibe exec [-u USER] [-w DIR] [-e K=V]… -- CMD ARGS…` | explicit `-e` entries only (plus the host `TERM` for TTY execs) |
 | `vibe run -- CMD ARGS…` | the env file frozen in the approved candidate, then `-e` |
 | `vibe agent [--cold] [-a CMD] [-s NAME] [--stop\|--restart]` | the manifest's agent CLI, with the frozen env file |
 | `vibe shell` | first of zsh/bash/sh found in the container, as a login shell |
-| `vibe attach [SESSION]` | the main process; with SESSION, that in-container tmux session (default target: `services`) |
+| `vibe attach [SESSION]` | the main process; with SESSION, that in-container tmux session (e.g. `services`) |
 | `vibe logs [SERVICE] [-f] [--tail N]` | container logs — the dev container, or a named sidecar |
 | `vibe bootstrap` | verify `bootstrap.required` tools exist in the container |
 | `vibe clip [DIR] [--path-only]` | host clipboard image → container `/tmp` (or workspace `DIR`, no daemon needed); prints the container path |
 
-Argv is preserved exactly — there is no shell-string form. The container
+Argv is preserved exactly — there is no shell-string form. `-u USER`
+works on all five (exec, run, agent, shell, attach). The container
 process's exit code becomes `vibe`'s exit code. Interactive sessions get
 a raw TTY with resize forwarding; container commands run from
 `/workspace`.
@@ -130,7 +138,8 @@ The prefix is `C-Space` (`C-a` also works). The keys that matter:
 | `prefix+t` | toggle the bottom host dock |
 | `prefix+v` | host clipboard image → agent prompt |
 | `prefix+o` | switch project (live sessions tree) |
-| `prefix+r` | respawn a dead pane (reattaches the agent session) |
+| `prefix+r` | respawn a dead pane (reattaches the agent session); `prefix+x` closes it |
+| `prefix+Q` / `prefix+K` | quit this project's UI / kill every project's UI (both confirm; agents and containers keep running) |
 
 Layout knobs (tmux user options on the vibe socket; see
 [tui-layout.md](tui-layout.md)): `@vibe_sidebar_on` (default 1),
@@ -196,4 +205,9 @@ vibe dev sync     # rebuild after edits
 vibe dev off      # back to the newest release artifact
 ```
 
-Dev mode is per-project; release-mode projects never see dev artifacts.
+The artifact pin is per-project, but `dev on`/`sync` also repoint the
+host-global `vibe` shim at the fresh dev binary (`dev off` hands it
+back to the newest release). Entering dev mode asks a one-time
+source-trust confirmation — the build output runs on the host; syncing
+an already-dev project rebuilds without re-asking. Release-mode
+projects never see dev artifacts.

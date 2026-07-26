@@ -4,8 +4,8 @@
     {
       "path": "container/agent-plugins.sh",
       "mode": "0644",
-      "size": 6261,
-      "digest": "sha256:d7cb8e9caa5af59be93ca72b16138b1e32f56cd0451388e17263bfd9a66579cc"
+      "size": 7126,
+      "digest": "sha256:78f4711aa2444c5dd6f80bf5fcc322696a059f0983b947db0398fb181afef524"
     },
     {
       "path": "container/agent-ps.sh",
@@ -16,8 +16,8 @@
     {
       "path": "container/agent-session.sh",
       "mode": "0755",
-      "size": 11622,
-      "digest": "sha256:2dda7b99512cd123a8123e9a47e51858025fd4cc31592c43af3983dca45f6dcf"
+      "size": 11578,
+      "digest": "sha256:d1412448074b3e07740b117c2da41937beebd3543ee36d2a95f38c25e35c28b2"
     },
     {
       "path": "container/agent-state-hook.sh",
@@ -64,8 +64,8 @@
     {
       "path": "container/lifecycle.sh",
       "mode": "0644",
-      "size": 1986,
-      "digest": "sha256:83b4d226a21838019305614267f519ae27b87b720d8aad32ce7e44911582255a"
+      "size": 2449,
+      "digest": "sha256:52e2d2620a66b6e340aa3eae51574844938b989db3179995339bde81b331aff3"
     },
     {
       "path": "container/statusline.sh",
@@ -112,8 +112,14 @@
     {
       "path": "host/scripts/palette.sh",
       "mode": "0644",
-      "size": 2681,
-      "digest": "sha256:aa802ebf5e9870b0e3330a0c8dc69028a48f19f388e7d484e3d8d78bc0323de2"
+      "size": 2688,
+      "digest": "sha256:cda3d24dedbf9904b64f21b83ef77d8f6c0f1748e3bfaecae1945778cddd4997"
+    },
+    {
+      "path": "host/scripts/popup.sh",
+      "mode": "0644",
+      "size": 1059,
+      "digest": "sha256:bdf96a53f6622325aedc9dace80ad9ce8fd3fffd7eda907cc202f3f9e11251ae"
     },
     {
       "path": "host/scripts/sidebar.sh",
@@ -136,8 +142,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 20836,
-      "digest": "sha256:8dc8d160a919d7c969ebec945ef1965a76f2dbfabced9988c996c36845df68df"
+      "size": 21889,
+      "digest": "sha256:33514bd58907f178b74c60d7a7ea9bd6908a6520633c7739ae74729662b1faaa"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -148,8 +154,8 @@
     {
       "path": "presets/common/AGENTS.md",
       "mode": "0644",
-      "size": 2414,
-      "digest": "sha256:5655b953b61008345a564cf75f8b764d0b9a33dd883df7c2488f6878c3ec09ac"
+      "size": 2507,
+      "digest": "sha256:60611cf795fff2fca347113b1aa8491ee66e8acf350bea519ee6848c4f5f01c4"
     },
     {
       "path": "presets/common/hooks/post-create.sh.sample",
@@ -200,5 +206,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:05a5e77d4c786b1dbf3d43ce86926022f4d909609e92abab12e2f3595cfeae5d"
+  "digest": "sha256:caf746f4c9035b985e1ca42fd7ecbd8ef8ba85967bf6461b1f79f7851d3cfbda"
 }

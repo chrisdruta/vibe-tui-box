@@ -6,7 +6,7 @@ top of the pinned base.
 
 ## Setup
 
-1. In `vibe.yaml`, set `image.extension: true`.
+1. In `.vibe/vibe.yaml`, set `image.extension: true`.
 2. Create `.vibe/Dockerfile`:
 
 ```dockerfile
@@ -32,13 +32,15 @@ content never re-prompts.
 
 ## The contract
 
-The validator is deliberately narrow. Allowed: `RUN`, `COPY` (from the
-frozen context), `ENV`, `ARG`, `WORKDIR`, `LABEL`, `USER` (ending as
-`vscode`). Rejected: custom `# syntax` frontends, any `FROM` other than
-`${VIBE_BASE_IMAGE}` (declared with `ARG VIBE_BASE_IMAGE` first),
-multi-stage builds, `ADD`, `ONBUILD`, and a final user other than
-`vscode`. The engine supplies `VIBE_BASE_IMAGE` digest-pinned — the
-Dockerfile cannot choose its own base. When the manifest declares
+The intent: every byte in the image comes from the engine-pinned base
+or the frozen build context — the Dockerfile cannot reach anywhere
+else. The enforced rules (authoritative list: the doc comment on
+`builder.ValidateDockerfile`): no custom `# syntax` frontends; exactly
+one `FROM`, and it must be `${VIBE_BASE_IMAGE}` (declare
+`ARG VIBE_BASE_IMAGE` first); no `ADD`, `ONBUILD`, `COPY --from`, or
+extra build stages; any final `USER` must return to `vscode`. The
+engine supplies `VIBE_BASE_IMAGE` digest-pinned — the Dockerfile cannot
+choose its own base. When the manifest declares
 `image.agents`/`image.toolchains`, that base is the engine-generated
 install image, so the extension layers on top of the baked tools.
 

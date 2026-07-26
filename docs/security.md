@@ -1,30 +1,39 @@
 # Security model
 
-The full architecture is in
-[architecture.md](architecture.md); this is the operator's view of
-what the engine does and does not protect.
+**Authority: design.** This page is normative — the engine disagreeing
+with a claim here is a defect (or a deliberate revision recorded in
+BACKLOG.md), never something to paper over by editing this file to
+match. The as-built map is [architecture.md](architecture.md); this is
+the operator's view of what the engine does and does not protect, and
+the single home of the container policy other docs point at.
 
 ## The boundary
 
 One container per project. The workload inside — agent CLIs, your code,
-anything they install — is untrusted by the host. The container runs as
-non-root `vscode` with all capabilities dropped and `no-new-privileges`;
-no Docker socket, no host home, no SSH agent, no host network. Published
-ports bind loopback only. The only live host path in the container is
-the registered project root at `/workspace`.
+anything they install — is untrusted by the host. Every managed
+container drops all capabilities and sets `no-new-privileges`; the dev
+container additionally runs as non-root `vscode` (sidecars keep their
+image's own user under the same closed policy). No Docker socket, no
+host home, no SSH agent, no host network. Published ports bind loopback
+only. The only *writable* host path in the container is the registered
+project root at `/workspace`; the engine's own mounts (payload, broker
+results) are read-only.
 
 ## The host never executes container-writable bytes
 
 Everything the host reads from the workspace — `vibe.yaml`, the env
-file, import sources, `.vibe/Dockerfile`, request JSON — is treated as
-data: parsed by bounded, strict parsers (size, depth, node, and entry
-limits; unknown fields rejected), then **frozen into an immutable
-content-addressed snapshot** before validation or use. Project
-lifecycle hooks (`.vibe/hooks/`) execute only *inside* the container,
-as workload code; the host never reads or runs them. Later stages read
-the snapshot, never the workspace, so what you approved cannot change
-under you. Snapshotting itself is symlink-rejecting and FD-confined to
-the project root, and aborts on concurrent mutation.
+file, import sources, `.vibe/Dockerfile` — is treated as data: parsed
+by bounded, strict parsers (size, depth, node, and entry limits;
+unknown fields rejected), then **frozen into an immutable
+content-addressed snapshot** before use. Request JSON is the one
+workspace input read in place (bounded, data-only) — its security
+decision binds to the immutable candidate digest, never to the file
+(below). Project lifecycle hooks (`.vibe/hooks/`) execute only *inside*
+the container, as workload code; the host never reads or runs them.
+Later stages read the snapshot, never the workspace, so what you
+approved cannot change under you. Snapshotting itself is
+symlink-rejecting and FD-confined to the project root, and aborts on
+concurrent mutation.
 
 Engine code and the container payload come from digest-addressed
 artifacts under `~/.vibe`, verified against a per-file manifest at
@@ -37,19 +46,24 @@ is a release blocker on the [roadmap](../ROADMAP.md).
 
 ## Environment values
 
-`env_file` entries and `runtime.env` values are opaque container data.
-They are assigned through Docker API fields and are never merged into a
-host process environment, never logged, and never included in the
-canonical plan or its digest. `vibe exec` passes only what you give it
-with `-e`.
+`env_file` entries are opaque container data and exec-scoped: they are
+injected only into processes started with `vibe run` or the agent CLI,
+never baked into the container's ambient environment (a stray shell,
+hook, or service window does not inherit them), never merged into a
+host process environment, never logged, and never part of the canonical
+plan or its digest. Manifest `runtime.env` values are planned
+configuration — they *are* container-ambient and in the plan digest;
+put secrets in the env file, not the manifest. `vibe exec` passes only
+what you give it with `-e`.
 
 ## Agent-initiated changes
 
 An agent cannot alter its own container. It can write a request file;
-`vibe request list` binds that request to an immutable candidate built
-from the *current* frozen inputs, and approval addresses the candidate
-digest — not the request file, which the agent could rewrite after you
-looked at it. Request text (and any other agent-authored string the
+polling (`vibe request list`) binds that request to an immutable
+candidate built from the *current* frozen inputs, `vibe request show`
+renders the agent's text beside the engine's own plan diff, and
+approval addresses the candidate digest — not the request file, which
+the agent could rewrite after you looked at it. Request text (and any other agent-authored string the
 engine displays) is rendered through an encoder that makes control
 characters, ANSI escapes, and bidi overrides visible, and interface
 chrome is kept structurally separate from that content.
@@ -59,18 +73,27 @@ chrome is kept structurally separate from that content.
 A consequence of `cap_drop ALL` + `no-new-privileges`: the container
 permits no unprivileged user namespaces, so namespace-based sandboxes
 cannot start inside it. `bwrap: … Operation not permitted` is this
-policy working, not a bug. Affected: codex's `read-only` /
-`workspace-write` modes (bwrap + seccomp), Claude Code's `/sandbox`,
-Chromium's own sandbox. The container is the isolation boundary; a
-second layer inside it is off-by-design, not broken-by-surprise:
+policy working, not a bug (the trust-layer diagram at the top of
+[architecture.md](architecture.md) is the picture).
 
-- **Codex** — post-create seeds `sandbox_mode = "danger-full-access"`
-  into `$CODEX_HOME/config.toml`, only when the key is absent (your own
-  setting always wins). Codex documents the mode as intended for
-  environments that are externally sandboxed — this container is that
-  environment. The codex Claude-plugin pins its own per-thread sandbox
-  modes that config cannot override, so post-create also rewrites those
-  pins to full access (see [configuration.md](configuration.md)).
+When the CLIs actually try: **codex sandboxes every command it
+executes by default** — any codex invocation at all (interactive,
+`codex exec`, and every thread the Claude codex-companion plugin
+spawns) attempts bwrap+seccomp unless configured not to, which is why
+the seeding below exists at all; **Claude Code** tries only when
+`/sandbox` is enabled; Chromium brings its own. The container is the
+isolation boundary; a second layer inside it is off-by-design, not
+broken-by-surprise:
+
+- **Codex** — a best-effort, detached post-create pass seeds
+  `sandbox_mode = "danger-full-access"` into `$CODEX_HOME/config.toml`,
+  only when the key is absent (your own setting always wins) — it may
+  still be running when a fresh container's first thread starts. Codex
+  documents the mode as intended for environments that are externally
+  sandboxed — this container is that environment. The pass logs every
+  action and no-op to `/var/tmp/vibe-agent-plugins.log`, so "is the
+  patch applied?" is a `tail`, not a guess. (Mechanics and the
+  companion plugin patch: [configuration.md](configuration.md).)
 - **Claude Code** — the payload settings ship
   `enableWeakerNestedSandbox` + `failIfUnavailable: false`, so a
   `/sandbox` enable degrades to the permission-rules fallback instead
@@ -85,12 +108,12 @@ inner sandbox, run that workload outside vibe.
 
 `extension: true` sends a project-authored Dockerfile to the Docker
 builder. That expands the trusted surface, so the engine narrows it
-first — single `FROM ${VIBE_BASE_IMAGE}` (digest-pinned by the engine),
-no custom BuildKit frontends, no ADD/ONBUILD/multi-stage, must end as
-`vscode` — and then requires explicit operator approval of the frozen
-Dockerfile, per content digest. The build context is a restricted copy
-containing only the Dockerfile and `.vibe/build/`; the env file and
-manifest never reach it.
+first — all content must come from the engine-pinned base or the frozen
+context ([extending.md](extending.md) has the contract) — and then
+requires explicit operator approval of the frozen Dockerfile, per
+content digest. The build context is a restricted copy containing only
+the Dockerfile and `.vibe/build/`; the env file and manifest never
+reach it.
 
 ## What is *not* protected
 

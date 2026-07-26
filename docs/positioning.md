@@ -1,5 +1,9 @@
 # Positioning and non-goals
 
+**Authority: design (scope).** The non-goals and ceded ledger here are
+settled calls — work that contradicts them needs a BACKLOG decision
+record first, not a bigger PR.
+
 What this project is, what it deliberately is not, and why — relative to the
 broader agent-tooling landscape. Tools are named only as examples of a
 category; the categories are durable, the products churn.
@@ -48,14 +52,16 @@ several sessions on one tmux socket — switching, not fleet management.
 Deliberately ceded to orchestrator-class tools, recorded here so reviews
 don't relitigate it: a unified live dashboard of agent screens, a
 programmatic agent-control API, state fidelity for hookless agents, and
-dashboard-coupled worktrees. A render-only cross-project *glance* — state
-dots for the projects on the socket — is in scope; anything that controls
-or schedules agents is not.
+dashboard-coupled worktrees. A render-only cross-project *glance* —
+state dots for the projects on the socket — is in scope and shipped
+(the sidebar's fleet section and agent roster); anything that controls
+or schedules agents is not, which is also why the roster carries no
+dismiss/kill affordance.
 
 ## Principles
 
-- **Isolate trust, not just work.** One container per project: non-root, all
-  capabilities dropped, no Docker socket, no host home. Worktrees organize
+- **Isolate trust, not just work.** One container per project, under the
+  closed policy of [security.md](security.md). Worktrees organize
   parallel work; they do not contain a misbehaving process.
 - **Explicit secret loading.** Secrets enter one container process through
   `vibe run` / `vibe agent`; nothing auto-sources `.env` into shells and the

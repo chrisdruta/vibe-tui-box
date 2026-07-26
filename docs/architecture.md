@@ -1,7 +1,9 @@
 # Architecture — the Go engine
 
-As-built reference for the v2 engine (cutover 2026-07-23; agent session
-layer 2026-07-24). Contributor-facing internals:
+**Authority: as-built.** This is the map of what the engine is, not a
+spec of what it should be — where it disagrees with the code, this page
+is the bug. The normative security claims it leans on live in
+[security.md](security.md). Contributor-facing internals:
 [engine-internals.md](engine-internals.md). What is still owed before the
 first tagged release: [../ROADMAP.md](../ROADMAP.md). Design history —
 how this architecture was arrived at — is recorded at the
@@ -15,7 +17,26 @@ migration surface: nothing recognizes the v1 submodule layout,
 
 The product is a tmux TUI over hardened per-project containers. The
 container reduces accidental host damage; it does not make untrusted
-project code safe. The host boundary is:
+project code safe. There are exactly three trust layers — and
+deliberately no fourth:
+
+```mermaid
+flowchart TB
+    subgraph host["1 · host — trusted: engine binary, store, tmux"]
+        subgraph ctr["2 · container — THE isolation boundary<br>cap_drop ALL · no-new-privileges · loopback ports"]
+            subgraph agents["3 · agent CLIs — untrusted workload<br>claude · codex · grok, and every command they run"]
+                none["✗ no inner sandboxes: codex bwrap, claude /sandbox,<br>Chromium's — none can start under cap_drop ALL.<br>Layer 2 is the sandbox (security.md)."]
+            end
+        end
+    end
+```
+
+Everything an agent does — its own process, every shell command it
+spawns, anything a Claude plugin drives (the codex second-opinion
+threads included) — executes at layer 3 and is contained by layer 2.
+That is why the payload configures the CLIs to *not* attempt their own
+layer-4 sandboxes: they cannot start here, and a CLI that insists
+fails on every command instead of degrading. The host boundary is:
 
 > The host executes only attested, digest-identified engine artifacts from
 > host-owned immutable state. Workspace bytes are never executed, sourced, or
@@ -35,9 +56,10 @@ separately.
 
 Dev mode is a third, deliberately weaker boundary. It compiles
 workspace-derived Go source into a host executable and therefore disables
-the host-code provenance guarantee for that project. Entering or
-synchronizing dev mode is a separate, explicit source-trust ceremony; an
-environment rebuild request can never trigger it.
+the host-code provenance guarantee for that project. Entering dev mode
+takes an explicit source-trust confirmation (a sync of an already-dev
+project repeats that decision without re-asking); an environment
+rebuild request can never trigger it.
 
 ## System overview
 
@@ -78,9 +100,9 @@ harness — there is no submodule, mirror, or separate payload download.
 
 The engine drives the Docker API directly, never Docker Compose. That
 removes Compose's second interpolation/parser phase and its implicit
-`.env`, `COMPOSE_*`, include, and provider surfaces. `vibe config` prints
-the canonical typed model as JSON; it is diagnostic output, not an
-executable Compose file.
+`.env`, `COMPOSE_*`, include, and provider surfaces. `vibe config`
+prints a human summary of the canonical typed model (`--json` for the
+exact plan); it is diagnostic output, not an executable Compose file.
 
 ## Project surface
 
@@ -130,14 +152,15 @@ flowchart LR
   networks, labels, policy. Canonical JSON field order and sorted
   collections make identical inputs produce the identical digest; the
   compile is golden-tested.
-- **Candidate.** Plan + snapshot + resolved digests published together
-  under one content digest. Approval, reconciliation, and broker
-  decisions all address this digest — never a workspace path.
-- **Reconcile.** Containers carry `dev.vibe.*` labels; `up` compares live
-  Docker state against the candidate by label and normalized spec,
+- **Candidate.** The canonical plan published under one content digest;
+  its versioned record binds the snapshot and resolved image digests to
+  it. Approval, reconciliation, and broker decisions all address this
+  digest — never a workspace path.
+- **Reconcile.** Containers carry `dev.vibe.*` labels; `up` compares
+  live Docker state against the candidate by its candidate label,
   replaces only what it decided to replace, and refuses name-colliding
-  containers it does not manage. `up` is idempotent; a failed `up` never
-  moves the approved-candidate pointer.
+  containers it does not manage. `up` is idempotent; a failed `up`
+  never moves the approved-candidate pointer.
 - **Lifecycle hooks.** After reconcile, the engine execs the payload's
   lifecycle runner in the dev container: `.vibe/hooks/post-create.sh`
   once per container (marker-guarded in the container, so a failed
@@ -148,39 +171,33 @@ flowchart LR
 
 ## Container policy
 
-Every managed container, sidecars included, gets a closed policy:
+The closed policy — capability drop and `no-new-privileges` on every
+managed container, the dev container as non-root `vscode`,
+loopback-only ports, the exact registered root as the only writable
+host bind, engine-owned mounts, engine-named volumes — is stated
+normatively in [security.md](security.md); the compiler enforces it and
+no schema surface can express an exception. Custom import targets must
+be absolute, normalized, unique, and may not equal, contain, or be
+contained by an engine-owned target.
 
-- runs as the image's `vscode` user; extension images must end as it;
-- all capabilities dropped, `no-new-privileges` set;
-- privileged mode, added capabilities, devices, host namespaces, Docker
-  sockets, SSH and host-secret mounts are not schema concepts;
-- published ports bind loopback only;
-- the only live host bind is the exact registered project root at
-  `/workspace` — never a subpath, never another host path;
-- engine-owned mounts (`/vibe/payload` ro, `/vibe/agent-state`,
-  `/vibe/results` ro) are generated and target-checked; custom import
-  targets must be absolute, normalized, unique, and may not equal,
-  contain, or be contained by an engine-owned target;
-- named volumes are engine-named from the project ID; external names and
-  cross-project volume references cannot be expressed.
-
-Environment values are opaque container data: assigned through Docker API
-fields, never merged into a host process environment, never logged, never
-part of the plan digest. The env file is parsed literally — no shell
-syntax, no interpolation — and frozen into the snapshot.
+Environment: the env file is parsed literally — no shell syntax, no
+interpolation — frozen into the snapshot, and injected only per exec
+(`vibe run`, the agent CLI): never container-ambient, never a host
+process value, never in the plan digest. Manifest `runtime.env` is
+planned configuration — container-ambient and digest-covered by
+design.
 
 ## Extension builds
 
 An optional `.vibe/Dockerfile` (`image.extension: true`) is outside the
 capability-bounded manifest lane: it is workload code Docker will
-execute. Enabling or changing it produces a build candidate — Dockerfile
-plus a restricted context (`.vibe/build/` only; never the env file or
-manifest) — whose digest the operator must approve before the engine
-submits the build. Approval is per changed digest, not standing trust in
-a path. The validator rejects custom `# syntax` frontends, any `FROM`
-other than the engine-supplied digest-pinned base, multi-stage builds,
-`ADD`, `ONBUILD`, and a final user other than `vscode`
-([extending.md](extending.md)).
+execute. The engine computes an approval digest over the frozen
+Dockerfile and restricted context (`.vibe/build/` only; never the env
+file or manifest) and the operator must approve that digest — persisted
+per project — before the build is submitted. Approval is per changed
+digest, not standing trust in a path. The Dockerfile contract (pinned
+base only, frozen context only) lives in
+[extending.md](extending.md).
 
 `image.agents` / `image.toolchains` are the approval-free counterpart:
 the engine generates an install Dockerfile from its own closed recipe set
@@ -203,6 +220,9 @@ never a tag, version string, path, or source hash.
     ├── candidates/<digest>/          # immutable plans + metadata
     ├── snapshots/<digest>/           # immutable frozen inputs
     ├── broker/<project-id>/          # request decisions (host-owned)
+    ├── approvals/                    # extension-build approval markers
+    ├── dev/                          # dev-mode provenance records
+    ├── tui/                          # materialized tmux conf
     ├── locks/                        # advisory flocks (fixed order)
     └── staging/                      # same-filesystem atomic-rename staging
 ```
@@ -220,9 +240,10 @@ leftovers.
 
 Release acquisition (`vibe update`) streams the archive while hashing,
 verifies against the release's `checksums.txt`, extracts only known entry
-types, validates the embedded payload manifest file-by-file, and
-publishes by digest. `vibe provision` installs the currently running
-binary the same way. **Checksums are transport-integrity only** — native
+types, validates the embedded payload manifest file-by-file, publishes
+by digest, and repoints the `~/.vibe/bin/vibe` shim. `vibe provision`
+publishes the currently running binary as an artifact the same way but
+never touches the shim. **Checksums are transport-integrity only** — native
 Sigstore/GitHub provenance verification (fail-closed, pinned issuer /
 repo / workflow identity) is designed but not yet implemented; it is a
 release blocker tracked in [../ROADMAP.md](../ROADMAP.md).
@@ -233,22 +254,24 @@ file identity and assigns a random project ID. Display names never
 participate in trust lookup.
 
 Host subprocesses are rare — the Docker API replaces the docker/compose
-CLIs — but tmux runs by absolute prevalidated path with a fixed minimal
-environment (trusted PATH, explicit locale/home; no `LD_*`, `GIT_*`,
-`DOCKER_*`, `TMUX_TMPDIR`, or project values), argv only, never a shell
-string.
+CLIs — but tmux runs by absolute prevalidated path with a minimal
+allowlisted environment (only PATH, HOME, and locale pass through; no
+`LD_*`, `GIT_*`, `DOCKER_*`, `TMUX_TMPDIR`, or project values), argv
+only, never a shell string.
 
 ## Dev mode
 
 Dev mode exists only for developing this harness and does not preserve
-the host-code provenance boundary. `vibe dev on`/`sync` snapshots an
-explicit source allowlist (`build/dev-sources.txt`) with the same
-snapshotter, requires a distinct confirmation that the result will
-execute on the host, builds in a digest-pinned golang builder container,
-records full provenance (source Merkle root, builder digest, dependency
-state, output digest), stamps the binary `dev-src-<digest12>`, and
-repoints `~/.vibe/bin/vibe` at the dev build; `dev off` hands back to the
-newest release artifact. A dev artifact can never satisfy a release pin
+the host-code provenance boundary. Entering it (a release-mode project)
+requires a distinct confirmation that the build result will execute on
+the host; a sync of an already-dev project rebuilds without re-asking.
+`vibe dev on`/`sync` snapshots an explicit source allowlist
+(`build/dev-sources.txt`) with the same snapshotter, builds in an
+engine-pinned golang builder image (resolved to a digest per build and
+recorded), records provenance (source Merkle root — which covers
+go.mod/go.sum — builder digest, output digest), stamps the binary
+`dev-src-<digest12>`, and repoints `~/.vibe/bin/vibe` at the dev build;
+`dev off` hands back to the newest release artifact. A dev artifact can never satisfy a release pin
 or another project's record, and no broker action, rebuild, or lifecycle
 step can invoke `dev sync`.
 
@@ -266,7 +289,7 @@ sequenceDiagram
 
     A->>W: write ID.json {kind, reason, summary}
     O->>E: vibe request list
-    E->>W: bounded poll (size/entry/rate-capped, data only)
+    E->>W: bounded poll (size/entry-capped, data only)
     E->>E: freeze current inputs → immutable candidate
     O->>E: vibe request show ID
     E-->>O: sanitized reason/summary + candidate digest<br/>+ plan diff, approved → candidate
@@ -291,10 +314,12 @@ state, exposed through the read-only results mount.
 One host tmux server on the `vibe-engine` socket owns one session per
 project (session IDs derive from project IDs, so display renames never
 strand a session; the full ID is stamped as `@vibe_project` for host
-scripts). The Go engine implements the `_sidebar`, `_state`, and
-`_fleet` renderers; tmux configuration and UI mechanics are static
+scripts). The Go engine implements the render endpoints — `_sidebar`,
+`_state`, `_fleet`, and `_frame`, which owns all sidebar layout
+arithmetic; tmux configuration and the glue around them is static
 trusted payload shell — host-side scripts execute only store-owned
-bytes, never workspace files. Colors and glyphs single-source from
+bytes, never workspace files, and never do layout math of their own.
+Colors and glyphs single-source from
 `internal/tmuxui/theme.go`, which payload generation renders into
 `theme.sh` and the conf's `@thm` block; layout decisions and the knob
 surface live in [tui-layout.md](tui-layout.md), and a user conf
@@ -312,9 +337,10 @@ the `_fleet` porcelain (US-separated, project ID as the join key
 against `@vibe_project`) and the own-project `_sidebar` detail block
 into a cache beside the socket; frames only ever read the cache, a
 failed fetch keeps last-good, and a missing engine degrades to the
-shell-only sidebar. The engine never runs on the 2s frame path — the
-one `#(vibe _state)` status-line splice at interval 5 is the whole
-format-string budget.
+shell-only sidebar. Docker never runs on the 2s frame path — each
+frame pipes tmux porcelain through `vibe _frame`, which renders purely
+from that cache; the one `#(vibe _state)` status-line splice at
+interval 5 is the whole format-string budget.
 
 The two glyph vocabularies stay distinct on purpose: agent-session
 dots (working/attention/idle/… — the title channel below) and
@@ -356,19 +382,13 @@ control APIs — is recorded in [positioning.md](positioning.md).
 
 ## Command surface
 
-```text
-init [--preset P] / register [--name N] / forget / ps
-up / rebuild / down / status / logs [SVC] / config / doctor / bootstrap
-agent [--cold] [-a CMD] [-s NAME] [--stop|--restart] / run -- CMD / exec -- CMD / shell
-attach [SESSION] / tui / clip [DIR] / request {list|show|approve|reject}
-provision / update --version vX.Y.Z / gc / version
-dev {on|sync|off|status}
-_sidebar / _state / _fleet   (hidden renderers)
-```
-
-Full semantics: [usage.md](usage.md). Exit codes are stable (0 ok,
-1 failure, 2 usage, 3 invalid config, 4 not registered, 5 conflict,
-6 unavailable, 130 interrupted); every command takes `--json`.
+The command set, flags, and the exit-code table live in
+[usage.md](usage.md) and `vibe help` — enumerating them here would only
+drift. The architectural shape: every verb is a typed request parsed in
+`cli`, an `app.App` method returning a typed result, and a renderer
+deriving human and `--json` output from the same model; hidden
+`_`-prefixed verbs (`_sidebar`, `_state`, `_fleet`, `_frame`) are the
+TUI's render endpoints.
 
 ## Explicit non-goals and residual risks
 

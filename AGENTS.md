@@ -75,34 +75,18 @@ with strictly inward dependencies:
 cli → app → { runtime → model → schema
               dockerapi (only package importing Docker SDK types)
               builder, broker, dev, initproject, doctor, release,
-              payload, registry, store, snapshot, tmuxui → tmux }
+              payload, registry, store, snapshot, tmux, tmuxui }
 shared leaves: domain, envfile, lock, paths, runner, terminal, version
 ```
 
-- `domain` — digests, IDs, platforms, sentinel errors. Depends on nothing.
-- `schema` — bounded YAML load of `.vibe/vibe.yaml` (structural node
-  inspection → `KnownFields` decode → position-aware diagnostics). Knows
-  YAML, never Docker.
-- `model` — compiles manifest + frozen inputs into the canonical `Plan`
-  (deterministic JSON, golden-tested). Knows runtime semantics, never
-  SDK types.
-- `snapshot` — freezes workspace inputs into content-addressed trees via
-  `os.Root` (FD-relative, symlink-rejecting, re-stat-after-copy).
-- `store` — immutable objects (artifacts/candidates/snapshots) by
-  SHA-256 tree digest: staging → fsync → atomic rename; leases via
-  shared flock; versioned JSON records that reject unknown fields.
-- `registry` — project records with compare-and-swap revisions.
-- `dockerapi` — the narrow `Client` interface, its SDK adapter, and the
-  programmable fake (`dockerapi/fake`). **No other package may import
-  Docker SDK packages.**
-- `runtime` — label-driven reconciliation of a candidate plan against
-  live Docker state.
-- `release` / `payload` — release acquisition (stream-hash-verify-extract
-  against checksums.txt) and the embedded, manifest-verified payload.
-- `broker` / `builder` / `dev` — agent rebuild requests, extension image
-  builds, and dev-mode engine builds.
-- `terminal` / `tmux` / `tmuxui` — untrusted-text encoding, the typed
-  tmux client, and pure view renderers.
+Per-package responsibilities live in the package doc comments and
+[docs/engine-internals.md](docs/engine-internals.md) — don't restate
+them here. The boundaries that matter: `dockerapi` is the **only**
+package that may import Docker SDK packages (everything else sees its
+narrow `Client` interface or the programmable `dockerapi/fake`);
+`schema` knows YAML but never Docker; `model` compiles the canonical,
+golden-tested `Plan` and never sees SDK types; `tmuxui` renders pure
+views (only `terminal` as a dependency, no tmux calls).
 
 The `payload/` directory at the repo root is the embedded payload:
 `container/` (entrypoint, lifecycle/services runners, agent
@@ -122,14 +106,18 @@ bytes, never workspace files.
 
 **Trust boundary.** The host never executes, sources, or evals any byte
 a container could have written. Workspace files (`vibe.yaml`, env files,
-Dockerfiles, request JSON) are read strictly as data through bounded,
-strict parsers, frozen into immutable snapshots *before* validation or
-use, and never re-read from the workspace by later stages. Env-file
-values are container data: they go into Docker API fields, never into a
-host process environment or the canonical plan.
+Dockerfiles) are read strictly as data through bounded, strict parsers,
+frozen into immutable snapshots *before* use, and never re-read from
+the workspace by later stages; request JSON is bounded-read in place,
+with its decision bound to the immutable candidate digest instead.
+Env-file values are container data and exec-scoped: injected per
+`vibe run`/agent exec through Docker API fields, never
+container-ambient, never a host process environment, never the
+canonical plan.
 
 **Closed container policy.** Every managed container gets
-`cap_drop: ALL`, `no-new-privileges`, and runs as `vscode`; published
+`cap_drop: ALL` and `no-new-privileges`; the dev container additionally
+runs as `vscode` (sidecars keep their image's user); published
 ports bind loopback only; mount targets are absolute, normalized,
 unique, non-nesting, and never collide with the engine-owned targets
 (`/workspace`, `/vibe/payload`, `/vibe/agent-state`, `/vibe/results`).
@@ -164,8 +152,8 @@ that must never contain the env file or manifest.
 
 **Error and exit discipline.** Wrap `domain.Err*` sentinels with `%w`;
 the CLI maps them to stable exit codes (0 ok, 1 failure, 2 usage,
-3 invalid config, 4 not registered, 5 conflict, 6 unavailable,
-130 interrupted). App methods return typed results and never print;
+3 invalid config, 4 not registered / not found, 5 conflict,
+6 unavailable or unsupported, 130 interrupted). App methods return typed results and never print;
 only `cli`, `terminal`, and `tmuxui` produce user-facing text.
 
 **Construction discipline.** Dependencies are injected via
@@ -184,9 +172,9 @@ fake-backed tests asserting full request equality, not selected fields.
   (`commands_*.go` groups, one merge point in `commands.go`), an
   `app.App` method returning a typed result, and a renderer in
   `output.go` deriving human and `--json` output from the same model.
-- Standard library first. Current direct deps (yaml.v3, docker SDK,
-  x/sys, x/term) are pinned; adding one needs a reason the stdlib can't
-  answer. `gopkg.in/yaml.v3` is archived upstream — a swap candidate,
+- Standard library first. Current direct deps (yaml.v3, the docker SDK
+  plus go-connections, x/term) are pinned; adding one needs a reason
+  the stdlib can't answer. `gopkg.in/yaml.v3` is archived upstream — a swap candidate,
   not a pattern to extend.
 - Comments state constraints the code can't show; match existing
   density.
@@ -194,6 +182,6 @@ fake-backed tests asserting full request equality, not selected fields.
 ## Known open work
 
 Scheduled work lives in [ROADMAP.md](ROADMAP.md) (release pipeline,
-install story, Sigstore provenance, store GC, fuzz targets, bounded plan
-diff, payload lifecycle — the path to the first tagged release);
-unscheduled ideas and decision records in [BACKLOG.md](BACKLOG.md).
+install story, Sigstore provenance — the path to the first tagged
+release); unscheduled ideas and decision records in
+[BACKLOG.md](BACKLOG.md).

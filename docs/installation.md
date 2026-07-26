@@ -10,11 +10,13 @@ Host requirements: git, docker (a reachable daemon), and tmux for
 >
 > ```sh
 > go build -o bin/vibe ./cmd/vibe
-> bin/vibe provision        # installs binary + payload under ~/.vibe
+> bin/vibe provision        # publishes binary + payload as an artifact under ~/.vibe
 > ```
 >
-> and put `~/.vibe/bin/vibe` on your PATH. The release flow below is
-> what ships at v1.0.
+> and put the built `bin/vibe` on your PATH yourself — `provision`
+> publishes the artifact but creates no PATH entry (the
+> `~/.vibe/bin/vibe` shim appears with `vibe update` or dev mode).
+> The release flow below is what ships at v1.0.
 
 ## From a release
 
@@ -32,15 +34,17 @@ the engine writes lives under `~/.vibe`:
 
 ```text
 ~/.vibe/
-├── bin/          # installed engine binaries; `vibe` symlink = current
+├── bin/          # engine binaries; `vibe` symlink = current (written by
+│                 # update/dev mode, not provision)
 ├── artifacts/    # immutable release artifacts by digest (+ records)
-└── state/        # registry, candidates, snapshots, broker, locks
+└── state/        # registry, candidates, snapshots, broker, approvals,
+                  # dev + tui state, locks, staging
 ```
 
 ## Updating
 
 ```sh
-vibe update --version v2.1.0
+vibe update --version v1.0.0
 ```
 
 `update` downloads the release archive, verifies it against the

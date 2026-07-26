@@ -7,7 +7,8 @@ it once) — it tells you what this environment can and cannot do.
 ## The environment
 
 - The repository is live at `/workspace`; it is the only host path you
-  can touch. Everything else you see is the container.
+  can write to. Everything else you see is the container (plus the
+  read-only `/vibe/*` engine mounts below).
 - `/vibe/payload` (read-only) is engine tooling; `/vibe/agent-state` is
   your persistent home for logins and state — it survives rebuilds.
 - Published ports bind host loopback only. There is no Docker socket,
@@ -31,9 +32,10 @@ need a human to copy your changes — you request them:
     "summary": "add a postgres:16 sidecar named db"}
    ```
 
-3. Tell the operator to run `vibe request list` on the host. They see
-   your reason/summary plus a trusted diff of what will actually
-   change, and approve or reject by candidate digest.
+3. Tell the operator to check `vibe request list` on the host;
+   `vibe request show <id>` gives them your reason/summary plus a
+   trusted diff of what will actually change, and they approve or
+   reject by candidate digest.
 4. The decision appears at `/vibe/results/<id>.json` (read-only). Poll
    it if you need to wait. A rejected or decided id is spent — use a
    new id for another attempt.

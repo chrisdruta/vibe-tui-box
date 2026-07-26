@@ -86,38 +86,6 @@ section at the bottom — as revisable records, not fences.
   externally-sandboxed environments), then drop `codex_patch_plugin`.
   Until then, bump the sed patterns when the plugin pin moves.
 
-- **Codex sandbox seeder + plugin patch: two must-fix defects (Codex
-  adversarial review, 2026-07-24; blocks v1.0).** The `ec536b6` sandbox
-  recovery in `payload/container/lifecycle.sh` has two [high] holes the
-  in-container simulation missed:
-  1. *Indented `sandbox_mode` is missed → duplicate key bricks Codex*
-     (`codex_seed_config`, lifecycle.sh:46-49). The key-present check is
-     `grep -Eq '^sandbox_mode[[:space:]]*='` — column-zero only. TOML
-     permits leading whitespace, so a user's `  sandbox_mode =
-     "read-only"` is not seen; the function then prepends a second
-     `sandbox_mode`, breaking the "user value always wins" contract and
-     producing a duplicate top-level key that TOML parsers reject — a
-     routine `vibe up` can persistently brick Codex for anyone with an
-     indented setting. Fix: match `^[[:space:]]*sandbox_mode[[:space:]]*=`
-     (minimum), ideally parse structurally; commit tests for indentation,
-     comments, tables, duplicate prevention, and a Codex-loads-the-result
-     check.
-  2. *Plugin rewrite is neither version-scoped nor exact-matched*
-     (`codex_patch_plugin`, lifecycle.sh:66-77). Despite the "exact match
-     against v1.0.6" comment, it `find`s and `sed`s every `codex.mjs` /
-     `codex-companion.mjs` under any path containing `codex`, with no
-     marketplace-identity, version, or digest check — so it can mutate an
-     unrelated or newer plugin and silently downgrade its
-     read-only/workspace-write execution to full access, durably (the
-     tree is on the agent-state volume) and invisibly (errors swallowed).
-     Fix: resolve only the known `openai-codex` marketplace/plugin/version
-     path, verify the expected snippet/digest before mutating, patch
-     atomically, and emit a visible diagnostic on mismatch instead of
-     editing; add fixtures for supported/future/unrelated plugins.
-  Both are the codex second-opinion loop catching its own enabling
-  commit on first live run. After the fix: `go generate ./internal/payload`
-  then the full test + cross-compile gate.
-
 - **Host conveniences.** v1's install-tmux.sh (pinned tmux source build
   for hosts below 3.4) and start-ollama.sh. Revive on demand.
   (2026-07-25: the CONTAINER side of that pin is back — the tools
@@ -150,11 +118,15 @@ section at the bottom — as revisable records, not fences.
   tail, in rough value order: (1) hot-path forks — statusline.sh spawns
   `id`/`cat` per tick and agent-state-hook/state-render spawn
   subshell+tr+head per event where pure-bash expansions
-  (`${var//[^…]/}`, `$UID`, `read <file`) are free; (2) palette action
-  strings still triplicated across bind u / the tray's `req` range /
-  palette.sh, and the Q/K confirm prompts duplicated between conf and
-  palette.sh — command-alias or option indirection would single-source
-  them; (3) the bar's rule line is a 400-glyph literal (clients wider
+  (`${var//[^…]/}`, `$UID`, `read <file`) are free; (2) engine-verb
+  popups single-sourced 2026-07-26 into `scripts/popup.sh` (which also
+  fixed the real defect underneath: display-popup does not
+  format-expand its shell-command, so bind u/D/p and the tray's `req`
+  cell shipped a literal `#{@vibe_exe}` into bash — only the
+  menu-expanded palette door worked); still duplicated: the stop-agent
+  and park popups (their sizes differ from the standard chrome) and
+  the Q/K confirm prompts between conf and palette.sh; (3) the bar's
+  rule line is a 400-glyph literal (clients wider
   than 400 cols show it stopping mid-bar); (4) stop/restart plumbed as
   two mutually-exclusive bools instead of one mode end to end (the
   script silently accepts `--restart` in stop mode); (5) startApproved's

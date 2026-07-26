@@ -1,55 +1,57 @@
 # TUI layout spec
 
-The BACKLOG's layout pass demanded a written spec before any wiring —
-layout arithmetic is where the sidebar bugs have lived (click-map skew,
-dot wrapping, resize ballooning). This is that spec: the decided shape
-of the tui chrome, its customization surface, and the resize rules.
-Wiring follows it; disagreements edit this file first.
+**Authority: design (layout contract).** The BACKLOG's layout pass
+demanded a written spec before any wiring — layout arithmetic is where
+the sidebar bugs have lived (click-map skew, dot wrapping, resize
+ballooning). Wiring follows this file; disagreements edit it first.
+Updated 2026-07-25 to the shipped state (the `_frame` move and the
+bottom-bar tray included).
 
-Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges);
-`status-format[0]` is regenerated against the stock 3.7 format.
+Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
+theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
+construct), and the bar border are **generated** into marker-delimited
+regions of `tmux-tui.conf` from `internal/tmuxui/theme.go` /
+`internal/payload/gen` — edit the Go side; hand edits to those regions
+are CI drift failures.
 
 ## Decisions
 
-### Bar: bottom, one line — the system tray (supersedes "top", 2026-07-25)
+### Bar: bottom — the system tray (supersedes "top", 2026-07-25)
 
-The bar moved to the bottom and became the tray: branding start button,
+The bar sits at the bottom and is the tray: branding start button,
 window cells, engine state, clock. The original top call ("the dock
 owns the bottom edge") is superseded by operator decision — with the
 terminal app's own tabs at the top of the screen, a top bar stacked two
 tab strips; at the bottom the collapsed dock strip and the bar read as
 one chrome band, and the taskbar muscle memory is worth more than the
-strip-stacking concern. Still single-line: the keybind cheatsheet swaps
-*into* the middle while the prefix is held (`#{client_prefix}` over
-`#{E:@vibe_cheat}` / `#{E:@vibe_winlist}` — option indirection keeps
-the stock `W:` construct out of the conditional's comma parsing), so
-hints never cost a row. Top-preferrers set `status-position top` in the
-user conf.
+strip-stacking concern. The bar is two status lines: `status-format[0]`
+is the generated border rule, `status-format[1]` is the tray. The
+keybind cheatsheet swaps *into* the tray while the prefix is held
+(`#{client_prefix}` over `#{E:@vibe_cheat}` / `#{E:@vibe_winlist}` —
+option indirection keeps the stock `W:` construct out of the
+conditional's comma parsing), so hints never cost another row.
+Top-preferrers set `status-position top` in the user conf.
 
-### Segment inventory (left → right)
+### Segment inventory (left → right, all in the tray line)
 
-| Segment | Content | Source |
-| --- | --- | --- |
-| branding | `🥡 vibe-tui-box` start button — click opens the palette | `status-format[0]` user range `brand` (conf) |
-| tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's cmd field), attention flash | window-status formats via `@vibe_winlist` (conf) |
-| `▤` cell | clickable — toggles the host dock (prefix+t as a button), left of the tabs; clicking the collapsed dock strip itself also expands it | `@vibe_winlist` user range `dock` (conf) |
-| `+` cell | clickable — opens the palette (the "new" chooser) | `@vibe_winlist` user range `newwin` (conf) |
-| cheatsheet | key hints, shown only while prefix held (replaces tabs) | `@vibe_cheat` (conf) |
-| prefix/copy | `⌨` / `copy` indicators | stamped `status-right` (`vibe tui`) |
-| engine state | state glyph, `▲n` only when pending > 0; click opens the request list | `#(vibe _state)` splice in user range `req` |
-| clock | `%H:%M` | stamped `status-right` |
+| Segment | Content |
+| --- | --- |
+| branding | `🥡 vibe-tui-box` start button — click opens the palette |
+| `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it |
+| tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
+| `+` cell | clickable — opens the palette (the "new" chooser) |
+| cheatsheet | key hints, shown only while prefix held (replaces tabs) |
+| prefix/copy | `⌨` / `copy` indicators (stamped `status-right`) |
+| engine state | state glyph, `▲n` only when pending > 0; click opens the request list (`#(vibe _state)` splice in user range `req`) |
+| clock | `%H:%M` (stamped `status-right`) |
 
 The bar never carries project identity: the sidebar and the OS window
 title (`@vibe_name`) own it, and the ID-derived session name appears in
-no chrome. The palette itself lives in `scripts/palette.sh` — one
-definition serving `prefix+Space` and both clickable cells.
-
-Change from the as-built state: **`vibe _state` output becomes display
-form** — the leading protocol version and the always-present pending
-integer (`1 ● 2`) were leaking into the bar; the splice is verbatim, so
-the fix lives in the renderer: glyph, then `▲n` only when n > 0.
-`_state`'s consumer is a display surface and nothing else; there is no
-compatibility to keep.
+no chrome. The palette lives in `scripts/palette.sh` — one definition
+serving `prefix+Space` and both clickable cells. The title channel the
+tabs and roster consume is
+`vibe1|project|session|instance|state|display|model`
+(`state-render.sh`).
 
 No new `#(...)` engine splices in the conf — the one `_state` splice at
 `status-interval 5` is the budget. Everything richer belongs to the
@@ -86,24 +88,55 @@ would micro-manage lives here instead.
 
 ### Default arrangement
 
-As built, now written down: agent pane dominant; sidebar far left at
-`@vibe_sidebar_w` fixed cols, one per window kept in lockstep; dock
-parked collapsed (1 row) on session create, expanding to
-`@vibe_dock_size`; pane borders on top with role-gated dot + title.
+Agent pane dominant; sidebar far left at `@vibe_sidebar_w` fixed cols,
+one per window kept in lockstep; dock parked collapsed (1 row) on
+session create, expanding to `@vibe_dock_size`; pane borders on top
+with role-gated dot + title.
+
+### Sidebar frame contract (`vibe _frame` owns this)
+
+All sidebar layout arithmetic lives in the engine renderer
+(`internal/tmuxui/frame.go`); `sidebar.sh` pipes tmux porcelain in and
+never does layout math. The contract the renderer implements:
+
+- Row 0 stays blank. The **fleet section** flows from row 1: per
+  session a name row with agent state dots, a `⎇ branch` row when
+  known, engine facts (stale/stopped glyph, `▲n`, `dev`) or the own
+  project's detail block, and a blank slop row — every row claims the
+  session as its click target. Cold registered projects (fleet entries
+  with no live session) render dim and unclickable — click-dispatching
+  `up` is a recorded open product call, not half-shipped here.
+- The **aggregate agent roster** starts at the pane midpoint (a long
+  fleet pushes it down instead of overlapping), under a ruled `agents`
+  header: two-line entries (dot + window name; dim model · project
+  detail) plus a gap row, all three sharing one `SESSION:WINDOW` jump
+  target. When only part fits, the last slot becomes an overflow count.
+  The roster is render-only — no dismiss/kill affordance (BACKLOG
+  decision record, 2026-07-25).
+- Budgets derive from pane width: text budget is `width−3` (floor 8);
+  a session's name budget shrinks 2 cols per state dot (floor 8) so a
+  long name can never wrap the dots and skew the click map; roster
+  names get `budget−4` (floor 8).
+
+### Dead panes: two corpse fates
+
+A dead agent pane means the *frontend* (docker-exec client) died — the
+inner tmux session may be alive. The `pane-died` hook self-cleans a
+viewer whose recorded `@vibe_state` is `exited*` (the run's own end was
+recorded — the death is explained), and marks everything else `◌`
+frontend-dead with respawn (`prefix+r`) and close (`prefix+x`) hints.
+Agent exit codes never cross the inner-tmux client boundary, so
+recorded state — not the exit status — is the only truth to key on
+(BACKLOG decision record, 2026-07-25).
 
 ### Resize policy: chrome snaps, content stretches
 
 tmux stretches panes proportionally on window resize; chrome must not
 inherit that. The `window-resized` hook snaps the sidebar to
-`@vibe_sidebar_w` and a collapsed dock to 1 row (already true).
-Expanded docks and content panes stretch proportionally and are never
-fought after a manual border drag (border drags don't resize the
-window — the trigger distinction is the mechanism, keep it).
-
-New rule: sidebar truncation widths **derive from pane width** — the
-fixed 12/11-char window-name cut assumes 30 cols; a widened sidebar
-must actually show more. Budget: window names get up to a third of the
-text budget (min 12), project suffixes the remainder.
+`@vibe_sidebar_w` and a collapsed dock to 1 row. Expanded docks and
+content panes stretch proportionally and are never fought after a
+manual border drag (border drags don't resize the window — the trigger
+distinction is the mechanism, keep it).
 
 ### Non-goals
 
@@ -113,13 +146,9 @@ surface stays honest.
 
 ## Verification
 
-- `_state` display form: `views_test.go` pins glyph-only and `▲n`
-  rendering; status bar shows no bare integers.
-- User conf hook: Go test asserts the materialized conf ends with the
-  `source-file -q` line; live check — `status-position bottom` in
-  `~/.config/vibe/tui.conf` survives `prefix+R`.
-- Dock knob: `@vibe_dock_size 20%` honored on first toggle and on
-  expand-after-collapse.
-- Truncation: at `@vibe_sidebar_w 44`, window names show > 12 chars;
-  at 30, exactly today's shape. Click every row type after resizing —
-  the skew regression class.
+The spec's regressions are owned by tests: `_state` display form in
+`internal/tmuxui/views_test.go`, frame layout/click-map/truncation in
+`internal/tmuxui/frame_test.go`, and the user-conf epilogue in
+`internal/app/tui_test.go`. The manual check that has caught what
+tests miss: resize the sidebar and click every row type — the
+click-skew regression class.

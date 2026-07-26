@@ -164,11 +164,11 @@ rebuilt container — the original v1.0 story from the port plan.
 
 - [ ] R1–R5 shipped, or consciously cut with the reason recorded in
       BACKLOG.md.
-- [ ] Codex sandbox seeder + plugin patch defects fixed (two [high] from
-      the 2026-07-24 Codex adversarial review — indented `sandbox_mode`
-      duplicate-key brick, and the unscoped plugin rewrite; detailed in
-      BACKLOG.md). Must not tag with these live: one can brick a user's
-      Codex, the other can silently corrupt an unrelated plugin.
+- [x] Codex sandbox seeder + plugin patch defects fixed (2026-07-26):
+      the presence check accepts indented `sandbox_mode` (no more
+      duplicate-key brick), the plugin rewrite is scoped to the
+      openai-codex marketplace tree, and Go fixtures drive both shell
+      functions (`internal/payload/agentplugins_test.go`).
 - [ ] Docs pass: installation/usage/configuration reconciled against the
       released behavior; residual risks reviewed against
       [docs/architecture.md](docs/architecture.md).

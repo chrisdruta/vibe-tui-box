@@ -271,6 +271,46 @@ The v1 line and its history remain in git up to the cutover commit.
 - CI now gates the Go engine: fmt/vet/build/test, golangci-lint,
   payload-manifest drift, ShellCheck on the container payload, and the
   three-platform cross-compile matrix.
+- Docs-vs-code reconciliation (2026-07-25), driven by a full audit under
+  the rule *out of spec with a design doc = buggy code*. Code moved to
+  the documented design: env-file values are now exec-scoped (`vibe
+  run`/agent CLI only — no longer baked into the container's ambient
+  env at create), entering dev mode asks the documented source-trust
+  confirmation (syncs of an already-dev project stay quiet), `vibe
+  init` no longer pins a dev-build artifact to a release-mode project,
+  grok logins now live on the agent-state volume and survive rebuilds,
+  and the palette's clip-image verb passes the right argument again.
+  Docs moved to the as-built truth everywhere else, each page now
+  declaring its authority (design vs as-built): one normative home per
+  invariant (container policy → security.md; Dockerfile contract →
+  `builder.ValidateDockerfile`; exit codes → usage.md), the stale TUI
+  layout spec rewritten to the `_frame` era, and restated
+  code-derivable detail (package glossaries, command listings, dep
+  enumerations) cut in favor of pointers.
+- Codex sandbox machinery hardened (2026-07-26; clears the two [high]
+  findings from the 2026-07-24 adversarial review that blocked v1.0):
+  the config seed now recognizes an indented user `sandbox_mode` (no
+  more duplicate-key brick), the companion-plugin patch is scoped to
+  the openai-codex marketplace tree so an unrelated plugin can never be
+  rewritten, and Go fixtures drive both shell functions
+  (`internal/payload/agentplugins_test.go` — the script lost its
+  trailing `exit` to stay source-able for them). `vibe config` now
+  prints a human-readable plan summary; the canonical JSON moved behind
+  the standard `--json` flag. Docs: trust-layer diagram atop
+  architecture.md, when-the-CLIs-actually-sandbox clarity in
+  security.md, and the Claude settings layering (engine pins four keys
+  per session; project scope in-repo; user scope persistent on the
+  agent-state volume) recorded in configuration.md.
+- tui: engine-verb popups actually run the engine now. display-popup
+  does not format-expand its shell-command, so `prefix+u/D/p` and the
+  tray's request cell handed bash a literal `#{@vibe_exe}` ("command
+  not found" in the popup); only the palette door worked, because
+  display-menu pre-expands chosen commands. All four now route
+  run-shell → the new `scripts/popup.sh` (client + engine path
+  expanded where expansion is documented, single-quoted against
+  hostile paths), which also single-sources the standard popup chrome
+  for the palette's requests/ps/doctor items; fixture-tested via a
+  fake tmux (`internal/payload/popup_test.go`).
 
 ## v1 final state (unreleased, superseded by the v2 cutover)
 
