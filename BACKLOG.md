@@ -100,21 +100,16 @@ section at the bottom — as revisable records, not fences.
   the sixel-drop v1 pinned against. The host-side installer stays
   retired.)
 
-- **Launch surface — the agents chooser (NEXT UP 2026-07-26:
-  agent-surfaces arc shipped; design agreed the same session on the
-  first dogfood — spec: tui-layout.md "Launch surfaces"; rides the
-  roadmap's dogfood-reactive carve-out).** Wiring: an engine porcelain
-  renders the chooser's display-menu items from `image.agents` joined
-  with the agents cache (state-aware: a CLI that is down launches via
-  `vibe agent`/`-a`, one that is up shows its dot and attaches through
-  the shipped doors); the `+` range dispatches it while 🥡 keeps the
-  full palette; every tray-opened menu gains `-O` plus a pinned
-  position above the tray (the press-open/release-dismiss race — the
-  reason clicking menu items "doesn't work" today); the palette's bare
-  "agent" item retires in favor of the chooser. Out of scope,
-  recorded in the spec as open calls: per-session stop/restart
-  addressing (the `vibe ps` popup is the likely door) and the
-  awaiting-input dot upgrade.
+- **Agent-management follow-ups (recorded 2026-07-26 beside the
+  launch-surface contract, tui-layout.md "Launch surfaces").** (1)
+  Per-session stop/restart addressing: the palette's items address
+  only the default `agent` session; with multiple CLIs live, the
+  `vibe ps` popup is the likely door (sidebar rows stay render-only
+  by decision record). (2) The awaiting-input dot upgrade: with N
+  claude background sessions behind one pane, the hook-fed dot
+  approximates "any session needs me" — if dogfood shows it idle
+  while claude's agents screen says Needs input, feed the dot (and
+  maybe `▲n`) from the statusline JSON's awaiting-input count.
 
 - **Sidebar: event-driven refresh + the cold-project click call.**
   The two bits deferred from the consume-the-renderers work: (1) a

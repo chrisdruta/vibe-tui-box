@@ -399,6 +399,27 @@ The v1 line and its history remain in git up to the cutover commit.
   the pane cannot show, `vibe ps` rows carry cli/model as their own
   columns, and a viewer opened from the UI carries `VIBE_NESTED` so it
   is reapable on quit.
+- New: the tray's `+` cell opens the **agents chooser** — launch
+  what's down, reach what's up
+  ([docs/tui-layout.md](docs/tui-layout.md) "Launch surfaces"). One
+  state-aware entry per installed CLI (`image.agents`, manifest
+  default first), plus the shells: a CLI that is down launches
+  (`vibe agent` / `-a KIND`), one that is up shows its recorded-state
+  glyph and reaches the existing session (window jump, or the
+  attach-only spawn when no viewer exists) — never a second viewer on
+  a running session, which is what the old `+`→palette→"agent" path
+  silently minted. Verdicts render engine-side (`vibe _chooser`: the
+  manifest joined with the same `vibe ps` fetch cache the tray's
+  ghost cells read, so the chooser and the tray cannot disagree;
+  cache-missing degrades to launch verdicts that `-A` semantics keep
+  honest). Tray-opened menus now pass `display-menu -O` pinned above
+  the tray (`-y S`) — without `-O`, the mouse release that follows a
+  tray click dismissed the menu it had just opened, which made the
+  palette read as unclickable. The palette keeps the full command set
+  under 🥡 / `prefix+Space`, its bare "agent" item replaced by the
+  chooser. Parallel instances of one CLI stay inside the CLI by
+  decision record (BACKLOG): "another claude" is Claude Code's own
+  background-session manager, not a vibe-minted twin.
 - Fixed: an all-pinned agent selection no longer sends the
   `VIBE_AGENT_REFRESH` build arg its Dockerfile never declares, which
   drew the daemon's unconsumed-build-arg warning on every build.

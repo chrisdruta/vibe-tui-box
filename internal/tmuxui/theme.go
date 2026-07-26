@@ -108,6 +108,19 @@ func AgentSignal(state string) bool {
 	return strings.HasPrefix(state, "exited")
 }
 
+// AgentLive reports whether a state means the inner tmux session is
+// alive to attach to — the chooser's reach-vs-launch pivot. exited*
+// and gone are dead by definition (their next click launches afresh);
+// unknown states also fall to launch, where `vibe agent`'s -A
+// semantics keep a wrong verdict safe.
+func AgentLive(state string) bool {
+	switch state {
+	case "working", "running", "attention", "idle":
+		return true
+	}
+	return false
+}
+
 // StateToken is the compact one-glyph container/project state for the
 // engine renderers.
 type StateToken string

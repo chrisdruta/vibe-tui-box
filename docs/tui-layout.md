@@ -14,8 +14,8 @@ wired the same day (one deviation, recorded in place: a ghost's click
 dispatches `vibe attach SESSION`, not `vibe agent -s NAME`). Updated
 2026-07-26 (third pass) with the launch-surface contract — the `+`
 cell becomes the agents chooser and parallel instances stay inside
-the CLI; design agreed on the first agent-surfaces dogfood, wiring
-queued (BACKLOG NEXT UP).
+the CLI; design agreed on the first agent-surfaces dogfood, wired the
+same day.
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -88,7 +88,7 @@ Top-preferrers set `status-position top` in the user conf.
 | `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
 | ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`agent-NAME` range → attach-only viewer spawn), rendered into `@vibe_ghosts` by `vibe _frame` |
-| `+` cell | clickable — opens the **agents chooser** (launch what's down, reach what's up — "Launch surfaces" below; wired to the full palette until the chooser ships) |
+| `+` cell | clickable — opens the **agents chooser** (launch what's down, reach what's up — "Launch surfaces" below) |
 | cheatsheet | key hints, shown only while prefix held (replaces tabs) |
 | prefix/copy | `⌨` / `copy` indicators (stamped `status-right`) |
 | engine state | state glyph, `▲n` only when pending > 0; click opens the request list (`#(vibe _state)` splice in user range `req`) |
@@ -335,10 +335,15 @@ Three intents, one owner each:
   valve recorded in the BACKLOG beside "Productize worktrees",
   demand-gated.
 - **The chooser is engine-rendered.** The shell cannot know
-  `image.agents` (the frame-renderer reasoning): a porcelain renders
-  the display-menu items from the manifest joined with the agents
-  cache; the `+` range and a palette item dispatch it.
-- **Tray-opened menus get `-O` and a pinned position** (anchored
+  `image.agents` (the frame-renderer reasoning): `vibe _chooser`
+  renders the verdict rows (`label / key / verb / arg`) from the
+  manifest joined with the agents cache plus the choosing session's
+  window porcelain; `scripts/chooser.sh` keeps the tmux mechanics —
+  it composes the display-menu items (charset-vetting every field
+  that becomes a shell word or target, like agent-open.sh) and falls
+  back to the palette if anything upstream is missing, so a dead
+  chooser can never eat the tray's only launch door.
+- **Tray-opened menus get `-O` and a pinned position** (`-y S`,
   above the tray) so the press-open/release-dismiss race stops eating
   the first click — the palette too. Live-tmux verification class.
 - **Palette hygiene.** 🥡 / `prefix+Space` keep the full palette; its
@@ -451,10 +456,11 @@ user-conf epilogue in `internal/app/tui_test.go`. The manual check that
 has caught what tests miss: resize the sidebar and click every row type
 — the click-skew regression class; with the nested rows that now
 includes a ghost row (it must open a viewer, never start an agent).
-Once the chooser ships, its porcelain round trip is table-tested like
-the fleet's, a running entry must attach (never double-launch), and
-the manual mouse check is opening the chooser by CLICKING `+` and then
-clicking an item — the `-O` regression class. For the editor popups: with the
+The chooser's reach-vs-launch verdicts and porcelain live in
+`internal/tmuxui/chooser_test.go` and the manifest/cache join in
+`internal/app/chooser_test.go` (a running entry must reach, never
+double-launch); the manual mouse check is opening the chooser by
+CLICKING `+` and then clicking an item — the `-O` regression class. For the editor popups: with the
 container stopped, `prefix+f/g` must hold the popup open with the
 `vibe up` hint, never flash-and-close; and the parser layer's proof
 is a `vibe rebuild` (the headless nvim-treesitter install is the one

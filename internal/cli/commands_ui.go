@@ -169,6 +169,35 @@ var uiCommands = map[string]Command{
 	"_state":   renderCommand("_state", (*app.App).RenderState),
 	"_fleet":   renderCommand("_fleet", (*app.App).RenderFleet),
 	"_agents":  renderCommand("_agents", (*app.App).RenderAgents),
+	"_chooser": {
+		Name:    "_chooser",
+		Summary: "internal agents-chooser menu renderer",
+		Usage:   "vibe _chooser --project ID [--cache DIR] < tmux-porcelain",
+		Hidden:  true,
+		// Renders from stdin porcelain, the registered project's
+		// manifest, and an explicit cache dir; no cwd.
+		NoCwd: true,
+		Parse: func(args []string) (Request, error) {
+			var req ChooserCmdRequest
+			return parseInto(args, "_chooser", &req.Options, func(fs *flag.FlagSet) any {
+				fs.StringVar(&req.Cache, "cache", "", "engine cache directory beside the tmux socket")
+				fs.StringVar(&req.Project, "project", "", "project ID")
+				return &req
+			})
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*ChooserCmdRequest)
+			res, err := a.RenderChooser(ctx, app.ChooserRequest{
+				Input:    os.Stdin,
+				CacheDir: r.Cache,
+				Project:  domain.ProjectID(r.Project),
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &renderResult{Lines: res.Lines}, nil
+		},
+	},
 	"_frame": {
 		Name:    "_frame",
 		Summary: "internal sidebar frame renderer",
@@ -201,6 +230,13 @@ var uiCommands = map[string]Command{
 type FrameCmdRequest struct {
 	Options
 	Cache string
+}
+
+// ChooserCmdRequest drives the hidden agents-chooser renderer.
+type ChooserCmdRequest struct {
+	Options
+	Cache   string
+	Project string
 }
 
 // AgentCmdRequest is the exec-shaped agent command plus its session

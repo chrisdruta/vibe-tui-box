@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # The vibe palette — ONE definition serving both doors: prefix+Space
-# and the tray's 🥡 / + cells (MouseDown1Status range dispatch in
-# tmux-tui.conf). Extracted from the conf so the menu cannot drift
-# between them; display-menu needs an explicit client when invoked from
-# run-shell (no current client in that context), hence $1.
+# and the tray's 🥡 cell (MouseDown1Status range dispatch in
+# tmux-tui.conf; the + cell opens the agents chooser, chooser.sh).
+# Extracted from the conf so the menu cannot drift between them;
+# display-menu needs an explicit client when invoked from run-shell
+# (no current client in that context), hence $1.
 #
 # Command strings keep their #{...} constructs LITERAL — display-menu
 # expands them against the choosing client's context when an item is
@@ -18,8 +19,15 @@ client="${1:-}"
 set --
 [ -n "$client" ] && set -- -c "$client"
 
-exec tmux display-menu "$@" -T " vibe " \
-  "agent" a "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent\"" \
+# -O keeps the menu open across the mouse release that follows a tray
+# click (MouseDown1Status fires on press; without it the release
+# dismissed the menu it just opened); -y S pins it above the tray. The
+# bare "agent" item is retired for the agents chooser (tui-layout.md
+# "Launch surfaces"): its label promised "new" while `vibe agent`'s -A
+# semantics delivered attach-or-launch — a second viewer on the same
+# inner session when one was already running.
+exec tmux display-menu "$@" -O -y S -T " vibe " \
+  "agents" a "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/chooser.sh' '#{client_name}'\"" \
   "restart agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\"" \
   "stop agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 40% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \
   "container shell" s "new-window -c \"#{session_path}\" -n shell \"'#{@vibe_exe}' shell\"" \
