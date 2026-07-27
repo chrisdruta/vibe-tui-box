@@ -210,6 +210,46 @@ replaceable, verdict capture stays engine-owned, and no `@vibe` knob.
   config) stays one `~/.config/vibe/tui.conf` rebind away and is
   recorded in the backlog; the knob list stays honest.
 
+### Preview window: ctrl+click follows paths, images render sixel (2026-07-27)
+
+Ctrl+click is a host-owned gesture over EVERY pane: the conf's
+`C-MouseDown1Pane` routes to `scripts/open-path.sh`, which reads the
+clicked line back via capture-pane (`#{mouse_word}` fragments on the
+3.7 default word-separators; q-escaping `#{mouse_line}` shifts the
+column arithmetic — both rejected by test), walks a path out around
+the mouse column (optional `:line`/`:line:col`), maps host-workspace
+prefixes onto the container's `/workspace` (any other absolute path
+is tried as-is in the container first — `vibe clip`'s `/tmp` drops;
+only a container miss falls back to the host-side "outside the
+workspace" message), and verifies existence over `vibe exec`. Text opens in the review stack's nvim popup
+(review.sh/edit.sh `file` mode, `+line` jump). Everything that isn't
+a resolvable path is a silent no-op — the gesture costs prose nothing.
+
+Image extensions (png/jpg/jpeg/gif/webp/bmp) open the **preview
+window**: ONE reusable window per project session, found by its
+`@vibe_view` marker (the window NAME carries `⌗ filename` — a name
+lookup would break the reuse the first time the name changed),
+respawned per click, running `vibe exec -- show-image.sh FORMAT PATH`.
+chafa (pinned source build in the tools image, v1's exact
+version+checksum — the image half of the review stack) encodes; the
+HOST tmux ingests the sixel natively and re-emits it on redraw. That
+is the v1 lesson upheld (b2819b1: passthrough dies under nesting,
+native ingest survives), simplified: this window is a host pane, so
+only one tmux layer is ever in the loop — the container tmux pin
+matters for future in-transcript images, not here.
+
+Fidelity is gated at click time, **loudly** (2026-07-27 decision:
+degradation the operator can see, never silent): sixel only when the
+host server is >= 3.7 (older tmux drops the raster on adjacent-pane
+redraws — the sidebar tick would wipe it; probe verdict A on the
+dogfood host, 2026-07-27) AND the client negotiated sixel. Anything
+less renders chafa symbols under an inverse-video "low-fi preview"
+header, and `vibe doctor`'s tmux check says the same one screen
+earlier. A resize clears sixel on every tmux (upstream reflow), so
+show-image.sh re-renders on SIGWINCH — sidebar/dock toggles self-heal
+instead of leaving a blank pane. Any key closes; the window dies with
+its process.
+
 ### Default arrangement
 
 Agent pane dominant; sidebar far left at `@vibe_sidebar_w` fixed cols,

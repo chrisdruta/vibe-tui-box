@@ -8,7 +8,7 @@
 # around the mouse column, resolves it INSIDE the project's container
 # over `vibe exec` (host-workspace paths map by the bind-mount prefix),
 # and routes: text → review.sh's nvim popup (`file` mode), images →
-# the preview window (phase 2 — display-message stub until it lands).
+# the reusable preview window (show-image.sh, sixel or loud low-fi).
 # Anything that is not path-shaped, or does not resolve, exits silently
 # so the gesture is free over prose.
 #
@@ -110,16 +110,21 @@ case "$word" in
 esac
 
 # Resolve to the container view: /workspace paths pass through, host
-# paths under the project map by the bind-mount prefix, host paths
-# outside it get a message (the container cannot reach them), and
-# anything relative is meant from the workspace root.
+# paths under the project map by the bind-mount prefix, anything
+# relative is meant from the workspace root, and any other absolute
+# path is tried AS a container path first — `vibe clip` drops its
+# PNGs at the container's /tmp, and agents talk about container
+# paths, not host ones. Only when the container denies it does the
+# host get a look (message, never an open — the tools live container-
+# side).
+host_fallback=""
 case "$word" in
 /workspace | /workspace/*) cpath="$word" ;;
 "$spath") cpath="/workspace" ;;
 "$spath"/*) cpath="/workspace${word#"$spath"}" ;;
 /*)
-  [ -e "$word" ] && tmux display-message -c "$client" "vibe open: outside the workspace — $word"
-  exit 0
+  cpath="$word"
+  host_fallback=1
   ;;
 *) cpath="/workspace/$word" ;;
 esac
@@ -128,16 +133,58 @@ case "$lineno" in *[!0-9]*) lineno="" ;; esac
 # The engine resolves the project from the working directory — same
 # contract review.sh leans on via its popup's -d.
 cd "$spath" 2>/dev/null || exit 0
-"$exe" exec -- test -e "$cpath" >/dev/null 2>&1 || exit 0
+if ! "$exe" exec -- test -e "$cpath" >/dev/null 2>&1; then
+  [ -n "$host_fallback" ] && [ -e "$word" ] &&
+    tmux display-message -c "$client" "vibe open: outside the workspace — $word"
+  exit 0
+fi
 
-# Images turn into the preview window when phase 2 lands; the stub
-# keeps the dispatch contract honest until then.
+# Image extensions get the preview window (docs/tui-layout.md
+# "Preview window"): ONE reusable window per project session, marked
+# @vibe_view (found by the marker, not the name — the name carries the
+# filename), running show-image.sh over `vibe exec`. The format is
+# gated HERE, loudly: sixel only when this server is >=3.7 AND the
+# client negotiated sixel (verdict-A conditions); anything less gets
+# chafa symbols plus show-image.sh's low-fi header — degradation the
+# operator can see, never silent (the 2026-07-27 decision).
 case "$cpath" in
 *.*)
   ext="$(printf '%s' "${cpath##*.}" | tr 'A-Z' 'a-z')"
   case "$ext" in
   png | jpg | jpeg | gif | webp | bmp)
-    tmux display-message -c "$client" "vibe open: image preview window lands in phase 2 — $cpath"
+    fmt=symbols
+    v="$(tmux display-message -p '#{version}' 2>/dev/null)"
+    maj="${v%%.*}"
+    min="${v#*.}"
+    min="${min%%[!0-9]*}"
+    case "$maj" in '' | *[!0-9]*) maj="" ;; esac
+    case "$min" in '' | *[!0-9]*) min="" ;; esac
+    feats="$(tmux display-message -p -c "$client" '#{client_termfeatures}' 2>/dev/null)"
+    if [ -n "$maj" ] && [ -n "$min" ] &&
+      { [ "$maj" -gt 3 ] || { [ "$maj" -eq 3 ] && [ "$min" -ge 7 ]; }; }; then
+      case ",$feats," in *,sixel,*) fmt=sixel ;; esac
+    fi
+
+    # Argv → one /bin/sh string — popup.sh's quoting rule — plus
+    # review.sh's hold-open tail for a dead container.
+    cmd=""
+    for word in "$exe" exec -- bash /vibe/payload/container/show-image.sh "$fmt" "$cpath"; do
+      cmd="$cmd '${word//\'/\'\\\'\'}'"
+    done
+    cmd="$cmd || { printf '\\n[vibe] container unavailable? vibe up starts it · enter to close '; read -r _; }"
+
+    sess="$(tmux display-message -p -c "$client" '#{session_id}')"
+    [ -n "$sess" ] || exit 0
+    name="⌗ ${cpath##*/}"
+    win="$(tmux list-windows -t "$sess" -F '#{window_id} #{@vibe_view}' 2>/dev/null | awk '$2==1{print $1; exit}')"
+    if [ -n "$win" ]; then
+      tmux respawn-window -k -c "$spath" -t "$win" "$cmd"
+      tmux rename-window -t "$win" "$name"
+      tmux select-window -t "$win"
+    else
+      win="$(tmux new-window -c "$spath" -t "$sess" -n "$name" -P -F '#{window_id}' "$cmd")"
+      [ -n "$win" ] && tmux set-option -w -t "$win" @vibe_view 1
+    fi
     exit 0
     ;;
   esac

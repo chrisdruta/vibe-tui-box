@@ -98,6 +98,12 @@
       "digest": "sha256:9b794cb239e5e4bba217db2732fe8e106dcd2beaf748fee71312394937c4d593"
     },
     {
+      "path": "container/show-image.sh",
+      "mode": "0755",
+      "size": 1993,
+      "digest": "sha256:3447b2b65ba4801d08f7bdbba8356e4436ef7c39189c2310b3dcb55c2c7bfa7b"
+    },
+    {
       "path": "container/state-dir.sh",
       "mode": "0644",
       "size": 782,
@@ -160,8 +166,8 @@
     {
       "path": "host/scripts/open-path.sh",
       "mode": "0755",
-      "size": 4652,
-      "digest": "sha256:30eec33f2336b633d2bcdb22b8605f99cf462cefdc2a25bfd43ee5a839babc47"
+      "size": 6762,
+      "digest": "sha256:df36ea60b44cc4579e697344d26d001f5f08880150131b2be47c89a6d7e48cf2"
     },
     {
       "path": "host/scripts/palette.sh",
@@ -202,8 +208,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 27460,
-      "digest": "sha256:e7bf40e8c4f68c4e13149acaeea03c38327f1a58feeb9a82b494009401e5043a"
+      "size": 27462,
+      "digest": "sha256:d6058dbd6d5186b4a9b2fb16492ef6810fd99954938b24b03e2690adf4a923c6"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -266,5 +272,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:14ba2ca7729142303ab5431d307b9eeebe8c6feb28cb559c595c1769025d1880"
+  "digest": "sha256:7cd76cd729e70dbea46357ea11574882e6decac96bb8af4f1dc388d66c4a6a0c"
 }

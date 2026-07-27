@@ -67,7 +67,12 @@ section at the bottom — as revisable records, not fences.
   engine-owned layer and keep the viewer replaceable. (2026-07-26: the
   default *viewing* path is now decided — editor-as-surface nvim
   popups, docs/tui-layout.md "Editor surfaces"; this entry narrows to
-  the verdict-capture and image halves.)
+  the verdict-capture and image halves.) (2026-07-27: the IMAGE half
+  shipped as the redesign wanted — ctrl+click preview window,
+  docs/tui-layout.md "Preview window": chafa re-pinned, show-image.sh
+  revived host-pane-single-layer (no nesting, no passthrough), loud
+  low-fi degradation below tmux 3.7. No yazi, no `vibe show` verb —
+  the click IS the verb. This entry narrows to verdict capture.)
 
 - **revdiff trial verdict (pending dogfood).** revdiff was the v1 trial
   diff-review surface; it gets a top-level verb only if it earns harness

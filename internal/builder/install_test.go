@@ -266,6 +266,8 @@ func TestGenerateInstallContent(t *testing.T) {
 				"tmux/releases/download/" + tmuxVersion + "/tmux-" + tmuxVersion + ".tar.gz",
 				tmuxSHA256,
 				"--enable-sixel",
+				"chafa-" + chafaVersion + ".tar.xz",
+				chafaSHA256,
 				"nvim-linux-${arch}.tar.gz",
 				"/usr/local/bin/lazygit",
 			},
@@ -291,7 +293,7 @@ func TestGenerateInstallContent(t *testing.T) {
 				"rm -rf /usr/local/go",
 				"ENV PATH=/usr/local/go/bin:/home/vscode/go/bin:${PATH}",
 			},
-			absent: []string{"/home/vscode/.local/bin", "tmux"},
+			absent: []string{"/home/vscode/.local/bin", "tmux", "chafa"},
 		},
 		{
 			name:       "rokit gets the unzip guard",

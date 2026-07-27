@@ -38,6 +38,21 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- New: **the preview window — ctrl+clicked images render in the tui**
+  (docs/tui-layout.md "Preview window"). One reusable `@vibe_view`
+  window per project session (respawned per click, named `⌗ filename`)
+  runs show-image.sh over `vibe exec`; chafa — back in the tools image
+  as v1's exact pinned source build, the image half of the review
+  stack — encodes to sixel and the HOST tmux ingests it natively (the
+  v1 nesting lesson, minus the nesting: a host pane is one tmux
+  layer). Fidelity gates at click time, loudly: sixel needs host tmux
+  >= 3.7 (older drops the raster on adjacent-pane redraws — the
+  sidebar tick) plus negotiated sixel; anything less renders chafa
+  symbols under an inverse-video low-fi header, and `vibe doctor`'s
+  tmux check now grades the same floor (new `Version` on the tmux
+  client feeds it). show-image.sh re-renders on SIGWINCH — resize
+  clears sixel on every tmux (upstream reflow), so sidebar/dock
+  toggles self-heal. Any key closes. Rebuild required for chafa.
 - New: **ctrl+click follows the path under the pointer** — anywhere in
   the tui, every pane. open-path.sh reads the clicked line back via
   capture-pane (`#{mouse_word}` arrives as fragments: the 3.7 default
@@ -46,10 +61,11 @@ The v1 line and its history remain in git up to the cutover commit.
   host-workspace prefixes onto the container's `/workspace`, verifies
   existence over `vibe exec`, and opens text in the review stack's
   nvim popup (review.sh/edit.sh gain a `file` mode — same chrome,
-  `+line` jump). Image extensions route to the preview window (phase
-  2; a display-message stub until it lands). Prose, unresolvable
-  words, and `~` paths no-op silently; a host-absolute path outside
-  the workspace gets a message instead of a wrong open.
+  `+line` jump). Image extensions route to the preview window (entry
+  above). Absolute paths outside the workspace resolve in the
+  CONTAINER first (`vibe clip`'s /tmp drops preview like anything
+  else); prose, unresolvable words, and `~` paths no-op silently, and
+  a host-only path gets a message instead of a wrong open.
 - New: `vibe agent --stop` / `--restart` end or replace the persistent
   agent session (combine with `-s`/`-a`/`--cold` to address a variant) —
   the lifecycle affordance persistence lacked: the only stops were

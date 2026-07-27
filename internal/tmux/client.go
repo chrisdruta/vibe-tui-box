@@ -69,6 +69,10 @@ type Client interface {
 	SetGlobalOption(ctx context.Context, option, value string) error
 	SetEnvironment(ctx context.Context, name, value string) error
 	ListSessions(ctx context.Context) ([]Session, error)
+	// Version reports the tmux binary's version ("3.7b") — `tmux -V`
+	// answers without a server, so this works before any session
+	// exists. Doctor uses it for the preview-window sixel floor.
+	Version(ctx context.Context) (string, error)
 }
 
 // Binary drives a real tmux executable through the runner. All commands
@@ -236,4 +240,15 @@ func (b *Binary) ListSessions(ctx context.Context) ([]Session, error) {
 		sessions = append(sessions, Session{ID: SessionID(name), Attached: attached != "0"})
 	}
 	return sessions, nil
+}
+
+func (b *Binary) Version(ctx context.Context) (string, error) {
+	out, err := b.exec(ctx, false, "-V")
+	if err != nil {
+		return "", err
+	}
+	if out.ExitCode != 0 {
+		return "", fmt.Errorf("%w: tmux -V exited %d", domain.ErrUnavailable, out.ExitCode)
+	}
+	return strings.TrimPrefix(strings.TrimSpace(string(out.Stdout)), "tmux "), nil
 }

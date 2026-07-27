@@ -41,6 +41,10 @@ type Input struct {
 	Root     *paths.Root
 	Record   *registry.Record
 	TmuxPath string
+	// TmuxVersion is the host binary's reported version ("3.7b"),
+	// empty when unknown — the tmux check grades the preview-window
+	// sixel floor from it and stays quiet without it.
+	TmuxVersion string
 }
 
 // Check is one named health probe.

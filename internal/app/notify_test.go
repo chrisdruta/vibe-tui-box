@@ -79,6 +79,7 @@ func (r *recordingTmux) SetEnvironment(_ context.Context, name, value string) er
 	return nil
 }
 func (r *recordingTmux) ListSessions(context.Context) ([]tmux.Session, error) { return nil, nil }
+func (r *recordingTmux) Version(context.Context) (string, error)              { return "3.7b", nil }
 
 // optionValue returns the last value SetOption recorded for (id, option),
 // and whether it was set at all.

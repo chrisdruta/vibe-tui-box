@@ -171,6 +171,12 @@ func (a *App) Doctor(ctx context.Context, req DoctorRequest) (DoctorResult, erro
 		Docker:   a.deps.Docker,
 		TmuxPath: a.deps.Executables.Tmux,
 	}
+	if input.TmuxPath != "" && a.deps.Tmux != nil {
+		// Best-effort: an unknown version just mutes the sixel grading.
+		if v, err := a.deps.Tmux.Version(ctx); err == nil {
+			input.TmuxVersion = v
+		}
+	}
 	if root, err := paths.Discover(req.Dir); err == nil {
 		input.Root = &root
 		if rec, err := a.deps.Registry.Resolve(ctx, root); err == nil {

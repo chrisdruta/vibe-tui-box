@@ -59,7 +59,7 @@ func TestGenerateInstallPlanParts(t *testing.T) {
 	for _, p := range plan.Parts {
 		ids = append(ids, p.ID)
 	}
-	want := []string{"base", "tmux", "review", "plugins", "parsers", "go", "node", "rokit", "bun", "claude", "codex", "grok"}
+	want := []string{"base", "tmux", "chafa", "review", "plugins", "parsers", "go", "node", "rokit", "bun", "claude", "codex", "grok"}
 	if strings.Join(ids, " ") != strings.Join(want, " ") {
 		t.Fatalf("part order: got %v want %v", ids, want)
 	}

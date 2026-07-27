@@ -41,6 +41,16 @@ const (
 	// apt tmux; re-pinned 2026-07-25.
 	tmuxVersion = "3.7b"
 	tmuxSHA256  = "87f2e99e3b685973f2ca002ffd6ed7e51a5744f7009daae5a15670b6d532db96"
+	// chafa is the image half of the review stack: the sixel encoder
+	// behind the tui's preview window (ctrl+click on an image path) —
+	// tmux ingests what chafa emits. Pinned source build carrying v1's
+	// exact version + checksum: Debian's 1.14.5 predates --probe and
+	// the current sixel work, and upstream ships no arm64 static
+	// binary. Single stage like tmux, which also defuses v1's staged-
+	// copy trap (c1e4c28): the -dev packages keep their runtime libs
+	// in the image, so build and runtime cannot drift apart.
+	chafaVersion = "1.18.2"
+	chafaSHA256  = "0b8d9ba9f347e8b6c0c71878217c9b0e478b4a42aa4babea0bf20840567239c2"
 	// The bundled review stack (docs/tui-layout.md "Editor surfaces",
 	// second call): nvim + lazygit ride every agent image like tmux —
 	// the container carries the review surface because a cold host is
@@ -322,6 +332,30 @@ RUN apt-get update \
     && ./configure --prefix=/usr/local --enable-sixel \
     && make -j"$(nproc)" \
     && make install \
+    && cd / \
+    && rm -rf "$tmp" \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+`})
+		// Rides after tmux on purpose: that chunk already installed
+		// build-essential/pkg-config/curl, this one adds only the image
+		// codec -dev packages (whose runtime .so files stay — the
+		// lockstep invariant is structural here, not a checklist).
+		// ldconfig registers libchafa under /usr/local/lib.
+		out = append(out, installChunk{part: InstallPart{ID: "chafa", Title: "chafa", Detail: chafaVersion + " · source build"}, text: `# chafa ` + chafaVersion + ` encodes preview images to sixel for the tui's preview
+# window (docs/tui-layout.md "Preview window"); pinned source build —
+# distro chafa predates --probe and the current sixel work.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libglib2.0-dev libjpeg62-turbo-dev libpng-dev libwebp-dev libfreetype6-dev xz-utils \
+    && tmp="$(mktemp -d)" \
+    && curl -fsSL -o "$tmp/chafa.tar.xz" "https://hpjansson.org/chafa/releases/chafa-` + chafaVersion + `.tar.xz" \
+    && echo "` + chafaSHA256 + `  $tmp/chafa.tar.xz" | sha256sum -c - \
+    && tar -C "$tmp" -xJf "$tmp/chafa.tar.xz" \
+    && cd "$tmp/chafa-` + chafaVersion + `" \
+    && ./configure --prefix=/usr/local \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
     && cd / \
     && rm -rf "$tmp" \
     && apt-get clean \

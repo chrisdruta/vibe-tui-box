@@ -149,11 +149,34 @@ func checkLifecycle(ctx context.Context, in *Input) Result {
 	return Result{Status: OK, Summary: "lifecycle marker present"}
 }
 
+// checkTmux also grades the preview-window sixel floor: images render
+// full-fidelity only on tmux >= 3.7 (older servers drop the raster on
+// adjacent-pane redraws — upstream, fixed by 3.7), so a lower version
+// warns that previews degrade to low-fi. Degradation is never a Fail:
+// open-path.sh gates the format at click time and show-image.sh says
+// so on screen; this is the same message, one screen earlier.
 func checkTmux(ctx context.Context, in *Input) Result {
 	if in.TmuxPath == "" {
 		return Result{Status: Warn, Summary: "tmux not found on PATH; `vibe tui` will be unavailable"}
 	}
-	return Result{Status: OK, Summary: in.TmuxPath}
+	maj, min, ok := parseTmuxVersion(in.TmuxVersion)
+	switch {
+	case !ok:
+		return Result{Status: OK, Summary: in.TmuxPath}
+	case maj > 3 || (maj == 3 && min >= 7):
+		return Result{Status: OK, Summary: fmt.Sprintf("%s (%s — preview images can render sixel; the terminal has final say at attach)", in.TmuxPath, in.TmuxVersion)}
+	default:
+		return Result{Status: Warn, Summary: fmt.Sprintf("%s (%s — image previews degrade to low-fi; sixel retention needs tmux >= 3.7)", in.TmuxPath, in.TmuxVersion)}
+	}
+}
+
+// parseTmuxVersion reads "3.7b"-shaped strings; letters after the
+// minor number are release suffixes, not semver.
+func parseTmuxVersion(v string) (maj, min int, ok bool) {
+	if n, _ := fmt.Sscanf(v, "%d.%d", &maj, &min); n == 2 {
+		return maj, min, true
+	}
+	return 0, 0, false
 }
 
 func shortDigest(hex string) string {
