@@ -155,7 +155,12 @@ section at the bottom — as revisable records, not fences.
   placeholders, which need the OUTER terminal to speak kitty graphics
   (Windows Terminal is sixel-only), so the revisit trigger is a
   kitty-capable frontend becoming real (then test
-  `chafa -f kitty --passthrough tmux`).
+  `chafa -f kitty --passthrough tmux`). (2026-07-27: premise
+  weakened — the preview window proved native sixel ingest in a host
+  pane survives adjacent-pane redraws on the 3.7 floor, and its WINCH
+  repaint covers the resize-clear; a split variant could ride
+  show-image.sh as-is. Kitty placeholders remain only a fidelity
+  play, same trigger.)
 
 - **Host editor passthrough (parked 2026-07-26; recipe documented
   same day).** The original editor-as-surface idea — your own host
