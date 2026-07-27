@@ -16,6 +16,14 @@
 # sixel rasters on every tmux (upstream reflow), so SIGWINCH re-runs
 # chafa: sidebar/dock toggles heal themselves instead of leaving a
 # blank pane. Any key closes; the window dies with this process.
+#
+# The wait is a POLLED read, not a blocking one: bash installs its
+# SIGWINCH handler with SA_RESTART (it watches WINCH itself for
+# checkwinsize), so a blocking `read` is never interrupted and a
+# WINCH trap sits pending until the builtin returns — verified
+# in-container 2026-07-27, including `kill -WINCH` directly at the
+# pid. Each timeout tick is the safe point where the pending trap
+# actually runs; the flag then repaints within one tick.
 set -u
 
 fmt="${1:-}"
@@ -36,21 +44,42 @@ if ! [ -r "$path" ]; then
 fi
 
 render() {
-  # Home + clear; chafa sizes to the current terminal on each run.
+  # Home + clear, then size the image UNDER the chrome: left to its
+  # own devices chafa fills the full terminal height and the header
+  # scrolls straight off the top (first repro, 2026-07-27).
   printf '\033[H\033[2J'
+  rows=24 cols=80
+  if sz="$(stty size 2>/dev/null)" && [ -n "$sz" ]; then
+    rows="${sz%% *}"
+    cols="${sz##* }"
+  fi
+  reserve=2
   if [ "$fmt" = symbols ]; then
+    reserve=3
     printf '\033[7m low-fi preview — host tmux lacks sixel >=3.7 (vibe doctor) \033[0m\n'
   fi
-  chafa -f "$fmt" --animate off "$path" || printf '[vibe] chafa failed on %s\n' "$path"
-  printf '%s · any key closes · re-renders on resize' "${path##*/}"
+  fit=$((rows - reserve))
+  [ "$fit" -ge 3 ] || fit=3
+  chafa -f "$fmt" --animate off -s "${cols}x${fit}" "$path" || printf '[vibe] chafa failed on %s\n' "$path"
+  printf '%s · any key closes' "${path##*/}"
 }
 
-trap render WINCH
+resized=""
+on_winch() { resized=1; }
+trap on_winch WINCH
 render
-# read returns >128 when a signal (WINCH) interrupts it — wait again.
-# Anything else — a keypress (0) or a dead TTY (1) — ends the window;
-# treating EOF like a signal would busy-spin here forever.
+# rc 0 is a keypress (close), >128 is the poll timeout or a signal
+# tick (loop; the trap has run by now and set the flag), anything
+# else is a dead TTY (close — treating EOF like a tick would
+# busy-spin forever).
 while :; do
-  read -r -n1 _ && break
-  [ "$?" -gt 128 ] || break
+  read -r -n1 -t 0.3 _
+  rc=$?
+  [ "$rc" -eq 0 ] && break
+  if [ -n "$resized" ]; then
+    resized=""
+    render
+    continue
+  fi
+  [ "$rc" -gt 128 ] || break
 done
