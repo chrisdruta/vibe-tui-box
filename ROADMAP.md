@@ -231,8 +231,8 @@ pins move when something breaks or a deliberate refresh is wanted.
 Demand-gated work, detailed in [BACKLOG.md](BACKLOG.md): the reduced-trust
 `vibe agent --jailed` profile, per-project egress visibility, worktree
 productization (the review stack is fully resolved — viewing shipped
-2026-07-26, images 2026-07-27, A/R verdict capture dropped by
-decision), plus the revdiff annotation-capture verdict, event-driven
+2026-07-26, images 2026-07-27, A/R verdict capture dropped and the
+revdiff trial retired by decision), plus event-driven
 sidebar refresh, and a repo-side minimum-engine-version floor for teams
 if real multi-machine use asks for it. Plus the friend-gated
 distribution items recorded in R2 (bootstrap installer, README flip)

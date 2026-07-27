@@ -95,6 +95,12 @@ section at the bottom — as revisable records, not fences.
   (2026-07-27: the A/R absorption target is gone — verdict capture
   dropped outright, revival entry above — so revdiff must earn a verb
   on annotation capture's own merits or retire at the trial verdict.)
+  (2026-07-27, Chris: trial verdict rendered — RETIRED, same hour as
+  the verdict drop and for the same reason: lazygit owns viewing,
+  telling the agent what to change owns feedback, and line-anchored
+  annotation never surfaced as a missing workflow in dogfood. Not in
+  the v2 image, never gets a verb; the binary pin and palette glue
+  stay readable in v1 history. ENTRY CLOSED.)
 
 - **Upstream a codex-plugin sandbox override.** The official
   codex-plugin-cc pins per-thread sandbox modes over the app-server API
