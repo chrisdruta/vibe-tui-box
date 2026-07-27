@@ -9,6 +9,7 @@
 # internal/builder/install.go).
 #
 # Usage: edit.sh files|git
+#        edit.sh file PATH [LINE]
 set -euo pipefail
 
 mode="${1:-files}"
@@ -26,8 +27,18 @@ files)
 git)
   exec lazygit
   ;;
+file)
+  # The ctrl+click door (open-path.sh → review.sh `file`): one path,
+  # optional line. `--` guards a leading-dash path from the arg parser.
+  fpath="${2:?path}"
+  flineno="${3:-}"
+  if [ -n "$flineno" ]; then
+    exec nvim "+$flineno" -- "$fpath"
+  fi
+  exec nvim -- "$fpath"
+  ;;
 *)
-  echo "edit.sh: unknown mode '$mode' (files|git)" >&2
+  echo "edit.sh: unknown mode '$mode' (files|git|file)" >&2
   exit 2
   ;;
 esac

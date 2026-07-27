@@ -38,6 +38,18 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- New: **ctrl+click follows the path under the pointer** — anywhere in
+  the tui, every pane. open-path.sh reads the clicked line back via
+  capture-pane (`#{mouse_word}` arrives as fragments: the 3.7 default
+  word-separators split on `./:-`), walks a path out around the mouse
+  column with an optional `:line`/`:line:col` suffix, maps
+  host-workspace prefixes onto the container's `/workspace`, verifies
+  existence over `vibe exec`, and opens text in the review stack's
+  nvim popup (review.sh/edit.sh gain a `file` mode — same chrome,
+  `+line` jump). Image extensions route to the preview window (phase
+  2; a display-message stub until it lands). Prose, unresolvable
+  words, and `~` paths no-op silently; a host-absolute path outside
+  the workspace gets a message instead of a wrong open.
 - New: `vibe agent --stop` / `--restart` end or replace the persistent
   agent session (combine with `-s`/`-a`/`--cold` to address a variant) —
   the lifecycle affordance persistence lacked: the only stops were
