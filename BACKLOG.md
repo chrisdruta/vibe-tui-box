@@ -73,6 +73,13 @@ section at the bottom — as revisable records, not fences.
   revived host-pane-single-layer (no nesting, no passthrough), loud
   low-fi degradation below tmux 3.7. No yazi, no `vibe show` verb —
   the click IS the verb. This entry narrows to verdict capture.)
+  (2026-07-27, Chris: the VERDICT half is DROPPED, not deferred — no
+  A/R capture revival at all. The flow never earned its keep in v1
+  dogfood the way clipboard and viewing did; if structured verdicts
+  ever matter again, the decisions-JSONL contract stays readable in
+  the v1 git history. ENTRY CLOSED — the revival is fully resolved:
+  clipboard restored, viewing shipped, images shipped, verdicts
+  dropped.)
 
 - **revdiff trial verdict (pending dogfood).** revdiff was the v1 trial
   diff-review surface; it gets a top-level verb only if it earns harness
@@ -85,6 +92,9 @@ section at the bottom — as revisable records, not fences.
   they shipped), so revdiff now competes only for the
   annotation-capture harness role; other spare parts (fzf
   change-preview glue, diffnav) remain recorded in git history.)
+  (2026-07-27: the A/R absorption target is gone — verdict capture
+  dropped outright, revival entry above — so revdiff must earn a verb
+  on annotation capture's own merits or retire at the trial verdict.)
 
 - **Upstream a codex-plugin sandbox override.** The official
   codex-plugin-cc pins per-thread sandbox modes over the app-server API

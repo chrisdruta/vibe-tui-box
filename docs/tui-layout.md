@@ -159,7 +159,8 @@ shell popups. The stance flips: **the container carries an
 opinionated, pinned review stack** — the engine already owns that
 toolchain (the tmux-pin precedent), and a cold host is the norm, not
 the edge. What survives from the first call: the viewer is glue-level
-replaceable, verdict capture stays engine-owned, and no `@vibe` knob.
+replaceable and no `@vibe` knob (verdict capture, the third survivor,
+was later dropped outright — 2026-07-27, backlog revival entry).
 
 - **Placement.** Binaries ride the tools image on the `wantsAgent`
   gate exactly like tmux (core product UX, not a manifest choice):
