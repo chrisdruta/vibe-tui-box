@@ -63,11 +63,43 @@ render() {
   # lost-first-resize race, fixed at ExecCreate but never trusted
   # again here): chafa's own 80x25 fallback beats a -s hard error —
   # that accidental fallback is what made the pre-`-s` script work.
+  ok=1
   if [ "$rows" -ge 5 ] && [ "$cols" -ge 10 ]; then
-    chafa -f "$fmt" --animate off -s "${cols}x$((rows - reserve))" "$path"
+    w="$cols"
+    h=$((rows - reserve))
+    if [ "$fmt" = sixel ]; then
+      # The host pipe eats big rasters WHOLE: a full-pane render on a
+      # wide window came out over 1MB and simply never appeared —
+      # the size ladder bisected the cliff between 827KB (shows) and
+      # 1.27MB (vanishes), 2026-07-27, which is tmux's DCS input
+      # buffer limit (1MB; an over-long sixel is discarded, not
+      # clipped). Encode to scratch, shrink until it fits with
+      # headroom, and only then let it touch the terminal.
+      tmpimg="${TMPDIR:-/tmp}/.vibe-show.$$"
+      while :; do
+        if ! chafa -f sixel --animate off -s "${w}x${h}" "$path" >"$tmpimg" 2>/dev/null; then
+          ok=""
+          break
+        fi
+        if [ "$(wc -c <"$tmpimg")" -le 900000 ]; then
+          cat "$tmpimg"
+          break
+        fi
+        w=$((w * 2 / 3))
+        h=$((h * 2 / 3))
+        if [ "$w" -lt 20 ] || [ "$h" -lt 6 ]; then
+          printf '[vibe] image too dense for the sixel pipe at any size\n'
+          break
+        fi
+      done
+      rm -f "$tmpimg"
+    else
+      chafa -f "$fmt" --animate off -s "${w}x${h}" "$path" || ok=""
+    fi
   else
-    chafa -f "$fmt" --animate off "$path"
-  fi || printf '[vibe] chafa failed on %s\n' "$path"
+    chafa -f "$fmt" --animate off "$path" || ok=""
+  fi
+  [ -n "$ok" ] || printf '[vibe] chafa failed on %s\n' "$path"
   printf '%s · any key closes' "${path##*/}"
 }
 

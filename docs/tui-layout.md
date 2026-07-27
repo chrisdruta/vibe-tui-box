@@ -250,6 +250,16 @@ show-image.sh re-renders on SIGWINCH — sidebar/dock toggles self-heal
 instead of leaving a blank pane. Any key closes; the window dies with
 its process.
 
+Two hard limits shape the render, both learned by bisection
+(2026-07-27): the exec pty is born 0x0 unless ExecCreate pins
+ConsoleSize (the resize forwarder's first send races the exec start
+and is rejected — dockerapi pins it now, and render treats any
+degenerate stty answer as "let chafa fall back"), and tmux discards
+any sixel DCS longer than its 1MB input buffer WHOLE, not clipped
+(827KB showed, 1.27MB vanished). show-image.sh therefore encodes to
+scratch and shrinks by thirds until the emit fits under 900KB before
+a byte touches the terminal.
+
 ### Default arrangement
 
 Agent pane dominant; sidebar far left at `@vibe_sidebar_w` fixed cols,

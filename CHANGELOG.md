@@ -53,6 +53,10 @@ The v1 line and its history remain in git up to the cutover commit.
   client feeds it). show-image.sh re-renders on SIGWINCH — resize
   clears sixel on every tmux (upstream reflow), so sidebar/dock
   toggles self-heal. Any key closes. Rebuild required for chafa.
+  Renders are byte-budgeted: tmux discards any sixel DCS over its 1MB
+  input buffer whole (size-ladder bisected 2026-07-27: 827KB shows,
+  1.27MB vanishes), so show-image.sh encodes to scratch and shrinks
+  until the emit fits with headroom.
 - New: **ctrl+click follows the path under the pointer** — anywhere in
   the tui, every pane. open-path.sh reads the clicked line back via
   capture-pane (`#{mouse_word}` arrives as fragments: the 3.7 default
