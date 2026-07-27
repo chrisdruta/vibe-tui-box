@@ -100,8 +100,8 @@
     {
       "path": "container/show-image.sh",
       "mode": "0755",
-      "size": 2932,
-      "digest": "sha256:67e7b016a38f2b0bbb2efd4747bed091378c4d2541e1eaf18ffd9cf4da93007a"
+      "size": 3319,
+      "digest": "sha256:c8fedfee6eaaead2de9f4625173a96013221ca7df2e79d54e0f7edcf405e0311"
     },
     {
       "path": "container/state-dir.sh",
@@ -272,5 +272,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:332e609d8ec6ed584c5fa6eee7c30641fc567bb8a5e6602395e1419db5cd4cf9"
+  "digest": "sha256:2c33d9445fbafa47c7a11dadfce289d2e063d5df7ba42e106b6ad4e3e24df126"
 }

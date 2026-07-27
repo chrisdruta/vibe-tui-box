@@ -48,19 +48,26 @@ render() {
   # own devices chafa fills the full terminal height and the header
   # scrolls straight off the top (first repro, 2026-07-27).
   printf '\033[H\033[2J'
-  rows=24 cols=80
+  rows=0 cols=0
   if sz="$(stty size 2>/dev/null)" && [ -n "$sz" ]; then
     rows="${sz%% *}"
     cols="${sz##* }"
   fi
+  case "$rows$cols" in '' | *[!0-9]*) rows=0 cols=0 ;; esac
   reserve=2
   if [ "$fmt" = symbols ]; then
     reserve=3
     printf '\033[7m low-fi preview — host tmux lacks sixel >=3.7 (vibe doctor) \033[0m\n'
   fi
-  fit=$((rows - reserve))
-  [ "$fit" -ge 3 ] || fit=3
-  chafa -f "$fmt" --animate off -s "${cols}x${fit}" "$path" || printf '[vibe] chafa failed on %s\n' "$path"
+  # A degenerate size means the pty was born 0x0 (the exec
+  # lost-first-resize race, fixed at ExecCreate but never trusted
+  # again here): chafa's own 80x25 fallback beats a -s hard error —
+  # that accidental fallback is what made the pre-`-s` script work.
+  if [ "$rows" -ge 5 ] && [ "$cols" -ge 10 ]; then
+    chafa -f "$fmt" --animate off -s "${cols}x$((rows - reserve))" "$path"
+  else
+    chafa -f "$fmt" --animate off "$path"
+  fi || printf '[vibe] chafa failed on %s\n' "$path"
   printf '%s · any key closes' "${path##*/}"
 }
 

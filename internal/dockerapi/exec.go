@@ -19,7 +19,7 @@ func (s *SDK) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) {
 	if len(req.Argv) == 0 {
 		return ExecResult{}, fmt.Errorf("%w: exec requires argv", domain.ErrInvalid)
 	}
-	created, err := s.cli.ContainerExecCreate(ctx, string(req.Container), container.ExecOptions{
+	opts := container.ExecOptions{
 		User:         req.User,
 		WorkingDir:   req.WorkDir,
 		Env:          req.Env,
@@ -28,7 +28,25 @@ func (s *SDK) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) {
 		AttachStdin:  req.Stdin,
 		AttachStdout: true,
 		AttachStderr: true,
-	})
+	}
+	// The exec pty is born 0x0 unless sized HERE: a resize sent before
+	// the process starts is rejected by the daemon, and the resize
+	// forwarder's first send is exactly that race — the lost initial
+	// size left TTY execs reading 0x0 from stty until the next window
+	// change (docker's own CLI pins ConsoleSize at create for the same
+	// reason). The caller's first size is already sitting in the
+	// channel (setupStreams sends it synchronously); peek it without
+	// blocking so a caller that never sends is unaffected.
+	if req.TTY && req.Streams.Resize != nil {
+		select {
+		case size, ok := <-req.Streams.Resize:
+			if ok {
+				opts.ConsoleSize = &[2]uint{uint(size.Height), uint(size.Width)}
+			}
+		default:
+		}
+	}
+	created, err := s.cli.ContainerExecCreate(ctx, string(req.Container), opts)
 	if err != nil {
 		return ExecResult{}, mapErr("exec in "+string(req.Container), err)
 	}
