@@ -56,7 +56,10 @@ The v1 line and its history remain in git up to the cutover commit.
   Renders are byte-budgeted: tmux discards any sixel DCS over its 1MB
   input buffer whole (size-ladder bisected 2026-07-27: 827KB shows,
   1.27MB vanishes), so show-image.sh encodes to scratch and shrinks
-  until the emit fits with headroom.
+  until the emit fits with headroom. Dogfood-confirmed end to end
+  2026-07-27: clip and workspace images render sixel, sidebar toggle
+  and pane resize repaint in place, the view window respawns rather
+  than stacking tabs.
 - New: **ctrl+click follows the path under the pointer** — anywhere in
   the tui, every pane. open-path.sh reads the clicked line back via
   capture-pane (`#{mouse_word}` arrives as fragments: the 3.7 default
