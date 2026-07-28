@@ -73,6 +73,13 @@ type Client interface {
 	// answers without a server, so this works before any session
 	// exists. Doctor uses it for the preview-window sixel floor.
 	Version(ctx context.Context) (string, error)
+	// SourceFile reloads a conf into a RUNNING server — the attach-time
+	// heal: -f applies only at server start, so a server that predates
+	// this engine's freshly materialized conf keeps stale bindings
+	// forever without it (the 2026-07-28 dogfood: two dev cycles bitten
+	// in one evening). The generated conf is reload-idempotent by
+	// contract — its option defaults are -o for exactly this.
+	SourceFile(ctx context.Context, path string) error
 }
 
 // Binary drives a real tmux executable through the runner. All commands
@@ -240,6 +247,17 @@ func (b *Binary) ListSessions(ctx context.Context) ([]Session, error) {
 		sessions = append(sessions, Session{ID: SessionID(name), Attached: attached != "0"})
 	}
 	return sessions, nil
+}
+
+func (b *Binary) SourceFile(ctx context.Context, path string) error {
+	out, err := b.exec(ctx, false, "source-file", path)
+	if err != nil {
+		return err
+	}
+	if out.ExitCode != 0 {
+		return fmt.Errorf("%w: tmux source-file: %s", domain.ErrInvalid, strings.TrimSpace(string(out.Stderr)))
+	}
+	return nil
 }
 
 func (b *Binary) Version(ctx context.Context) (string, error) {

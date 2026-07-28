@@ -346,6 +346,8 @@ frame() {
 }
 
 
+# This copy's own path, for the slow tick's self-upgrade drift check.
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 last_map=""
 last_ghosts=""
 last_gmap=""
@@ -392,6 +394,16 @@ EOF5
   elif [ "$etick" -eq 0 ]; then
     fetch_engine
     watch_engine # respawn if the daemon died; a live one holds the lock
+    # The self-upgrade (2026-07-28, the attach-heal's loop half): a dev
+    # cycle repoints @vibe_payload_dir at a NEW artifact while this
+    # loop keeps executing the old artifact's script forever (artifacts
+    # are immutable, so it keeps working — and keeps missing every
+    # fix). When the dir drifts from the copy we were started from,
+    # exec the current script in place: same pane, same pid, new bytes.
+    pd="$(tmux show-options -gqv @vibe_payload_dir 2>/dev/null)"
+    if [ -n "$pd" ] && [ "$pd/scripts/sidebar.sh" != "$self" ] && [ -r "$pd/scripts/sidebar.sh" ]; then
+      exec bash "$pd/scripts/sidebar.sh" render
+    fi
   fi
   tick=$(((tick + 1) % 5))
   if [ "$serial" = "$last_serial" ] && [ "$frames_due" -eq 0 ] && [ "$tick" -ne 0 ]; then

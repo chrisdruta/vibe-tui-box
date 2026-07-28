@@ -178,8 +178,8 @@
     {
       "path": "host/scripts/palette.sh",
       "mode": "0644",
-      "size": 3865,
-      "digest": "sha256:affb110ddf61214ba2044ad0afbe5db40c93561b3339db22f364252185ae7f84"
+      "size": 4095,
+      "digest": "sha256:b6a93de77062eda23bff18c8fafb45d69703c98c1e422145b9fe781c276af1be"
     },
     {
       "path": "host/scripts/popup.sh",
@@ -196,8 +196,8 @@
     {
       "path": "host/scripts/sidebar.sh",
       "mode": "0755",
-      "size": 17679,
-      "digest": "sha256:c12cc9a0dbc456b7e2d33def6161ef6c91325221ff934275f32ada32b6ceaa33"
+      "size": 18449,
+      "digest": "sha256:f8cf482765abf86ba705862cb63676842df1a568d71f84a82745e631132934ca"
     },
     {
       "path": "host/scripts/state-render.sh",
@@ -278,5 +278,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:6e7e958889ffe570ab9c55f3c32bc3b23110b73c912cc023baac6e96ea460f38"
+  "digest": "sha256:69bc42f49333313cdd760306898dc081e271ea4ccc3239e66d00c010ed1712b6"
 }

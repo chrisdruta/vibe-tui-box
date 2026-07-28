@@ -390,6 +390,46 @@ func TestTuiHappyPathWithConf(t *testing.T) {
 	if !slices.Equal(rt.attached, []tmux.SessionID{session}) {
 		t.Fatalf("Attach = %v, want [%s]", rt.attached, session)
 	}
+	// No server ran before this Tui (ListSessions answered none), so
+	// the fresh conf applies at server start — no re-source needed.
+	if len(rt.sourced) != 0 {
+		t.Fatalf("fresh server must not re-source: %v", rt.sourced)
+	}
+}
+
+// TestTuiAttachHealsExistingServer covers the attach-time heal: a
+// server that predates this engine keeps its birth conf (-f applies at
+// server start only), so joining it must re-source the freshly
+// materialized conf or every new binding waits for a manual prefix+R —
+// the 2026-07-28 stale-bindings dogfood, twice in one evening.
+func TestTuiAttachHealsExistingServer(t *testing.T) {
+	a, _ := newTestApp(t)
+	withTuiConfPayload(t, a)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Provision(ctx, ProvisionRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	rt := &recordingTmux{
+		hasSession: true,
+		sessions:   []tmux.Session{{ID: "vibe-other", Attached: true}},
+	}
+	a.deps.Tmux = rt
+	if err := a.Tui(ctx, TuiRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.configured) != 1 {
+		t.Fatalf("ConfigureServer = %v", rt.configured)
+	}
+	if !slices.Equal(rt.sourced, []string{rt.configured[0]}) {
+		t.Fatalf("joining a live server must re-source the fresh conf: %v", rt.sourced)
+	}
 }
 
 // TestTuiBarePathEscapesDisplayName covers the conf == "" path (no

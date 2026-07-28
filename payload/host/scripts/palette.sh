@@ -33,11 +33,14 @@ set --
 # spent. The bare "agent" item is retired for the agents chooser: its
 # label promised "new" while `vibe agent`'s -A semantics delivered
 # attach-or-launch — a second viewer on the same inner session when
-# one was already running.
+# one was already running. "default" in the stop/restart labels is
+# load-bearing (2026-07-28): those verbs address only the bare `agent`
+# session — per-session stop lives on right-click (agent-menu.sh),
+# launch variants in the chooser.
 exec tmux display-menu "$@" -M -O -T " vibe " \
   "agents" a "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/chooser.sh' '#{client_name}'\"" \
-  "restart agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\"" \
-  "stop agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 40% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \
+  "restart default agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\"" \
+  "stop default agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 40% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \
   "container shell" s "new-window -c \"#{session_path}\" -n shell \"'#{@vibe_exe}' shell\"" \
   "attach main proc" e "new-window -c \"#{session_path}\" -n attach \"'#{@vibe_exe}' attach\"" \
   "host shell" h "new-window -c \"#{session_path}\"" \

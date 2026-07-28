@@ -29,6 +29,10 @@ type recordingTmux struct {
 	options    []recordedOption    // SetOption calls
 	winOptions []recordedWinOption // SetWindowOption calls
 	envs       []recordedEnv       // SetEnvironment calls
+	sourced    []string            // SourceFile conf paths
+
+	// sessions is what ListSessions answers (default none — no server).
+	sessions []tmux.Session
 }
 
 type recordedOption struct {
@@ -78,8 +82,14 @@ func (r *recordingTmux) SetEnvironment(_ context.Context, name, value string) er
 	r.envs = append(r.envs, recordedEnv{Name: name, Value: value})
 	return nil
 }
-func (r *recordingTmux) ListSessions(context.Context) ([]tmux.Session, error) { return nil, nil }
-func (r *recordingTmux) Version(context.Context) (string, error)              { return "3.7b", nil }
+func (r *recordingTmux) ListSessions(context.Context) ([]tmux.Session, error) {
+	return r.sessions, nil
+}
+func (r *recordingTmux) Version(context.Context) (string, error) { return "3.7b", nil }
+func (r *recordingTmux) SourceFile(_ context.Context, path string) error {
+	r.sourced = append(r.sourced, path)
+	return nil
+}
 
 // optionValue returns the last value SetOption recorded for (id, option),
 // and whether it was set at all.

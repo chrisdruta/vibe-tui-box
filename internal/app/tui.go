@@ -224,6 +224,12 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 	if conf != "" {
 		a.deps.Tmux.ConfigureServer(conf)
 	}
+	// Whether a server already runs decides the heal below: -f applies
+	// the conf only at server START, so joining a live server would
+	// keep every binding from whatever engine started it. Checked
+	// before EnsureSession mints our session.
+	preexisting, lsErr := a.deps.Tmux.ListSessions(ctx)
+	heal := conf != "" && lsErr == nil && len(preexisting) > 0
 	if err := a.deps.Tmux.EnsureSession(ctx, tmux.SessionSpec{
 		ID:      session,
 		Workdir: root.Path,
@@ -248,6 +254,18 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 		// store-owned payload dir — never workspace files.
 		if err := a.deps.Tmux.SetGlobalOption(ctx, "@vibe_payload_dir", payloadHostDir); err != nil {
 			return fail(err)
+		}
+		// The attach-time heal (2026-07-28): a pre-existing server keeps
+		// the conf it was born with — stale bindings after every dev
+		// cycle until someone remembers prefix+R. Re-source the fresh
+		// conf on every join to a live server; the generated conf is
+		// reload-idempotent (-o option defaults) by its own prefix+R
+		// contract. Sidebar render loops heal themselves the same way
+		// (sidebar.sh watches @vibe_payload_dir drift on the slow tick).
+		if heal {
+			if err := a.deps.Tmux.SourceFile(ctx, conf); err != nil {
+				return fail(err)
+			}
 		}
 		// The sidebar shows display names; session names stay ID-derived.
 		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_name", rec.DisplayName); err != nil {

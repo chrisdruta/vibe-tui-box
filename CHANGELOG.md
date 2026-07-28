@@ -38,6 +38,24 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- New: **the tui heals itself on attach** — `vibe tui` joining an
+  already-running server now re-sources the freshly materialized conf
+  (tmux applies `-f` only at server start, so every dev cycle used to
+  leave stale bindings until a manual `prefix+R` — the 2026-07-28
+  dogfood, twice in one evening), and the sidebar render loops
+  self-upgrade on their slow tick: when `@vibe_payload_dir` drifts
+  from the copy a loop was started from, it execs the current
+  artifact's script in place — same pane, new bytes. The generated
+  conf is reload-idempotent by its own prefix+R contract (`-o`
+  option defaults), which is what makes the heal safe.
+- Changed: **the refusal-button sweep reached the sidebar** — a dead
+  viewer-less agent row keeps its ✗ signal but its click degrades to
+  the project slop instead of spawning an attach that refuses dead
+  sessions (and minting a corpse window in the process); a dead row
+  with a real crash-corpse window still jumps to it. The palette's
+  stop/restart items now say "default agent" — the labels were
+  silently default-only all along; per-session stop is right-click's
+  job, launch variants the chooser's.
 - New: **right-click stops agents from the bar** — an agent viewer
   tab or a tray ghost cell answers right-click with a per-session
   menu: stop agent (ends the SESSION — the stock menu's Kill only
