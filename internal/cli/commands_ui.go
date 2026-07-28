@@ -198,6 +198,36 @@ var uiCommands = map[string]Command{
 			return &renderResult{Lines: res.Lines}, nil
 		},
 	},
+	"_stop": {
+		Name:    "_stop",
+		Summary: "internal address-direct agent session stop",
+		Usage:   "vibe _stop SESSION",
+		Hidden:  true,
+		// Runs from the project directory (the menu script cd's to the
+		// session path — review.sh's -d contract), unlike the stdin
+		// renderers: the stop must resolve a real container.
+		Parse: func(args []string) (Request, error) {
+			var req StopCmdRequest
+			fs := newFlagSet("_stop", &req.Options)
+			if err := parseArgs(fs, args); err != nil {
+				return nil, err
+			}
+			rest := fs.Args()
+			if len(rest) != 1 {
+				return nil, fmt.Errorf("_stop takes exactly one SESSION address")
+			}
+			req.Session = rest[0]
+			return &req, nil
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*StopCmdRequest)
+			res, err := a.StopSession(ctx, app.StopSessionRequest{Dir: dir, Session: r.Session})
+			if err != nil {
+				return nil, err
+			}
+			return &renderResult{Lines: []string{"stopped " + res.Session}}, nil
+		},
+	},
 	"_watch": {
 		Name:    "_watch",
 		Summary: "internal engine-truth push daemon",
@@ -277,6 +307,13 @@ type ChooserCmdRequest struct {
 	Options
 	Cache   string
 	Project string
+}
+
+// StopCmdRequest drives the hidden address-direct session stop — the
+// right-click menu's dispatch (agent-menu.sh).
+type StopCmdRequest struct {
+	Options
+	Session string
 }
 
 // AgentCmdRequest is the exec-shaped agent command plus its session

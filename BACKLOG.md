@@ -126,7 +126,14 @@ section at the bottom — as revisable records, not fences.
   Per-session stop/restart addressing: the palette's items address
   only the default `agent` session; with multiple CLIs live, the
   `vibe ps` popup is the likely door (sidebar rows stay render-only
-  by decision record). (2) The awaiting-input dot upgrade: with N
+  by decision record). (2026-07-28, Chris: the STOP half shipped as
+  the right-click bar menu instead — agent tabs and ghost cells open
+  agent-menu.sh (stop / open viewer / close viewer only), dispatching
+  address-direct over `vibe _stop` → agent-session.sh `kill`; the ps
+  popup stays read-only and sidebar rows stay render-only. Restart
+  stays palette-default-only: per-address restart needs the
+  address→flags reverse-map, deferred until dogfood asks.) (2) The
+  awaiting-input dot upgrade: with N
   claude background sessions behind one pane, the hook-fed dot
   approximates "any session needs me" — if dogfood shows it idle
   while claude's agents screen says Needs input, feed the dot (and

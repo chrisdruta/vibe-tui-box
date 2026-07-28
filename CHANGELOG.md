@@ -38,6 +38,16 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- New: **right-click stops agents from the bar** — an agent viewer
+  tab or a tray ghost cell answers right-click with a per-session
+  menu: stop agent (ends the SESSION — the stock menu's Kill only
+  ever closed the viewer while the agent lived on in the roster),
+  open viewer for ghosts, close-viewer-only for tabs. Stop travels
+  address-direct: `vibe _stop ADDRESS` → agent-session.sh's new
+  `kill` mode (attach's precedent — no flag reverse-mapping),
+  idempotent, death recorded by the run-mode EXIT trap as ever.
+  Non-agent window tabs keep a trimmed copy of the stock tmux window
+  menu on the press, exactly where it always was.
 - New: **cold agents are launchable from the tui** — the agents
   chooser (`+` cell, palette "agents") grows a `:cold` block after
   the warm entries: one per CLI that `vibe agent --cold` can start

@@ -24,6 +24,7 @@ usage() {
   echo "Usage: agent-session.sh agent [--cold] [-a] [-s NAME] [--restart] -- COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh stop [--cold] [-a] [-s NAME] -- COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh attach [SESSION]" >&2
+  echo "       agent-session.sh kill SESSION" >&2
   echo "       agent-session.sh run COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh reap" >&2
   exit 2
@@ -82,6 +83,37 @@ if [ "$mode" = "attach" ]; then
       ;;
   esac
   exec tmux -u -f "$script_dir/tmux-agent.conf" new-session -A -s "$session"
+fi
+
+# kill mode is stop's address-direct twin — attach's precedent, for
+# the tui's right-click menu: that door already holds the FULL address
+# the `vibe ps` join reported, and reverse-mapping an address into
+# stop's flags would recompute the grammar in a second place (the
+# drift stop's own header warns about). Agent-convention names ONLY:
+# `services` and friends are lifecycle surfaces, not menu kills.
+# kill-session HUPs the pane; the run-mode EXIT trap records the death
+# for `vibe ps`. Idempotent like stop.
+if [ "$mode" = "kill" ]; then
+  session="${1:-}"
+  case "$session" in
+    *[!A-Za-z0-9_-]* | "")
+      echo "agent-session.sh kill: SESSION must be letters, digits, '_' or '-': $session" >&2
+      exit 2
+      ;;
+  esac
+  case "$session" in
+    agent | agent-*) ;;
+    *)
+      echo "agent-session.sh kill: not an agent session address: '$session'" >&2
+      exit 2
+      ;;
+  esac
+  if tmux kill-session -t "=$session" 2>/dev/null; then
+    echo "stopped agent session '$session'"
+  else
+    echo "agent session '$session' is not running"
+  fi
+  exit 0
 fi
 
 # run mode is the pane-side wrapper agent mode launches: it trades the

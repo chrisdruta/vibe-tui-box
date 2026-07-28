@@ -318,6 +318,20 @@ name).
   launch/launcha. Before this, cold sessions were reachable
   everywhere but launchable nowhere in the tui — the only door was
   typing the verb in a shell.
+- **The stop door: right-click on the bar (2026-07-28, Chris —
+  supersedes the backlog's "vibe ps popup is the likely door" lean).**
+  Right-click on an agent viewer TAB or a ghost cell opens
+  agent-menu.sh for that ONE session: stop agent (address-direct —
+  `vibe _stop ADDRESS` → agent-session.sh `kill`, attach's precedent;
+  reverse-mapping an address into `--stop` flags would recompute the
+  grammar in a second place), open viewer (ghosts), close viewer only
+  (tabs — the stock Kill gesture renamed honestly, since it never
+  stopped the session). The menu opens on the RELEASE per the
+  tray-door lesson; the press arm serves non-agent tabs a trimmed
+  copy of the pinned tmux's stock window menu (the one default the
+  bind costs). Stopping HUPs the attach client so the viewer window
+  closes itself, and the watch channel repaints the roster. Restart
+  stays palette-default-only until dogfood asks for per-address.
 - **The ghost channel.** No conf-side engine call: the sidebar's frame
   renderer already joins `vibe ps` truth against this server's windows,
   so it publishes the rendered cells as the session option

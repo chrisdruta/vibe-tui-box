@@ -176,6 +176,53 @@ func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error)
 	return res, nil
 }
 
+// StopSessionRequest ends one agent session by its FULL address — the
+// tui's right-click menu door (`vibe _stop`). `vibe agent --stop`
+// computes the address from flags; the menu already holds the address
+// the `vibe ps` join reported, and reverse-mapping it into flags would
+// recompute the grammar in a second place.
+type StopSessionRequest struct {
+	Dir     string
+	Session string
+}
+
+type StopSessionResult struct {
+	Session string
+}
+
+func (a *App) StopSession(ctx context.Context, req StopSessionRequest) (StopSessionResult, error) {
+	fail := opFail[StopSessionResult]("stop", "")
+	rec, name, err := a.devContainer(ctx, req.Dir)
+	if err != nil {
+		return fail(err)
+	}
+	fail = opFail[StopSessionResult]("stop", rec.ID)
+	// Same policy both sides of the exec (agent-session.sh kill
+	// re-checks): charset-vetted, agent-convention addresses only.
+	if !sessionNameRe.MatchString(req.Session) ||
+		(req.Session != "agent" && !strings.HasPrefix(req.Session, "agent-")) {
+		return fail(fmt.Errorf("%w: agent session address %q", domain.ErrInvalid, req.Session))
+	}
+	ok, err := a.probeAgentSession(ctx, name)
+	if err != nil {
+		return fail(err)
+	}
+	if !ok {
+		return fail(fmt.Errorf("%w: stopping a session needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
+	}
+	res, err := a.execIn(ctx, name, ContainerCommand{
+		Dir:  req.Dir,
+		Argv: []string{"bash", model.PayloadAgentSession, "kill", req.Session},
+	})
+	if err != nil {
+		return fail(err)
+	}
+	if res.ExitCode != 0 {
+		return fail(fmt.Errorf("%w: agent-session kill exited %d", domain.ErrUnavailable, res.ExitCode))
+	}
+	return StopSessionResult{Session: req.Session}, nil
+}
+
 // agentSessionAddress mirrors agent-session.sh's address grammar —
 // agent(-cmd)(-name)(-cold) — for the one host-side consumer that
 // needs the address before the container ever runs: the viewer
