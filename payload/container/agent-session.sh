@@ -26,6 +26,7 @@ usage() {
   echo "       agent-session.sh attach [SESSION [WINDOW]]" >&2
   echo "       agent-session.sh kill SESSION" >&2
   echo "       agent-session.sh svc-kill NAME" >&2
+  echo "       agent-session.sh svc-select NAME" >&2
   echo "       agent-session.sh dismiss SESSION" >&2
   echo "       agent-session.sh run COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh reap" >&2
@@ -138,6 +139,27 @@ fi
 # Window-scoped on purpose — agent sessions have their own kill above,
 # and killing the last services window ends the session, which is
 # exactly the empty-roster truth. Idempotent like kill.
+# svc-select re-aims the `services` session at one window — the
+# sidebar's service-row click when a shared viewer is already open
+# (agent-open.sh -s): the current window is session state, so every
+# attached client follows. Best-effort like attach's own pre-select.
+if [ "$mode" = "svc-select" ]; then
+  name="${1:-}"
+  case "$name" in
+    *[!A-Za-z0-9_-]* | "")
+      echo "agent-session.sh svc-select: NAME must be letters, digits, '_' or '-': $name" >&2
+      exit 2
+      ;;
+  esac
+  if tmux select-window -t "=services:$name" 2>/dev/null; then
+    echo "selected service window '$name'"
+  else
+    echo "service window '$name' does not exist"
+    exit 1
+  fi
+  exit 0
+fi
+
 if [ "$mode" = "svc-kill" ]; then
   name="${1:-}"
   case "$name" in

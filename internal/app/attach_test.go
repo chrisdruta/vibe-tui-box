@@ -191,6 +191,40 @@ func TestStopService(t *testing.T) {
 	}
 }
 
+func TestSelectService(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The shared-viewer re-aim: the payload svc-select mode with the
+	// window name.
+	res, err := a.SelectService(ctx, SelectServiceRequest{Dir: dir, Name: "logger"})
+	if err != nil || res.Name != "logger" {
+		t.Fatalf("svcselect: %+v, %v", res, err)
+	}
+	execs := docker.CallsTo("Exec")
+	last := execs[len(execs)-1].Request.(dockerapi.ExecRequest)
+	want := []string{"bash", model.PayloadAgentSession, "svc-select", "logger"}
+	if !slices.Equal(last.Argv, want) {
+		t.Fatalf("svc-select argv %v, want %v", last.Argv, want)
+	}
+
+	// Hostile window names never reach the container.
+	before := len(docker.CallsTo("Exec"))
+	if _, err := a.SelectService(ctx, SelectServiceRequest{Dir: dir, Name: "a;rm"}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("bad name: %v", err)
+	}
+	if len(docker.CallsTo("Exec")) != before {
+		t.Fatal("invalid name reached docker")
+	}
+}
+
 func TestDismissSession(t *testing.T) {
 	a, docker := newTestApp(t)
 	ctx := context.Background()

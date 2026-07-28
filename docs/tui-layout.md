@@ -431,13 +431,15 @@ the sidebar cannot see them at all.
   for agents), selecting the clicked window. The row target always
   carries the window NAME (`svc-`/`svcx-`), never the viewer window
   id: the services viewer is shared, and an id target would strip the
-  name the right-click menu resolves verbs through. Accepted gap
-  (shipping dogfood): when a services viewer is already open, the
-  click brings it forward WITHOUT re-aiming its inner window — the
-  re-aim happens only on a fresh spawn (`vibe attach services WINDOW`
-  selects before the client connects); per-click re-aim would cost a
-  container exec per click and rides the next dogfood if it itches.
-  RIGHT serves the per-row
+  name the right-click menu resolves verbs through. The
+  shipped-with-a-gap version (viewer raised without re-aiming its
+  inner window; re-aim on fresh spawns only, to save a container exec
+  per click) survived exactly one dogfood: with the shared viewer
+  open, every service click read as "goes to the first service". The
+  re-aim is now unconditional — a fresh spawn selects via
+  `vibe attach services WINDOW`, an existing viewer via a backgrounded
+  `vibe _svcselect` (agent-session.sh `svc-select`; the exec-per-click
+  cost was the wrong thing to save). RIGHT serves the per-row
   menu the sidebar already speaks: live rows get **stop**
   (`kill-window` — honest and cheap; services are the operator's own
   workload, so the "never drive agents" cession does not apply), dead

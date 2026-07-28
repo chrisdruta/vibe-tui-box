@@ -72,11 +72,13 @@ if [ "$name" = "-g" ]; then
 fi
 # Service-row form (docs/tui-layout.md "Workspace services"): the
 # target is the `services` session with the clicked svc WINDOW
-# pre-selected. The services viewer is shared, so an existing stamped
+# selected. The services viewer is shared, so an existing stamped
 # viewer wins (never a second viewer) — the click brings it forward
-# without re-aiming its inner window; the re-aim only happens on a
-# fresh spawn, where `vibe attach services WINDOW` selects before the
-# client connects.
+# AND re-aims its inner window through `vibe _svcselect` (one
+# container exec per click; the first dogfood proved the cheap version
+# — raise without re-aim — reads as "clicks go to the wrong service").
+# The re-aim runs backgrounded and silent: a wedged container must not
+# hang the click, and the viewer raise already happened.
 window=""
 if [ "$name" = "-s" ]; then
   svc="${4:-}"
@@ -86,6 +88,10 @@ if [ "$name" = "-s" ]; then
   if [ -n "$wid" ]; then
     [ -n "$client" ] && tmux switch-client -c "$client" -t "$sess" 2>/dev/null
     tmux select-window -t "$wid" 2>/dev/null
+    path="$(tmux display-message -p -t "$sess" '#{session_path}' 2>/dev/null)"
+    if [ -n "$path" ]; then
+      (cd "$path" && exec "$exe" _svcselect "$svc") >/dev/null 2>&1 &
+    fi
     exit 0
   fi
   name="services"

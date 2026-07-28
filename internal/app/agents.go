@@ -277,6 +277,49 @@ func (a *App) StopService(ctx context.Context, req StopServiceRequest) (StopServ
 	return StopServiceResult{Name: req.Name}, nil
 }
 
+// SelectServiceRequest re-aims the in-container `services` session at
+// one svc window (`vibe _svcselect`) — the sidebar's service-row click
+// when a shared viewer is already open: the current window is session
+// state, so every attached client follows.
+type SelectServiceRequest struct {
+	Dir  string
+	Name string
+}
+
+type SelectServiceResult struct {
+	Name string
+}
+
+func (a *App) SelectService(ctx context.Context, req SelectServiceRequest) (SelectServiceResult, error) {
+	fail := opFail[SelectServiceResult]("svcselect", "")
+	rec, name, err := a.devContainer(ctx, req.Dir)
+	if err != nil {
+		return fail(err)
+	}
+	fail = opFail[SelectServiceResult]("svcselect", rec.ID)
+	if !sessionNameRe.MatchString(req.Name) {
+		return fail(fmt.Errorf("%w: service window name %q", domain.ErrInvalid, req.Name))
+	}
+	ok, err := a.probeAgentSession(ctx, name)
+	if err != nil {
+		return fail(err)
+	}
+	if !ok {
+		return fail(fmt.Errorf("%w: selecting a service needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
+	}
+	res, err := a.execIn(ctx, name, ContainerCommand{
+		Dir:  req.Dir,
+		Argv: []string{"bash", model.PayloadAgentSession, "svc-select", req.Name},
+	})
+	if err != nil {
+		return fail(err)
+	}
+	if res.ExitCode != 0 {
+		return fail(fmt.Errorf("%w: agent-session svc-select exited %d", domain.ErrUnavailable, res.ExitCode))
+	}
+	return SelectServiceResult{Name: req.Name}, nil
+}
+
 // DismissSessionRequest clears a DEAD session's state record — the
 // sidebar right-click's "seen it" gesture (`vibe _dismiss`). The ✗
 // roster row exists only as that record; the container side refuses

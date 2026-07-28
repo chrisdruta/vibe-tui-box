@@ -259,6 +259,37 @@ var uiCommands = map[string]Command{
 			return &renderResult{Lines: []string{"stopped " + res.Name}}, nil
 		},
 	},
+	"_svcselect": {
+		Name:    "_svcselect",
+		Summary: "internal workspace-service window re-aim",
+		Usage:   "vibe _svcselect NAME",
+		Hidden:  true,
+		// The sidebar service-row click with a shared viewer already
+		// open: selects the clicked window in the inner `services`
+		// session so the viewer follows; runs from the project
+		// directory like _stop.
+		Parse: func(args []string) (Request, error) {
+			var req SvcSelectCmdRequest
+			fs := newFlagSet("_svcselect", &req.Options)
+			if err := parseArgs(fs, args); err != nil {
+				return nil, err
+			}
+			rest := fs.Args()
+			if len(rest) != 1 {
+				return nil, fmt.Errorf("_svcselect takes exactly one service window NAME")
+			}
+			req.Name = rest[0]
+			return &req, nil
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*SvcSelectCmdRequest)
+			res, err := a.SelectService(ctx, app.SelectServiceRequest{Dir: dir, Name: r.Name})
+			if err != nil {
+				return nil, err
+			}
+			return &renderResult{Lines: []string{"selected " + res.Name}}, nil
+		},
+	},
 	"_dismiss": {
 		Name:    "_dismiss",
 		Summary: "internal dead-session record dismissal",
@@ -377,6 +408,11 @@ type StopCmdRequest struct {
 }
 
 type SvcStopCmdRequest struct {
+	Options
+	Name string
+}
+
+type SvcSelectCmdRequest struct {
 	Options
 	Name string
 }

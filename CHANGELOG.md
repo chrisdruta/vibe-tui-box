@@ -43,7 +43,10 @@ The v1 line and its history remain in git up to the cutover commit.
   are no longer attach-only-invisible. `vibe ps` grows a services
   section; the sidebar gives each window a roster row (dim while
   running, bright ✗ on death) with left-click reach into the services
-  viewer at the clicked window (`vibe attach SESSION [WINDOW]`) and
+  viewer at the clicked window — `vibe attach SESSION [WINDOW]` on a
+  fresh spawn, a backgrounded `vibe _svcselect` re-aim when the shared
+  viewer is already open (the first dogfood caught the gap same day:
+  without it every click read as "goes to the first service") — and
   right-click stop/dismiss (`vibe _svcstop` → agent-session.sh
   `svc-kill`). svc.sh now keeps corpses: remain-on-exit is set before
   the command runs (placeholder → option → respawn), so a crashed
