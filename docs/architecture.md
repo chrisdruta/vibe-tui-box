@@ -378,7 +378,8 @@ untrusted output; only security-decision views (approvals) promise
 terminal-safe rendering.
 
 What the TUI deliberately is not — schedulers, fleet dashboards, agent
-control APIs — is recorded in [positioning.md](positioning.md).
+control APIs — is recorded in the README's "What this deliberately is
+not" section, the settled scope ledger.
 
 ## Command surface
 

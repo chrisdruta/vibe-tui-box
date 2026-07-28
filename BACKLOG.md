@@ -52,56 +52,6 @@ section at the bottom — as revisable records, not fences.
   repository relationship (explicit opt-in only), and removal never
   deletes agent-state volumes automatically.
 
-- **Review/image stack revival.** The v1 image affordances did not survive
-  the cutover: `vibe show` (sixel preview), `vibe review` (locked
-  read-only yazi browser with A/R verdicts), the preview window, and the
-  sixel pipeline (show-image.sh, preview-image-hook.sh, yazi plugin).
-  The clipboard half is fully back (tui `prefix+v`, and the `vibe clip`
-  verb restored 2026-07-24); the rest is gated on the
-  revdiff trial verdict and the kitty-graphics trigger (entries below).
-  Revival verdict (2026-07-24, Chris): a REDESIGN, not a port — the v1
-  layering (bash wrapping yazi wrapping a Lua verdict plugin over
-  layered configs) is explicitly not wanted back. The v1 git history
-  remains the reference for the A/R verdict *flow* and the decisions
-  JSONL contract; the next design should put verdict capture at an
-  engine-owned layer and keep the viewer replaceable. (2026-07-26: the
-  default *viewing* path is now decided — editor-as-surface nvim
-  popups, docs/tui-layout.md "Editor surfaces"; this entry narrows to
-  the verdict-capture and image halves.) (2026-07-27: the IMAGE half
-  shipped as the redesign wanted — ctrl+click preview window,
-  docs/tui-layout.md "Preview window": chafa re-pinned, show-image.sh
-  revived host-pane-single-layer (no nesting, no passthrough), loud
-  low-fi degradation below tmux 3.7. No yazi, no `vibe show` verb —
-  the click IS the verb. This entry narrows to verdict capture.)
-  (2026-07-27, Chris: the VERDICT half is DROPPED, not deferred — no
-  A/R capture revival at all. The flow never earned its keep in v1
-  dogfood the way clipboard and viewing did; if structured verdicts
-  ever matter again, the decisions-JSONL contract stays readable in
-  the v1 git history. ENTRY CLOSED — the revival is fully resolved:
-  clipboard restored, viewing shipped, images shipped, verdicts
-  dropped.)
-
-- **revdiff trial verdict (pending dogfood).** revdiff was the v1 trial
-  diff-review surface; it gets a top-level verb only if it earns harness
-  logic (annotation capture — its annotations-to-stdout channel may
-  eventually absorb the `vibe review` A/R verdict flow). (2026-07-26:
-  the fallback is no longer the yazi diff-toggle Lua plugin — the
-  bundled review stack ships lazygit (`prefix+g`) as the default
-  diff-review surface (dogfood-approved; the interim `prefix+G`
-  difftool walk and its diffview successor both retired the same day
-  they shipped), so revdiff now competes only for the
-  annotation-capture harness role; other spare parts (fzf
-  change-preview glue, diffnav) remain recorded in git history.)
-  (2026-07-27: the A/R absorption target is gone — verdict capture
-  dropped outright, revival entry above — so revdiff must earn a verb
-  on annotation capture's own merits or retire at the trial verdict.)
-  (2026-07-27, Chris: trial verdict rendered — RETIRED, same hour as
-  the verdict drop and for the same reason: lazygit owns viewing,
-  telling the agent what to change owns feedback, and line-anchored
-  annotation never surfaced as a missing workflow in dogfood. Not in
-  the v2 image, never gets a verb; the binary pin and palette glue
-  stay readable in v1 history. ENTRY CLOSED.)
-
 - **Upstream a codex-plugin sandbox override.** The official
   codex-plugin-cc pins per-thread sandbox modes over the app-server API
   (`sandbox: "read-only"` / `"workspace-write"` in its scripts), which

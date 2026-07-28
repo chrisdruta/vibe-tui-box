@@ -75,7 +75,24 @@ docs are:
 - [configuration](docs/configuration.md) — the `vibe.yaml` schema
 - [extending](docs/extending.md) — project image extensions
 - [security](docs/security.md) — the trust model in practice
-- [positioning](docs/positioning.md) — what this deliberately is and is not
+
+## What this deliberately is not
+
+Agent tooling has three layers: the agent CLIs themselves (Claude Code,
+Codex), the orchestrators that fan them out across worktrees, and the
+environment the agent process actually executes in. `vibe` is the third
+layer only — a hardened container the CLIs run inside, plus the terminal
+affordances that make an agent workable there (the TUI cockpit,
+clipboard through the boundary, state dots the agent's own hooks push
+out). Anything that *drives* an agent is ceded to the layers above,
+and that ledger is a settled scope call, not an open question: no
+orchestration UI, scheduler, or fleet manager; no first-party agent
+loop or model API client; no centralized credential store; no
+bind-mounting host credentials (`~/.claude`, SSH keys, keychains) into
+containers. Logins are per-project by design, not omission — each
+project's agent-state volume is a blast-radius cell, and "log in once,
+use everywhere" is exactly the cross-project token exposure the
+per-project trust boundary exists to prevent.
 
 ## Status
 
