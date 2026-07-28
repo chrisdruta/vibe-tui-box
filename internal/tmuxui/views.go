@@ -128,20 +128,29 @@ const fleetSep = "\x1f"
 // model for Agents() and the read model ParseAgents() answers — one
 // record, one grammar (unlike the fleet, whose write side is a whole
 // ProjectView).
+// AgentEntryKindService marks an AgentEntry as a workspace service
+// (docs/tui-layout.md "Workspace services"): Session is then the svc.sh
+// WINDOW name inside the container's `services` session, not an
+// attachable address of its own.
+const AgentEntryKindService = "svc"
+
 type AgentEntry struct {
 	Project string // full project ID, the join key for tmux @vibe_project
 	Session string // inner tmux session name — the ADDRESS `vibe attach` takes
 	State   string // agent-session state vocabulary (theme.go AgentStates)
 	CLI     string // the CLI actually running at that address
 	Model   string
+	Kind    string // "" = agent session; AgentEntryKindService = svc window
 }
 
 // Agents renders the `vibe _agents` porcelain, one container-side agent
-// session per line:
+// session or workspace-service window per line:
 //
-//	1<US>project<US>session<US>state<US>cli<US>model
+//	1<US>project<US>session<US>state<US>cli<US>model[<US>kind]
 //
-// The leading field is the protocol version. Sessions are addresses: a
+// The leading field is the protocol version; the trailing kind is
+// omitted for agent rows, `svc` for workspace services. Sessions are
+// addresses (or svc window names sharing the same closed charset): a
 // name that could not survive a tmux target, a state-file name, or a
 // mouse-range name is dropped outright rather than escaped — every
 // consumer of this porcelain turns the session into one of those. CLI
@@ -155,12 +164,16 @@ func Agents(entries []AgentEntry, width int) []string {
 		if e.Project == "" || !sessionNameRe.MatchString(e.Session) {
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("1%s%s%s%s%s%s%s%s%s%s",
+		line := fmt.Sprintf("1%s%s%s%s%s%s%s%s%s%s",
 			fleetSep, e.Project,
 			fleetSep, e.Session,
 			fleetSep, terminal.Line(e.State, 24),
 			fleetSep, terminal.Line(e.CLI, width),
-			fleetSep, terminal.Line(e.Model, width)))
+			fleetSep, terminal.Line(e.Model, width))
+		if e.Kind == AgentEntryKindService {
+			line += fleetSep + AgentEntryKindService
+		}
+		lines = append(lines, line)
 	}
 	return lines
 }

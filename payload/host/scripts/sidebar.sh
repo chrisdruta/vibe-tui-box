@@ -168,6 +168,20 @@ click)
       here="$(cd "$(dirname "$0")" && pwd)"
       exec bash "$here/agent-open.sh" "$client" "${sid%%:*}" "${sid#*:agent-}"
       ;;
+    *:svc-*)
+      # workspace-service row: reach the services viewer at the clicked
+      # window (agent-open.sh -s owns the jump-or-spawn).
+      here="$(cd "$(dirname "$0")" && pwd)"
+      exec bash "$here/agent-open.sh" "$client" "${sid%%:*}" -s "${sid#*:svc-}"
+      ;;
+    *:svcx-*)
+      # DEAD workspace-service row keeps its reach — the `services`
+      # session lives on and the kept corpse window holds the crash
+      # log, exactly what the click should show. The x marks deadness
+      # for the right-click menu's dismiss label only.
+      here="$(cd "$(dirname "$0")" && pwd)"
+      exec bash "$here/agent-open.sh" "$client" "${sid%%:*}" -s "${sid#*:svcx-}"
+      ;;
     *:dead-*)
       # dead viewer-less row: the ✗ is signal, not reach — LEFT-click
       # degrades to the project switch (an attach would refuse); the

@@ -38,6 +38,21 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- New: **workspace services join the TUI** (docs/tui-layout.md
+  "Workspace services") — the svc.sh windows post-start hooks stand up
+  are no longer attach-only-invisible. `vibe ps` grows a services
+  section; the sidebar gives each window a roster row (dim while
+  running, bright ✗ on death) with left-click reach into the services
+  viewer at the clicked window (`vibe attach SESSION [WINDOW]`) and
+  right-click stop/dismiss (`vibe _svcstop` → agent-session.sh
+  `svc-kill`). svc.sh now keeps corpses: remain-on-exit is set before
+  the command runs (placeholder → option → respawn), so a crashed
+  service stays visible with its crash log in the scrollback until
+  dismissed. No state records, no title channel — a service window is
+  a pane on the inner server, so `#{pane_dead_status}` carries the
+  exit code agents never get. Terminology split in the docs: sidecars
+  (manifest `services:`) vs workspace services (svc windows). The
+  tray and chooser deliberately stay agent-only.
 - Changed: **approve and reject take the request ID** — `vibe request
   approve add-port` resolves through the host-owned pending record,
   whose id→digest binding was frozen at poll time; retyping the 64-char

@@ -395,11 +395,11 @@ func TestFramePerBlockAgentOverflow(t *testing.T) {
 	var overflow string
 	overflowRow := -1
 	for row, content := range rows {
-		if strings.Contains(content, "agents") {
+		if strings.Contains(content, "more") {
 			overflow, overflowRow = content, row
 		}
 	}
-	if !strings.Contains(overflow, "… +3 agents") || overflowRow != 7 {
+	if !strings.Contains(overflow, "… +3 more") || overflowRow != 7 {
 		t.Fatalf("per-block overflow slot wrong: %q at row %d (rows %v)", overflow, overflowRow, rows)
 	}
 	if _, ok := clicks[overflowRow]; ok {
@@ -626,5 +626,97 @@ func TestFrameDegenerateHeights(t *testing.T) {
 				t.Fatalf("height %d mapped a click on row %d", h, row)
 			}
 		}
+	}
+}
+
+func TestFrameServiceRows(t *testing.T) {
+	in := FrameInput{
+		Width: 30, Height: 24, SelfSession: "$1",
+		Sessions: []FrameSession{
+			{ID: "$1", Name: "alpha", Path: "/a", Project: "projalpha"},
+		},
+		Agents: []AgentEntry{
+			{Project: "projalpha", Session: "agent", State: "working", CLI: "claude", Model: "opus"},
+			{Project: "projalpha", Session: "web", State: "running", Kind: AgentEntryKindService},
+			{Project: "projalpha", Session: "blender", State: "exited(137)", Kind: AgentEntryKindService},
+		},
+	}
+	out := Frame(in)
+	rows := frameRows(t, out.Body)
+	clicks := mapRows(t, out.Map)
+
+	// Service rows close the roster after the agent rows, carrying the
+	// dim `svc` qualifier where agents show their model.
+	if !strings.Contains(rows[2], "claude") {
+		t.Fatalf("agent row leads the roster: %q", rows[2])
+	}
+	if !strings.Contains(rows[3], "web") || !strings.Contains(rows[3], "svc") {
+		t.Fatalf("running service row with svc qualifier: %q", rows[3])
+	}
+	if clicks[3] != "$1:svc-web" {
+		t.Fatalf("service targets carry the window name: %q", clicks[3])
+	}
+	// The dim rule inverts the agent signal set: running is nominal
+	// (dim), a kept corpse is the glance that needs eyes (bright ✗,
+	// svcx- marks deadness for the menu's dismiss label) — and the dead
+	// row KEEPS its reach: the services session is alive and the corpse
+	// window holds the crash log.
+	dim, fgc := fg(PaletteHex("dim")), fg(PaletteHex("fg"))
+	if !strings.Contains(out.Body, dim+"web") {
+		t.Fatal("a running service whispers (dim name)")
+	}
+	if !strings.Contains(rows[4], "blender") || !strings.Contains(rows[4], "✗") {
+		t.Fatalf("dead service row: %q", rows[4])
+	}
+	if clicks[4] != "$1:svcx-blender" {
+		t.Fatalf("dead service target: %q", clicks[4])
+	}
+	if !strings.Contains(out.Body, fgc+"blender") {
+		t.Fatal("a dead service speaks (fg name)")
+	}
+	// Services never ghost: the tray keeps its agent-only contract.
+	if !strings.Contains(out.GhostMap, "agent") || strings.Contains(out.GhostMap, "web") {
+		t.Fatalf("ghost map must carry agents only: %q", out.GhostMap)
+	}
+
+	// With a stamped services viewer open, the target still carries the
+	// window name — the shared viewer would strip the name the
+	// right-click menu resolves verbs through (agent-open.sh owns the
+	// jump-or-spawn instead).
+	in.Sessions[0].Windows = []FrameWindow{
+		{ID: "@7", Name: "services", Session: "services"},
+	}
+	out = Frame(in)
+	clicks = mapRows(t, out.Map)
+	found := false
+	for _, target := range clicks {
+		if target == "$1:svc-web" {
+			found = true
+		}
+		if strings.HasSuffix(target, ":@7") && strings.Contains(target, "svc") {
+			t.Fatalf("service rows must not degrade to the viewer window id: %q", target)
+		}
+	}
+	if !found {
+		t.Fatal("service row target must survive an open services viewer")
+	}
+}
+
+func TestAgentsPorcelainServiceKind(t *testing.T) {
+	lines := Agents([]AgentEntry{
+		{Project: "p", Session: "agent-codex", State: "idle", CLI: "codex"},
+		{Project: "p", Session: "web", State: "running", Kind: AgentEntryKindService},
+	}, 80)
+	if len(lines) != 2 {
+		t.Fatalf("lines: %v", lines)
+	}
+	back := ParseAgents(lines)
+	if len(back) != 2 || back[0].Kind != "" || back[1].Kind != AgentEntryKindService ||
+		back[1].Session != "web" || back[1].State != "running" {
+		t.Fatalf("roundtrip: %+v", back)
+	}
+	// An unknown trailing kind drops the line like any shape error.
+	if got := ParseAgents([]string{lines[1] + "x"}); len(got) != 0 {
+		t.Fatalf("unknown kind must drop: %+v", got)
 	}
 }

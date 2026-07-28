@@ -509,13 +509,24 @@ func (a *App) RenderAgents(ctx context.Context, req RenderRequest) (RenderResult
 		if req.Project != "" && rec.ID != req.Project {
 			continue
 		}
-		for _, row := range a.agentRows(ctx, rec) {
+		agents, services := a.agentRows(ctx, rec)
+		for _, row := range agents {
 			entries = append(entries, tmuxui.AgentEntry{
 				Project: string(rec.ID),
 				Session: row.Name,
 				State:   row.State,
 				CLI:     row.CLI,
 				Model:   row.Model,
+			})
+		}
+		// Workspace services ride the same porcelain with the kind
+		// marker; Session carries the svc window name.
+		for _, row := range services {
+			entries = append(entries, tmuxui.AgentEntry{
+				Project: string(rec.ID),
+				Session: row.Name,
+				State:   row.State,
+				Kind:    tmuxui.AgentEntryKindService,
 			})
 		}
 	}

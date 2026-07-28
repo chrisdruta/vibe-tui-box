@@ -10,14 +10,14 @@
     {
       "path": "container/agent-ps.sh",
       "mode": "0755",
-      "size": 5804,
-      "digest": "sha256:d0f1a790029a7d2e159dad6c30eecb023bf16a55ad4dcc887ad5641d7b74451b"
+      "size": 6939,
+      "digest": "sha256:f9b9299230df29dccd962f2f54bab2807ebd4338f0f8fb6625c3bbeae852a12d"
     },
     {
       "path": "container/agent-session.sh",
       "mode": "0755",
-      "size": 14821,
-      "digest": "sha256:df84838ecf079fd42b9cfd77a544f94483288a6c7a3ab74cbdcb25e29b6a9e9f"
+      "size": 16243,
+      "digest": "sha256:e10ffc423449bc763f410c10bba04198769accd5a21bc4823c951c9a2bdcf7b4"
     },
     {
       "path": "container/agent-state-hook.sh",
@@ -124,8 +124,8 @@
     {
       "path": "container/svc.sh",
       "mode": "0644",
-      "size": 1659,
-      "digest": "sha256:d55f9cd27bc7324c76f790043715ca820d26dbef480306d477d73b1811b1187a"
+      "size": 2362,
+      "digest": "sha256:9d8624b13f7309f93874ce97e8bbda729525494764adae660481168daa556bf7"
     },
     {
       "path": "container/tmux-agent.conf",
@@ -136,14 +136,14 @@
     {
       "path": "host/scripts/agent-menu.sh",
       "mode": "0755",
-      "size": 5556,
-      "digest": "sha256:ad71d131f6082d9a7a14f8d312433bed0a39fba7e4a106f2f93e6548458b49c3"
+      "size": 6743,
+      "digest": "sha256:cb82fd0ee84fac81cd5a8e0701e52e0eb185a3bd6f9d106c5200cae35837924b"
     },
     {
       "path": "host/scripts/agent-open.sh",
       "mode": "0755",
-      "size": 3721,
-      "digest": "sha256:e49168cd49a810cfb1229077829ccebc34f3114e4af1ffd972dc4e3e8fa60e88"
+      "size": 4768,
+      "digest": "sha256:e1dfd6595ebf8ff90d9b2ca1a18f9f871401a4711728b6e24ed60f4013dfa434"
     },
     {
       "path": "host/scripts/chooser.sh",
@@ -196,8 +196,8 @@
     {
       "path": "host/scripts/sidebar.sh",
       "mode": "0755",
-      "size": 18749,
-      "digest": "sha256:f36ec0ba8c03768b06b7a2735e083bd039f76975fc7e164e8e118cd9a38a9f1d"
+      "size": 19436,
+      "digest": "sha256:df40060d36d26fadd8a84b55a36355f68c4e63653bd9f7f28fadb94353251dfa"
     },
     {
       "path": "host/scripts/state-render.sh",
@@ -278,5 +278,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:4b24f0691bdf0806eb78b0b8c6a0dd964767e37454ce0a48c8688ed0e3bf92d2"
+  "digest": "sha256:b0d96ee2b5c71f81678bcd07c3d9ef19a6c5905ace9952ff4f7fda51c15a775d"
 }

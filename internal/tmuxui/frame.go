@@ -100,16 +100,25 @@ func ParseFleet(lines []string) []FleetEntry {
 
 // ParseAgents parses the `vibe _agents` porcelain, the read twin of
 // Agents(), skipping lines of an unknown protocol version or shape.
+// The optional seventh field is the row kind (`svc` = workspace
+// service); an unknown kind drops the line like any other shape error.
 func ParseAgents(lines []string) []AgentEntry {
 	var out []AgentEntry
 	for _, line := range lines {
 		f := strings.Split(line, fleetSep)
-		if len(f) != 6 || f[0] != "1" || f[1] == "" || !sessionNameRe.MatchString(f[2]) {
+		if len(f) < 6 || len(f) > 7 || f[0] != "1" || f[1] == "" || !sessionNameRe.MatchString(f[2]) {
 			continue
 		}
-		out = append(out, AgentEntry{
+		e := AgentEntry{
 			Project: f[1], Session: f[2], State: f[3], CLI: f[4], Model: f[5],
-		})
+		}
+		if len(f) == 7 {
+			if f[6] != AgentEntryKindService {
+				continue
+			}
+			e.Kind = AgentEntryKindService
+		}
+		out = append(out, e)
 	}
 	return out
 }
@@ -284,7 +293,12 @@ func Frame(in FrameInput) FrameOutput {
 		fleetByID[f.ID] = f
 	}
 	agentsByProject := make(map[string][]AgentEntry, len(in.Agents))
+	servicesByProject := map[string][]AgentEntry{}
 	for _, ag := range in.Agents {
+		if ag.Kind == AgentEntryKindService {
+			servicesByProject[ag.Project] = append(servicesByProject[ag.Project], ag)
+			continue
+		}
 		agentsByProject[ag.Project] = append(agentsByProject[ag.Project], ag)
 	}
 
@@ -393,6 +407,37 @@ func Frame(in FrameInput) FrameOutput {
 				dim:    !AgentSignal(ag.State),
 			})
 		}
+		// Workspace services close the roster (docs/tui-layout.md
+		// "Workspace services"): one row per svc window — dot + name +
+		// a dim `svc` qualifier where agents show their model. The dim
+		// rule INVERTS the agent signal set: running is nominal (quiet,
+		// dim — a service has no idle/working split), exited(RC) is the
+		// glance that needs eyes. The click target always carries the
+		// window NAME (`svc-`/`svcx-`, the dead marker feeding the
+		// menu's dismiss label): the services viewer is shared, so the
+		// window-id jump would strip the name the right-click menu
+		// resolves verbs through. A DEAD service keeps its reach —
+		// unlike a dead agent session, the `services` SESSION is alive
+		// and the kept corpse window holds the crash log, exactly what
+		// the click should show.
+		for _, sv := range servicesByProject[s.Project] {
+			glyph, hex, ok := AgentStyle(sv.State)
+			if !ok {
+				continue
+			}
+			dead := strings.HasPrefix(sv.State, "exited")
+			token := ":svc-"
+			if dead {
+				token = ":svcx-"
+			}
+			agents = append(agents, agentRow{
+				dot:    fg(hex) + glyph,
+				name:   sv.Session,
+				model:  "svc",
+				target: s.ID + token + sv.Session,
+				dim:    !dead,
+			})
+		}
 		if self {
 			ghosts, ghostMap = ghostCells(agentsByProject[s.Project], viewed)
 		}
@@ -446,7 +491,7 @@ func Frame(in FrameInput) FrameOutput {
 		shown := min(len(agents), avail)
 		for i, a := range agents[:shown] {
 			if hidden := len(agents) - shown; hidden > 0 && i == shown-1 {
-				c.putAt(row, gutter+"  "+cDim+terminal.Line(fmt.Sprintf("… +%d agents", hidden+1), amax)+ansiReset, "")
+				c.putAt(row, gutter+"  "+cDim+terminal.Line(fmt.Sprintf("… +%d more", hidden+1), amax)+ansiReset, "")
 				row++
 				break
 			}

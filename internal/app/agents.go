@@ -125,7 +125,11 @@ func (a *App) Shell(ctx context.Context, cmd ContainerCommand) (ExecResult, erro
 type AttachRequest struct {
 	ContainerCommand
 	Session string
-	Nested  bool
+	// Window pre-selects a window within Session before the attach —
+	// the sidebar's service-row click lands on the clicked svc window.
+	// Best-effort in the container; requires Session.
+	Window string
+	Nested bool
 }
 
 // sessionNameRe matches the shared inner-session charset (tmux session
@@ -153,6 +157,9 @@ func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error)
 	if !sessionNameRe.MatchString(req.Session) {
 		return fail(fmt.Errorf("%w: session name %q", domain.ErrInvalid, req.Session))
 	}
+	if req.Window != "" && !sessionNameRe.MatchString(req.Window) {
+		return fail(fmt.Errorf("%w: window name %q", domain.ErrInvalid, req.Window))
+	}
 	ok, err := a.probeAgentSession(ctx, name)
 	if err != nil {
 		return fail(err)
@@ -165,6 +172,9 @@ func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error)
 	a.stampViewerWindow(ctx, req.Session)
 	cmd := req.ContainerCommand
 	cmd.Argv = []string{"bash", model.PayloadAgentSession, "attach", req.Session}
+	if req.Window != "" {
+		cmd.Argv = append(cmd.Argv, req.Window)
+	}
 	if req.Nested {
 		cmd.Env = append(cmd.Env, envfile.Entry{Key: "VIBE_NESTED", Value: "1"})
 	}
@@ -220,6 +230,51 @@ func (a *App) StopSession(ctx context.Context, req StopSessionRequest) (StopSess
 		return fail(fmt.Errorf("%w: agent-session kill exited %d", domain.ErrUnavailable, res.ExitCode))
 	}
 	return StopSessionResult{Session: req.Session}, nil
+}
+
+// StopServiceRequest ends one workspace-service window of the
+// in-container `services` session by its svc.sh window name — the
+// TUI's stop (live) and dismiss (kept corpse) verbs, which are one
+// tmux operation with different intents (`vibe _svcstop`).
+type StopServiceRequest struct {
+	Dir  string
+	Name string
+}
+
+type StopServiceResult struct {
+	Name string
+}
+
+func (a *App) StopService(ctx context.Context, req StopServiceRequest) (StopServiceResult, error) {
+	fail := opFail[StopServiceResult]("svcstop", "")
+	rec, name, err := a.devContainer(ctx, req.Dir)
+	if err != nil {
+		return fail(err)
+	}
+	fail = opFail[StopServiceResult]("svcstop", rec.ID)
+	// Same policy both sides of the exec (agent-session.sh svc-kill
+	// re-checks): the shared closed charset, window names only.
+	if !sessionNameRe.MatchString(req.Name) {
+		return fail(fmt.Errorf("%w: service window name %q", domain.ErrInvalid, req.Name))
+	}
+	ok, err := a.probeAgentSession(ctx, name)
+	if err != nil {
+		return fail(err)
+	}
+	if !ok {
+		return fail(fmt.Errorf("%w: stopping a service needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
+	}
+	res, err := a.execIn(ctx, name, ContainerCommand{
+		Dir:  req.Dir,
+		Argv: []string{"bash", model.PayloadAgentSession, "svc-kill", req.Name},
+	})
+	if err != nil {
+		return fail(err)
+	}
+	if res.ExitCode != 0 {
+		return fail(fmt.Errorf("%w: agent-session svc-kill exited %d", domain.ErrUnavailable, res.ExitCode))
+	}
+	return StopServiceResult{Name: req.Name}, nil
 }
 
 // DismissSessionRequest clears a DEAD session's state record — the

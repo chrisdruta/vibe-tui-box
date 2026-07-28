@@ -132,4 +132,28 @@ while IFS= read -r name; do
   [ -n "$who" ] && detail="${who}${detail:+ - $detail}"
   printf '%s|%s|%s|%s|%s|%s\n' "$name" "$state" "$ts" "$detail" "$cli" "$model"
 done < <(printf '%s\n' "${!candidates[@]}" | sort)
+
+# Workspace services (docs/tui-layout.md "Workspace services"): one
+# row per window of the `services` session — the svc.sh windows
+# post-start hooks stand up. No state records and no title channel: a
+# service window is a pane on THIS server, so #{pane_dead} +
+# #{pane_dead_status} carry liveness AND the exit code directly (the
+# fact agent runs never get — theirs dies at the docker-exec client
+# boundary). The vocabulary folds to running/exited(RC); nothing here
+# converses. The cli field's literal `svc` is the row's kind marker
+# for the engine parser; names are svc.sh-vetted but re-stripped —
+# free bytes never reach the field protocol.
+if tmux has-session -t "=services" 2>/dev/null; then
+  while IFS='|' read -r wname wdead wstatus; do
+    wname="${wname//[^a-zA-Z0-9_-]/}"
+    [ -n "$wname" ] || continue
+    wstate="running"
+    if [ "$wdead" = "1" ]; then
+      wstatus="${wstatus//[^0-9]/}"
+      wstate="exited(${wstatus:-?})"
+    fi
+    printf '%s|%s|||svc|\n' "$wname" "$wstate"
+  done < <(tmux list-windows -t "=services" \
+    -F '#{window_name}|#{pane_dead}|#{pane_dead_status}' 2>/dev/null || true)
+fi
 exit 0

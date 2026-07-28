@@ -71,12 +71,17 @@ type AgentPSRow struct {
 }
 
 // PSResult lists registered projects in deterministic fleet order,
-// plus the current project's agent sessions when its dev container is
-// running.
+// plus the current project's agent sessions and workspace services
+// when its dev container is running.
 type PSResult struct {
 	Projects     []registry.Record
 	AgentProject string // display name owning Agents; "" when none
 	Agents       []AgentPSRow
+	// Services are the svc.sh windows of the in-container `services`
+	// session (docs/tui-layout.md "Workspace services"): Name and State
+	// (running / exited(RC)) are the whole truth — no records, no CLI,
+	// no model.
+	Services []AgentPSRow
 }
 
 func (a *App) PS(ctx context.Context, req PSRequest) (PSResult, error) {
@@ -89,22 +94,24 @@ func (a *App) PS(ctx context.Context, req PSRequest) (PSResult, error) {
 	// Agent rows are strictly best-effort decoration: no project here,
 	// no running container, no payload — the fleet listing stands alone.
 	if _, rec, err := a.resolveProject(ctx, req.Dir); err == nil {
-		if rows := a.agentRows(ctx, rec); len(rows) > 0 {
+		agents, services := a.agentRows(ctx, rec)
+		if len(agents) > 0 || len(services) > 0 {
 			result.AgentProject = rec.DisplayName
-			result.Agents = rows
+			result.Agents = agents
+			result.Services = services
 		}
 	}
 	return result, nil
 }
 
-// agentRows runs the container-side `vibe ps` feeder for one project.
-// Best-effort by contract — no running dev container, no payload, a
-// nonzero feeder: no rows, never an error. Callers decorate with what
-// comes back.
-func (a *App) agentRows(ctx context.Context, rec registry.Record) []AgentPSRow {
+// agentRows runs the container-side `vibe ps` feeder for one project,
+// returning agent rows and workspace-service rows. Best-effort by
+// contract — no running dev container, no payload, a nonzero feeder:
+// no rows, never an error. Callers decorate with what comes back.
+func (a *App) agentRows(ctx context.Context, rec registry.Record) (agents, services []AgentPSRow) {
 	name, err := a.requireDevContainer(ctx, rec)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	var out bytes.Buffer
 	res, err := a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
@@ -114,7 +121,7 @@ func (a *App) agentRows(ctx context.Context, rec registry.Record) []AgentPSRow {
 		Streams:   dockerapi.Streams{Out: &out},
 	})
 	if err != nil || res.ExitCode != 0 {
-		return nil
+		return nil, nil
 	}
 	return parseAgentPS(out.String(), a.deps.Clock.Now())
 }
@@ -125,8 +132,11 @@ func (a *App) agentRows(ctx context.Context, rec registry.Record) []AgentPSRow {
 // bounded before they can reach a terminal or JSON output. The trailing
 // pair is optional — an image built before the split feeds four fields
 // and its rows keep rendering, CLI and model folded into Detail alone.
-func parseAgentPS(out string, now time.Time) []AgentPSRow {
-	var rows []AgentPSRow
+// A literal `svc` in the cli field is the workspace-service kind
+// marker (agent-ps.sh's services pass): those rows route to the second
+// return, and `svc` never collides with a real CLI — window names are
+// minted from agent binaries and the feeder allowlists them.
+func parseAgentPS(out string, now time.Time) (agents, services []AgentPSRow) {
 	for line := range strings.SplitSeq(out, "\n") {
 		parts := strings.Split(strings.TrimRight(line, "\r"), "|")
 		if len(parts) < 4 || parts[0] == "" {
@@ -145,9 +155,14 @@ func parseAgentPS(out string, now time.Time) []AgentPSRow {
 			row.Since = ts
 			row.Age = compactAge(now.Unix() - ts)
 		}
-		rows = append(rows, row)
+		if row.CLI == "svc" {
+			row.CLI = ""
+			services = append(services, row)
+			continue
+		}
+		agents = append(agents, row)
 	}
-	return rows
+	return agents, services
 }
 
 func sanitizeField(s string) string {

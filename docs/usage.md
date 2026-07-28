@@ -44,7 +44,7 @@ a failed `up` never moves the approved-candidate pointer.
 | `vibe run -- CMD ARGS…` | the env file frozen in the approved candidate, then `-e` |
 | `vibe agent [--cold] [-a CMD] [-s NAME] [--stop\|--restart]` | the manifest's agent CLI, with the frozen env file |
 | `vibe shell` | first of zsh/bash/sh found in the container, as a login shell |
-| `vibe attach [SESSION]` | the main process; with SESSION, that in-container tmux session (e.g. `services`) |
+| `vibe attach [SESSION [WINDOW]]` | the main process; with SESSION, that in-container tmux session (e.g. `services`), optionally at one window |
 | `vibe logs [SERVICE] [-f] [--tail N]` | container logs — the dev container, or a named sidecar |
 | `vibe bootstrap` | verify `bootstrap.required` tools exist in the container |
 | `vibe clip [DIR] [--path-only]` | host clipboard image → container `/tmp` (or workspace `DIR`, no daemon needed); prints the container path |
@@ -73,8 +73,15 @@ idempotent payload helper — each becomes a window in the in-container
 bash "$VIBE_PAYLOAD/container/svc.sh" web npm run dev
 ```
 
-`vibe attach services` joins that session; logs live in each window's
-scrollback.
+`vibe attach services` joins that session (`vibe attach services web`
+lands on one window); logs live in each window's scrollback. These
+**workspace services** are modeled in the TUI (docs/tui-layout.md
+"Workspace services"): `vibe ps` lists them, the sidebar gives each a
+row — dim while running, a bright ✗ when the process dies (the window
+is kept, so the crash log stays in its scrollback) — left-click
+reaches the services viewer, right-click stops a live one or
+dismisses a corpse. They are distinct from the manifest's `services:`
+**sidecars**, which are separate planned containers.
 
 ### Agent sessions persist
 

@@ -179,6 +179,16 @@ func (r *psResult) RenderHuman(w io.Writer) error {
 			}
 		}
 	}
+	if len(r.Result.Services) > 0 {
+		if _, err := fmt.Fprintf(w, "\nservices (%s)\n", r.Result.AgentProject); err != nil {
+			return err
+		}
+		for _, row := range r.Result.Services {
+			if _, err := fmt.Fprintf(w, "  %-18s %s\n", row.Name, row.State); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -191,11 +201,16 @@ func (r *psResult) RenderJSON(w io.Writer) error {
 	if agents == nil {
 		agents = []app.AgentPSRow{}
 	}
+	services := r.Result.Services
+	if services == nil {
+		services = []app.AgentPSRow{}
+	}
 	return writeJSON(w, "ps", struct {
 		Projects     []registry.Record `json:"projects"`
 		AgentProject string            `json:"agentProject,omitempty"`
 		Agents       []app.AgentPSRow  `json:"agents"`
-	}{projects, r.Result.AgentProject, agents})
+		Services     []app.AgentPSRow  `json:"services"`
+	}{projects, r.Result.AgentProject, agents, services})
 }
 
 type upResult struct {

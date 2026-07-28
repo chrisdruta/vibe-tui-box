@@ -23,8 +23,9 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
   echo "Usage: agent-session.sh agent [--cold] [-a] [-s NAME] [--restart] -- COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh stop [--cold] [-a] [-s NAME] -- COMMAND [ARGUMENT ...]" >&2
-  echo "       agent-session.sh attach [SESSION]" >&2
+  echo "       agent-session.sh attach [SESSION [WINDOW]]" >&2
   echo "       agent-session.sh kill SESSION" >&2
+  echo "       agent-session.sh svc-kill NAME" >&2
   echo "       agent-session.sh dismiss SESSION" >&2
   echo "       agent-session.sh run COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh reap" >&2
@@ -59,9 +60,16 @@ fi
 # place to start one by hand.
 if [ "$mode" = "attach" ]; then
   session="${1:-services}"
+  window="${2:-}"
   case "$session" in
     ""|*[!A-Za-z0-9_-]*)
       echo "agent-session.sh attach: SESSION must be letters, digits, '_' or '-': $session" >&2
+      exit 2
+      ;;
+  esac
+  case "$window" in
+    *[!A-Za-z0-9_-]*)
+      echo "agent-session.sh attach: WINDOW must be letters, digits, '_' or '-': $window" >&2
       exit 2
       ;;
   esac
@@ -83,6 +91,12 @@ if [ "$mode" = "attach" ]; then
       fi
       ;;
   esac
+  # An optional WINDOW pre-selects within the session (the sidebar's
+  # service-row click lands on the clicked window, not whatever was
+  # active); best-effort — a window gone since the click still attaches.
+  if [ -n "$window" ]; then
+    tmux select-window -t "=$session:$window" 2>/dev/null || true
+  fi
   exec tmux -u -f "$script_dir/tmux-agent.conf" new-session -A -s "$session"
 fi
 
@@ -113,6 +127,29 @@ if [ "$mode" = "kill" ]; then
     echo "stopped agent session '$session'"
   else
     echo "agent session '$session' is not running"
+  fi
+  exit 0
+fi
+
+# svc-kill mode ends ONE workspace-service window of the `services`
+# session — the TUI's stop (live) and dismiss (corpse) verbs, which
+# are the same tmux operation with different intents: kill-window ends
+# a running service or clears a kept corpse (svc.sh's remain-on-exit).
+# Window-scoped on purpose — agent sessions have their own kill above,
+# and killing the last services window ends the session, which is
+# exactly the empty-roster truth. Idempotent like kill.
+if [ "$mode" = "svc-kill" ]; then
+  name="${1:-}"
+  case "$name" in
+    *[!A-Za-z0-9_-]* | "")
+      echo "agent-session.sh svc-kill: NAME must be letters, digits, '_' or '-': $name" >&2
+      exit 2
+      ;;
+  esac
+  if tmux kill-window -t "=services:$name" 2>/dev/null; then
+    echo "removed service window '$name'"
+  else
+    echo "service window '$name' does not exist"
   fi
   exit 0
 fi

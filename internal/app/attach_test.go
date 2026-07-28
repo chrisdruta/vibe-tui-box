@@ -47,6 +47,25 @@ func TestAttachSession(t *testing.T) {
 		}
 	}
 
+	// A window argument rides the attach argv — the service rows' click
+	// lands on the clicked svc window; hostile window names never pass.
+	if _, err := a.Attach(ctx, AttachRequest{
+		ContainerCommand: ContainerCommand{Dir: dir}, Session: "services", Window: "web",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	execs = docker.CallsTo("Exec")
+	last = execs[len(execs)-1].Request.(dockerapi.ExecRequest)
+	want = []string{"bash", model.PayloadAgentSession, "attach", "services", "web"}
+	if !slices.Equal(last.Argv, want) {
+		t.Fatalf("attach window argv %v, want %v", last.Argv, want)
+	}
+	if _, err := a.Attach(ctx, AttachRequest{
+		ContainerCommand: ContainerCommand{Dir: dir}, Session: "services", Window: "a;rm",
+	}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("bad window name: %v", err)
+	}
+
 	// Under `vibe tui` the exec carries the nested marker, so the inner
 	// client a tray ghost's viewer creates is reapable when the UI dies.
 	if _, err := a.Attach(ctx, AttachRequest{
@@ -133,6 +152,42 @@ func TestStopSession(t *testing.T) {
 	})] = dockerapi.ExecResult{ExitCode: 1}
 	if _, err := a.StopSession(ctx, StopSessionRequest{Dir: dir, Session: "agent"}); !errors.Is(err, domain.ErrUnavailable) {
 		t.Fatalf("probe failure should be unavailable: %v", err)
+	}
+}
+
+func TestStopService(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// One operation for the menu's stop (live) and dismiss (corpse):
+	// the payload svc-kill mode with the window name.
+	res, err := a.StopService(ctx, StopServiceRequest{Dir: dir, Name: "blender"})
+	if err != nil || res.Name != "blender" {
+		t.Fatalf("svcstop: %+v, %v", res, err)
+	}
+	execs := docker.CallsTo("Exec")
+	last := execs[len(execs)-1].Request.(dockerapi.ExecRequest)
+	want := []string{"bash", model.PayloadAgentSession, "svc-kill", "blender"}
+	if !slices.Equal(last.Argv, want) {
+		t.Fatalf("svc-kill argv %v, want %v", last.Argv, want)
+	}
+
+	// Hostile window names never reach the container.
+	before := len(docker.CallsTo("Exec"))
+	for _, bad := range []string{"a;rm -rf", "", "x y"} {
+		if _, err := a.StopService(ctx, StopServiceRequest{Dir: dir, Name: bad}); !errors.Is(err, domain.ErrInvalid) {
+			t.Fatalf("name %q: %v", bad, err)
+		}
+	}
+	if len(docker.CallsTo("Exec")) != before {
+		t.Fatal("invalid name reached docker")
 	}
 }
 

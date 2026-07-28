@@ -185,6 +185,7 @@ type ExecRequest struct {
 type AttachCmdRequest struct {
 	ExecRequest
 	Session string
+	Window  string
 }
 
 // containerCommand wires terminal streams into an app request. The

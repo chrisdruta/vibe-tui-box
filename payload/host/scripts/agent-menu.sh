@@ -44,6 +44,7 @@ sess=""
 addr=""
 wid=""
 dead=""
+svc=""
 case "$mode" in
 ghost)
   sess="${3:-}"
@@ -93,11 +94,41 @@ row)
     addr="${target#*:dead-}"
     dead=1
     ;;
+  *:svc-*)
+    svc="${target#*:svc-}"
+    ;;
+  *:svcx-*)
+    svc="${target#*:svcx-}"
+    dead=1
+    ;;
   *) exit 0 ;; # the name row / slop: not an agent target
   esac
   ;;
 *) exit 0 ;;
 esac
+
+# Workspace-service rows (docs/tui-layout.md "Workspace services"):
+# stop (live) and dismiss (kept corpse) are one operation — `vibe
+# _svcstop` → agent-session.sh svc-kill — labeled by intent. Branches
+# before the agent-address gate: svc names are window names, not
+# addresses.
+if [ -n "${svc:-}" ]; then
+  case "$svc" in '' | *[!A-Za-z0-9_-]*) exit 0 ;; esac
+  case "$sess" in '' | *[!\$A-Za-z0-9_-]*) exit 0 ;; esac
+  path="$(tmux display-message -p -t "$sess" '#{session_path}' 2>/dev/null)"
+  [ -n "$path" ] || exit 0
+  qp="'${path//\'/\'\\\'\'}'"
+  svcstop_cmd="run-shell -b \"cd $qp && '#{@vibe_exe}' _svcstop '$svc' >/dev/null 2>&1 && tmux display-message -c '#{client_name}' 'vibe: stopped service $svc' || tmux display-message -c '#{client_name}' 'vibe: stop failed — $svc (container down?)'\""
+  args=()
+  [ -n "$client" ] && args+=(-c "$client")
+  args+=(-M -O -y S -T " $svc ")
+  if [ -n "$dead" ]; then
+    args+=("dismiss (clear ✗)" x "$svcstop_cmd")
+  else
+    args+=("stop service" x "$svcstop_cmd")
+  fi
+  exec tmux display-menu "${args[@]}"
+fi
 
 # Agent-convention addresses only — the engine and agent-session.sh
 # both re-check, but these words are about to land in menu commands.

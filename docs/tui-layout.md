@@ -388,7 +388,7 @@ name).
   (pane borders + two status lines are the only chrome) and the
   30-col budget both forbid border art.
 
-### Workspace services: svc windows join the surfaces (designed 2026-07-28, unshipped)
+### Workspace services: svc windows join the surfaces (2026-07-28, shipped same day)
 
 Terminology first, because two things now share a word: **sidecars**
 are the manifest's `services:` — planned infrastructure in their own
@@ -428,7 +428,16 @@ the sidebar cannot see them at all.
   and adding cells would re-break "no entity drawn twice".
 - **Clicks**: LEFT is reach — the attach-only spawn on address
   `services` (the `@vibe_session` stamp dedups the viewer exactly as
-  for agents), selecting the clicked window. RIGHT serves the per-row
+  for agents), selecting the clicked window. The row target always
+  carries the window NAME (`svc-`/`svcx-`), never the viewer window
+  id: the services viewer is shared, and an id target would strip the
+  name the right-click menu resolves verbs through. Accepted gap
+  (shipping dogfood): when a services viewer is already open, the
+  click brings it forward WITHOUT re-aiming its inner window — the
+  re-aim happens only on a fresh spawn (`vibe attach services WINDOW`
+  selects before the client connects); per-click re-aim would cost a
+  container exec per click and rides the next dogfood if it itches.
+  RIGHT serves the per-row
   menu the sidebar already speaks: live rows get **stop**
   (`kill-window` — honest and cheap; services are the operator's own
   workload, so the "never drive agents" cession does not apply), dead

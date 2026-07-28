@@ -173,7 +173,7 @@ var lifecycleCommands = map[string]Command{
 	"attach": {
 		Name:    "attach",
 		Summary: "attach to the main process, or a named in-container session",
-		Usage:   "vibe attach [SESSION] [-u USER]",
+		Usage:   "vibe attach [SESSION [WINDOW]] [-u USER]",
 		Parse: func(args []string) (Request, error) {
 			var req AttachCmdRequest
 			fs := newFlagSet("attach", &req.Options)
@@ -185,8 +185,12 @@ var lifecycleCommands = map[string]Command{
 			case 0:
 			case 1:
 				req.Session = rest[0]
+			case 2:
+				// WINDOW pre-selects within the session — the service
+				// rows' click lands on the clicked window.
+				req.Session, req.Window = rest[0], rest[1]
 			default:
-				return nil, fmt.Errorf("at most one SESSION argument")
+				return nil, fmt.Errorf("at most SESSION and WINDOW arguments")
 			}
 			return &req, nil
 		},
@@ -197,6 +201,7 @@ var lifecycleCommands = map[string]Command{
 			res, err := a.Attach(ctx, app.AttachRequest{
 				ContainerCommand: cmd,
 				Session:          r.Session,
+				Window:           r.Window,
 				// Same marker as `vibe agent`: a viewer opened from the
 				// tui (a tray ghost cell, a sidebar row) must be reapable
 				// when the UI dies.

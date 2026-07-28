@@ -9,6 +9,7 @@
 #
 #   agent-open.sh CLIENT SESSION NAME
 #   agent-open.sh CLIENT SESSION -g INDEX
+#   agent-open.sh CLIENT SESSION -s SVCNAME
 #
 # ATTACH-ONLY by contract: the window runs `vibe attach NAME`, which
 # reattaches the inner tmux session by its full address. It never
@@ -69,6 +70,27 @@ if [ "$name" = "-g" ]; then
   shift "$idx"
   name="$1"
 fi
+# Service-row form (docs/tui-layout.md "Workspace services"): the
+# target is the `services` session with the clicked svc WINDOW
+# pre-selected. The services viewer is shared, so an existing stamped
+# viewer wins (never a second viewer) — the click brings it forward
+# without re-aiming its inner window; the re-aim only happens on a
+# fresh spawn, where `vibe attach services WINDOW` selects before the
+# client connects.
+window=""
+if [ "$name" = "-s" ]; then
+  svc="${4:-}"
+  case "$svc" in "" | *[!A-Za-z0-9_-]*) exit 0 ;; esac
+  wid="$(tmux list-windows -t "$sess" -F '#{window_id} #{@vibe_session}' 2>/dev/null |
+    awk '$2=="services"{print $1; exit}')"
+  if [ -n "$wid" ]; then
+    [ -n "$client" ] && tmux switch-client -c "$client" -t "$sess" 2>/dev/null
+    tmux select-window -t "$wid" 2>/dev/null
+    exit 0
+  fi
+  name="services"
+  window="$svc"
+fi
 case "$name" in
   "" | *[!A-Za-z0-9_-]*) exit 0 ;; # never a shell word we did not vet
 esac
@@ -83,5 +105,9 @@ path="$(tmux display-message -p -t "$sess" '#{session_path}' 2>/dev/null)"
 # stamping here: `vibe attach` self-stamps its own window (the one
 # definition for every launch door — app.stampViewerWindow).
 [ -n "$client" ] && tmux switch-client -c "$client" -t "$sess" 2>/dev/null
-tmux new-window -t "$sess" -c "$path" -n "$name" "exec '$exe' attach '$name'" 2>/dev/null
+if [ -n "$window" ]; then
+  tmux new-window -t "$sess" -c "$path" -n "$name" "exec '$exe' attach '$name' '$window'" 2>/dev/null
+else
+  tmux new-window -t "$sess" -c "$path" -n "$name" "exec '$exe' attach '$name'" 2>/dev/null
+fi
 exit 0

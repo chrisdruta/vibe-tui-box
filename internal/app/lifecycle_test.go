@@ -473,7 +473,7 @@ func TestPSAgentRows(t *testing.T) {
 	psKey := dockerfake.ExecKey([]string{"bash", model.PayloadAgentPS})
 	base := time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC).Unix()
 	docker.ExecOutputs[psKey] = fmt.Sprintf(
-		"agent|working|%d|claude - opus|claude|opus\nagent-codex|exited(3)|%d|detached\nbad line\nevil|id\x1ble|%d|\n",
+		"agent|working|%d|claude - opus|claude|opus\nagent-codex|exited(3)|%d|detached\nbad line\nevil|id\x1ble|%d|\nweb|running|||svc|\nblender|exited(137)|||svc|\n",
 		base-90, base-7200, base-5)
 	res, err = a.PS(ctx, PSRequest{Dir: dir})
 	if err != nil {
@@ -481,6 +481,15 @@ func TestPSAgentRows(t *testing.T) {
 	}
 	if res.AgentProject == "" || len(res.Agents) != 3 {
 		t.Fatalf("agent rows wrong: %+v", res)
+	}
+	// The feeder's `svc` kind marker routes workspace-service rows to
+	// their own section — Name and State are the whole truth, and the
+	// marker never leaks into a CLI column.
+	if len(res.Services) != 2 ||
+		res.Services[0].Name != "web" || res.Services[0].State != "running" ||
+		res.Services[1].Name != "blender" || res.Services[1].State != "exited(137)" ||
+		res.Services[0].CLI != "" {
+		t.Fatalf("service rows wrong: %+v", res.Services)
 	}
 	if res.Agents[0].Name != "agent" || res.Agents[0].State != "working" || res.Agents[0].Age != "1m" {
 		t.Fatalf("row 0 wrong: %+v", res.Agents[0])

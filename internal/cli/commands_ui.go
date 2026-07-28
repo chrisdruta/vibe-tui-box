@@ -229,6 +229,36 @@ var uiCommands = map[string]Command{
 			return &renderResult{Lines: []string{"stopped " + res.Session}}, nil
 		},
 	},
+	"_svcstop": {
+		Name:    "_svcstop",
+		Summary: "internal workspace-service window stop",
+		Usage:   "vibe _svcstop NAME",
+		Hidden:  true,
+		// The sidebar service rows' stop (live) and dismiss (corpse)
+		// verbs — one kill-window either way; runs from the project
+		// directory like _stop.
+		Parse: func(args []string) (Request, error) {
+			var req SvcStopCmdRequest
+			fs := newFlagSet("_svcstop", &req.Options)
+			if err := parseArgs(fs, args); err != nil {
+				return nil, err
+			}
+			rest := fs.Args()
+			if len(rest) != 1 {
+				return nil, fmt.Errorf("_svcstop takes exactly one service window NAME")
+			}
+			req.Name = rest[0]
+			return &req, nil
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*SvcStopCmdRequest)
+			res, err := a.StopService(ctx, app.StopServiceRequest{Dir: dir, Name: r.Name})
+			if err != nil {
+				return nil, err
+			}
+			return &renderResult{Lines: []string{"stopped " + res.Name}}, nil
+		},
+	},
 	"_dismiss": {
 		Name:    "_dismiss",
 		Summary: "internal dead-session record dismissal",
@@ -344,6 +374,11 @@ type ChooserCmdRequest struct {
 type StopCmdRequest struct {
 	Options
 	Session string
+}
+
+type SvcStopCmdRequest struct {
+	Options
+	Name string
 }
 
 // DismissCmdRequest drives the hidden dead-record dismissal — the

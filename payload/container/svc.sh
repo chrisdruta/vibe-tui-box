@@ -7,7 +7,7 @@
 # it unconditionally; logs live in the window's scrollback and
 # `vibe attach services` is the door in. No env file is loaded — wrap
 # the command with `vibe run`-style loading yourself if it needs
-# project env. The one shell-string quoting layer is the tmux window
+# project env. The one shell-string quoting layer is the tmux respawn
 # command at the bottom (v1 rule: do not add another).
 set -euo pipefail
 
@@ -36,13 +36,25 @@ fi
 
 cmd="$(printf "%q " "$@")"
 
+# Corpses are kept (docs/tui-layout.md "Workspace services"): the
+# window outlives its process (remain-on-exit) so a crash stays
+# visible — the sidebar's ✗ row, the crash log in the scrollback —
+# until dismissed from the TUI or the window is killed by hand. The
+# option must hold BEFORE the command runs (an instantly-dying command
+# would close its window first), so windows are born holding the
+# default shell, get the option, then respawn into the real command.
+# Scoped per-window: a server-wide remain-on-exit would corpse the
+# AGENT windows, whose self-closing exit is their lifecycle.
+#
 # The inner server loads the payload conf at server start; inert when
 # the agent session already started it (same rule as agent-session.sh).
 if ! tmux has-session -t "=$session" 2>/dev/null; then
-  exec tmux -u -f "$script_dir/tmux-agent.conf" \
-    new-session -d -s "$session" -n "$name" "$cmd"
-fi
-if tmux list-windows -t "=$session" -F '#{window_name}' 2>/dev/null | grep -qx -- "$name"; then
+  tmux -u -f "$script_dir/tmux-agent.conf" \
+    new-session -d -s "$session" -n "$name"
+elif tmux list-windows -t "=$session" -F '#{window_name}' 2>/dev/null | grep -qx -- "$name"; then
   exit 0
+else
+  tmux new-window -d -t "=$session:" -n "$name"
 fi
-exec tmux new-window -d -t "=$session:" -n "$name" "$cmd"
+tmux set-option -w -t "=$session:$name" remain-on-exit on
+exec tmux respawn-window -k -t "=$session:$name" "$cmd"
