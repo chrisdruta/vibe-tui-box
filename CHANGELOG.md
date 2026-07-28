@@ -42,7 +42,10 @@ The v1 line and its history remain in git up to the cutover commit.
   "Workspace services") — the svc.sh windows post-start hooks stand up
   are no longer attach-only-invisible. `vibe ps` grows a services
   section; the sidebar gives each window a roster row (dim while
-  running, bright ✗ on death) with left-click reach into the services
+  running, bright ✗ on death) — blocks with services group under dim
+  `agents` / `services` headers with `├`/`└` tree connectors (second
+  dogfood; agents-only blocks keep the flat form) — with left-click
+  reach into the services
   viewer at the clicked window — `vibe attach SESSION [WINDOW]` on a
   fresh spawn, a backgrounded `vibe _svcselect` re-aim when the shared
   viewer is already open (the first dogfood caught the gap same day:

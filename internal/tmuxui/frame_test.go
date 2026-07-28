@@ -645,16 +645,23 @@ func TestFrameServiceRows(t *testing.T) {
 	rows := frameRows(t, out.Body)
 	clicks := mapRows(t, out.Map)
 
-	// Service rows close the roster after the agent rows, carrying the
-	// dim `svc` qualifier where agents show their model.
-	if !strings.Contains(rows[2], "claude") {
-		t.Fatalf("agent row leads the roster: %q", rows[2])
+	// With services present the block groups: dim unclickable `agents`
+	// / `services` header rows, entries hanging off tree connectors,
+	// and no per-row `svc` qualifier — the header says it once.
+	if !strings.Contains(rows[2], "agents") || clicks[2] != "" {
+		t.Fatalf("agents header row: %q click=%q", rows[2], clicks[2])
 	}
-	if !strings.Contains(rows[3], "web") || !strings.Contains(rows[3], "svc") {
-		t.Fatalf("running service row with svc qualifier: %q", rows[3])
+	if !strings.Contains(rows[3], "└ ") || !strings.Contains(rows[3], "claude") {
+		t.Fatalf("agent row closes its group: %q", rows[3])
 	}
-	if clicks[3] != "$1:svc-web" {
-		t.Fatalf("service targets carry the window name: %q", clicks[3])
+	if !strings.Contains(rows[4], "services") || clicks[4] != "" {
+		t.Fatalf("services header row: %q click=%q", rows[4], clicks[4])
+	}
+	if !strings.Contains(rows[5], "├ ") || !strings.Contains(rows[5], "web") || strings.Contains(rows[5], "svc ") {
+		t.Fatalf("running service row, no svc qualifier: %q", rows[5])
+	}
+	if clicks[5] != "$1:svc-web" {
+		t.Fatalf("service targets carry the window name: %q", clicks[5])
 	}
 	// The dim rule inverts the agent signal set: running is nominal
 	// (dim), a kept corpse is the glance that needs eyes (bright ✗,
@@ -665,11 +672,11 @@ func TestFrameServiceRows(t *testing.T) {
 	if !strings.Contains(out.Body, dim+"web") {
 		t.Fatal("a running service whispers (dim name)")
 	}
-	if !strings.Contains(rows[4], "blender") || !strings.Contains(rows[4], "✗") {
-		t.Fatalf("dead service row: %q", rows[4])
+	if !strings.Contains(rows[6], "└ ") || !strings.Contains(rows[6], "blender") || !strings.Contains(rows[6], "✗") {
+		t.Fatalf("dead service closes the tree: %q", rows[6])
 	}
-	if clicks[4] != "$1:svcx-blender" {
-		t.Fatalf("dead service target: %q", clicks[4])
+	if clicks[6] != "$1:svcx-blender" {
+		t.Fatalf("dead service target: %q", clicks[6])
 	}
 	if !strings.Contains(out.Body, fgc+"blender") {
 		t.Fatal("a dead service speaks (fg name)")
@@ -718,5 +725,33 @@ func TestAgentsPorcelainServiceKind(t *testing.T) {
 	// An unknown trailing kind drops the line like any shape error.
 	if got := ParseAgents([]string{lines[1] + "x"}); len(got) != 0 {
 		t.Fatalf("unknown kind must drop: %+v", got)
+	}
+}
+
+func TestFrameGroupedOverflowCountsEntries(t *testing.T) {
+	in := FrameInput{Width: 30, Height: 8, SelfSession: "$1",
+		Sessions: []FrameSession{{ID: "$1", Name: "alpha", Path: "/a", Project: "p"}},
+		Agents: []AgentEntry{
+			{Project: "p", Session: "agent", State: "working", CLI: "claude"},
+			{Project: "p", Session: "s1", State: "running", Kind: AgentEntryKindService},
+			{Project: "p", Session: "s2", State: "running", Kind: AgentEntryKindService},
+			{Project: "p", Session: "s3", State: "running", Kind: AgentEntryKindService},
+			{Project: "p", Session: "s4", State: "running", Kind: AgentEntryKindService},
+		}}
+	rows := frameRows(t, Frame(in).Body)
+	// The clipped tail is the services header plus four service
+	// entries; the tally counts ENTRIES only — headers are layout,
+	// not hidden services.
+	found := false
+	for _, content := range rows {
+		if strings.Contains(content, "+4 more") {
+			found = true
+		}
+		if strings.Contains(content, "+5 more") || strings.Contains(content, "+3 more") {
+			t.Fatalf("overflow mis-counts headers: %v", rows)
+		}
+	}
+	if !found {
+		t.Fatalf("no overflow slot: %v", rows)
 	}
 }

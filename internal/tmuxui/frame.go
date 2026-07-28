@@ -238,6 +238,25 @@ type agentRow struct {
 	model  string
 	target string
 	dim    bool // presence-not-signal (idle): the row renders dim
+	// Grouped-block fields (docs/tui-layout.md "Workspace services",
+	// second dogfood): header rows are the dim `agents` / `services`
+	// labels — render-only, no dot; conn is the tree connector ("├ ",
+	// "└ ") entry rows hang from when the block is grouped.
+	header bool
+	conn   string
+}
+
+// treeConns hangs a group's rows off its header: ├ for every row but
+// the last, └ closing the group.
+func treeConns(rows []agentRow) []agentRow {
+	for i := range rows {
+		if i == len(rows)-1 {
+			rows[i].conn = "└ "
+		} else {
+			rows[i].conn = "├ "
+		}
+	}
+	return rows
 }
 
 // windowSignal reports whether a viewer window's agent asks something
@@ -408,10 +427,9 @@ func Frame(in FrameInput) FrameOutput {
 			})
 		}
 		// Workspace services close the roster (docs/tui-layout.md
-		// "Workspace services"): one row per svc window — dot + name +
-		// a dim `svc` qualifier where agents show their model. The dim
-		// rule INVERTS the agent signal set: running is nominal (quiet,
-		// dim — a service has no idle/working split), exited(RC) is the
+		// "Workspace services"): one row per svc window. The dim rule
+		// INVERTS the agent signal set: running is nominal (quiet, dim
+		// — a service has no idle/working split), exited(RC) is the
 		// glance that needs eyes. The click target always carries the
 		// window NAME (`svc-`/`svcx-`, the dead marker feeding the
 		// menu's dismiss label): the services viewer is shared, so the
@@ -420,6 +438,7 @@ func Frame(in FrameInput) FrameOutput {
 		// unlike a dead agent session, the `services` SESSION is alive
 		// and the kept corpse window holds the crash log, exactly what
 		// the click should show.
+		var services []agentRow
 		for _, sv := range servicesByProject[s.Project] {
 			glyph, hex, ok := AgentStyle(sv.State)
 			if !ok {
@@ -430,13 +449,28 @@ func Frame(in FrameInput) FrameOutput {
 			if dead {
 				token = ":svcx-"
 			}
-			agents = append(agents, agentRow{
+			services = append(services, agentRow{
 				dot:    fg(hex) + glyph,
 				name:   sv.Session,
-				model:  "svc",
 				target: s.ID + token + sv.Session,
 				dim:    !dead,
 			})
+		}
+		// Grouped block (second dogfood, 2026-07-28): with services
+		// present the roster splits under dim `agents` / `services`
+		// header rows and entries hang off tree connectors; the per-row
+		// `svc` qualifier is gone — the header says it once. A block
+		// with no services keeps the flat form verbatim, so the common
+		// agents-only project pays nothing.
+		if len(services) > 0 {
+			grouped := make([]agentRow, 0, len(agents)+len(services)+2)
+			if len(agents) > 0 {
+				grouped = append(grouped, agentRow{name: "agents", header: true})
+				grouped = append(grouped, treeConns(agents)...)
+			}
+			grouped = append(grouped, agentRow{name: "services", header: true})
+			grouped = append(grouped, treeConns(services)...)
+			agents = grouped
 		}
 		if self {
 			ghosts, ghostMap = ghostCells(agentsByProject[s.Project], viewed)
@@ -491,11 +525,34 @@ func Frame(in FrameInput) FrameOutput {
 		shown := min(len(agents), avail)
 		for i, a := range agents[:shown] {
 			if hidden := len(agents) - shown; hidden > 0 && i == shown-1 {
-				c.putAt(row, gutter+"  "+cDim+terminal.Line(fmt.Sprintf("… +%d more", hidden+1), amax)+ansiReset, "")
+				// The overflow tally counts ENTRIES only — a clipped
+				// header row is layout, not a hidden agent or service.
+				n := 1
+				for _, h := range agents[shown:] {
+					if !h.header {
+						n++
+					}
+				}
+				if agents[shown-1].header {
+					n--
+				}
+				c.putAt(row, gutter+"  "+cDim+terminal.Line(fmt.Sprintf("… +%d more", n), amax)+ansiReset, "")
 				row++
 				break
 			}
-			c.putAt(row, gutter+"  "+a.dot+ansiReset+" "+agentLabel(a, amax, cFG, cDim), a.target)
+			if a.header {
+				c.putAt(row, gutter+"  "+cDim+terminal.Line(a.name, amax)+ansiReset, "")
+				row++
+				continue
+			}
+			pre, budget := "  ", amax
+			if a.conn != "" {
+				pre, budget = "  "+cDim+a.conn+ansiReset, amax-2
+				if budget < 8 {
+					budget = 8
+				}
+			}
+			c.putAt(row, gutter+pre+a.dot+ansiReset+" "+agentLabel(a, budget, cFG, cDim), a.target)
 			row++
 		}
 		c.putAt(row, "", s.ID) // blank slop row — the block separator

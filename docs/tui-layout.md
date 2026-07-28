@@ -418,11 +418,18 @@ the sidebar cannot see them at all.
 - **Engine**: `PSResult` grows service rows beside the agent rows;
   `vibe ps` prints them (full-truth surface stays full).
 - **Sidebar**: service rows close the project block AFTER the nested
-  agent rows, same grammar — state dot + name + dim `svc` qualifier
-  where agents show their model (`● blender  svc`), the name dim while
-  running (signal styles, never hides — the roster rule), `✗ name`
-  bright when dead. The per-block `… +n` overflow is shared with
-  agent rows.
+  agent rows — the name dim while running (signal styles, never hides
+  — the roster rule), `✗ name` bright when dead. The per-block `… +n`
+  overflow is shared with agent rows and tallies entries only.
+  **Grouped block (second dogfood, 2026-07-28)**: when a block has
+  services, the roster splits under dim render-only `agents` /
+  `services` header rows with entries hanging off `├`/`└` tree
+  connectors, and the per-row `svc` qualifier is gone — the header
+  says it once. This partially revives the section labels the
+  aggregate-roster era removed, on new grounds: positional context
+  disambiguated one kind of row, not two. A block with NO services
+  keeps the flat form verbatim — the common agents-only project pays
+  no rows and no connectors.
 - **Tray: nothing.** The tray contract is presence-and-reach for
   agent sessions; service reach is one door (the `services` session)
   and adding cells would re-break "no entity drawn twice".
