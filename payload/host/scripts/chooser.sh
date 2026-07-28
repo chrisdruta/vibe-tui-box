@@ -11,6 +11,8 @@
 #
 #   launch   new-window running `vibe agent` (the manifest default)
 #   launcha  new-window running `vibe agent -a KIND`
+#   launchc  new-window running `vibe agent --cold` (no repo
+#   launchac new-window running `vibe agent -a KIND --cold`  instructions)
 #   attach   agent-open.sh (the attach-only viewer spawn, both doors')
 #   jump     select-window to the existing viewer
 #
@@ -78,14 +80,19 @@ args+=(-M -O -y S -T " agents ")
 while IFS="$us" read -r ver label key verb arg; do
   [ "$ver" = "1" ] || continue
   case "$verb" in
-    launch | launcha)
+    launch | launcha | launchc | launchac)
       case "$arg" in "" | *[!A-Za-z0-9_-]*) continue ;; esac
       flag=""
-      [ "$verb" = "launcha" ] && flag=" -a $arg"
+      name="$arg"
+      case "$verb" in
+        launcha) flag=" -a $arg" ;;
+        launchc) flag=" --cold"; name="$arg-cold" ;;
+        launchac) flag=" -a $arg --cold"; name="$arg-cold" ;;
+      esac
       # The viewer join key (@vibe_session) needs no stamping here:
       # `vibe agent` self-stamps its own window (the one definition
       # for every launch door — app.stampViewerWindow).
-      cmd="new-window -c \"#{session_path}\" -n $arg \"'#{@vibe_exe}' agent$flag\""
+      cmd="new-window -c \"#{session_path}\" -n $name \"'#{@vibe_exe}' agent$flag\""
       ;;
     attach)
       case "$arg" in "" | *[!A-Za-z0-9_-]*) continue ;; esac

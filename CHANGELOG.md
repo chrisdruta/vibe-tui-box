@@ -38,6 +38,15 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- New: **cold agents are launchable from the tui** — the agents
+  chooser (`+` cell, palette "agents") grows a `:cold` block after
+  the warm entries: one per CLI that `vibe agent --cold` can start
+  without repo instruction files (claude/codex; grok stays out until
+  agent-session.sh knows its skip flag). Same reach-vs-launch
+  verdicts on the `-cold` address — a live cold session attaches or
+  jumps, never doubles — via the new `launchc`/`launchac` dispatch
+  verbs. Previously cold sessions were reachable everywhere but
+  launchable only by typing the verb in a shell.
 - New: **the preview window — ctrl+clicked images render in the tui**
   (docs/tui-layout.md "Preview window"). One reusable `@vibe_view`
   window per project session (respawned per click, named `⌗ filename`)

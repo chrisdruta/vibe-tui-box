@@ -50,18 +50,22 @@ func ParseChooserWindows(data string) []ChooserWindow {
 }
 
 // Chooser renders the `vibe _chooser` porcelain, one menu item per
-// installed CLI (manifest default first):
+// installed CLI (manifest default first) plus one `:cold` variant per
+// CLI that supports it (after the warm block — 2026-07-28, Chris,
+// superseding the "cold is the tray's business" call: the tray only
+// REACHES cold sessions, launching one had no tui door at all):
 //
 //	1<US>label<US>key<US>verb<US>arg
 //
 // verb/arg is the click dispatch: `launch` runs `vibe agent` and
 // `launcha` runs `vibe agent -a arg` (arg is the kind — also the new
-// viewer window's name); `attach` hands arg (a session address) to the
-// attach-only spawn; `jump` selects arg (a window id) — an existing
-// viewer is reused, never doubled. The glyph carries the recorded
-// state (a dead session keeps its ✗ beside a `launch` note), and the
-// note names what the click does, so "new" can never silently mean
-// "second viewer on the same session".
+// viewer window's name); `launchc`/`launchac` are their --cold twins;
+// `attach` hands arg (a session address) to the attach-only spawn;
+// `jump` selects arg (a window id) — an existing viewer is reused,
+// never doubled. The glyph carries the recorded state (a dead session
+// keeps its ✗ beside a `launch` note), and the note names what the
+// click does, so "new" can never silently mean "second viewer on the
+// same session".
 //
 // Entries are only as fresh as the fetch cache, and a stale verdict
 // stays safe by construction: `vibe agent` reattaches (-A) rather than
@@ -94,18 +98,9 @@ func Chooser(in ChooserInput) []string {
 	}
 
 	var lines []string
-	for i, kind := range kinds {
-		// Kinds land in window names, argv, and menu commands: the
-		// schema's closed set is already safe, but vet anyway — this
-		// porcelain's consumers turn fields into shell words.
-		if !sessionNameRe.MatchString(kind) {
-			continue
-		}
-		addr, verb := "agent", "launch"
-		if kind != in.Default {
-			addr, verb = "agent-"+kind, "launcha"
-		}
-		arg, note, glyph := kind, "launch", string(StateStopped)
+	idx := 0
+	add := func(kind, name, addr, launchVerb string) {
+		verb, arg, note, glyph := launchVerb, kind, "launch", string(StateStopped)
 		if ag, ok := byAddr[addr]; ok {
 			if g, _, styled := AgentStyle(ag.State); styled {
 				glyph = g
@@ -127,11 +122,45 @@ func Chooser(in ChooserInput) []string {
 			verb, arg, note = "jump", wid, "open"
 		}
 		key := ""
-		if i < 9 {
-			key = fmt.Sprintf("%d", i+1)
+		if idx < 9 {
+			key = fmt.Sprintf("%d", idx+1)
 		}
-		label := fmt.Sprintf("%s %s · %s", glyph, kind, note)
+		idx++
+		label := fmt.Sprintf("%s %s · %s", glyph, name, note)
 		lines = append(lines, strings.Join([]string{"1", label, key, verb, arg}, fleetSep))
+	}
+	for _, kind := range kinds {
+		// Kinds land in window names, argv, and menu commands: the
+		// schema's closed set is already safe, but vet anyway — this
+		// porcelain's consumers turn fields into shell words.
+		if !sessionNameRe.MatchString(kind) {
+			continue
+		}
+		addr, verb := "agent", "launch"
+		if kind != in.Default {
+			addr, verb = "agent-"+kind, "launcha"
+		}
+		add(kind, kind, addr, verb)
+	}
+	// The cold block: same reach-vs-launch verdicts on the -cold
+	// address, only for CLIs agent-session.sh knows how to start
+	// without repo instruction files.
+	for _, kind := range kinds {
+		if !coldKinds[kind] || !sessionNameRe.MatchString(kind) {
+			continue
+		}
+		addr, verb := "agent-cold", "launchc"
+		if kind != in.Default {
+			addr, verb = "agent-"+kind+"-cold", "launchac"
+		}
+		add(kind, kind+":cold", addr, verb)
 	}
 	return lines
 }
+
+// coldKinds are the CLIs `vibe agent --cold` can start without repo
+// instruction files — the other end of agent-session.sh's
+// instruction-skip case (claude --safe-mode, codex
+// project_doc_max_bytes=0); keep the two lists in lockstep, and keep
+// grok OUT until that script learns its skip flag (it exits 2 today).
+var coldKinds = map[string]bool{"claude": true, "codex": true}

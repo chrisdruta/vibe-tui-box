@@ -21,7 +21,9 @@ func TestChooser(t *testing.T) {
 		Agents: []AgentEntry{
 			{Project: "p", Session: "agent", State: "working", CLI: "claude", Model: "fable"},
 			{Project: "p", Session: "agent-codex", State: "idle", CLI: "codex"},
-			// A cold/named variant is the tray's business, not an entry here.
+			// Cold variants are chooser entries too (2026-07-28,
+			// superseding "the tray's business"): the live one below
+			// must render as a reach, not a second launch.
 			{Project: "p", Session: "agent-cold", State: "attention", CLI: "claude"},
 		},
 		Windows: []ChooserWindow{
@@ -29,8 +31,8 @@ func TestChooser(t *testing.T) {
 			{ID: "not-a-window", Session: "agent-codex"}, // vetted out: codex stays viewer-less
 		},
 	})
-	if len(out) != 3 {
-		t.Fatalf("want 3 entries, got %d: %q", len(out), out)
+	if len(out) != 5 {
+		t.Fatalf("want 3 warm + 2 cold entries, got %d: %q", len(out), out)
 	}
 	// The default's live session has a viewer: reuse it, never double.
 	f := chooserFields(t, out[0])
@@ -46,6 +48,18 @@ func TestChooser(t *testing.T) {
 	f = chooserFields(t, out[2])
 	if f[1] != "○ grok · launch" || f[2] != "3" || f[3] != "launcha" || f[4] != "grok" {
 		t.Fatalf("grok entry: %q", f)
+	}
+	// The cold block: the live agent-cold session reaches (attention
+	// glyph intact), the absent codex cold launches with both flags,
+	// and grok gets no cold entry at all (agent-session.sh has no
+	// instruction-skip flags for it).
+	f = chooserFields(t, out[3])
+	if f[1] != "● claude:cold · attach" || f[2] != "4" || f[3] != "attach" || f[4] != "agent-cold" {
+		t.Fatalf("claude cold entry: %q", f)
+	}
+	f = chooserFields(t, out[4])
+	if f[1] != "○ codex:cold · launch" || f[2] != "5" || f[3] != "launchac" || f[4] != "codex" {
+		t.Fatalf("codex cold entry: %q", f)
 	}
 }
 
@@ -102,8 +116,8 @@ func TestChooserOrderAndVetting(t *testing.T) {
 		Default: "codex",
 		Kinds:   []string{"claude", "codex", "bad name"},
 	})
-	if len(out) != 2 {
-		t.Fatalf("want 2 entries, got %q", out)
+	if len(out) != 4 {
+		t.Fatalf("want 2 warm + 2 cold entries, got %q", out)
 	}
 	if f := chooserFields(t, out[0]); f[1] != "○ codex · launch" || f[3] != "launch" {
 		t.Fatalf("default-first: %q", f)
@@ -111,10 +125,35 @@ func TestChooserOrderAndVetting(t *testing.T) {
 	if f := chooserFields(t, out[1]); f[4] != "claude" || f[3] != "launcha" {
 		t.Fatalf("non-default claude: %q", f)
 	}
+	// The cold block keeps the same default-first order, and the
+	// default's cold twin is the bare --cold launch.
+	if f := chooserFields(t, out[2]); f[1] != "○ codex:cold · launch" || f[3] != "launchc" || f[4] != "codex" {
+		t.Fatalf("default cold: %q", f)
+	}
+	if f := chooserFields(t, out[3]); f[3] != "launchac" || f[4] != "claude" {
+		t.Fatalf("non-default cold: %q", f)
+	}
 	// No manifest default: entries still render, all as -a launches.
 	out = Chooser(ChooserInput{Kinds: []string{"claude"}})
-	if len(out) != 1 || chooserFields(t, out[0])[3] != "launcha" {
+	if len(out) != 2 || chooserFields(t, out[0])[3] != "launcha" || chooserFields(t, out[1])[3] != "launchac" {
 		t.Fatalf("defaultless chooser: %q", out)
+	}
+}
+
+func TestChooserColdViewerJumps(t *testing.T) {
+	// A stamped viewer on the cold session: reuse it — the cold block
+	// obeys the same never-double rule as the warm one.
+	out := Chooser(ChooserInput{
+		Default: "claude",
+		Kinds:   []string{"claude"},
+		Agents:  []AgentEntry{{Project: "p", Session: "agent-cold", State: "running", CLI: "claude"}},
+		Windows: []ChooserWindow{{ID: "@9", Session: "agent-cold"}},
+	})
+	if len(out) != 2 {
+		t.Fatalf("want warm + cold, got %q", out)
+	}
+	if f := chooserFields(t, out[1]); f[1] != "● claude:cold · open" || f[3] != "jump" || f[4] != "@9" {
+		t.Fatalf("cold viewer entry: %q", f)
 	}
 }
 

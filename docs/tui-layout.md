@@ -306,6 +306,18 @@ name).
   sidebar's viewer-less rows — the palette.sh precedent. It carries the
   `VIBE_NESTED` marker like `vibe agent`, so the viewer it opens is
   reapable when the UI dies.
+- **Cold entries in the chooser (2026-07-28, Chris — supersedes the
+  "cold is the tray's business" note in the chooser tests).** The
+  chooser grows a `:cold` block after the warm one: one entry per
+  installed CLI that `vibe agent --cold` can actually start without
+  repo instruction files (claude/codex — `tmuxui.coldKinds`, kept in
+  lockstep with agent-session.sh's instruction-skip case; grok stays
+  out until that script learns its flag). Same reach-vs-launch
+  verdicts on the `-cold` address, same never-a-second-viewer rule;
+  the new verbs `launchc`/`launchac` are the `--cold` twins of
+  launch/launcha. Before this, cold sessions were reachable
+  everywhere but launchable nowhere in the tui — the only door was
+  typing the verb in a shell.
 - **The ghost channel.** No conf-side engine call: the sidebar's frame
   renderer already joins `vibe ps` truth against this server's windows,
   so it publishes the rendered cells as the session option

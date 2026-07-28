@@ -37,8 +37,8 @@ func TestRenderChooser(t *testing.T) {
 		CacheDir: cache,
 		Project:  rec.ID,
 	})
-	if err != nil || len(res.Lines) != 2 {
-		t.Fatalf("chooser render: %+v, %v", res, err)
+	if err != nil || len(res.Lines) != 4 {
+		t.Fatalf("chooser render (2 warm + 2 cold): %+v, %v", res, err)
 	}
 	// The default's live session has a viewer here: jump to it. The
 	// codex row belongs to ANOTHER project — scoping must not leak it
@@ -50,6 +50,16 @@ func TestRenderChooser(t *testing.T) {
 	f = strings.Split(res.Lines[1], us)
 	if f[3] != "launcha" || f[4] != "codex" {
 		t.Fatalf("codex entry: %q", f)
+	}
+	// The cold block rides the same render (verdict details are
+	// table-tested in tmuxui): default's cold twin then codex's.
+	f = strings.Split(res.Lines[2], us)
+	if f[3] != "launchc" || f[4] != "claude" {
+		t.Fatalf("claude cold entry: %q", f)
+	}
+	f = strings.Split(res.Lines[3], us)
+	if f[3] != "launchac" || f[4] != "codex" {
+		t.Fatalf("codex cold entry: %q", f)
 	}
 
 	// A project the registry does not know is an error (chooser.sh falls
