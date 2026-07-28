@@ -562,22 +562,21 @@ func TestViewerWindowSelfStamp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Outside the vibe-engine server no stamp lands: pane ids are
-	// per-server counters, and a personal tmux's %3 could collide with
-	// a real window on ours.
-	t.Setenv("TMUX", "/tmp/tmux-1000/default,123,0")
-	t.Setenv("TMUX_PANE", "%3")
+	// Outside the vibe-engine server the edge resolves ViewerPane to
+	// empty (tmux.SelfPane) and no stamp lands: pane ids are per-server
+	// counters, and a personal tmux's %3 could collide with a real
+	// window on ours.
 	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}}); err != nil {
 		t.Fatal(err)
 	}
 	if len(rt.winOptions) != 0 {
-		t.Fatalf("a foreign server must not be stamped: %v", rt.winOptions)
+		t.Fatalf("without a viewer pane nothing must be stamped: %v", rt.winOptions)
 	}
 
 	// Inside the engine server, every launch door self-stamps its own
 	// window with the composed session address — the grammar mirror of
 	// agent-session.sh's agent(-cmd)(-name)(-cold).
-	t.Setenv("TMUX", "/tmp/tmux-1000/vibe-engine,123,0")
+	a.deps.ViewerPane = "%3"
 	if _, err := a.Agent(ctx, AgentRequest{ContainerCommand: ContainerCommand{Dir: dir}}); err != nil {
 		t.Fatal(err)
 	}

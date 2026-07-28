@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
@@ -18,6 +19,20 @@ import (
 // personal tmux. Deliberately not v1's "vibe": a leftover v1 server may
 // still hold that socket with an incompatible tmux and conf.
 const Socket = "vibe-engine"
+
+// SelfPane resolves the pane a vibe process may self-stamp: the
+// TMUX_PANE value, but only when the TMUX socket path names the
+// engine's own server. Pane ids are per-server counters, so a bare
+// TMUX_PANE from a personal tmux could collide with a real pane on
+// ours. Callers pass the ambient values in — core packages stay free
+// of environment reads.
+func SelfPane(pane, tmuxEnv string) string {
+	sock, _, _ := strings.Cut(tmuxEnv, ",")
+	if pane == "" || filepath.Base(sock) != Socket {
+		return ""
+	}
+	return pane
+}
 
 // SessionID is an engine-generated tmux session name.
 type SessionID string

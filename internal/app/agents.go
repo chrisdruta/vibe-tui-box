@@ -17,7 +17,6 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
-	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
 )
 
 // ContainerCommand is the shared shape for commands that run inside the
@@ -298,21 +297,15 @@ func agentSessionAddress(req AgentRequest) string {
 // events instead leaves hookless CLIs — and a freshly restored claude
 // that has not spoken yet — invisible to the join.
 //
-// Gated on actually running inside the vibe-engine server: pane ids
-// are per-server counters, so a bare TMUX_PANE from a personal tmux
-// could collide with a real pane on ours.
+// deps.ViewerPane is empty outside the vibe-engine server
+// (tmux.SelfPane), so foreign tmux panes are never stamped.
 func (a *App) stampViewerWindow(ctx context.Context, session string) {
-	if a.deps.Tmux == nil || session == "" {
-		return
-	}
-	pane := os.Getenv("TMUX_PANE")
-	sock, _, _ := strings.Cut(os.Getenv("TMUX"), ",")
-	if pane == "" || filepath.Base(sock) != tmux.Socket {
+	if a.deps.Tmux == nil || session == "" || a.deps.ViewerPane == "" {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
-	_ = a.deps.Tmux.SetWindowOption(ctx, pane, "@vibe_session", session)
+	_ = a.deps.Tmux.SetWindowOption(ctx, a.deps.ViewerPane, "@vibe_session", session)
 }
 
 // devContainer resolves the project and requires its dev container to

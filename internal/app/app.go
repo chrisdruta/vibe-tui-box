@@ -56,8 +56,12 @@ type Dependencies struct {
 	// (approvals then require explicit flags or fail).
 	Prompt terminal.Prompt
 	// Tmux drives the terminal UI; nil makes `vibe tui` unavailable.
-	Tmux    tmux.Client
-	Version version.Info
+	Tmux tmux.Client
+	// ViewerPane is the engine-server tmux pane this process runs in,
+	// resolved at the edge via tmux.SelfPane; empty outside the engine
+	// server, which disables viewer self-stamping.
+	ViewerPane string
+	Version    version.Info
 	// Payload is the embedded payload bundle; nil in payload-less test
 	// builds (provision then reports unavailable).
 	Payload *payload.Bundle

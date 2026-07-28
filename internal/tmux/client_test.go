@@ -105,3 +105,19 @@ func TestListSessionsFiltersVibe(t *testing.T) {
 		t.Fatalf("sessions: %+v", sessions)
 	}
 }
+
+func TestSelfPane(t *testing.T) {
+	cases := []struct {
+		name, pane, tmuxEnv, want string
+	}{
+		{"engine server", "%3", "/tmp/tmux-1000/vibe-engine,123,0", "%3"},
+		{"foreign server", "%3", "/tmp/tmux-1000/default,123,0", ""},
+		{"no pane", "", "/tmp/tmux-1000/vibe-engine,123,0", ""},
+		{"no tmux", "%3", "", ""},
+	}
+	for _, tc := range cases {
+		if got := SelfPane(tc.pane, tc.tmuxEnv); got != tc.want {
+			t.Errorf("%s: SelfPane(%q, %q) = %q, want %q", tc.name, tc.pane, tc.tmuxEnv, got, tc.want)
+		}
+	}
+}

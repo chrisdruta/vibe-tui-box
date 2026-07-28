@@ -141,6 +141,7 @@ func construct() (*app.App, error) {
 		Executables: executables,
 		Prompt:      &terminal.StdioPrompt{In: os.Stdin, Out: os.Stderr},
 		Tmux:        tmuxClient,
+		ViewerPane:  tmux.SelfPane(os.Getenv("TMUX_PANE"), os.Getenv("TMUX")),
 		Version:     version.Get(),
 		Payload:     bundle,
 		Release:     releases,
