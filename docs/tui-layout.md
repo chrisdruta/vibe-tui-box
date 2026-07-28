@@ -388,6 +388,59 @@ name).
   (pane borders + two status lines are the only chrome) and the
   30-col budget both forbid border art.
 
+### Workspace services: svc windows join the surfaces (designed 2026-07-28, unshipped)
+
+Terminology first, because two things now share a word: **sidecars**
+are the manifest's `services:` — planned infrastructure in their own
+containers, digest-bound and approval-gated. **Workspace services**
+are svc.sh windows in the in-container `services` tmux session —
+workload processes (dev servers, MCP daemons, headless tools) stood up
+by `.vibe/hooks/post-start.sh` at workload trust. This section is
+about the latter; today their only door is `vibe attach services` and
+the sidebar cannot see them at all.
+
+- **Data: a second pass in agent-ps.sh**, one row per window of the
+  `services` session — `name|state|epoch|detail`. No state records,
+  no title channel: a service window is a pane directly on the inner
+  server, so `#{pane_dead}` + `#{pane_dead_status}` carry liveness AND
+  the exit code — the fact that never crosses the docker-exec client
+  boundary for agents, which is what forced their whole records
+  system. The state vocabulary folds to `running` / `exited(RC)`;
+  there is no idle/working/attention because nothing here converses.
+  Rows ride the existing fetch-cache exec on the engine cadence —
+  zero extra container round-trips.
+- **Corpses are kept**: svc.sh sets `remain-on-exit` on the services
+  session, so a dead window persists with its scrollback (the crash
+  log) instead of vanishing — without this the sidebar could never
+  show ✗ for a service, because tmux would have closed the evidence.
+  Same philosophy as the agent corpse-with-hints fate: an unexplained
+  death stays visible until the operator clears it.
+- **Engine**: `PSResult` grows service rows beside the agent rows;
+  `vibe ps` prints them (full-truth surface stays full).
+- **Sidebar**: service rows close the project block AFTER the nested
+  agent rows, same grammar — state dot + name + dim `svc` qualifier
+  where agents show their model (`● blender  svc`), the name dim while
+  running (signal styles, never hides — the roster rule), `✗ name`
+  bright when dead. The per-block `… +n` overflow is shared with
+  agent rows.
+- **Tray: nothing.** The tray contract is presence-and-reach for
+  agent sessions; service reach is one door (the `services` session)
+  and adding cells would re-break "no entity drawn twice".
+- **Clicks**: LEFT is reach — the attach-only spawn on address
+  `services` (the `@vibe_session` stamp dedups the viewer exactly as
+  for agents), selecting the clicked window. RIGHT serves the per-row
+  menu the sidebar already speaks: live rows get **stop**
+  (`kill-window` — honest and cheap; services are the operator's own
+  workload, so the "never drive agents" cession does not apply), dead
+  rows get **dismiss** (clear the corpse). **Restart is rejected for
+  now**: the command lives only in post-start.sh, and running an
+  engine lifecycle hook out-of-band is a line not worth blurring — the
+  recorded follow-on is a per-project "re-run post-start" palette verb
+  that heals ALL missing services through the hook's own idempotence,
+  if dogfood asks for it.
+- **Chooser: out of scope.** Launching a service IS the hook; there is
+  nothing for a launch surface to offer.
+
 ### Launch surfaces: the agents chooser (2026-07-26, third pass)
 
 The first agent-surfaces dogfood broke the LAUNCH side three ways: the
