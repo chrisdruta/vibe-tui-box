@@ -160,7 +160,8 @@ opinionated, pinned review stack** — the engine already owns that
 toolchain (the tmux-pin precedent), and a cold host is the norm, not
 the edge. What survives from the first call: the viewer is glue-level
 replaceable and no `@vibe` knob (verdict capture, the third survivor,
-was later dropped outright — 2026-07-27, backlog revival entry).
+was later dropped outright — 2026-07-27; the closed revival record
+lives in the backlog's git history).
 
 - **Placement.** Binaries ride the tools image on the `wantsAgent`
   gate exactly like tmux (core product UX, not a manifest choice):

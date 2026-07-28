@@ -293,15 +293,17 @@ sequenceDiagram
     E->>E: freeze current inputs → immutable candidate
     O->>E: vibe request show ID
     E-->>O: sanitized reason/summary + candidate digest<br/>+ plan diff, approved → candidate
-    O->>E: vibe request approve sha256:…
+    O->>E: vibe request approve ID
     E->>E: build exactly that frozen candidate
     E-->>A: decision record at /vibe/results (ro mount)
 ```
 
 The load-bearing properties: the candidate is snapshotted *before*
-anything is shown, and approval names its digest — later workspace edits
-become a different pending candidate, so what you approved is exactly
-what runs. Request text renders only through the control-character-
+anything is shown, and approval addresses that frozen candidate — the
+request ID resolves through the id→digest binding host state recorded
+at poll time (`--digest` names it explicitly), so later workspace
+edits become a different pending candidate and what you approved is
+exactly what runs. Request text renders only through the control-character-
 escaping encoder, structurally separated from trusted chrome; beside it
 the engine renders its own bounded diff of the two canonical plans
 (approved → pending), so the decision surface always contains a trusted
