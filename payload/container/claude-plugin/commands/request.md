@@ -34,7 +34,7 @@ Author that request now.
    suspicious.
 3. Tell the user the request is filed and that, on the host, they review
    it with `vibe request list`, then `vibe request show <id>`, and apply
-   it with `vibe request approve <digest>`.
+   it with `vibe request approve <id>`.
 
 Do not edit files under `/vibe/` (read-only engine mounts), and do not
 attempt to restart, rebuild, or reconfigure containers yourself.

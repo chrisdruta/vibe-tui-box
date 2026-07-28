@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
@@ -19,8 +20,8 @@ type TuiRequest struct{ Options }
 type RequestCmdRequest struct {
 	Options
 	Sub       string // list | show | approve | reject
-	ID        string
-	Candidate string
+	ID        string // request ID (show, and the approve/reject default)
+	Candidate string // --digest: the explicit/scripted approve/reject form
 	Message   string
 	Yes       bool
 }
@@ -113,7 +114,7 @@ var uiCommands = map[string]Command{
 	"request": {
 		Name:    "request",
 		Summary: "list, show, approve, or reject agent rebuild requests",
-		Usage:   "vibe request list | show ID | approve DIGEST [--yes] | reject DIGEST [-m WHY]",
+		Usage:   "vibe request list | show ID | approve ID|--digest SHA [--yes] | reject ID|--digest SHA [-m WHY]",
 		Parse:   parseRequestCmd,
 		Run:     runRequestCmd,
 	},
@@ -441,6 +442,7 @@ func parseRequestCmd(args []string) (Request, error) {
 	fs := newFlagSet("request", &req.Options)
 	fs.BoolVar(&req.Yes, "yes", false, "skip confirmation")
 	fs.StringVar(&req.Message, "m", "", "rejection message")
+	fs.StringVar(&req.Candidate, "digest", "", "address the bound candidate digest explicitly")
 	if len(args) == 0 {
 		return nil, fmt.Errorf("want one of: list, show, approve, reject")
 	}
@@ -449,9 +451,9 @@ func parseRequestCmd(args []string) (Request, error) {
 		return nil, parseArgs(fs, args)
 	}
 	req.Sub = args[0]
-	// The documented usage puts flags after the digest (`approve DIGEST
-	// --yes`); stdlib parsing stops at the first positional, so re-parse
-	// around each one.
+	// The documented usage puts flags after the ID (`approve ID --yes`);
+	// stdlib parsing stops at the first positional, so re-parse around
+	// each one.
 	rest, err := parseInterleaved(fs, args[1:])
 	if err != nil {
 		return nil, err
@@ -467,10 +469,15 @@ func parseRequestCmd(args []string) (Request, error) {
 		}
 		req.ID = rest[0]
 	case "approve", "reject":
-		if len(rest) != 1 {
-			return nil, fmt.Errorf("%s needs a candidate digest", req.Sub)
+		switch {
+		case req.Candidate != "" && len(rest) == 0:
+		case req.Candidate == "" && len(rest) == 1:
+			req.ID = rest[0]
+		case req.Candidate != "":
+			return nil, fmt.Errorf("%s takes a request ID or --digest, not both", req.Sub)
+		default:
+			return nil, fmt.Errorf("%s needs a request ID (or --digest sha256:…)", req.Sub)
 		}
-		req.Candidate = rest[0]
 	default:
 		return nil, fmt.Errorf("unknown request subcommand %q", req.Sub)
 	}
@@ -497,17 +504,29 @@ func runRequestCmd(ctx context.Context, a *app.App, req Request, dir string) (Re
 		}
 		return &requestShowResult{Result: res}, nil
 	case "approve", "reject":
-		digest, err := domain.ParseDigest(r.Candidate)
-		if err != nil {
-			return nil, err
+		decide := app.RequestDecideRequest{
+			Dir:     dir,
+			Approve: r.Sub == "approve",
+			Message: r.Message,
+			Yes:     r.Yes,
 		}
-		res, err := a.RequestDecide(ctx, app.RequestDecideRequest{
-			Dir:       dir,
-			Candidate: digest,
-			Approve:   r.Sub == "approve",
-			Message:   r.Message,
-			Yes:       r.Yes,
-		})
+		if r.Candidate != "" {
+			digest, err := domain.ParseDigest(r.Candidate)
+			if err != nil {
+				return nil, err
+			}
+			decide.Candidate = digest
+		} else {
+			id, err := domain.ParseRequestID(r.ID)
+			if err != nil {
+				if strings.HasPrefix(r.ID, "sha256:") {
+					return nil, fmt.Errorf("%w (digests go through --digest)", err)
+				}
+				return nil, err
+			}
+			decide.ID = id
+		}
+		res, err := a.RequestDecide(ctx, decide)
 		if err != nil {
 			return nil, err
 		}

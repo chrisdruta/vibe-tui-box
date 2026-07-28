@@ -219,24 +219,38 @@ func TestParseClipCmd(t *testing.T) {
 }
 
 func TestParseRequestCmd(t *testing.T) {
-	req, err := parseRequestCmd([]string{"approve", "sha256:abc", "--yes"})
+	req, err := parseRequestCmd([]string{"approve", "add-port", "--yes"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := req.(*RequestCmdRequest)
-	if r.Sub != "approve" || r.Candidate != "sha256:abc" || !r.Yes {
+	if r.Sub != "approve" || r.ID != "add-port" || r.Candidate != "" || !r.Yes {
 		t.Fatalf("approve parse: %+v", r)
 	}
-	req, err = parseRequestCmd([]string{"reject", "sha256:abc", "-m", "why"})
+	req, err = parseRequestCmd([]string{"approve", "--digest", "sha256:abc", "--yes"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	r = req.(*RequestCmdRequest)
-	if r.Sub != "reject" || r.Message != "why" {
+	if r.Sub != "approve" || r.ID != "" || r.Candidate != "sha256:abc" || !r.Yes {
+		t.Fatalf("approve --digest parse: %+v", r)
+	}
+	req, err = parseRequestCmd([]string{"reject", "add-port", "-m", "why"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r = req.(*RequestCmdRequest)
+	if r.Sub != "reject" || r.ID != "add-port" || r.Message != "why" {
 		t.Fatalf("reject parse: %+v", r)
 	}
 	if _, err := parseRequestCmd([]string{"list", "extra"}); err == nil {
 		t.Fatal("list with argument should fail")
+	}
+	if _, err := parseRequestCmd([]string{"approve"}); err == nil {
+		t.Fatal("approve without ID or --digest should fail")
+	}
+	if _, err := parseRequestCmd([]string{"approve", "add-port", "--digest", "sha256:abc"}); err == nil {
+		t.Fatal("approve with both ID and --digest should fail")
 	}
 }
 

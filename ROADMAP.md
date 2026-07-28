@@ -103,11 +103,11 @@ what a first friend would need (demand-gated, moved below).
       builds the review-stack layers (nvim/lazygit/plugins/parser
       compile, 2026-07-26) — if it misses "minutes", rescope the
       promise, don't quietly miss it.
-- [ ] Approval ergonomics **(proposed)**: `vibe request approve <request-id>`
-      resolving through the host-owned pending record. The security property
-      is the id→digest binding frozen at poll time in host state — making
-      humans retype a 64-char digest adds friction, not safety. Keep
-      `--digest sha256:…` as the explicit/scripted form.
+- [x] Approval ergonomics (shipped 2026-07-28): `vibe request approve
+      <request-id>` resolving through the host-owned pending record. The
+      security property is the id→digest binding frozen at poll time in
+      host state — making humans retype a 64-char digest added friction,
+      not safety. `--digest sha256:…` remains the explicit/scripted form.
 - [ ] First-contact ceremony for repos that arrive with `.vibe/` already in
       them **(proposed)**: on first `register`/`up` of a manifest this host
       has never seen, show the manifest summary and extension status before

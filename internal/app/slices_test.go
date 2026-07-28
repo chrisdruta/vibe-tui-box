@@ -118,9 +118,16 @@ func TestBrokerRequestFlow(t *testing.T) {
 		t.Fatalf("show diff for unchanged candidate: label=%q diff=%q", show.DiffLabel, show.Diff.Lines)
 	}
 
-	// Reject writes a result the container can read and clears pending.
+	// Reject addresses the request ID, resolving through the candidate
+	// binding frozen at poll time; it writes a result the container can
+	// read and clears pending. An unknown ID is not found.
 	if _, err := a.RequestDecide(ctx, RequestDecideRequest{
-		Dir: dir, Candidate: candidate, Approve: false, Message: "not now",
+		Dir: dir, ID: "no-such-request", Approve: false,
+	}); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown request id: %v", err)
+	}
+	if _, err := a.RequestDecide(ctx, RequestDecideRequest{
+		Dir: dir, ID: "req-1", Approve: false, Message: "not now",
 	}); err != nil {
 		t.Fatal(err)
 	}

@@ -223,11 +223,16 @@ func shortDigest(d domain.Digest) string {
 	return "sha256:" + hex
 }
 
-// RequestDecideRequest approves or rejects a pending request. Approval
-// addresses the immutable candidate digest, never a workspace filename.
+// RequestDecideRequest approves or rejects a pending request, addressed
+// by request ID or by candidate digest. Either way the candidate that
+// applies is the one bound into host state at poll time — never a
+// workspace filename an agent could rewrite afterwards; the ID form
+// resolves through that frozen binding and the confirmation still
+// shows the digest.
 type RequestDecideRequest struct {
 	Dir       string
-	Candidate domain.Digest
+	ID        domain.RequestID // pending request to decide; or:
+	Candidate domain.Digest    // its bound candidate, addressed explicitly
 	Approve   bool
 	Message   string
 	Yes       bool // skip the interactive confirmation
@@ -257,14 +262,22 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 	if err != nil {
 		return fail(err)
 	}
+	if req.ID == "" && req.Candidate.IsZero() {
+		return fail(fmt.Errorf("%w: no request ID or candidate digest given", domain.ErrInvalid))
+	}
 	var match *broker.Pending
 	for i := range pending {
-		if pending[i].Candidate == req.Candidate {
-			match = &pending[i]
+		p := &pending[i]
+		if (req.ID != "" && p.RequestID == req.ID) ||
+			(!req.Candidate.IsZero() && p.Candidate == req.Candidate) {
+			match = p
 			break
 		}
 	}
 	if match == nil {
+		if req.ID != "" {
+			return fail(fmt.Errorf("%w: no pending request %s", domain.ErrNotFound, req.ID))
+		}
 		return fail(fmt.Errorf("%w: no pending request for candidate %s", domain.ErrNotFound, req.Candidate))
 	}
 

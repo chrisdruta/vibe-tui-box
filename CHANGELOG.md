@@ -38,6 +38,18 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- Changed: **approve and reject take the request ID** — `vibe request
+  approve add-port` resolves through the host-owned pending record,
+  whose id→digest binding was frozen at poll time; retyping the 64-char
+  digest was friction, not safety, and the confirmation still shows the
+  digest. `--digest sha256:…` remains the explicit/scripted form
+  (2026-07-28, the R2 approval-ergonomics item).
+- Removed: **the `harness:` manifest field** — required,
+  shape-validated, and consumed by nothing; which engine runs a project
+  is the host registry's artifact pin. Removed from schema, presets,
+  and docs while schema changes are still free (2026-07-28, the R1
+  schema call); manifests still carrying the line fail the closed
+  unknown-key check — delete the line.
 - New: **the sidebar speaks right-click too** — agent rows answer
   with the same per-session menu as the bar (one definition,
   agent-menu.sh, resolved through the click map): live rows get

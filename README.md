@@ -49,7 +49,7 @@ a request file; you decide on the host:
 ```sh
 vibe request list           # poll + bind each request to an immutable candidate
 vibe request show add-port
-vibe request approve sha256:…   # applies exactly the frozen candidate you saw
+vibe request approve add-port   # applies exactly the frozen candidate you saw
 ```
 
 ## How it holds together

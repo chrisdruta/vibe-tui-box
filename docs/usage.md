@@ -198,12 +198,16 @@ vibe request list             # poll; each new request is bound to an
                               # immutable candidate built from current inputs
 vibe request show add-port    # sanitized reason/summary + candidate digest
                               # + a bounded plan diff vs the approved candidate
-vibe request approve sha256:… [--yes]
-vibe request reject  sha256:… [-m "why"]
+vibe request approve add-port [--yes]
+vibe request reject  add-port [-m "why"]
 ```
 
-Approval addresses the candidate digest — what was frozen at poll time —
-never a filename an agent could rewrite afterwards. Decisions land in a
+Approve and reject take the request ID; `--digest sha256:…` addresses
+the bound candidate digest explicitly (the scripted form). Either way
+the candidate that applies is the one frozen into host state at poll
+time — the ID resolves through that binding, never through a filename
+an agent could rewrite afterwards, and the confirmation still shows
+the digest. Decisions land in a
 read-only results mount at `/vibe/results` inside the container. Request
 text is untrusted: it renders through the control-character-escaping
 encoder everywhere. The plan diff is the trusted half of the decision:
