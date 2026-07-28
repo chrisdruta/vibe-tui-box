@@ -72,8 +72,17 @@ esac
 # `vibe _stop` resolves the project from the working directory —
 # review.sh's -d contract. Feedback lands as a display-message either
 # way; the sidebar's watch channel repaints the roster on its own.
+# A TAB's stop also buries its own viewer: the death record rides the
+# pane's title channel, which the stop just killed, so the pane-died
+# hook can never see it as explained and would leave a corpse forever
+# (the 2026-07-28 dogfood's "Pane is dead" room). We ordered this
+# death — the window goes with it.
 qp="'${path//\'/\'\\\'\'}'"
-stop_cmd="run-shell -b \"cd $qp && '#{@vibe_exe}' _stop '$addr' >/dev/null 2>&1 && tmux display-message -c '#{client_name}' 'vibe: stopped $addr' || tmux display-message -c '#{client_name}' 'vibe: stop failed — $addr (container down?)'\""
+on_ok="tmux display-message -c '#{client_name}' 'vibe: stopped $addr'"
+# Bury inside the success branch, failure-swallowed: a window the
+# operator already closed by hand must not flip the report to failed.
+[ -n "$wid" ] && on_ok="tmux kill-window -t '$wid' 2>/dev/null; $on_ok"
+stop_cmd="run-shell -b \"cd $qp && '#{@vibe_exe}' _stop '$addr' >/dev/null 2>&1 && { $on_ok; } || tmux display-message -c '#{client_name}' 'vibe: stop failed — $addr (container down?)'\""
 
 args=()
 [ -n "$client" ] && args+=(-c "$client")

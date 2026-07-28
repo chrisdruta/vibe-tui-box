@@ -207,7 +207,14 @@ func TestFrameGutterBars(t *testing.T) {
 }
 
 func TestFrameGhostCells(t *testing.T) {
-	out := Frame(twoSessionInput())
+	in := twoSessionInput()
+	// Dead and viewer-less: a sidebar ✗ row (it still earns its roster
+	// row — the other tests' fixture stays without it so their row
+	// arithmetic holds), never a tray cell.
+	in.Agents = append(in.Agents, AgentEntry{
+		Project: "projalpha", Session: "agent-dead", State: "exited(1)", CLI: "codex",
+	})
+	out := Frame(in)
 
 	// Presence and reach: every container-side session of the OWN
 	// project with no window here, idle included, each its own user
@@ -226,6 +233,11 @@ func TestFrameGhostCells(t *testing.T) {
 	if strings.Contains(out.GhostMap, "agent-codex-review") {
 		t.Fatalf("a session with a viewer window must not also be a ghost: %q", out.GhostMap)
 	}
+	// Reach means alive: a dead session gets no cell (2026-07-28) —
+	// the sidebar's ✗ row and the chooser's launch entry carry it.
+	if strings.Contains(out.GhostMap, "agent-dead") {
+		t.Fatalf("a dead session must not be a tray cell: %q", out.GhostMap)
+	}
 	// The dot carries real state: attention is visible with no window.
 	if !strings.Contains(out.Ghosts, "#[fg="+PaletteHex("coral")+"]●") {
 		t.Fatalf("the attention ghost's dot must render coral: %q", out.Ghosts)
@@ -242,7 +254,7 @@ func TestFrameGhostCells(t *testing.T) {
 		}
 	}
 	// Another project's agents belong to another tray.
-	in := twoSessionInput()
+	in = twoSessionInput()
 	in.Agents = append(in.Agents, AgentEntry{Project: "projbeta", Session: "agent-elsewhere", State: "idle"})
 	if strings.Contains(Frame(in).Ghosts, "elsewhere") {
 		t.Fatal("ghost cells must be scoped to the tray's own project")

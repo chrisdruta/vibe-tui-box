@@ -329,9 +329,19 @@ name).
   stopped the session). The menu opens on the RELEASE per the
   tray-door lesson; the press arm serves non-agent tabs a trimmed
   copy of the pinned tmux's stock window menu (the one default the
-  bind costs). Stopping HUPs the attach client so the viewer window
-  closes itself, and the watch channel repaints the roster. Restart
-  stays palette-default-only until dogfood asks for per-address.
+  bind costs). A tab's stop BURIES ITS OWN VIEWER (2026-07-28): the
+  death record rides the pane's title channel, which the stop just
+  killed, so the pane-died hook can never see the death as explained
+  and would leave a "Pane is dead" corpse forever — we ordered this
+  death, the window goes with it. Crash corpses keep the
+  corpse-with-hints fate: an unexplained death should stay visible.
+  The same dogfood drew the dead/live line across the whole bar:
+  GHOST CELLS RENDER ONLY LIVE SESSIONS — a dead ghost's click ran an
+  attach that refuses dead sessions by design, a button wired to a
+  refusal — while dead stays on the signal surfaces, the sidebar's ✗
+  row and the chooser's launch-again entry. The watch channel
+  repaints the roster after a stop. Restart stays
+  palette-default-only until dogfood asks for per-address.
 - **The ghost channel.** No conf-side engine call: the sidebar's frame
   renderer already joins `vibe ps` truth against this server's windows,
   so it publishes the rendered cells as the session option

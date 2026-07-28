@@ -497,11 +497,15 @@ func agentLabel(a agentRow, budget int, cFG, cDim string) string {
 var ghostLabelRe = regexp.MustCompile(`[^A-Za-z0-9:._-]`)
 
 // ghostCells renders the tray's ghost cells for one project: every
-// container-side agent session with NO viewer window, as a clickable
-// cell in its own user mouse range. Presence and reach is the tray's
-// whole contract, so the only filter is "no window": an idle agent
-// still deserves one click. The dot carries real state — an attention
-// coral is visible with no window open at all.
+// LIVE container-side agent session with NO viewer window, as a
+// clickable cell in its own user mouse range. Presence and reach is
+// the tray's whole contract — an idle agent still deserves one click,
+// and an attention coral is visible with no window open at all — but
+// reach is also why dead sessions get NO cell (2026-07-28, Chris, the
+// corpse-UX dogfood): their click ran an attach that refuses dead
+// sessions by design, a button wired to a refusal. Dead stays on the
+// SIGNAL surfaces — the sidebar's ✗ row and the chooser's
+// launch-again entry.
 //
 // The range carries an INDEX (ghost-N), never the session name: tmux
 // stores a status range's name in a fixed 16-byte buffer (proven on
@@ -524,7 +528,7 @@ func ghostCells(agents []AgentEntry, viewed map[string]bool) (cells, ghostMap st
 	var b strings.Builder
 	var names []string
 	for _, ag := range agents {
-		if viewed[ag.Session] || !sessionNameRe.MatchString(ag.Session) {
+		if viewed[ag.Session] || !sessionNameRe.MatchString(ag.Session) || !AgentLive(ag.State) {
 			continue
 		}
 		glyph, hex, ok := AgentStyle(ag.State)

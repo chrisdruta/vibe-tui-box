@@ -136,8 +136,8 @@
     {
       "path": "host/scripts/agent-menu.sh",
       "mode": "0755",
-      "size": 3617,
-      "digest": "sha256:712a12a03a4e4fa2ec8124d0f30f6d537275b6855a2a43840c436e8767fd0ff0"
+      "size": 4157,
+      "digest": "sha256:6240e54daf29e2d5474f336e70b82e42fa34e774d63f952c907e804314d0f9f4"
     },
     {
       "path": "host/scripts/agent-open.sh",
@@ -278,5 +278,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:a18491cdc6e0e070ea6c3267a1b5ae86f1aeacafd338b804a0765ded9d0eacfa"
+  "digest": "sha256:6e7e958889ffe570ab9c55f3c32bc3b23110b73c912cc023baac6e96ea460f38"
 }

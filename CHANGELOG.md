@@ -47,7 +47,13 @@ The v1 line and its history remain in git up to the cutover commit.
   `kill` mode (attach's precedent — no flag reverse-mapping),
   idempotent, death recorded by the run-mode EXIT trap as ever.
   Non-agent window tabs keep a trimmed copy of the stock tmux window
-  menu on the press, exactly where it always was.
+  menu on the press, exactly where it always was. A tab's stop buries
+  its own viewer window (the death record rides the pane's title
+  channel the stop just killed, so the corpse could never self-clean),
+  and the bar now draws the dead/live line everywhere: ghost cells
+  render only LIVE sessions — dead stays on the signal surfaces, the
+  sidebar's ✗ row and the chooser's launch-again entry. Crash corpses
+  keep their corpse-with-hints fate: unexplained deaths stay visible.
 - New: **cold agents are launchable from the tui** — the agents
   chooser (`+` cell, palette "agents") grows a `:cold` block after
   the warm entries: one per CLI that `vibe agent --cold` can start
