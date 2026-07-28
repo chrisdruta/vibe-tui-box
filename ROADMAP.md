@@ -47,18 +47,20 @@ R1 unblocks R2 and R3 (an installer and an attestation both need real
 release artifacts to point at). R4 and R5 are independent and can proceed
 in parallel at any time.
 
-**Current sequencing (2026-07-26, Chris).** One short DevX fast-follow
-arc precedes R1: (1) rebuild-output UX (shipped 2026-07-26: the live
-bill-of-materials build view — see CHANGELOG), (2) tray phase 2 plus
-the nested sidebar roster it unlocked (shipped 2026-07-26 as one arc
-item on shared fetch-cache plumbing — the agent-surfaces contract in
-tui-layout.md; see CHANGELOG). **The arc is done: R1 is now the main
-thread**, with TUI/DevX work dropping to
-dogfood-reactive only until `v1.0.0-beta.1` is tagged. Context: the
-2026-07-24→26 TUI arc (layout pass, polish pass, bundled review stack —
-see CHANGELOG) shipped unscheduled and is done; per the thesis above,
-what R1 buys is not users, it is the author's own exit from dev mode
-onto a pinned, updatable release.
+**Current sequencing (2026-07-28, Chris).** This supersedes the
+2026-07-26 declaration that R1 was the main thread with TUI work
+"dogfood-reactive only" — a claim the two days that followed
+contradicted with 28 commits of new TUI capability and zero release
+work. Recording what is actually true rather than re-declaring what
+wasn't: **the TUI/DevX instrument is the main thread.** R1 is
+unchanged in content and remains the gate to v1.0, but it is
+demand-gated like everything else under the thesis — it gets scheduled
+when the author actually wants to leave dev mode onto a pinned
+release, not asserted as "next" while the instrument work continues.
+Corollary: this file stops pre-scheduling TUI arcs; that work ships as
+it ships and the CHANGELOG records it. An arc written here on the day
+its commits land is unscheduled work, and this file won't pretend
+otherwise.
 
 ## R1 — Release pipeline: ship something installable
 
