@@ -55,17 +55,12 @@ func parsePortNumber(s string) (int, error) {
 	return n, nil
 }
 
-// ValidHarnessVersion reports whether v is acceptable as the manifest's
-// harness field; init uses it to render only valid versions.
-func ValidHarnessVersion(v string) bool { return harnessRe.MatchString(v) }
-
 // ValidServiceName reports whether s is a legal sidecar service name;
 // commands taking a service argument gate on it before deriving
 // container names.
 func ValidServiceName(s string) bool { return serviceNameRe.MatchString(s) }
 
 var (
-	harnessRe     = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$`)
 	serviceNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	volumeNameRe  = serviceNameRe // same closed shape, distinct diagnostics
 	commandRe     = regexp.MustCompile(`^[a-z0-9][A-Za-z0-9._-]{0,63}$`)
@@ -89,11 +84,6 @@ func (d *Document) Validate() []domain.FieldError {
 
 	if m.Schema != SupportedSchema {
 		v.add("schema", fmt.Sprintf("schema %d is not supported; this engine supports schema %d", m.Schema, SupportedSchema))
-	}
-	if m.Harness == "" {
-		v.add("harness", "harness version is required, e.g. \"v2.0.0\"")
-	} else if !harnessRe.MatchString(m.Harness) {
-		v.add("harness", fmt.Sprintf("%q is not a version like \"v2.0.0\"", m.Harness))
 	}
 
 	v.image(m)

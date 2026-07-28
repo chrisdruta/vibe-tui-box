@@ -10,7 +10,6 @@ import (
 )
 
 const minimalManifest = `schema: 1
-harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
   agents: [claude]
@@ -20,7 +19,6 @@ agent:
 `
 
 const fullManifest = `schema: 1
-harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base@sha256:` + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" + `"
   agents: [claude, codex]
@@ -66,7 +64,7 @@ func TestLoadMinimal(t *testing.T) {
 		t.Fatalf("unexpected diagnostics: %v", errs)
 	}
 	m := doc.Manifest
-	if m.Schema != 1 || m.Harness != "v2.0.0" || m.Image.Base == "" || m.Agent.Cmd != AgentClaude {
+	if m.Schema != 1 || m.Image.Base == "" || m.Agent.Cmd != AgentClaude {
 		t.Fatalf("decoded manifest wrong: %+v", m)
 	}
 }
@@ -101,6 +99,7 @@ func TestLoadStructuralRejections(t *testing.T) {
 		{"non-string key", "1: x\n"},
 		{"custom tag", "a: !!binary aGk=\n"},
 		{"unknown field", "schema: 1\nbogus: true\n"},
+		{"retired harness key", "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n"},
 		{"not a mapping", "- a\n- b\n"},
 		{"wrong type", "schema: [1]\n"},
 	}
@@ -118,7 +117,7 @@ func TestLoadStructuralRejections(t *testing.T) {
 }
 
 func TestLoadLimits(t *testing.T) {
-	big := "schema: 1\nharness: v2.0.0\n" + strings.Repeat("# padding\n", 100)
+	big := "schema: 1\n" + strings.Repeat("# padding\n", 100)
 	if _, err := Load(strings.NewReader(big), Limits{MaxBytes: 64}); err == nil {
 		t.Fatal("byte limit not enforced")
 	}
@@ -142,7 +141,7 @@ func TestLoadLimits(t *testing.T) {
 }
 
 func TestAgentSpecParsing(t *testing.T) {
-	base := "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [%s]}\nagent: {cmd: claude}\n"
+	base := "schema: 1\nimage: {base: x, agents: [%s]}\nagent: {cmd: claude}\n"
 
 	doc := mustLoad(t, fmt.Sprintf(base, "claude@2.1.220, codex"))
 	if errs := doc.Validate(); len(errs) > 0 {
@@ -193,17 +192,16 @@ func TestValidateDiagnostics(t *testing.T) {
 		src      string
 		wantPath string
 	}{
-		{"unsupported schema", "schema: 9\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n", "schema"},
-		{"bad harness", "schema: 1\nharness: nope\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n", "harness"},
-		{"missing base", "schema: 1\nharness: v2.0.0\nimage: {agents: [claude]}\nagent: {cmd: claude}\n", "image.base"},
-		{"non-loopback port", "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nruntime: {ports: [\"0.0.0.0:80:80\"]}\nagent: {cmd: claude}\n", "runtime.ports[0]"},
-		{"absolute import source", "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: /etc, target: /d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].source"},
-		{"escaping import source", "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: ../up, target: /d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].source"},
-		{"relative import target", "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: m, target: d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].target"},
-		{"reserved service", "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nservices: {dev: {image: y}}\nagent: {cmd: claude}\n", "services.dev"},
-		{"agent not installed", "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: codex}\n", "agent.cmd"},
-		{"bad env key", "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nruntime: {env: {\"BAD-KEY\": \"1\"}}\nagent: {cmd: claude}\n", "runtime.env.BAD-KEY"},
-		{"absolute env_file", "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\nenv_file: /etc/passwd\n", "env_file"},
+		{"unsupported schema", "schema: 9\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n", "schema"},
+		{"missing base", "schema: 1\nimage: {agents: [claude]}\nagent: {cmd: claude}\n", "image.base"},
+		{"non-loopback port", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {ports: [\"0.0.0.0:80:80\"]}\nagent: {cmd: claude}\n", "runtime.ports[0]"},
+		{"absolute import source", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: /etc, target: /d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].source"},
+		{"escaping import source", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: ../up, target: /d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].source"},
+		{"relative import target", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: m, target: d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].target"},
+		{"reserved service", "schema: 1\nimage: {base: x, agents: [claude]}\nservices: {dev: {image: y}}\nagent: {cmd: claude}\n", "services.dev"},
+		{"agent not installed", "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: codex}\n", "agent.cmd"},
+		{"bad env key", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {env: {\"BAD-KEY\": \"1\"}}\nagent: {cmd: claude}\n", "runtime.env.BAD-KEY"},
+		{"absolute env_file", "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\nenv_file: /etc/passwd\n", "env_file"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -220,7 +218,7 @@ func TestValidateDiagnostics(t *testing.T) {
 }
 
 func TestValidatePositions(t *testing.T) {
-	doc := mustLoad(t, "schema: 9\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n")
+	doc := mustLoad(t, "schema: 9\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n")
 	errs := doc.Validate()
 	if len(errs) == 0 {
 		t.Fatal("expected diagnostics")
@@ -231,19 +229,19 @@ func TestValidatePositions(t *testing.T) {
 }
 
 func TestUnknownEnum(t *testing.T) {
-	if _, err := load(t, "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [copilot]}\nagent: {cmd: claude}\n"); err == nil {
+	if _, err := load(t, "schema: 1\nimage: {base: x, agents: [copilot]}\nagent: {cmd: claude}\n"); err == nil {
 		t.Fatal("unknown agent enum accepted")
 	}
-	if _, err := load(t, "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude], toolchains: [zig]}\nagent: {cmd: claude}\n"); err == nil {
+	if _, err := load(t, "schema: 1\nimage: {base: x, agents: [claude], toolchains: [zig]}\nagent: {cmd: claude}\n"); err == nil {
 		t.Fatal("unknown toolchain enum accepted")
 	}
-	if _, err := load(t, "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude, memory: always}\n"); err == nil {
+	if _, err := load(t, "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude, memory: always}\n"); err == nil {
 		t.Fatal("unknown memory enum accepted")
 	}
 }
 
 func TestAgentMemoryModes(t *testing.T) {
-	doc := mustLoad(t, "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude, memory: auto}\n")
+	doc := mustLoad(t, "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude, memory: auto}\n")
 	if doc.Manifest.Agent.Memory != MemoryAuto {
 		t.Fatalf("memory = %q, want auto", doc.Manifest.Agent.Memory)
 	}
@@ -251,7 +249,7 @@ func TestAgentMemoryModes(t *testing.T) {
 		t.Fatalf("memory: auto should validate: %v", errs)
 	}
 	// Absent means the zero value — the engine treats it as off.
-	doc = mustLoad(t, "schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n")
+	doc = mustLoad(t, "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n")
 	if doc.Manifest.Agent.Memory != "" {
 		t.Fatalf("absent memory = %q, want zero", doc.Manifest.Agent.Memory)
 	}

@@ -40,7 +40,7 @@ func TestTrackedPresetsRenderValidProjects(t *testing.T) {
 			// the chosen agent.memory value.
 			for _, memory := range []schema.MemoryMode{schema.MemoryOff, schema.MemoryAuto} {
 				files, err := Render(preset, TemplateData{
-					ProjectName: "proj", HarnessVersion: "v1.0.0", AutoMemory: string(memory),
+					ProjectName: "proj", AutoMemory: string(memory),
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -89,7 +89,7 @@ func TestTrackedPresetsRenderValidProjects(t *testing.T) {
 			minimal.Files[name] = content
 		}
 	}
-	files, err := Render(minimal, TemplateData{ProjectName: "proj", HarnessVersion: "v1.0.0", AutoMemory: "off"})
+	files, err := Render(minimal, TemplateData{ProjectName: "proj", AutoMemory: "off"})
 	if err != nil {
 		t.Fatal(err)
 	}

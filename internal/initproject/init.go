@@ -20,8 +20,7 @@ import (
 // TemplateData is everything a preset template may reference. Unknown
 // fields in a template are render errors.
 type TemplateData struct {
-	ProjectName    string
-	HarnessVersion string
+	ProjectName string
 	// AutoMemory is the manifest agent.memory value ("auto" or "off");
 	// always set, because an empty substitution renders invalid YAML.
 	AutoMemory string

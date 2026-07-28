@@ -94,11 +94,9 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 		}
 	}
 
-	harness := a.deps.Version.Release
 	files, err := initproject.Render(preset, initproject.TemplateData{
-		ProjectName:    filepath.Base(abs),
-		HarnessVersion: normalizeHarnessVersion(harness),
-		AutoMemory:     string(memory),
+		ProjectName: filepath.Base(abs),
+		AutoMemory:  string(memory),
 	})
 	if err != nil {
 		return fail(err)
@@ -143,15 +141,6 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 
 func initRecoveryErr(err error) error {
 	return opError("init", "", fmt.Errorf("%w (the rendered .vibe/ was kept; fix the cause and run `vibe register`)", err))
-}
-
-// normalizeHarnessVersion maps development builds onto a valid manifest
-// version string; anything the schema would reject becomes v0.0.0.
-func normalizeHarnessVersion(v string) string {
-	if schema.ValidHarnessVersion(v) {
-		return v
-	}
-	return "v0.0.0"
 }
 
 // DoctorRequest runs the health suite for the current directory.

@@ -23,7 +23,6 @@ import (
 func withPresetPayload(t *testing.T, a *App) {
 	t.Helper()
 	tmpl := `schema: 1
-harness: {{.HarnessVersion}}
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
   agents: [claude]
@@ -103,7 +102,7 @@ func TestInitRendersRegistersAndPins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(data) == "" || !containsStr(string(data), "harness: v") {
+	if string(data) == "" || !containsStr(string(data), "schema: 1") {
 		t.Fatalf("rendered manifest wrong:\n%s", data)
 	}
 
@@ -256,7 +255,6 @@ func TestBootstrapReportsTools(t *testing.T) {
 	ctx := context.Background()
 	dir := newProject(t)
 	writeManifest(t, dir, `schema: 1
-harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
   agents: [claude]

@@ -12,7 +12,6 @@ on the next `vibe up` / `vibe rebuild`.
 
 ```yaml
 schema: 1
-harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
   agents: [claude, codex]     # claude | codex | grok; claude@2.1.220 pins, claude@stable tracks that channel, bare = latest per rebuild
@@ -41,11 +40,12 @@ bootstrap:
 
 ## Field notes
 
-- **`schema` / `harness`** — `schema` must be exactly `1`. `harness` is
-  required and shape-checked (`vX.Y.Z`) but otherwise inert: which
-  engine runs a project is the host registry's per-project artifact
-  pin, not a manifest field. (Its removal is an open R1 call on the
-  [roadmap](../ROADMAP.md).)
+- **`schema`** — must be exactly `1`. There is no engine-version field:
+  which engine runs a project is the host registry's per-project
+  artifact pin, not a manifest concern. (A `harness:` field existed
+  pre-release — required, shape-checked, consumed by nothing — and was
+  removed 2026-07-28; a manifest still carrying it fails the closed
+  schema's unknown-key check, and the fix is deleting the line.)
 - **`image.base`** — any image reference; the engine resolves it to a
   registry digest at candidate time and runs by digest from then on.
   Pin with `@sha256:…` yourself for full reproducibility.

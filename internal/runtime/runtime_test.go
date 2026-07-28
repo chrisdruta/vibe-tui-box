@@ -27,7 +27,6 @@ const testProjectID = domain.ProjectID("abcdefghijklmnopqrstuvwxyz")
 var testToolsDigest = domain.SHA256([]byte("built-tools"))
 
 const testManifest = `schema: 1
-harness: v2.0.0
 image:
   base: "base:1@sha256:1111111111111111111111111111111111111111111111111111111111111111"
   agents: [claude]

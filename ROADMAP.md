@@ -27,9 +27,8 @@ Release tags continue the repo's own sequence: the bash line topped out at
 `v0.7.3`, so the Go engine's first stable tag is **`v1.0.0`**. "v2" was
 always the name of the architecture generation relative to the retired
 bash harness — it stays in historical prose but is not a tag; user-facing
-docs just say "the engine". The `harness: v2.0.0` strings in examples and
-the dogfood manifest get reconciled when R1 settles the `harness:` field's
-fate (below).
+docs just say "the engine". (The `harness:` manifest field itself was
+removed 2026-07-28 — see the settled R1 item below.)
 
 ## Milestone map
 
@@ -76,13 +75,14 @@ tagged prerelease.
       and are tested against fixtures; they have never seen a live release).
 - [ ] Real-daemon CI for the build paths: tools-image generation, extension
       builds, and dev builds (today only `TestSDKLifecycle` meets a daemon).
-- [ ] **Decide the `harness:` manifest field (proposed: remove it).** It is
-      required, shape-validated, and consumed by nothing; the concept it
-      encodes — which engine a project runs — already lives in the host
-      registry's per-project artifact pin. Schema changes are free until the
-      first release; one less concept every user has to type. If a repo-side
-      version floor turns out to matter for teams, add an optional
-      `min_engine:` later instead (see post-1.0).
+- [x] **Decide the `harness:` manifest field — REMOVED (2026-07-28).** It
+      was required, shape-validated, and consumed by nothing; the concept
+      it encodes — which engine a project runs — already lives in the host
+      registry's per-project artifact pin. Removed from the schema,
+      presets, and dogfood manifest while schema changes were still free;
+      old manifests fail the unknown-key check with a one-line fix. If a
+      repo-side version floor turns out to matter for teams, an optional
+      `min_engine:` can be added later instead (see post-1.0).
 
 **Exit:** a fresh machine can download a release archive by hand, run
 `vibe provision`, and take a project through `init → up → tui`.

@@ -205,7 +205,6 @@ func mustResolve(t *testing.T, a *App, dir string) registry.Record {
 }
 
 const extensionManifest = `schema: 1
-harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
   agents: [claude]

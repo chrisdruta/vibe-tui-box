@@ -67,7 +67,6 @@ func newTestApp(t *testing.T) (*App, *dockerfake.Client) {
 }
 
 const testManifest = `schema: 1
-harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
   agents: [claude]
@@ -175,7 +174,7 @@ func TestConfigInvalidManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, paths.ManifestRelPath),
-		[]byte("schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: codex}\n"), 0o644); err != nil {
+		[]byte("schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: codex}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := a.Config(ctx, ConfigRequest{Dir: dir})

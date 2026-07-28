@@ -20,7 +20,6 @@ import (
 // types below.
 type Manifest struct {
 	Schema    int                `yaml:"schema"`
-	Harness   string             `yaml:"harness"`
 	Image     Image              `yaml:"image"`
 	Runtime   Runtime            `yaml:"runtime"`
 	Services  map[string]Sidecar `yaml:"services,omitempty"`

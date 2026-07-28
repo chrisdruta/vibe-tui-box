@@ -10,7 +10,7 @@ import (
 // panicking, and a document that loads must also validate without
 // panicking.
 func FuzzLoad(f *testing.F) {
-	f.Add([]byte("schema: 1\nharness: v2.0.0\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n"))
+	f.Add([]byte("schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n"))
 	f.Add([]byte("schema: [1, 2]\n"))
 	f.Add([]byte("a: &x [*x]\n"))                     // alias cycle: rejected, not expanded
 	f.Add([]byte("<<: {a: 1}\n"))                     // merge key

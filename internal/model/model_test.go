@@ -47,7 +47,6 @@ func testInput(t *testing.T, manifest string) CompileInput {
 }
 
 const minimalManifest = `schema: 1
-harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
   agents: [claude]
@@ -57,7 +56,6 @@ agent:
 `
 
 const sidecarManifest = `schema: 1
-harness: v2.0.0
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
   agents: [claude]
