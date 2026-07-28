@@ -228,6 +228,35 @@ var uiCommands = map[string]Command{
 			return &renderResult{Lines: []string{"stopped " + res.Session}}, nil
 		},
 	},
+	"_dismiss": {
+		Name:    "_dismiss",
+		Summary: "internal dead-session record dismissal",
+		Usage:   "vibe _dismiss SESSION",
+		Hidden:  true,
+		// The sidebar right-click's "seen it" gesture: clears the ✗
+		// row's state record; the container side refuses live sessions.
+		Parse: func(args []string) (Request, error) {
+			var req DismissCmdRequest
+			fs := newFlagSet("_dismiss", &req.Options)
+			if err := parseArgs(fs, args); err != nil {
+				return nil, err
+			}
+			rest := fs.Args()
+			if len(rest) != 1 {
+				return nil, fmt.Errorf("_dismiss takes exactly one SESSION address")
+			}
+			req.Session = rest[0]
+			return &req, nil
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*DismissCmdRequest)
+			res, err := a.DismissSession(ctx, app.DismissSessionRequest{Dir: dir, Session: r.Session})
+			if err != nil {
+				return nil, err
+			}
+			return &renderResult{Lines: []string{"dismissed " + res.Session}}, nil
+		},
+	},
 	"_watch": {
 		Name:    "_watch",
 		Summary: "internal engine-truth push daemon",
@@ -312,6 +341,13 @@ type ChooserCmdRequest struct {
 // StopCmdRequest drives the hidden address-direct session stop — the
 // right-click menu's dispatch (agent-menu.sh).
 type StopCmdRequest struct {
+	Options
+	Session string
+}
+
+// DismissCmdRequest drives the hidden dead-record dismissal — the
+// sidebar right-click's "seen it" gesture.
+type DismissCmdRequest struct {
 	Options
 	Session string
 }

@@ -38,6 +38,19 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- New: **the sidebar speaks right-click too** — agent rows answer
+  with the same per-session menu as the bar (one definition,
+  agent-menu.sh, resolved through the click map): live rows get
+  open/stop, viewer rows stop-and-bury, and dead ✗ rows get
+  **dismiss** — a new `vibe _dismiss` → agent-session.sh `dismiss`
+  clears the state record behind the glance (refused while the
+  session runs; launch-again stays the chooser's door). Supersedes
+  the 2026-07-25 "roster stays render-only" record — its grounds
+  moved when right-click became the TUI's own agent vocabulary and
+  menu-stops started burying their viewers. Right-click elsewhere on
+  panes: mouse-mode apps get the event through (the inner tmux),
+  other panes a trimmed stock pane menu, and the sidebar never shows
+  the stock menu whose Kill ate sidebars.
 - New: **the tui heals itself on attach** — `vibe tui` joining an
   already-running server now re-sources the freshly materialized conf
   (tmux applies `-f` only at server start, so every dev cycle used to

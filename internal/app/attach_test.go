@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
@@ -132,5 +133,40 @@ func TestStopSession(t *testing.T) {
 	})] = dockerapi.ExecResult{ExitCode: 1}
 	if _, err := a.StopSession(ctx, StopSessionRequest{Dir: dir, Session: "agent"}); !errors.Is(err, domain.ErrUnavailable) {
 		t.Fatalf("probe failure should be unavailable: %v", err)
+	}
+}
+
+func TestDismissSession(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Address-direct dismissal: probed, then the payload dismiss mode.
+	res, err := a.DismissSession(ctx, DismissSessionRequest{Dir: dir, Session: "agent-old-cold"})
+	if err != nil || res.Session != "agent-old-cold" {
+		t.Fatalf("dismiss: %+v, %v", res, err)
+	}
+	execs := docker.CallsTo("Exec")
+	last := execs[len(execs)-1].Request.(dockerapi.ExecRequest)
+	want := []string{"bash", model.PayloadAgentSession, "dismiss", "agent-old-cold"}
+	if !slices.Equal(last.Argv, want) {
+		t.Fatalf("dismiss argv %v, want %v", last.Argv, want)
+	}
+
+	// Same address policy as stop: agent-convention or nothing.
+	before := len(docker.CallsTo("Exec"))
+	for _, bad := range []string{"services", "agentx", "a;b", ""} {
+		if _, err := a.DismissSession(ctx, DismissSessionRequest{Dir: dir, Session: bad}); !errors.Is(err, domain.ErrInvalid) {
+			t.Fatalf("address %q: %v", bad, err)
+		}
+	}
+	if len(docker.CallsTo("Exec")) != before {
+		t.Fatal("invalid address reached docker")
 	}
 }

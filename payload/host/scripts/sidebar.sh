@@ -168,6 +168,13 @@ click)
       here="$(cd "$(dirname "$0")" && pwd)"
       exec bash "$here/agent-open.sh" "$client" "${sid%%:*}" "${sid#*:agent-}"
       ;;
+    *:dead-*)
+      # dead viewer-less row: the ✗ is signal, not reach — LEFT-click
+      # degrades to the project switch (an attach would refuse); the
+      # address in the target is the RIGHT-click menu's business
+      # (agent-menu.sh row mode → dismiss).
+      sid="${sid%%:*}"
+      ;;
   esac
   if [ -n "$client" ]; then
     tmux switch-client -c "$client" -t "$sid" 2>/dev/null

@@ -238,6 +238,14 @@ func TestFrameGhostCells(t *testing.T) {
 	if strings.Contains(out.GhostMap, "agent-dead") {
 		t.Fatalf("a dead session must not be a tray cell: %q", out.GhostMap)
 	}
+	// Its sidebar row carries a dead- target: left-click degrades to
+	// the project switch, right-click reads the address for dismissal.
+	if !strings.Contains(out.Map, ":dead-agent-dead") {
+		t.Fatalf("dead row must carry a dead- target: %q", out.Map)
+	}
+	if strings.Contains(out.Map, ":agent-agent-dead") {
+		t.Fatalf("dead row must not carry the attach-spawn target: %q", out.Map)
+	}
 	// The dot carries real state: attention is visible with no window.
 	if !strings.Contains(out.Ghosts, "#[fg="+PaletteHex("coral")+"]●") {
 		t.Fatalf("the attention ghost's dot must render coral: %q", out.Ghosts)

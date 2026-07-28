@@ -223,6 +223,50 @@ func (a *App) StopSession(ctx context.Context, req StopSessionRequest) (StopSess
 	return StopSessionResult{Session: req.Session}, nil
 }
 
+// DismissSessionRequest clears a DEAD session's state record — the
+// sidebar right-click's "seen it" gesture (`vibe _dismiss`). The ✗
+// roster row exists only as that record; the container side refuses
+// running sessions, so dismiss can never eat live truth.
+type DismissSessionRequest struct {
+	Dir     string
+	Session string
+}
+
+type DismissSessionResult struct {
+	Session string
+}
+
+func (a *App) DismissSession(ctx context.Context, req DismissSessionRequest) (DismissSessionResult, error) {
+	fail := opFail[DismissSessionResult]("dismiss", "")
+	rec, name, err := a.devContainer(ctx, req.Dir)
+	if err != nil {
+		return fail(err)
+	}
+	fail = opFail[DismissSessionResult]("dismiss", rec.ID)
+	if !sessionNameRe.MatchString(req.Session) ||
+		(req.Session != "agent" && !strings.HasPrefix(req.Session, "agent-")) {
+		return fail(fmt.Errorf("%w: agent session address %q", domain.ErrInvalid, req.Session))
+	}
+	ok, err := a.probeAgentSession(ctx, name)
+	if err != nil {
+		return fail(err)
+	}
+	if !ok {
+		return fail(fmt.Errorf("%w: dismissing a session needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
+	}
+	res, err := a.execIn(ctx, name, ContainerCommand{
+		Dir:  req.Dir,
+		Argv: []string{"bash", model.PayloadAgentSession, "dismiss", req.Session},
+	})
+	if err != nil {
+		return fail(err)
+	}
+	if res.ExitCode != 0 {
+		return fail(fmt.Errorf("%w: agent-session dismiss exited %d", domain.ErrUnavailable, res.ExitCode))
+	}
+	return DismissSessionResult{Session: req.Session}, nil
+}
+
 // agentSessionAddress mirrors agent-session.sh's address grammar —
 // agent(-cmd)(-name)(-cold) — for the one host-side consumer that
 // needs the address before the container ever runs: the viewer

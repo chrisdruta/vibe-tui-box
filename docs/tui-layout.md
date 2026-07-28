@@ -519,9 +519,11 @@ Three intents, one owner each:
 - **Palette hygiene.** 🥡 / `prefix+Space` keep the full palette; its
   bare "agent" item retires in favor of the chooser (the label
   promised "new", the semantics delivered attach-or-launch).
-  stop/restart keep addressing the default session; per-session
-  management is an open call (the `vibe ps` popup is the likely
-  door — sidebar rows stay render-only by decision record).
+  stop/restart keep addressing the default session (their labels say
+  "default" since 2026-07-28); per-session management is right-click's
+  job — the bar's tabs and ghost cells and the sidebar's agent rows
+  all answer with agent-menu.sh (the ps-popup lean and the render-only
+  record both superseded 2026-07-28).
 - **Dot semantics under N background sessions (open call).** The
   hook-fed dot approximates "any session needs me" today. Revisit
   trigger: the dot reads idle while claude's agents screen shows
@@ -602,9 +604,14 @@ never does layout math. The contract the renderer implements:
   a name-row dot) — with the window jump (`SESSION:WINDOW`) as click
   target, or the attach-only viewer spawn when the session has no
   window. When a block's rows don't fit, its last slot becomes a
-  per-block `… +n agents` overflow. The rows stay render-only beyond
-  their one click — no dismiss/kill affordance (BACKLOG decision
-  record, 2026-07-25).
+  per-block `… +n agents` overflow. Left-click stays the rows' one
+  reach gesture; RIGHT-click opens the same per-session menu the bar
+  serves (2026-07-28, superseding the 2026-07-25 render-only record —
+  agent-menu.sh `row` mode resolves through @vibe_sidebar_map), where
+  dead rows get their `dismiss` (✗ is a record; seen means clearable)
+  and live rows get stop/open. A dead viewer-less row's LEFT-click
+  degrades to the project switch — its old attach spawn refused dead
+  sessions by design and minted corpse windows.
 - The **footer hint row** owns the last row: dim
   `C-Space · Space palette`, truncated to the text budget, render-only
   (no click target — the palette's mouse doors are the tray cells).

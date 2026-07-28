@@ -130,7 +130,9 @@ section at the bottom — as revisable records, not fences.
   the right-click bar menu instead — agent tabs and ghost cells open
   agent-menu.sh (stop / open viewer / close viewer only), dispatching
   address-direct over `vibe _stop` → agent-session.sh `kill`; the ps
-  popup stays read-only and sidebar rows stay render-only. Restart
+  popup stays read-only. Sidebar rows joined the same right-click
+  vocabulary later that day — render-only superseded, see the roster
+  record below. Restart
   stays palette-default-only: per-address restart needs the
   address→flags reverse-map, deferred until dogfood asks.) (2) The
   awaiting-input dot upgrade: with N
@@ -300,7 +302,18 @@ history). Read the mechanisms as historical; the calls stand.
   "Productize worktrees"), demand-gated on claude's own isolation
   visibly not covering a real dogfood need.
 
-- **Roster stays render-only — no dismiss affordance (2026-07-25).** A
+- **Roster stays render-only — no dismiss affordance (2026-07-25;
+  SUPERSEDED 2026-07-28, Chris — the sidebar right-click design).**
+  The three grounds each moved: right-click is no longer tmux's stock
+  pane menu to fight but the TUI's own agent-surgery vocabulary (the
+  bar's stop door came first, same day); dismiss behind a two-step
+  menu on a dead-only target is not a destructive control on a glance
+  (it deletes a record whose entire job — the ✗ glance — is done);
+  and the chore the record refused to institutionalize largely
+  vanished the same day (menu-stops bury their viewers, so crash
+  corpses are the only ✗ sources left). `vibe _dismiss` →
+  agent-session.sh `dismiss`, refused for running sessions. The
+  original record, for the reasoning that still stands: A
   ctrl-c-quit agent left a ✗ viewer window needing manual reaping, and
   "add dismiss to the roster" was considered and rejected: it would put
   an interactive (and destructive) control on the render-only fleet

@@ -372,11 +372,13 @@ func Frame(in FrameInput) FrameOutput {
 			// The attach-only spawn is for the LIVING (2026-07-28, the
 			// refusal-button sweep's third site): a dead session's
 			// attach refuses by design, so its click minted a fresh
-			// corpse window. A dead viewer-less row keeps the ✗ signal
-			// but degrades its click to the project slop; a dead row
-			// WITH a stamped window (a crash corpse) still jumps —
+			// corpse window. A dead viewer-less row carries a `dead-`
+			// target instead — LEFT-click degrades to the project
+			// switch, while the right-click menu reads the address
+			// through it for dismissal (same day, second pass). A dead
+			// row WITH a stamped window (a crash corpse) still jumps —
 			// the corpse is exactly what the operator should see.
-			target := s.ID
+			target := s.ID + ":dead-" + ag.Session
 			if AgentLive(ag.State) {
 				target = s.ID + ":agent-" + ag.Session
 			}

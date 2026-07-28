@@ -25,6 +25,7 @@ usage() {
   echo "       agent-session.sh stop [--cold] [-a] [-s NAME] -- COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh attach [SESSION]" >&2
   echo "       agent-session.sh kill SESSION" >&2
+  echo "       agent-session.sh dismiss SESSION" >&2
   echo "       agent-session.sh run COMMAND [ARGUMENT ...]" >&2
   echo "       agent-session.sh reap" >&2
   exit 2
@@ -113,6 +114,38 @@ if [ "$mode" = "kill" ]; then
   else
     echo "agent session '$session' is not running"
   fi
+  exit 0
+fi
+
+# dismiss mode clears a DEAD session's state record — the sidebar's ✗
+# row exists only as that record (`vibe ps` rows are live sessions ∪
+# records), so removing it is the "seen it" gesture the roster lacked
+# (2026-07-28, the sidebar right-click design). Refuses a running
+# session outright: its record is live truth, and the hook would
+# rewrite it on the next event anyway — dismiss is for the dead.
+if [ "$mode" = "dismiss" ]; then
+  session="${1:-}"
+  case "$session" in
+    *[!A-Za-z0-9_-]* | "")
+      echo "agent-session.sh dismiss: SESSION must be letters, digits, '_' or '-': $session" >&2
+      exit 2
+      ;;
+  esac
+  case "$session" in
+    agent | agent-*) ;;
+    *)
+      echo "agent-session.sh dismiss: not an agent session address: '$session'" >&2
+      exit 2
+      ;;
+  esac
+  if tmux has-session -t "=$session" 2>/dev/null; then
+    echo "agent-session.sh dismiss: '$session' is running — stop it first" >&2
+    exit 1
+  fi
+  # shellcheck source=state-dir.sh disable=SC1091
+  . "$script_dir/state-dir.sh"
+  rm -f "$VIBE_STATE_DIR/$session" 2>/dev/null || true
+  echo "dismissed '$session'"
   exit 0
 fi
 
