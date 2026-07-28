@@ -10,9 +10,13 @@
 # stock window menu.
 #
 #   agent-menu.sh ghost CLIENT SESSION INDEX
-#   agent-menu.sh tab   CLIENT SESSION WINDOW_INDEX
+#   agent-menu.sh tab   CLIENT SESSION WINDOW_ID
 #
-# The ghost INDEX resolves through @vibe_ghost_map exactly like
+# tab carries the WINDOW ID, not an index: mouse_status_range holds
+# only the literal "window" for window cells (the index rides the
+# {mouse} target alone), so the conf selects the clicked window and
+# hands the now-current id over. The ghost INDEX resolves through
+# @vibe_ghost_map exactly like
 # agent-open.sh (range names clip at 15 bytes; indexes don't), and a
 # stale index falls off the end and does nothing. -M -O per the
 # tray-door lesson (chooser.sh records the mechanism). Item COMMAND
@@ -49,13 +53,10 @@ ghost)
   addr="$1"
   ;;
 tab)
-  case "$arg" in '' | *[!0-9]*) exit 0 ;; esac
-  row="$(tmux list-windows -t "$sess" -F '#{window_index} #{window_id} #{@vibe_session}' 2>/dev/null |
-    awk -v i="$arg" '$1 == i { print $2 " " $3; exit }')"
-  wid="${row%% *}"
-  addr="${row#* }"
-  case "$wid" in @*) ;; *) exit 0 ;; esac
-  case "${wid#@}" in '' | *[!0-9]*) exit 0 ;; esac
+  case "$arg" in @*) ;; *) exit 0 ;; esac
+  case "${arg#@}" in '' | *[!0-9]*) exit 0 ;; esac
+  wid="$arg"
+  addr="$(tmux show-options -w -t "$wid" -qv @vibe_session 2>/dev/null)"
   ;;
 *) exit 0 ;;
 esac

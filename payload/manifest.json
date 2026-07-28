@@ -136,8 +136,8 @@
     {
       "path": "host/scripts/agent-menu.sh",
       "mode": "0755",
-      "size": 3545,
-      "digest": "sha256:7ec2e13b5e30e8ea27a51b44510c9e7b6125156073c63218d836e5a7ea3bc330"
+      "size": 3617,
+      "digest": "sha256:712a12a03a4e4fa2ec8124d0f30f6d537275b6855a2a43840c436e8767fd0ff0"
     },
     {
       "path": "host/scripts/agent-open.sh",
@@ -214,8 +214,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 29150,
-      "digest": "sha256:cf907e001484eb8818a6d2aed43d07aa33be617b89ba89319ea40100c2fa93bf"
+      "size": 29712,
+      "digest": "sha256:2e9d0b07ecf1aace426816a33f0139a7a769a8da9c618514bf5139e510804005"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -278,5 +278,5 @@
       "digest": "sha256:c078c5ff26c01560d4d6c62fd77421f090c87fc43b479088af45b87109083b58"
     }
   ],
-  "digest": "sha256:2d6334333739e02d6b80e5fac546f4fdc8e7300def42073f66979478d3899567"
+  "digest": "sha256:a18491cdc6e0e070ea6c3267a1b5ae86f1aeacafd338b804a0765ded9d0eacfa"
 }
