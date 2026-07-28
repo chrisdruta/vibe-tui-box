@@ -81,7 +81,8 @@ scrollback.
 `vibe agent` runs the CLI inside a tmux session *inside the container*,
 so the agent survives its viewer: kill the pane, the TUI, or the whole
 terminal and the conversation keeps running — the next `vibe agent`
-reattaches to it. Flags: `--cold` starts without repo instruction files;
+reattaches to it. Flags: `--cold` starts without repo instruction files
+(the tray's `+` chooser also lists a `:cold` launch per CLI);
 `-a`/`--agent CMD` runs a different installed agent in its own session;
 `-s`/`--session NAME` runs a named parallel instance with its own
 identity and state dot. `vibe ps` lists the current project's agent
@@ -124,6 +125,21 @@ it for the request list) and a clock. Holding the
 prefix swaps the tabs for a keybind cheatsheet — hints on demand, no
 extra row. Project identity lives in the sidebar and the OS window
 title, never the bar.
+
+The mouse speaks two verbs beyond plain clicks (2026-07-28).
+**Ctrl+click any file path** — in a transcript, a shell, anywhere —
+and it opens: text lands in the review stack's nvim popup (a
+`path:line` jumps to the line), images open the **preview window**, a
+reusable tab rendering real pixels via sixel (chafa in the container;
+full fidelity needs host tmux ≥ 3.7 — `vibe doctor` grades it, and
+lesser hosts get a loud low-fi fallback). Paths resolve inside the
+container first, so `vibe clip`'s `/tmp` drops preview like anything
+else; prose and dead ends are silent no-ops. **Right-click an agent**
+— its window tab, its tray ghost cell, or its sidebar row — for
+per-session surgery: stop the SESSION (not just the viewer; the
+viewer buries itself), open a viewer, close just the viewer, and on a
+dead ✗ row, dismiss the record once you've seen it. Non-agent tabs
+and panes keep a stock-style tmux menu.
 
 The daily cycle is symmetric: evening `prefix+Space → park project`
 (or `vibe down` from any terminal) stops the containers and closes the

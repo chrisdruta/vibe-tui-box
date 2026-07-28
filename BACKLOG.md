@@ -132,7 +132,11 @@ section at the bottom — as revisable records, not fences.
   address-direct over `vibe _stop` → agent-session.sh `kill`; the ps
   popup stays read-only. Sidebar rows joined the same right-click
   vocabulary later that day — render-only superseded, see the roster
-  record below. Restart
+  record below. Launch-again for exotic dead addresses (named/-a
+  variants outside the chooser grammar) shares the same deferral:
+  both want an engine address→flags plumbing (deterministic given the
+  manifest's kind list — the grammar is agent(-cmd)(-name)(-cold)).
+  Restart
   stays palette-default-only: per-address restart needs the
   address→flags reverse-map, deferred until dogfood asks.) (2) The
   awaiting-input dot upgrade: with N
@@ -185,7 +189,12 @@ section at the bottom — as revisable records, not fences.
   pane survives adjacent-pane redraws on the 3.7 floor, and its WINCH
   repaint covers the resize-clear; a split variant could ride
   show-image.sh as-is. Kitty placeholders remain only a fidelity
-  play, same trigger.)
+  play, same trigger.) Two preview-window levers recorded from the
+  ship (2026-07-28), both demand-gated: tmux discards sixel DCS over
+  its 1MB input buffer (compile-time), so show-image.sh shrinks to
+  fit — ultrawide fidelity would want a patched pin or an upstream
+  knob; and the image-extension list excludes svg until dogfood asks
+  (chafa handles it, v1's format sniffing had edge cases).
 
 - **Host editor passthrough (parked 2026-07-26; recipe documented
   same day).** The original editor-as-surface idea — your own host
