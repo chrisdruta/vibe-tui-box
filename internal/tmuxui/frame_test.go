@@ -495,6 +495,53 @@ func TestFrameAttentionAndFacts(t *testing.T) {
 	}
 }
 
+func TestFrameMetaLineWrapsAtSegments(t *testing.T) {
+	// Over budget the meta line wraps at segment boundaries onto
+	// continuation rows instead of character-clipping (2026-07-29): the
+	// ragged `dev …` cut hid exactly the engine facts the line exists
+	// to show. The one-line common case stays held by
+	// TestFrameAttentionAndFacts (width 40, everything fits).
+	in := twoSessionInput()
+	in.Fleet = []FleetEntry{{ID: "projalpha", Token: string(StateRunning), Churn: "+442 −144", Name: "alpha"}}
+	in.Detail = []string{"dev 9766b8d8 · ▲2"}
+	out := Frame(in)
+	rows := frameRows(t, out.Body)
+	clicks := mapRows(t, out.Map)
+	if !strings.Contains(rows[2], "⎇ main  +442 −144") || strings.Contains(rows[2], "dev") {
+		t.Fatalf("branch+churn should hold row 2 alone: %q", rows[2])
+	}
+	if !strings.Contains(rows[3], "dev 9766b8d8 · ▲2") {
+		t.Fatalf("engine facts should wrap onto row 3: %q", rows[3])
+	}
+	if strings.Contains(rows[2], "…") || strings.Contains(rows[3], "…") {
+		t.Fatalf("segment wrap must not character-clip: %q / %q", rows[2], rows[3])
+	}
+	for _, r := range []int{2, 3} {
+		if clicks[r] != "$1" {
+			t.Fatalf("meta row %d keeps the session click slop, got %q", r, clicks[r])
+		}
+	}
+	// The roster follows the wrapped meta rows instead of overdrawing them.
+	if !strings.Contains(rows[4], "codex:review") {
+		t.Fatalf("roster should start after the meta rows: %q", rows[4])
+	}
+}
+
+func TestWrapSegments(t *testing.T) {
+	if got := wrapSegments([]string{"a", "b", "c"}, 10); len(got) != 1 || got[0] != "a · b · c" {
+		t.Fatalf("fitting segments must join on one row: %+v", got)
+	}
+	got := wrapSegments([]string{"alpha", "beta", "gamma"}, 12)
+	if len(got) != 2 || got[0] != "alpha · beta" || got[1] != "gamma" {
+		t.Fatalf("overflow must wrap at a segment boundary: %+v", got)
+	}
+	// A single oversize segment keeps a row of its own — the draw-time
+	// clip is the safety net, not the design.
+	if got := wrapSegments([]string{"tiny", "way-over-the-budget"}, 8); len(got) != 2 || got[1] != "way-over-the-budget" {
+		t.Fatalf("oversize segment keeps its row: %+v", got)
+	}
+}
+
 func TestFrameSanitizesHostileNames(t *testing.T) {
 	in := twoSessionInput()
 	in.Sessions[0].Windows[0].Name = "evil\x1b]0;owned\x07name"
@@ -751,6 +798,7 @@ func TestFrameRowAges(t *testing.T) {
 	in.Now = now
 	in.Sessions[1].Windows[0].Epoch = now - 2520 // the idle viewer: 42m
 	in.Agents[1].Epoch = now - 3*3600            // the attention agent: 3h
+	in.Sessions[0].Windows[0].Epoch = now - 19   // beta's working viewer: fresh
 	out := Frame(in)
 	rows := frameRows(t, out.Body)
 	if !strings.Contains(rows[3], "codex:review") || !strings.HasSuffix(rows[3], "42m") {
@@ -767,6 +815,11 @@ func TestFrameRowAges(t *testing.T) {
 	// No epoch, no age: the quiet idle row ends with its CLI name.
 	if !strings.HasSuffix(rows[5], "codex") {
 		t.Fatalf("epochless row grew a phantom age: %q", rows[5])
+	}
+	// Sub-minute ages floor at <1m: exact seconds shimmer on every
+	// forced frame and overstate the 10s redraw cadence.
+	if !strings.HasSuffix(rows[8], "<1m") {
+		t.Fatalf("sub-minute age must floor at <1m: %q", rows[8])
 	}
 	// Ages render dim.
 	if !strings.Contains(out.Body, fg(PaletteHex("dim"))+"42m") {

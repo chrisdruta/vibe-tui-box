@@ -38,6 +38,15 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- Changed: **the sidebar's polish pass, first round** (docs/tui-layout.md,
+  2026-07-29 screenshot dogfood). The meta line wraps at segment
+  boundaries onto continuation rows when it overflows the text budget
+  — the raw character clip's mid-segment `dev …` hid exactly the
+  engine facts the line exists to show; one line stays the common
+  case, and a quiet block pays nothing. And roster ages floor at
+  `<1m`: exact seconds shimmered across near-identical rows on every
+  forced frame while overstating the 10s redraw cadence. `vibe ps`
+  keeps exact seconds — a snapshot is accurate the moment it prints.
 - New: **the sidebar learns to tell time — the signal-density pass**
   (docs/tui-layout.md "Signal density", designed and shipped
   2026-07-29). Six glance signals, all inline (one line per entry

@@ -326,10 +326,18 @@ func modelSlot(state, model string) string {
 }
 
 // rowAge renders the right-aligned age for a roster row: time IN
-// STATE, from the cached epoch against the frame's clock.
+// STATE, from the cached epoch against the frame's clock. Sub-minute
+// ages floor at "<1m" (2026-07-29, the polish pass): exact seconds
+// shimmered on every forced frame and overstated the cadence — the
+// frame redraws at 10s, so "19s" was stale by up to 10s while looking
+// live. `vibe ps` keeps the exact seconds: a point-in-time snapshot is
+// accurate at the moment it prints.
 func rowAge(now, epoch int64) string {
 	if now <= 0 || epoch <= 0 || epoch > now {
 		return ""
+	}
+	if now-epoch < 60 {
+		return "<1m"
 	}
 	return CompactAge(now - epoch)
 }
@@ -402,6 +410,35 @@ func rosterBlock(agents, services []agentRow, avail int) []agentRow {
 		out = out[:avail]
 	}
 	return out
+}
+
+// wrapSegments packs the meta segments into ` · `-joined rows within
+// the budget: one row when everything fits (the common case — a quiet
+// block pays nothing), a segment-boundary wrap onto continuation rows
+// when it doesn't (2026-07-29, Chris — supersedes the raw character
+// clip, whose mid-segment `dev …` hid engine facts behind a ragged
+// cut; overflow-driven wrapping is not the always-on multi-line detail
+// block the meta line replaced). A single segment wider than the
+// budget keeps a row of its own and still character-clips at draw time
+// — the safety net, not the design.
+func wrapSegments(segs []string, budget int) []string {
+	var rows []string
+	cur := ""
+	for _, seg := range segs {
+		switch {
+		case cur == "":
+			cur = seg
+		case len([]rune(cur))+3+len([]rune(seg)) <= budget:
+			cur += " · " + seg
+		default:
+			rows = append(rows, cur)
+			cur = seg
+		}
+	}
+	if cur != "" {
+		rows = append(rows, cur)
+	}
+	return rows
 }
 
 // windowSignal reports whether a viewer window's agent asks something
@@ -614,12 +651,14 @@ func Frame(in FrameInput) FrameOutput {
 		}
 		c.putAt(row, gutter+ansiBold+nameC+terminal.Line(s.Name, max)+ansiReset, s.ID)
 		row++
-		// ONE dim meta line under the name (2026-07-26, supersedes the
+		// The dim meta line under the name (2026-07-26, supersedes the
 		// separate branch row + multi-line detail block): branch, then
 		// engine facts — the own project's compact `vibe _sidebar`
 		// line (cache-only), other projects' fleet facts — joined with
-		// ` · `. Engine state speaks ◐/○/▲; on this surface ● belongs
-		// to agents alone. The row keeps the session as click slop.
+		// ` · `. One row when it fits; over budget it wraps at segment
+		// boundaries (wrapSegments) instead of character-clipping.
+		// Engine state speaks ◐/○/▲; on this surface ● belongs
+		// to agents alone. The rows keep the session as click slop.
 		var meta []string
 		if s.Branch != "" {
 			// Churn rides the branch segment (`⎇ main  +128 −40`):
@@ -654,8 +693,8 @@ func Frame(in FrameInput) FrameOutput {
 				meta = append(meta, "dev")
 			}
 		}
-		if len(meta) > 0 {
-			c.putAt(row, gutter+"  "+cDim+terminal.Line(strings.Join(meta, " · "), max-2)+ansiReset, s.ID)
+		for _, line := range wrapSegments(meta, max-2) {
+			c.putAt(row, gutter+"  "+cDim+terminal.Line(line, max-2)+ansiReset, s.ID)
 			row++
 		}
 		// The nested rows close the block. When they don't fit, this

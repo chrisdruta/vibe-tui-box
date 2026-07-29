@@ -20,7 +20,9 @@ meta line: every live agent is a sidebar row (idle dim), each block
 reads identity → meta → roster, and ● is agents-only on that surface.
 Updated 2026-07-29 (signal-density pass) with age, state words,
 counts, churn, and the footer's second row — design agreed on
-mockups, unshipped.
+mockups, unshipped. Updated 2026-07-29 (polish pass) with the meta
+line's segment-boundary overflow wrap and the roster ages' `<1m`
+floor — screenshot dogfood, wired the same day.
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -501,7 +503,12 @@ inline treatment won — one line per entry stays law. Target block:
   where it stopped moving at death.) The text renders at frame time
   from cached epochs — minute granularity needs no cadence the frame
   does not already have; no new polling, no extra container
-  round-trips.
+  round-trips. Sub-minute ages floor at `<1m` on this surface
+  (2026-07-29, the polish pass): exact seconds shimmered across
+  near-identical rows on every forced frame and overstated the 10s
+  redraw cadence — "19s" was up to 10s stale while reading live.
+  `vibe ps` keeps the exact seconds: a point-in-time snapshot is
+  accurate at the moment it prints.
 - **State words for `attention`/`exited` only** — the word takes the
   model's slot on exactly the rows where the dot's color is the whole
   message today (glance ambiguity, and color-blindness). Nominal rows
@@ -746,7 +753,14 @@ never does layout math. The contract the renderer implements:
   mush): `⎇ branch` then engine facts joined with ` · ` — the own
   project's compact `vibe _sidebar` line, other projects' fleet facts
   (stale/stopped glyph, `▲n`, `dev`) — then the **nested agent
-  rows**, and a blank slop row. Non-agent rows claim the session as
+  rows**, and a blank slop row. Over the text budget the meta line
+  **wraps at segment boundaries** onto continuation rows (2026-07-29,
+  the polish pass — supersedes the raw character clip, whose
+  mid-segment `dev …` hid exactly the engine facts the line exists to
+  show): one line stays the common case, and this is overflow-driven
+  wrapping, not a revival of the rejected always-on multi-line block.
+  A single segment wider than the budget still character-clips — the
+  safety net, not the design. Non-agent rows claim the session as
   click target. Cold registered projects (fleet entries with no live
   session) render dim, barless, and unclickable — click-dispatching
   `up` is a recorded open product call, not half-shipped here.
