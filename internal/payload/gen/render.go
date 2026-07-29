@@ -117,11 +117,15 @@ const (
 		`#[norange list=on default]#{?loop_last_flag,,#{E:window-status-separator}}`
 )
 
-// winlist composes the tray middle: list scaffolding, the clickable
-// dock cell, the stock window list, the agent-truth ghost cells, and
-// the clickable new-window cell. Cells deliberately avoid commas — one
-// attribute per #[...] block — so the construct survives #{?…}
-// comma-parsing wherever it is spliced.
+// winlist composes the tray middle: list scaffolding, the stock window
+// list, the agent-truth ghost cells, and the clickable new-window
+// cell. (The ▤ dock cell moved OUT to the bar's left cluster beside
+// the brand — 2026-07-29 polish pass: spliced here it floated with the
+// absolute-centred tabs, a global chrome control reading as part of
+// the window list, while the layout doc's mockup always drew it at
+// left.) Cells deliberately avoid commas — one attribute per #[...]
+// block — so the construct survives #{?…} comma-parsing wherever it
+// is spliced.
 //
 // The ghost cells are a whole rendered fragment, not a construct: the
 // sidebar's frame renderer joins `vibe ps` truth against this server's
@@ -133,7 +137,6 @@ const (
 func winlist() string {
 	return `#[list=on align=#{status-justify}]` +
 		`#[list=left-marker]<#[list=right-marker]>#[list=on]` +
-		`#[range=user|dock]#[fg=#{@thm_dim}] ▤ #[norange]#[default]` +
 		`#{W:` + stockWindowCell + `,` + stockCurrentWindowCell + `}` +
 		`#{E:@vibe_ghosts}` +
 		// One default-background space before the + cell: ghost cells

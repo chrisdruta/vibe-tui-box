@@ -22,8 +22,9 @@ Updated 2026-07-29 (signal-density pass) with age, state words,
 counts, churn, and the footer's second row — design agreed on
 mockups, unshipped. Updated 2026-07-29 (polish pass) with the meta
 line's segment-boundary overflow wrap, the roster ages' `<1m` floor,
-the `bright` palette entry, and the pinned canvas (`window-style` /
-`popup-style` bg) — screenshot dogfood, wired the same day.
+the `bright` palette entry, the pinned canvas (`window-style` /
+`popup-style` bg), and the ▤ cell's move to the bar's left cluster —
+screenshot dogfood, wired the same day.
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -93,7 +94,7 @@ Top-preferrers set `status-position top` in the user conf.
 | Segment | Content |
 | --- | --- |
 | branding | `🥡 vibe-tui-box` start button — click opens the palette |
-| `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it |
+| `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it. Sits in the LEFT cluster beside the brand (2026-07-29 polish pass — spliced into the absolute-centred winlist it floated with the tabs, a global chrome control reading as part of the window list; this table and the frame mockup always drew it at left). Outside the `#{client_prefix}` swap, it stays put while the cheatsheet replaces the middle |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
 | ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`ghost-N` index range resolved through `@vibe_ghost_map` → attach-only viewer spawn — range names clip at 15 bytes, "Launch surfaces"), rendered into `@vibe_ghosts` by `vibe _frame` |
 | `+` cell | clickable — opens the **agents chooser** (launch what's down, reach what's up — "Launch surfaces" below) |

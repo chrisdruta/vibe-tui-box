@@ -82,7 +82,13 @@ The v1 line and its history remain in git up to the cutover commit.
   and dim ramps render on the bg they were mixed against instead of
   whatever the emulator carries (the dogfood host's purple scheme left
   them floating). Pane foreground stays the terminal's — inner apps
-  own their text — and the user conf overrides both.
+  own their text — and the user conf overrides both. Fourth round: the
+  ▤ dock cell moves to the bar's left cluster beside the brand —
+  spliced into the absolute-centred winlist it floated with the tabs,
+  a global chrome control reading as part of the window list, while
+  the spec's mockup and segment table always drew it at left; outside
+  the prefix swap it also stays put while the cheatsheet replaces the
+  middle.
 - New: **the sidebar learns to tell time — the signal-density pass**
   (docs/tui-layout.md "Signal density", designed and shipped
   2026-07-29). Six glance signals, all inline (one line per entry
