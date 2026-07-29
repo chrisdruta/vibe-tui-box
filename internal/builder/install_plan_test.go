@@ -33,8 +33,16 @@ func TestGenerateInstallPlanCoversEverySteps(t *testing.T) {
 					t.Fatalf("mask %b: step %d maps to part %d of %d", mask, i+1, p, len(plan.Parts))
 				}
 			}
-			if plan.RefreshArg != strings.Contains(string(plan.Dockerfile), "ARG "+AgentRefreshArg) {
-				t.Fatalf("mask %b refresh %v: RefreshArg disagrees with the dockerfile", mask, refresh)
+			// RefreshKinds must agree with the declared per-agent args,
+			// one declaration per busted kind and none it doesn't list.
+			for _, kind := range plan.RefreshKinds {
+				if got := strings.Count(string(plan.Dockerfile), "ARG "+AgentRefreshArgFor(kind)); got != 1 {
+					t.Fatalf("mask %b refresh %v: kind %s declared %d times", mask, refresh, kind, got)
+				}
+			}
+			if declared := strings.Count(string(plan.Dockerfile), "ARG "+agentRefreshArgPrefix); declared != len(plan.RefreshKinds) {
+				t.Fatalf("mask %b refresh %v: %d refresh args declared, RefreshKinds lists %d",
+					mask, refresh, declared, len(plan.RefreshKinds))
 			}
 		}
 	})
@@ -50,6 +58,14 @@ func TestGenerateInstallMatchesPlan(t *testing.T) {
 	}
 }
 
+func kindStrings(kinds []schema.AgentKind) []string {
+	out := make([]string, 0, len(kinds))
+	for _, k := range kinds {
+		out = append(out, string(k))
+	}
+	return out
+}
+
 // The full selection's BoM: canonical order, refresh verdicts on the
 // channel-tracking agents only, and the base part first (it absorbs the
 // header chrome).
@@ -59,9 +75,14 @@ func TestGenerateInstallPlanParts(t *testing.T) {
 	for _, p := range plan.Parts {
 		ids = append(ids, p.ID)
 	}
-	want := []string{"base", "tmux", "chafa", "review", "plugins", "parsers", "go", "node", "rokit", "bun", "claude", "codex", "grok"}
+	// Agents run codex, grok, claude — claude last (most volatile; a
+	// layer-cache miss rebuilds everything after it).
+	want := []string{"base", "tmux", "chafa", "review", "plugins", "parsers", "go", "node", "rokit", "bun", "codex", "grok", "claude"}
 	if strings.Join(ids, " ") != strings.Join(want, " ") {
 		t.Fatalf("part order: got %v want %v", ids, want)
+	}
+	if got := strings.Join(kindStrings(plan.RefreshKinds), " "); got != "codex grok claude" {
+		t.Fatalf("RefreshKinds order: %q", got)
 	}
 	for _, p := range plan.Parts {
 		wantRefresh := p.ID == "claude" || p.ID == "codex" || p.ID == "grok"
@@ -73,10 +94,10 @@ func TestGenerateInstallPlanParts(t *testing.T) {
 		t.Errorf("step 1 should belong to base, got %s", plan.Parts[plan.StepPart[0]].ID)
 	}
 	// Pinned agents drop their refresh verdict; the plan then declares
-	// no refresh arg even when refresh is requested.
+	// no refresh args even when refresh is requested.
 	pinned := GenerateInstallPlan([]schema.AgentSpec{{Kind: schema.AgentClaude, Version: "2.1.220"}}, nil, true)
-	if pinned.RefreshArg {
-		t.Error("all-pinned plan should not declare the refresh arg")
+	if len(pinned.RefreshKinds) != 0 {
+		t.Errorf("all-pinned plan should declare no refresh args: %v", pinned.RefreshKinds)
 	}
 	for _, p := range pinned.Parts {
 		if p.Refresh {

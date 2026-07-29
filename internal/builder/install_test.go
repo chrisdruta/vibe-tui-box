@@ -90,8 +90,8 @@ func TestGenerateInstallDeterministic(t *testing.T) {
 func TestGenerateInstallRefreshFalseHasNoBuster(t *testing.T) {
 	subsetSelections(func(agents []schema.AgentSpec, toolchains []schema.Toolchain, mask int) {
 		out := string(GenerateInstall(agents, toolchains, false))
-		if strings.Contains(out, AgentRefreshArg) {
-			t.Fatalf("mask %b: non-refresh output leaked %s:\n%s", mask, AgentRefreshArg, out)
+		if strings.Contains(out, agentRefreshArgPrefix) {
+			t.Fatalf("mask %b: non-refresh output leaked a refresh arg:\n%s", mask, out)
 		}
 	})
 }
@@ -101,32 +101,46 @@ func TestGenerateInstallRefresh(t *testing.T) {
 	if err := ValidateDockerfile([]byte(out)); err != nil {
 		t.Fatalf("refreshed dockerfile invalid: %v\n%s", err, out)
 	}
-	// The cache-buster is declared once and referenced by every
-	// channel-tracking agent, so each agent layer's cache key tracks it.
-	if got := strings.Count(out, "ARG "+AgentRefreshArg); got != 1 {
-		t.Errorf("want ARG %s declared once, got %d\n%s", AgentRefreshArg, got, out)
-	}
-	if got := strings.Count(out, "agents-refresh=${"+AgentRefreshArg+"}"); got != 3 {
-		t.Errorf("want the refresh token referenced by all 3 agents, got %d\n%s", got, out)
+	// PER-AGENT cache-busters: each channel-tracking layer declares and
+	// references its OWN arg, so one agent's version bump misses only
+	// that agent's layer.
+	for _, kind := range []schema.AgentKind{schema.AgentClaude, schema.AgentCodex, schema.AgentGrok} {
+		arg := AgentRefreshArgFor(kind)
+		if got := strings.Count(out, "ARG "+arg); got != 1 {
+			t.Errorf("want ARG %s declared once, got %d\n%s", arg, got, out)
+		}
+		if got := strings.Count(out, "agents-refresh=${"+arg+"}"); got != 1 {
+			t.Errorf("want %s referenced by exactly its own layer, got %d\n%s", arg, got, out)
+		}
 	}
 	// Unversioned codex tracks the npm dist-tag.
 	if !strings.Contains(out, "@openai/codex@"+codexChannel) {
 		t.Errorf("unversioned codex should track %s:\n%s", codexChannel, out)
 	}
 	// The pinned system toolchains sit in earlier layers and must not
-	// carry the cache-buster.
+	// carry a cache-buster.
 	for _, layer := range []string{"go.dev/dl/go" + goVersion, "bun-v" + bunVersion, "rokit-" + rokitVersion} {
 		if !strings.Contains(out, layer) {
 			t.Fatalf("missing pinned layer %q", layer)
 		}
 	}
-	// bun/rokit precede the cache-buster declaration, so a refresh
-	// never re-runs the engine-pinned user layers (remainder item 6).
-	buster := strings.Index(out, "ARG "+AgentRefreshArg)
+	// bun/rokit precede the first cache-buster declaration, so a
+	// refresh never re-runs the engine-pinned user layers (remainder
+	// item 6).
+	buster := strings.Index(out, agentRefreshArgPrefix)
 	for _, layer := range []string{"bun-v" + bunVersion, "rokit-" + rokitVersion} {
 		if strings.Index(out, layer) > buster {
 			t.Fatalf("pinned layer %q sits after the cache-buster:\n%s", layer, out)
 		}
+	}
+	// claude installs LAST among the agents: layer chaining rebuilds
+	// everything after a cache miss, and claude bumps most often — the
+	// most volatile layer sits where its miss busts no neighbor.
+	codexAt := strings.Index(out, "@openai/codex@")
+	grokAt := strings.Index(out, "x.ai/cli/install.sh")
+	claudeAt := strings.Index(out, "claude.ai/install.sh")
+	if !(codexAt < grokAt && grokAt < claudeAt) {
+		t.Fatalf("agent layer order want codex < grok < claude, got %d/%d/%d:\n%s", codexAt, grokAt, claudeAt, out)
 	}
 }
 
@@ -138,7 +152,7 @@ func TestGenerateInstallManifestPins(t *testing.T) {
 		{Kind: schema.AgentCodex, Version: "0.144.1"},
 	}
 	out := string(GenerateInstall(pinned, nil, true))
-	if strings.Contains(out, AgentRefreshArg) {
+	if strings.Contains(out, agentRefreshArgPrefix) {
 		t.Fatalf("all-pinned selection must ignore refresh entirely:\n%s", out)
 	}
 	if !strings.Contains(out, "install.sh | bash -s -- 2.1.220") {
@@ -157,8 +171,9 @@ func TestGenerateInstallManifestPins(t *testing.T) {
 		{Kind: schema.AgentGrok},
 	}
 	out = string(GenerateInstall(mixed, nil, true))
-	if got := strings.Count(out, "agents-refresh=${"+AgentRefreshArg+"}"); got != 1 {
-		t.Fatalf("want exactly the unversioned agent busted, got %d references:\n%s", got, out)
+	if got := strings.Count(out, "agents-refresh=${"); got != 1 ||
+		!strings.Contains(out, "agents-refresh=${"+AgentRefreshArgFor(schema.AgentGrok)+"}") {
+		t.Fatalf("want exactly the unversioned agent busted with its own arg, got %d references:\n%s", got, out)
 	}
 	claudeLayer := out[strings.Index(out, "claude.ai/install.sh")-200 : strings.Index(out, "claude.ai/install.sh")]
 	if strings.Contains(claudeLayer, "agents-refresh") {
@@ -178,8 +193,10 @@ func TestGenerateInstallChannelWordsRefresh(t *testing.T) {
 		{Kind: schema.AgentCodex, Version: "next"},
 	}
 	out := string(GenerateInstall(channels, nil, true))
-	if got := strings.Count(out, "agents-refresh=${"+AgentRefreshArg+"}"); got != 2 {
-		t.Fatalf("channel-selecting agents must both bust, got %d references:\n%s", got, out)
+	if got := strings.Count(out, "agents-refresh=${"); got != 2 ||
+		!strings.Contains(out, AgentRefreshArgFor(schema.AgentClaude)) ||
+		!strings.Contains(out, AgentRefreshArgFor(schema.AgentCodex)) {
+		t.Fatalf("channel-selecting agents must both bust with their own args, got %d references:\n%s", got, out)
 	}
 	if !strings.Contains(out, "bash -s -- stable") {
 		t.Errorf("claude should install the selected stable channel:\n%s", out)

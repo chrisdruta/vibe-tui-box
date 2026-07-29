@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/builder"
@@ -210,14 +211,17 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 		return fail(err)
 	}
 	// A rebuild mints a new token before compiling so the tools image
-	// re-pulls the channel-tracking (unversioned) agents; it is persisted
+	// tracks the channel-tracking (unversioned) agents; it is persisted
 	// below (with Approved) only once the containers are actually up.
 	// Every rebuild refreshes — "no version given" means "latest per
 	// rebuild" — while a plain up keeps the record's existing token, so
-	// idempotent ups stay warm-cached and off the network.
+	// idempotent ups stay warm-cached and off the network. The token is
+	// the per-agent resolved-version fingerprint (mintAgentRefresh):
+	// upstream unmoved since the last rebuild → identical token →
+	// Docker's layer cache keeps the previous pull warm.
 	refreshAgents := req.Force
 	if refreshAgents {
-		rec.AgentRefresh = a.deps.Clock.Now().UTC().Format(time.RFC3339Nano)
+		rec.AgentRefresh = a.mintAgentRefresh(ctx, root)
 	}
 	cand, err := a.prepareCandidate(ctx, root, rec)
 	if err != nil {
@@ -249,6 +253,53 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 	}
 	a.bumpTuiSerial(ctx)
 	return UpResult{Record: updated, Candidate: cand.Record.Digest, State: state}, nil
+}
+
+// agentProbeTimeout bounds ONE channel-version probe: a rebuild is
+// interactive, and a black-holed endpoint must degrade to the
+// timestamp fallback, never hang the build.
+const agentProbeTimeout = 10 * time.Second
+
+// mintAgentRefresh mints a rebuild's agent-refresh token: one
+// kind=version pair per channel-tracking agent, each resolved by
+// probing the channel's own release endpoint. An unchanged upstream
+// yields the identical token, so the agent layers stay warm-cached
+// instead of re-downloading identical builds; a real bump changes the
+// pair and re-pulls exactly that agent's layer. Every failure mode —
+// no prober wired, unreadable manifest, probe error or timeout, a
+// value that would not survive the fingerprint grammar — degrades to a
+// timestamp value, the pre-probe behavior that busts on every rebuild:
+// staleness never hides behind a dead endpoint.
+func (a *App) mintAgentRefresh(ctx context.Context, root paths.Root) string {
+	stamp := a.deps.Clock.Now().UTC().Format(time.RFC3339Nano)
+	doc, err := loadManifestFile(filepath.Join(root.Path, paths.ManifestRelPath))
+	if err != nil {
+		return stamp
+	}
+	var pairs []string
+	for _, ag := range doc.Manifest.Image.Agents {
+		channel := builder.AgentChannel(ag)
+		if channel == "" {
+			continue // exact pin: a plain cached layer, nothing to probe
+		}
+		value := stamp
+		if a.deps.AgentVersions != nil {
+			pctx, cancel := context.WithTimeout(ctx, agentProbeTimeout)
+			v, err := a.deps.AgentVersions.Resolve(pctx, ag.Kind, channel)
+			cancel()
+			// The pair grammar splits on spaces and cuts on the first
+			// '='; a prober is trusted code but the guard keeps a bad
+			// impl a cache-bust, never a corrupt token.
+			if err == nil && v != "" && !strings.ContainsAny(v, " =") {
+				value = v
+			}
+		}
+		pairs = append(pairs, string(ag.Kind)+"="+value)
+	}
+	if len(pairs) == 0 {
+		return stamp
+	}
+	return strings.Join(pairs, " ")
 }
 
 // DownRequest tears down the project's containers and network. Volumes

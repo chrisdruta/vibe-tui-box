@@ -133,10 +133,10 @@ func hasTools(m schema.Manifest) bool {
 // generated Dockerfile.
 func (a *App) buildTools(ctx context.Context, rec registry.Record, frozen frozenInputs, digests map[string]domain.Digest) (dockerapi.BuiltImage, error) {
 	// A non-empty AgentRefresh (minted by every rebuild, persisted on
-	// the record) stamps the unversioned agent layers with the token so
-	// they re-pull and then stay warm-cached until the next rebuild.
-	// Manifest-pinned agents live in plain layers the token never
-	// reaches.
+	// the record) stamps each channel-tracking agent layer with its own
+	// resolved-version value so the layer re-pulls exactly when
+	// upstream moved and stays warm-cached when it didn't.
+	// Manifest-pinned agents live in plain layers no token reaches.
 	refresh := rec.AgentRefresh != ""
 	plan := builder.GenerateInstallPlan(frozen.Manifest.Image.Agents, frozen.Manifest.Image.Toolchains, refresh)
 	if err := builder.ValidateDockerfile(plan.Dockerfile); err != nil {
@@ -152,20 +152,32 @@ func (a *App) buildTools(ctx context.Context, rec registry.Record, frozen frozen
 	}
 
 	base := frozen.Manifest.Image.Base
-	// The refresh token rides along only when the Dockerfile declares
-	// the arg — an all-pinned selection consumes no token, and passing
-	// one anyway draws the daemon's unconsumed-build-arg warning.
-	token := ""
-	if plan.RefreshArg {
-		token = rec.AgentRefresh
+	// Refresh values ride along only for the args the Dockerfile
+	// declares — an all-pinned selection consumes none, and passing one
+	// anyway draws the daemon's unconsumed-build-arg warning.
+	var refreshArgs map[string]string
+	if len(plan.RefreshKinds) > 0 {
+		refreshArgs = make(map[string]string, len(plan.RefreshKinds))
+		perAgent := builder.ParseAgentRefresh(rec.AgentRefresh)
+		for _, kind := range plan.RefreshKinds {
+			value := perAgent[kind]
+			if value == "" {
+				// A legacy bare-timestamp record, or an agent added to
+				// the manifest since the last rebuild: the whole token
+				// busts that layer — the pre-fingerprint behavior —
+				// until the next rebuild mints its pair.
+				value = rec.AgentRefresh
+			}
+			refreshArgs[builder.AgentRefreshArgFor(kind)] = value
+		}
 	}
 	return a.builder.Build(ctx, builder.Candidate{
-		Digest:       domain.SHA256(plan.Dockerfile),
-		ContextDir:   contextDir,
-		Dockerfile:   "Dockerfile",
-		BaseImage:    dockerapi.ResolvedImage{Ref: dockerapi.ImageRef(base), Digest: digests[base]},
-		Tag:          model.ToolsImageRef(rec.ID),
-		RefreshToken: token,
+		Digest:      domain.SHA256(plan.Dockerfile),
+		ContextDir:  contextDir,
+		Dockerfile:  "Dockerfile",
+		BaseImage:   dockerapi.ResolvedImage{Ref: dockerapi.ImageRef(base), Digest: digests[base]},
+		Tag:         model.ToolsImageRef(rec.ID),
+		RefreshArgs: refreshArgs,
 	}, announceInstall(plan, base, a.deps.Progress))
 }
 

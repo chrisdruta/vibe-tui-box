@@ -26,6 +26,10 @@ import (
 const (
 	claudeChannel = "latest"
 	codexChannel  = "latest" // the npm dist-tag unversioned codex tracks
+	// grok's installer takes no version parameter and defaults to its
+	// stable channel — the channel unversioned grok actually tracks
+	// (the old "latest" BoM label predated reading the installer).
+	grokChannel   = "stable"
 	nodeMajor     = "22"
 	bunVersion    = "1.3.14"
 	rokitVersion  = "1.2.0"
@@ -115,13 +119,54 @@ var reviewParsers = []string{
 	"vimdoc", "yaml",
 }
 
-// AgentRefreshArg is the build arg that busts the Docker layer cache
-// for the channel-tracking (unversioned) agent installers. Every `vibe
-// rebuild` stamps it with a fresh value so those layers — and only
-// those — re-run and re-pull the latest agent builds; pinned agents and
-// the system toolchains sit in plain layers and stay cached. When a
-// project has never rebuilt the arg is absent.
-const AgentRefreshArg = "VIBE_AGENT_REFRESH"
+// agentRefreshArgPrefix names the PER-AGENT build args that bust the
+// Docker layer cache for the channel-tracking (unversioned or
+// channel-selecting) agent installers: VIBE_AGENT_REFRESH_CLAUDE,
+// _CODEX, _GROK. Each layer embeds only its OWN arg, so one agent's
+// version bump misses only that agent's layer — layer chaining still
+// rebuilds everything after a miss, which is why the most volatile
+// agent installs last (userLayers). The value is the channel's
+// resolved upstream version (mintAgentRefresh), falling back to a
+// rebuild timestamp when the probe failed; pinned agents and the
+// system toolchains sit in plain layers no arg reaches. When a project
+// has never rebuilt the args are absent.
+const agentRefreshArgPrefix = "VIBE_AGENT_REFRESH_"
+
+// AgentRefreshArgFor names the cache-buster build arg for one agent.
+func AgentRefreshArgFor(kind schema.AgentKind) string {
+	return agentRefreshArgPrefix + strings.ToUpper(string(kind))
+}
+
+// isChannel reports whether an agent version qualifier names a CHANNEL
+// (a word: "stable", "latest", an npm dist-tag) rather than an exact
+// pin (digit-leading). A channel is a moving target that refreshes
+// exactly like an unversioned entry — freezing a channel in a cached
+// layer is the staleness bug all over again.
+func isChannel(v string) bool {
+	return v != "" && (v[0] < '0' || v[0] > '9')
+}
+
+// AgentChannel returns the channel a channel-tracking agent resolves
+// through — the manifest's channel word, or the engine default per
+// kind — and "" for an exact pin (a plain cached layer: nothing to
+// probe, nothing to bust).
+func AgentChannel(spec schema.AgentSpec) string {
+	if spec.Version != "" {
+		if !isChannel(spec.Version) {
+			return ""
+		}
+		return spec.Version
+	}
+	switch spec.Kind {
+	case schema.AgentClaude:
+		return claudeChannel
+	case schema.AgentCodex:
+		return codexChannel
+	case schema.AgentGrok:
+		return grokChannel
+	}
+	return ""
+}
 
 // InstallPart is one named row of the tools-image bill of materials —
 // the unit build progress reports on. Chrome instructions (ARG, FROM,
@@ -144,10 +189,11 @@ type InstallPlan struct {
 	// StepPart maps 1-based build step ordinals (the classic builder
 	// numbers every instruction) to indexes into Parts.
 	StepPart []int
-	// RefreshArg reports whether the Dockerfile declares AgentRefreshArg.
-	// Passing the build arg without the declaration draws a daemon
-	// warning, so callers gate the token on this.
-	RefreshArg bool
+	// RefreshKinds lists the agents whose layers declare a per-agent
+	// cache-buster arg (AgentRefreshArgFor), in layer order. Passing a
+	// build arg without its declaration draws a daemon warning, so
+	// callers gate the token values on this.
+	RefreshKinds []schema.AgentKind
 }
 
 // installChunk is one generation unit: a text fragment plus the BoM
@@ -261,7 +307,13 @@ func GenerateInstallPlan(agents []schema.AgentSpec, toolchains []schema.Toolchai
 		plan.StepPart = append(plan.StepPart, len(plan.Parts)-1)
 	}
 	plan.Dockerfile = []byte(b.String())
-	plan.RefreshArg = strings.Contains(b.String(), "ARG "+AgentRefreshArg)
+	// The busted parts ARE the declared per-agent args: part IDs for
+	// agent layers are the schema kind strings.
+	for _, p := range plan.Parts {
+		if p.Refresh {
+			plan.RefreshKinds = append(plan.RefreshKinds, schema.AgentKind(p.ID))
+		}
+	}
 	return plan
 }
 
@@ -471,44 +523,52 @@ RUN tmp="$(mktemp -d)" \
 }
 
 // refreshBust returns the shell prefix that ties a channel-tracking
-// agent layer's cache key to the refresh token: after variable
-// expansion the RUN text embeds the token value, so a new token misses
-// the cache and re-runs the installer. Empty when not busting, which
-// keeps that layer plainly cacheable.
-func refreshBust(bust bool) string {
+// agent layer's cache key to ITS OWN refresh arg: after variable
+// expansion the RUN text embeds the arg's value (the channel's
+// resolved version, or a rebuild timestamp when the probe failed), so
+// the layer cache misses exactly when the value moves. Empty when not
+// busting, which keeps that layer plainly cacheable.
+func refreshBust(bust bool, kind schema.AgentKind) string {
 	if !bust {
 		return ""
 	}
-	return `: "agents-refresh=${` + AgentRefreshArg + `}" \
+	return `: "agents-refresh=${` + AgentRefreshArgFor(kind) + `}" \
     && `
 }
 
-// userLayers renders the layers that install as vscode into the home
-// directory. Fixed order: bun, rokit, then agents (claude, codex,
-// grok) — the engine-pinned toolchains sit BEFORE the agents so a
-// refresh-busted agent chain never re-runs them (branch-review
-// remainder item 6; the old order re-ran both on every refresh).
-// Unversioned agents track their channel and, when refresh is set,
-// gain the AgentRefreshArg cache-buster (declared once, just before
-// the agent layers); manifest-pinned agents install their exact
-// version in a plain layer the buster never touches.
-func userLayers(want map[string]bool, pin map[schema.AgentKind]string, refresh bool) []installChunk {
-	// A version starting with a digit is an exact pin (frozen layer);
-	// anything else ("stable", "latest", an npm dist-tag) names a
-	// CHANNEL — a moving target that refreshes exactly like an
-	// unversioned entry, because freezing a channel in a cached layer
-	// is the staleness bug all over again.
-	isChannel := func(v string) bool {
-		return v != "" && (v[0] < '0' || v[0] > '9')
+// refreshArgDecl declares a busted agent layer's own cache-buster arg,
+// directly above its RUN. The placement is LOAD-BEARING, not chrome
+// hygiene: the engine builds with the classic builder, where a changed
+// arg value busts every RUN after the arg's DECLARATION (all following
+// RUNs use declared args implicitly), not just the RUNs that reference
+// it. Declared immediately above its own layer, each arg's bust
+// boundary coincides exactly with what layer chaining would rebuild
+// anyway — hoist these declarations together and per-agent busting
+// silently collapses back to shared.
+func refreshArgDecl(bust bool, kind schema.AgentKind) string {
+	if !bust {
+		return ""
 	}
+	return "# The arg's value tracks this agent's channel (resolved version,\n" +
+		"# or a rebuild timestamp when the probe failed): unchanged upstream\n" +
+		"# keeps the layer warm-cached, a real bump re-pulls.\n" +
+		"ARG " + AgentRefreshArgFor(kind) + "\n"
+}
+
+// userLayers renders the layers that install as vscode into the home
+// directory. Fixed order: bun, rokit, then agents as codex, grok,
+// claude — the engine-pinned toolchains sit BEFORE the agents so a
+// refresh-busted agent chain never re-runs them (branch-review
+// remainder item 6), and claude sits LAST among the agents because it
+// releases most often and a layer-cache miss rebuilds everything after
+// it: the most volatile layer at the tail keeps a claude-only bump
+// from re-pulling its neighbors. Channel-tracking agents gain their
+// own per-agent cache-buster arg when refresh is set; manifest-pinned
+// agents install their exact version in a plain layer no buster
+// touches.
+func userLayers(want map[string]bool, pin map[schema.AgentKind]string, refresh bool) []installChunk {
 	bustFor := func(kind schema.AgentKind) bool {
 		return refresh && (pin[kind] == "" || isChannel(pin[kind]))
-	}
-	anyBust := false
-	for _, kind := range []schema.AgentKind{schema.AgentClaude, schema.AgentCodex, schema.AgentGrok} {
-		if want[string(kind)] && bustFor(kind) {
-			anyBust = true
-		}
 	}
 	// agentDetail names the moving-or-pinned target a BoM row reports:
 	// the channel default, a manifest channel, or an exact pin.
@@ -537,14 +597,36 @@ func userLayers(want map[string]bool, pin map[schema.AgentKind]string, refresh b
     && rm -rf "$tmp"
 `})
 	}
-	if anyBust {
-		out = append(out, chrome(`# Agent refresh: this build arg's value (a fresh token per rebuild)
-# is woven into the channel-tracking installers below so their Docker
-# layer cache misses and re-pulls the latest builds. Pinned agents sit
-# in plain layers it never reaches.
-ARG `+AgentRefreshArg+`
-`))
+	if want[string(schema.AgentCodex)] {
+		// Unversioned tracks the npm dist-tag; a manifest pin is exact.
+		codexSpec := codexChannel
+		if v := pin[schema.AgentCodex]; v != "" {
+			codexSpec = v
+		}
+		out = append(out, installChunk{part: InstallPart{ID: "codex", Title: "codex", Detail: agentDetail(schema.AgentCodex, codexChannel), Refresh: bustFor(schema.AgentCodex)}, text: refreshArgDecl(bustFor(schema.AgentCodex), schema.AgentCodex) + `RUN ` + refreshBust(bustFor(schema.AgentCodex), schema.AgentCodex) + `npm install -g --prefix /home/vscode/.local "@openai/codex@` + codexSpec + `"
+`})
 	}
+	if want[string(schema.AgentGrok)] {
+		out = append(out, installChunk{part: InstallPart{ID: "grok", Title: "grok", Detail: agentDetail(schema.AgentGrok, grokChannel), Refresh: bustFor(schema.AgentGrok)}, text: refreshArgDecl(bustFor(schema.AgentGrok), schema.AgentGrok) + `# Grok (xAI official). Its state (auth.json, config.toml) lives in
+# ~/.grok with no env override, so ~/.grok is symlinked onto the
+# agent-state volume path BEFORE install (fresh volumes inherit the
+# dir from the image; lifecycle.sh materializes it on older volumes),
+# making logins survive rebuilds like claude/codex relocation does.
+# The installer symlinks grok/agent into GROK_BIN_DIR pointing at
+# ~/.grok/downloads/, which the runtime volume mount would shadow — so
+# the real binary is materialized instead.
+RUN ` + refreshBust(bustFor(schema.AgentGrok), schema.AgentGrok) + `mkdir -p /vibe/agent-state/grok \
+    && ln -s /vibe/agent-state/grok /home/vscode/.grok \
+    && curl -fsSL https://x.ai/cli/install.sh | GROK_BIN_DIR=/home/vscode/.local/bin bash -s -- \
+    && bin="$(readlink -f /home/vscode/.local/bin/grok)" \
+    && rm -f /home/vscode/.local/bin/grok /home/vscode/.local/bin/agent \
+    && cp "$bin" /home/vscode/.local/bin/grok \
+    && ln -s grok /home/vscode/.local/bin/agent \
+    && rm -rf /vibe/agent-state/grok/downloads
+`})
+	}
+	// claude closes the agent chain (see the order comment above): the
+	// near-daily releaser sits where its bump busts nothing downstream.
 	if want[string(schema.AgentClaude)] {
 		target := claudeChannel + " channel"
 		spec := claudeChannel
@@ -556,37 +638,9 @@ ARG `+AgentRefreshArg+`
 				target = "manifest-pinned " + v
 			}
 		}
-		out = append(out, installChunk{part: InstallPart{ID: "claude", Title: "claude", Detail: agentDetail(schema.AgentClaude, claudeChannel), Refresh: bustFor(schema.AgentClaude)}, text: `# Claude Code: the installer's ` + target + `.
-RUN ` + refreshBust(bustFor(schema.AgentClaude)) + `curl -fsSL https://claude.ai/install.sh | bash -s -- ` + spec + ` \
+		out = append(out, installChunk{part: InstallPart{ID: "claude", Title: "claude", Detail: agentDetail(schema.AgentClaude, claudeChannel), Refresh: bustFor(schema.AgentClaude)}, text: refreshArgDecl(bustFor(schema.AgentClaude), schema.AgentClaude) + `# Claude Code: the installer's ` + target + `.
+RUN ` + refreshBust(bustFor(schema.AgentClaude), schema.AgentClaude) + `curl -fsSL https://claude.ai/install.sh | bash -s -- ` + spec + ` \
     && test -x /home/vscode/.local/bin/claude
-`})
-	}
-	if want[string(schema.AgentCodex)] {
-		// Unversioned tracks the npm dist-tag; a manifest pin is exact.
-		codexSpec := codexChannel
-		if v := pin[schema.AgentCodex]; v != "" {
-			codexSpec = v
-		}
-		out = append(out, installChunk{part: InstallPart{ID: "codex", Title: "codex", Detail: agentDetail(schema.AgentCodex, codexChannel), Refresh: bustFor(schema.AgentCodex)}, text: `RUN ` + refreshBust(bustFor(schema.AgentCodex)) + `npm install -g --prefix /home/vscode/.local "@openai/codex@` + codexSpec + `"
-`})
-	}
-	if want[string(schema.AgentGrok)] {
-		out = append(out, installChunk{part: InstallPart{ID: "grok", Title: "grok", Detail: agentDetail(schema.AgentGrok, "latest"), Refresh: bustFor(schema.AgentGrok)}, text: `# Grok (xAI official). Its state (auth.json, config.toml) lives in
-# ~/.grok with no env override, so ~/.grok is symlinked onto the
-# agent-state volume path BEFORE install (fresh volumes inherit the
-# dir from the image; lifecycle.sh materializes it on older volumes),
-# making logins survive rebuilds like claude/codex relocation does.
-# The installer symlinks grok/agent into GROK_BIN_DIR pointing at
-# ~/.grok/downloads/, which the runtime volume mount would shadow — so
-# the real binary is materialized instead.
-RUN ` + refreshBust(bustFor(schema.AgentGrok)) + `mkdir -p /vibe/agent-state/grok \
-    && ln -s /vibe/agent-state/grok /home/vscode/.grok \
-    && curl -fsSL https://x.ai/cli/install.sh | GROK_BIN_DIR=/home/vscode/.local/bin bash -s -- \
-    && bin="$(readlink -f /home/vscode/.local/bin/grok)" \
-    && rm -f /home/vscode/.local/bin/grok /home/vscode/.local/bin/agent \
-    && cp "$bin" /home/vscode/.local/bin/grok \
-    && ln -s grok /home/vscode/.local/bin/agent \
-    && rm -rf /vibe/agent-state/grok/downloads
 `})
 	}
 	return out

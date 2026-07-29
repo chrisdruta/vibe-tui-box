@@ -16,6 +16,7 @@ import (
 	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
+	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 )
 
 func writeManifest(t *testing.T, dir, manifest string) {
@@ -171,9 +172,10 @@ func TestRebuildUnchangedInputsUnderMovingClock(t *testing.T) {
 	}
 }
 
-// lastToolsRefreshArg returns the AgentRefreshArg carried by the most
-// recent tools-image build, and whether it was present at all. The test
-// manifest builds only the tools image, so every Build call is one.
+// lastToolsRefreshArg returns the per-agent claude refresh arg carried
+// by the most recent tools-image build, and whether it was present at
+// all. The test manifest lists only claude, so its arg is the whole
+// refresh surface; every Build call is a tools build.
 func lastToolsRefreshArg(t *testing.T, docker *dockerfake.Client) (string, bool) {
 	t.Helper()
 	builds := docker.CallsTo("Build")
@@ -181,13 +183,15 @@ func lastToolsRefreshArg(t *testing.T, docker *dockerfake.Client) (string, bool)
 		t.Fatal("no tools image was built")
 	}
 	req := builds[len(builds)-1].Request.(dockerapi.BuildRequest)
-	v, ok := req.BuildArgs[builder.AgentRefreshArg]
+	v, ok := req.BuildArgs[builder.AgentRefreshArgFor(schema.AgentClaude)]
 	return v, ok
 }
 
 // Every rebuild refreshes the unversioned agents: the token is minted
 // without any flag, threaded into the tools build, and persisted; a
 // later plain up keeps it (warm cache), never reverting the agents.
+// With no version prober wired (this app), the pair values fall back
+// to the mint timestamp — the pre-probe behavior.
 func TestRebuildRefreshesAgents(t *testing.T) {
 	a, docker := newTestApp(t)
 	ctx := context.Background()
@@ -209,18 +213,20 @@ func TestRebuildRefreshesAgents(t *testing.T) {
 		t.Fatalf("plain up passed a refresh build arg: %q", v)
 	}
 
-	// Plain rebuild — no flag: token minted, passed to the build,
-	// persisted. "No version given" means "latest per rebuild".
+	// Plain rebuild — no flag: token minted as the per-agent
+	// fingerprint, its claude value passed to the build, persisted.
+	// "No version given" means "latest per rebuild".
 	rb, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	token := rb.Record.AgentRefresh
-	if token == "" {
-		t.Fatal("rebuild did not mint a refresh token")
+	value := builder.ParseAgentRefresh(token)[schema.AgentClaude]
+	if token == "" || value == "" {
+		t.Fatalf("rebuild did not mint a per-agent token: %q", token)
 	}
-	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != token {
-		t.Fatalf("rebuild build arg = (%q, %v), want persisted token %q", v, ok, token)
+	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != value {
+		t.Fatalf("rebuild build arg = (%q, %v), want the claude pair %q", v, ok, value)
 	}
 
 	// A later plain up keeps the token and still passes it — the
@@ -232,8 +238,97 @@ func TestRebuildRefreshesAgents(t *testing.T) {
 	if up2.Record.AgentRefresh != token {
 		t.Fatalf("plain up changed the token: %q -> %q", token, up2.Record.AgentRefresh)
 	}
-	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != token {
-		t.Fatalf("plain up dropped the token: got (%q, %v), want %q", v, ok, token)
+	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != value {
+		t.Fatalf("plain up dropped the token: got (%q, %v), want %q", v, ok, value)
+	}
+}
+
+// fakeAgentVersions scripts the rebuild-time channel probe.
+type fakeAgentVersions struct {
+	versions map[schema.AgentKind]string
+	err      error
+	calls    int
+}
+
+func (f *fakeAgentVersions) Resolve(_ context.Context, kind schema.AgentKind, _ string) (string, error) {
+	f.calls++
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.versions[kind], nil
+}
+
+// The probe makes the refresh token MEAN the resolved upstream version:
+// two rebuilds against an unmoved channel mint the identical token (the
+// warm-cache case that used to re-download identical builds), a bump
+// changes it, and a probe failure degrades to the timestamp fallback so
+// staleness never hides behind a dead endpoint.
+func TestRebuildProbesAgentVersions(t *testing.T) {
+	a, docker := newTestApp(t)
+	probe := &fakeAgentVersions{versions: map[schema.AgentKind]string{schema.AgentClaude: "2.1.220"}}
+	a.deps.AgentVersions = probe
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	rb1, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rb1.Record.AgentRefresh != "claude=2.1.220" {
+		t.Fatalf("token = %q, want the resolved fingerprint", rb1.Record.AgentRefresh)
+	}
+	if v, ok := lastToolsRefreshArg(t, docker); !ok || v != "2.1.220" {
+		t.Fatalf("build arg = (%q, %v), want the resolved version", v, ok)
+	}
+	if probe.calls != 1 {
+		t.Fatalf("want one probe (one channel-tracking agent), got %d", probe.calls)
+	}
+
+	// Upstream unmoved: the second rebuild mints the IDENTICAL token —
+	// same build arg, warm Docker layer cache, no re-download.
+	rb2, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rb2.Record.AgentRefresh != rb1.Record.AgentRefresh {
+		t.Fatalf("unmoved upstream changed the token: %q -> %q", rb1.Record.AgentRefresh, rb2.Record.AgentRefresh)
+	}
+
+	// A real bump changes the pair and re-pulls.
+	probe.versions[schema.AgentClaude] = "2.1.221"
+	rb3, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rb3.Record.AgentRefresh != "claude=2.1.221" {
+		t.Fatalf("bumped upstream token = %q", rb3.Record.AgentRefresh)
+	}
+
+	// Probe failure: the pair value degrades to the mint timestamp —
+	// today's bust-every-rebuild, never a stale skip.
+	probe.err = errors.New("endpoint down")
+	rb4, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fallback := builder.ParseAgentRefresh(rb4.Record.AgentRefresh)[schema.AgentClaude]
+	if fallback == "" || fallback == "2.1.221" {
+		t.Fatalf("failed probe must fall back to a timestamp value: %q", rb4.Record.AgentRefresh)
+	}
+
+	// A junk value that would corrupt the pair grammar is a bust, not a
+	// token.
+	probe.err = nil
+	probe.versions[schema.AgentClaude] = "2.1.222 --evil"
+	rb5, err := a.Up(ctx, UpRequest{Dir: dir, Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := builder.ParseAgentRefresh(rb5.Record.AgentRefresh)[schema.AgentClaude]; strings.Contains(v, "evil") || v == "" {
+		t.Fatalf("junk probe value leaked into the token: %q", rb5.Record.AgentRefresh)
 	}
 }
 

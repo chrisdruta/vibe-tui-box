@@ -14,15 +14,18 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"golang.org/x/term"
 
 	assets "github.com/chrisdruta/vibe-tui-box"
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
+	"github.com/chrisdruta/vibe-tui-box/internal/builder"
 	"github.com/chrisdruta/vibe-tui-box/internal/cli"
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
@@ -130,23 +133,26 @@ func construct() (*app.App, error) {
 	}
 
 	return app.New(app.Dependencies{
-		Clock:       clock,
-		Layout:      layout,
-		Locks:       locks,
-		Store:       st,
-		Registry:    reg,
-		Snapshots:   snaps,
-		Docker:      docker,
-		Runner:      runner.NewHost(),
-		Executables: executables,
-		Prompt:      &terminal.StdioPrompt{In: os.Stdin, Out: os.Stderr},
-		Tmux:        tmuxClient,
-		ViewerPane:  tmux.SelfPane(os.Getenv("TMUX_PANE"), os.Getenv("TMUX")),
-		Version:     version.Get(),
-		Payload:     bundle,
-		Release:     releases,
-		Executable:  executable,
-		Progress:    stderrProgress(),
+		Clock:     clock,
+		Layout:    layout,
+		Locks:     locks,
+		Store:     st,
+		Registry:  reg,
+		Snapshots: snaps,
+		Docker:    docker,
+		Runner:    runner.NewHost(),
+		// The rebuild-time channel probe; the client timeout backstops
+		// the per-probe context deadline the app already applies.
+		AgentVersions: builder.AgentVersionProbe{Client: &http.Client{Timeout: 15 * time.Second}},
+		Executables:   executables,
+		Prompt:        &terminal.StdioPrompt{In: os.Stdin, Out: os.Stderr},
+		Tmux:          tmuxClient,
+		ViewerPane:    tmux.SelfPane(os.Getenv("TMUX_PANE"), os.Getenv("TMUX")),
+		Version:       version.Get(),
+		Payload:       bundle,
+		Release:       releases,
+		Executable:    executable,
+		Progress:      stderrProgress(),
 		// Hook output is diagnostic side-band like progress; stdout stays
 		// reserved for command results.
 		LifecycleOut: os.Stderr,

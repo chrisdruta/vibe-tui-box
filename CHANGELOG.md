@@ -38,6 +38,31 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- Changed: **the agent refresh token now means the resolved upstream
+  version** (wanted and shipped 2026-07-29, the saturated-link
+  dogfood). `vibe rebuild` used to bust the channel-tracking agent
+  layers with a fresh timestamp — re-downloading identical
+  claude/codex builds when upstream hadn't moved. The engine now
+  probes each channel's own release endpoint at rebuild time (the same
+  files the installers resolve through: claude/grok's bare version
+  files, codex's npm dist-tags; one small GET apiece, 10s timeout) and
+  mints `AgentRefresh` as a per-agent fingerprint
+  (`claude=2.1.220 codex=0.146.0`): unmoved upstream → identical token
+  → warm Docker layer cache, zero downloads; a real bump re-pulls
+  exactly that agent. Cache-busters went PER-AGENT
+  (`VIBE_AGENT_REFRESH_CLAUDE`/`_CODEX`/`_GROK`, each declared
+  directly above its own layer — placement is load-bearing under the
+  classic builder's declaration-onwards busting) and claude moved to
+  the END of the agent chain, so the near-daily claude release stops
+  re-pulling its neighbors (one-time layer re-pull on the first
+  rebuild after this reorder). Every failure mode — no prober,
+  unreadable manifest, dead endpoint, non-version content — degrades
+  to the timestamp fallback that busts like before: staleness never
+  hides behind a failed probe, and probed values pass the same
+  shell-inert charset manifest pins do before touching a build arg.
+  Legacy bare-timestamp records keep busting until their next rebuild
+  re-mints. Also fixed in passing: unversioned grok's BoM row now says
+  `stable channel` — its installer's actual default — not `latest`.
 - Changed: **the sidebar's polish pass, first round** (docs/tui-layout.md,
   2026-07-29 screenshot dogfood). The meta line wraps at segment
   boundaries onto continuation rows when it overflows the text budget

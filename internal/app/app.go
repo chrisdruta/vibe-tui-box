@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sync/atomic"
@@ -20,6 +21,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/release"
 	"github.com/chrisdruta/vibe-tui-box/internal/runner"
 	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
+	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
 	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
@@ -30,6 +32,15 @@ import (
 // Clock supplies timestamps; tests inject a fixed one.
 type Clock interface {
 	Now() time.Time
+}
+
+// AgentVersions resolves a channel-tracking agent's channel to its
+// current upstream version — the rebuild-time probe that lets the
+// agent-refresh token track real releases instead of busting every
+// rebuild. Nil disables probing: rebuild tokens then fall back to
+// timestamps and every rebuild re-pulls, the pre-probe behavior.
+type AgentVersions interface {
+	Resolve(ctx context.Context, kind schema.AgentKind, channel string) (string, error)
 }
 
 // SystemClock is the production clock.
@@ -50,6 +61,9 @@ type Dependencies struct {
 	Snapshots *snapshot.Service
 	Docker    dockerapi.Client
 	Runner    runner.Runner
+	// AgentVersions probes agent-channel versions at rebuild time; nil
+	// disables probing (see the interface).
+	AgentVersions AgentVersions
 	// Executables are host tool paths resolved at startup.
 	Executables runner.Executables
 	// Prompt asks the operator for approvals; nil means non-interactive
