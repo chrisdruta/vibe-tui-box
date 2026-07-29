@@ -367,7 +367,7 @@ flowchart LR
     it -->|"OSC title over the<br>docker-exec TTY"| pane["host pane title"]
     subgraph host["host tmux"]
         pane -->|"pane-title-changed hook"| sr["state-render.sh"]
-        sr --> dots["tab · border · sidebar dots,<br>attention flash"]
+        sr --> dots["tab · border · sidebar dots,<br>attention flash · working spinner"]
     end
 ```
 

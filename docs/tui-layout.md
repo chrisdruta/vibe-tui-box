@@ -20,7 +20,7 @@ meta line: every live agent is a sidebar row (idle dim), each block
 reads identity → meta → roster, and ● is agents-only on that surface.
 Updated 2026-07-29 (signal-density pass) with age, state words,
 counts, churn, and the footer's second row — design agreed on
-mockups, unshipped. Updated 2026-07-29 (polish pass) with the meta
+mockups, shipped the same day. Updated 2026-07-29 (polish pass) with the meta
 line's segment-boundary overflow wrap, the roster ages' `<1m` floor,
 the `bright` palette entry, the pinned canvas (`window-style` /
 `popup-style` bg), and the ▤ cell's move to the bar's left cluster —
