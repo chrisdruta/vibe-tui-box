@@ -7,6 +7,7 @@ return {
   surface = '#1a2440',
   border = '#2a3554',
   fg = '#a9b6d8',
+  bright = '#ffffff',
   dim = '#5c6b96',
   blue = '#7aa2f7',
   accent = '#3d59a1',

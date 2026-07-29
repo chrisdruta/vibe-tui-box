@@ -47,6 +47,11 @@ The v1 line and its history remain in git up to the cutover commit.
   `<1m`: exact seconds shimmered across near-identical rows on every
   forced frame while overstating the 10s redraw cadence. `vibe ps`
   keeps exact seconds — a snapshot is accurate the moment it prints.
+  Second round: the three conf sites that hardcoded `#ffffff` (the
+  current tab, menu selection, copy mode) now read a new `bright`
+  palette entry — theming stays total: no rendering carries a literal
+  color outside theme.go, and a future palette shift can't strand a
+  stray white.
 - New: **the sidebar learns to tell time — the signal-density pass**
   (docs/tui-layout.md "Signal density", designed and shipped
   2026-07-29). Six glance signals, all inline (one line per entry

@@ -27,12 +27,18 @@ type ThemeColor struct {
 }
 
 // Palette — navy/periwinkle with a coral accent. Ordered: renderings
-// must be deterministic (the payload digest depends on them).
+// must be deterministic (the payload digest depends on them). bright
+// is the high-emphasis foreground for accent-backed surfaces (the
+// current tab, menu selection, copy mode) — it exists so no rendering
+// hardcodes a literal white outside this file (2026-07-29, the polish
+// pass: three conf sites carried #ffffff a palette shift could
+// strand).
 var Palette = []ThemeColor{
 	{"bg", "#0e1421"},
 	{"surface", "#1a2440"},
 	{"border", "#2a3554"},
 	{"fg", "#a9b6d8"},
+	{"bright", "#ffffff"},
 	{"dim", "#5c6b96"},
 	{"blue", "#7aa2f7"},
 	{"accent", "#3d59a1"},
