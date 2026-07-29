@@ -52,6 +52,19 @@ vibe request show add-port
 vibe request approve add-port   # applies exactly the frozen candidate you saw
 ```
 
+## The cockpit
+
+`vibe tui` is a host tmux session per project: a sidebar that keeps every
+project's agents and workspace services in view, live state dots the
+agent's own hooks push out (nothing polls), and a chooser for launching
+whatever the image installed. Agents run in tmux *inside* the container,
+so a closed terminal never kills a session. Reviewing their work needs
+nothing on the host: `prefix+f` (nvim + oil) and `prefix+g` (lazygit)
+open popups running in the container, pinned into the image at exact
+versions. Images preview over sixel, paths ctrl+click open in nvim at
+their line, and `prefix+v` carries a host clipboard image through the
+boundary into the agent's prompt.
+
 ## How it holds together
 
 Projects author one closed `vibe.yaml` — base image, agents, toolchains,
@@ -93,6 +106,12 @@ containers. Logins are per-project by design, not omission — each
 project's agent-state volume is a blast-radius cell, and "log in once,
 use everywhere" is exactly the cross-project token exposure the
 per-project trust boundary exists to prevent.
+
+What the refusal buys is the axis the layers above don't optimize:
+trust over throughput. Not how many agents you can fan out, but knowing
+exactly what each one is running in — which frozen inputs produced it,
+what was approved, and what it can reach. Parallelism belongs to the
+agent CLI; `vibe` hosts and surfaces it, it does not manage it.
 
 ## Status
 
