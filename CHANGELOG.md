@@ -76,7 +76,13 @@ The v1 line and its history remain in git up to the cutover commit.
   current tab, menu selection, copy mode) now read a new `bright`
   palette entry — theming stays total: no rendering carries a literal
   color outside theme.go, and a future palette shift can't strand a
-  stray white.
+  stray white. Third round: the canvas is pinned —
+  `window-style "bg=#{@thm_bg}"` defaults every pane to the palette
+  background and `popup-style` matches, so the chrome's surface insets
+  and dim ramps render on the bg they were mixed against instead of
+  whatever the emulator carries (the dogfood host's purple scheme left
+  them floating). Pane foreground stays the terminal's — inner apps
+  own their text — and the user conf overrides both.
 - New: **the sidebar learns to tell time — the signal-density pass**
   (docs/tui-layout.md "Signal density", designed and shipped
   2026-07-29). Six glance signals, all inline (one line per entry

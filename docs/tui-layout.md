@@ -21,8 +21,9 @@ reads identity → meta → roster, and ● is agents-only on that surface.
 Updated 2026-07-29 (signal-density pass) with age, state words,
 counts, churn, and the footer's second row — design agreed on
 mockups, unshipped. Updated 2026-07-29 (polish pass) with the meta
-line's segment-boundary overflow wrap and the roster ages' `<1m`
-floor — screenshot dogfood, wired the same day.
+line's segment-boundary overflow wrap, the roster ages' `<1m` floor,
+the `bright` palette entry, and the pinned canvas (`window-style` /
+`popup-style` bg) — screenshot dogfood, wired the same day.
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -273,6 +274,20 @@ Agent pane dominant; sidebar far left at `@vibe_sidebar_w` fixed cols,
 one per window kept in lockstep; dock parked collapsed (1 row) on
 session create, expanding to `@vibe_dock_size`; pane borders on top
 with role-gated dot + title.
+
+### The canvas: panes default to the palette bg (2026-07-29)
+
+`window-style "bg=#{@thm_bg}"` pins every pane's default background to
+the palette, and `popup-style` gives popups the same canvas (plus fg —
+transient chrome like the menus, which already carried `menu-style`).
+Before this the chrome floated on whatever bg the emulator happened to
+carry: the tabs' surface insets, the ghost cells' hairlines, and the
+sidebar's dim ramp are all mixed against `@thm_bg`, and the screenshot
+dogfood's purple host scheme showed them on a bg they were never tuned
+for. Pane FOREGROUND deliberately stays the terminal's — inner apps
+own their text; bg is the one attribute the chrome needs pinned.
+Light-scheme hosts override both in the user conf, the sanctioned
+customization point.
 
 ### Agent surfaces: presence vs activity (2026-07-26, supersedes the aggregate roster)
 
