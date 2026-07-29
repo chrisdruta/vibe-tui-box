@@ -462,7 +462,7 @@ the sidebar cannot see them at all.
 - **Chooser: out of scope.** Launching a service IS the hook; there is
   nothing for a launch surface to offer.
 
-### Signal density: age, words, counts, churn (2026-07-29, designed, unshipped)
+### Signal density: age, words, counts, churn (2026-07-29, designed; shipped same day)
 
 A screenshot audit of tools one layer up (an agent multiplexer, a
 worktree orchestrator, a task manager — unnamed here, per the
@@ -489,12 +489,19 @@ inline treatment won — one line per entry stays law. Target block:
 
 - **Age on every roster row** — right-aligned, dim, compact
   (`42m`/`3h`/`2d`), meaning time IN STATE, not session uptime.
-  Services already ship an epoch in agent-ps.sh's second pass and the
-  porcelain drops it; agents get theirs from state-render.sh stamping
+  Agent cache rows already shipped an epoch in agent-ps.sh's rows and
+  the porcelain dropped it (now threaded through, `_agents` grammar
+  v2); window rows get theirs from state-render.sh stamping
   `@vibe_state_epoch` beside `@vibe_state` only when the value
-  CHANGES. The text renders at frame time from cached epochs — minute
-  granularity needs no cadence the frame does not already have; no
-  new polling, no extra container round-trips.
+  CHANGES. (The design's "services already ship an epoch" premise was
+  false against the code — the second pass emitted an empty field; it
+  now derives one: /proc starttime for a live window — tmux has no
+  pane-start format and `#{window_activity}` resets with every byte a
+  chatty service prints — and `#{window_activity}` for a dead one,
+  where it stopped moving at death.) The text renders at frame time
+  from cached epochs — minute granularity needs no cadence the frame
+  does not already have; no new polling, no extra container
+  round-trips.
 - **State words for `attention`/`exited` only** — the word takes the
   model's slot on exactly the rows where the dot's color is the whole
   message today (glance ambiguity, and color-blindness). Nominal rows
@@ -508,11 +515,13 @@ inline treatment won — one line per entry stays law. Target block:
   overflow folds IDLE rows first: a signal row is never the hidden
   one.
 - **Churn on the branch line** — `⎇ main  +128 −40`, dim. One
-  host-side `git diff --shortstat` per in-use project, riding the
-  cached engine layer on the `@vibe_engine_refresh` cadence — never
-  the frame path, so `#(vibe _state)` stays the conf's whole splice
-  budget. Answers "has the agent actually changed anything" without
-  opening lazygit.
+  host-side `git diff --shortstat HEAD` (staged and unstaged both
+  count: the question is "has the agent changed anything", not "what
+  isn't staged yet") per in-use project, riding the cached engine
+  layer (`_fleet` grammar v2, the churn field before the name) on the
+  `@vibe_engine_refresh` cadence — never the frame path, so
+  `#(vibe _state)` stays the conf's whole splice budget. Answers "has
+  the agent actually changed anything" without opening lazygit.
 - **The footer's second row** — `f files · g git · v clip` under the
   cold-start palette pointer, height-gated: it renders only when the
   frame has slack, so a short pane loses the new hint, never the old

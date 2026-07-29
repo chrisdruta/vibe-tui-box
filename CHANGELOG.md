@@ -38,6 +38,27 @@ The v1 line and its history remain in git up to the cutover commit.
   the project record so later plain rebuilds stay on the fresh build
   (warm-cached) instead of reverting. The pinned system toolchains
   (Go/Node/apt) sit in earlier layers and never rebuild.
+- New: **the sidebar learns to tell time — the signal-density pass**
+  (docs/tui-layout.md "Signal density", designed and shipped
+  2026-07-29). Six glance signals, all inline (one line per entry
+  stays law), no new polling and no new container round-trips: every
+  roster row wears a right-aligned dim age meaning time IN STATE
+  (state-render.sh stamps `@vibe_state_epoch` only on transition;
+  cache rows ride the epoch agent-ps.sh always emitted, now threaded
+  through the `_agents` grammar — bumped to v2 with epoch + detail);
+  `attention` and `exited` rows put the state word in the model's
+  slot (the dot's color is no longer the whole message — glance
+  ambiguity, color-blindness), with `exit RC` forensics on ✗ rows;
+  grouped headers carry dim counts (`agents · 2`) and the `… +n`
+  overflow folds DIM rows first, so a signal row is never the hidden
+  one; the branch line wears churn (`⎇ main  +128 −40`, one
+  `git diff --shortstat HEAD` per in-use project on the fetch path,
+  `_fleet` grammar v2); and a height-gated second footer row surfaces
+  the review-stack keys (`f files · g git · v clip`) whenever the
+  pane has slack. Fixed along the way: the services pass of
+  agent-ps.sh claimed an epoch it never emitted — it now derives one
+  (/proc starttime while running, `#{window_activity}` once dead), so
+  `vibe ps` service rows grow ages too.
 - New: **workspace services join the TUI** (docs/tui-layout.md
   "Workspace services") — the svc.sh windows post-start hooks stand up
   are no longer attach-only-invisible. `vibe ps` grows a services

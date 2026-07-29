@@ -139,8 +139,14 @@ func TestFrameNestedAgentRows(t *testing.T) {
 	if !strings.Contains(rows[3], "codex:review") || clicks[3] != "$1:@3" {
 		t.Fatalf("the idle viewer earns a dim row with its window jump: rows[3]=%q clicks[3]=%q", rows[3], clicks[3])
 	}
-	if !strings.Contains(rows[4], "claude") || !strings.Contains(rows[4], "fable") {
-		t.Fatalf("the viewer-less attention row should carry CLI + model: %q", rows[4])
+	// The state word takes the model's slot on attention rows (the
+	// signal-density pass): the dot's color is no longer the whole
+	// message.
+	if !strings.Contains(rows[4], "claude") || !strings.Contains(rows[4], "attention") {
+		t.Fatalf("the viewer-less attention row should carry CLI + state word: %q", rows[4])
+	}
+	if strings.Contains(rows[4], "fable") {
+		t.Fatalf("the state word must replace the model, not join it: %q", rows[4])
 	}
 	if clicks[4] != "$1:agent-agent-ghost" {
 		t.Fatalf("viewer-less rows spawn a viewer: %q", clicks[4])
@@ -289,11 +295,12 @@ func TestFrameGlyphlessViewerClearsGhost(t *testing.T) {
 		t.Fatalf("a session with a viewer must not offer the spawn target: %q", out.Map)
 	}
 	// The row itself still renders — the window pass drew nothing for
-	// it (no glyph), and vanishing from the roster would be worse.
+	// it (no glyph), and vanishing from the roster would be worse. Its
+	// attention state word rides the model slot.
 	rows := frameRows(t, out.Body)
 	found := false
 	for _, content := range rows {
-		if strings.Contains(content, "claude") && strings.Contains(content, "fable") {
+		if strings.Contains(content, "claude") && strings.Contains(content, "attention") {
 			found = true
 		}
 	}
@@ -330,12 +337,18 @@ func TestFrameFooterHint(t *testing.T) {
 	out := Frame(twoSessionInput())
 	rows := frameRows(t, out.Body)
 	clicks := mapRows(t, out.Map)
-	// Height 24 → the footer hint owns row 23, render-only.
-	if !strings.Contains(rows[23], "palette") {
-		t.Fatalf("footer hint missing on the last row: %q", rows[23])
+	// Height 24 has slack → both footer rows render: the palette
+	// pointer with the review-stack keys under it, render-only.
+	if !strings.Contains(rows[22], "palette") {
+		t.Fatalf("palette hint missing above the keys row: %q", rows[22])
 	}
-	if _, ok := clicks[23]; ok {
-		t.Fatal("the footer must not be clickable")
+	if !strings.Contains(rows[23], "f files · g git · v clip") {
+		t.Fatalf("keys hint missing on the last row: %q", rows[23])
+	}
+	for _, r := range []int{22, 23} {
+		if _, ok := clicks[r]; ok {
+			t.Fatal("the footer must not be clickable")
+		}
 	}
 }
 
@@ -566,7 +579,7 @@ func TestParseFrameData(t *testing.T) {
 	data := strings.Join([]string{
 		"G" + us + "42" + us + "20" + us + "$7",
 		"S" + us + "$7" + us + "alpha" + us + "/work/a" + us + "projid",
-		"W" + us + "$7" + us + "●" + us + "#9ece6a" + us + "1" + us + "@1" + us + "claude" + us + "1" + us + "opus" + us + "attention" + us + "agent",
+		"W" + us + "$7" + us + "●" + us + "#9ece6a" + us + "1" + us + "@1" + us + "claude" + us + "1" + us + "opus" + us + "attention" + us + "agent" + us + "1700000042",
 		"W" + us + "$7" + us + "●" + us + "#5c6b96" + us + "0" + us + "@4" + us + "old" + us + "0" + us + "", // nine fields: pre-state artifact
 		"W" + us + "$999" + us + "●" + us + "x" + us + "0" + us + "@2" + us + "orphan" + us + "0" + us + "",  // unknown session: dropped
 		"bogus line",
@@ -581,11 +594,12 @@ func TestParseFrameData(t *testing.T) {
 	}
 	w := in.Sessions[0].Windows[0]
 	if w.Name != "claude" || !w.Attn || !w.Active || w.Model != "opus" || w.ID != "@1" ||
-		w.State != "attention" || w.Session != "agent" {
+		w.State != "attention" || w.Session != "agent" || w.Epoch != 1700000042 {
 		t.Fatalf("window: %+v", w)
 	}
-	// The short record still parses; its signal degrades to the glyph.
-	if old := in.Sessions[0].Windows[1]; old.State != "" || old.Session != "" || old.Name != "old" {
+	// The short record still parses; its signal degrades to the glyph
+	// and it has no epoch.
+	if old := in.Sessions[0].Windows[1]; old.State != "" || old.Session != "" || old.Name != "old" || old.Epoch != 0 {
 		t.Fatalf("nine-field window: %+v", old)
 	}
 }
@@ -725,6 +739,172 @@ func TestAgentsPorcelainServiceKind(t *testing.T) {
 	// An unknown trailing kind drops the line like any shape error.
 	if got := ParseAgents([]string{lines[1] + "x"}); len(got) != 0 {
 		t.Fatalf("unknown kind must drop: %+v", got)
+	}
+}
+
+func TestFrameRowAges(t *testing.T) {
+	// Ages render at frame time from cached epochs: window rows from
+	// @vibe_state_epoch, cache rows from the porcelain's epoch field —
+	// right-aligned, meaning time IN STATE.
+	in := twoSessionInput()
+	now := int64(1_700_010_000)
+	in.Now = now
+	in.Sessions[1].Windows[0].Epoch = now - 2520 // the idle viewer: 42m
+	in.Agents[1].Epoch = now - 3*3600            // the attention agent: 3h
+	out := Frame(in)
+	rows := frameRows(t, out.Body)
+	if !strings.Contains(rows[3], "codex:review") || !strings.HasSuffix(rows[3], "42m") {
+		t.Fatalf("window row age missing or not right-aligned: %q", rows[3])
+	}
+	if !strings.HasSuffix(rows[4], "3h") {
+		t.Fatalf("cache row age missing or not right-aligned: %q", rows[4])
+	}
+	// The two ages end on the same column — right-aligned on the shared
+	// budget edge, not trailing the text.
+	if len([]rune(rows[3])) != len([]rune(rows[4])) {
+		t.Fatalf("ages must align on one edge: %q vs %q", rows[3], rows[4])
+	}
+	// No epoch, no age: the quiet idle row ends with its CLI name.
+	if !strings.HasSuffix(rows[5], "codex") {
+		t.Fatalf("epochless row grew a phantom age: %q", rows[5])
+	}
+	// Ages render dim.
+	if !strings.Contains(out.Body, fg(PaletteHex("dim"))+"42m") {
+		t.Fatal("the age must render dim")
+	}
+}
+
+func TestAgentLabelDropOrder(t *testing.T) {
+	// Under the text budget the model slot goes first, the age
+	// second-to-last, the dot+name never (tui-layout.md "Signal
+	// density" budgets).
+	strip := func(s string) string {
+		return regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`).ReplaceAllString(s, "")
+	}
+	row := agentRow{name: "claude", model: "fable", age: "42m"}
+	full := strip(agentLabel(row, 30, "", ""))
+	if full != "claude  fable"+strings.Repeat(" ", 30-13-3)+"42m" {
+		t.Fatalf("full label: %q", full)
+	}
+	// Too narrow for the model: it drops, the age stays aligned.
+	noModel := strip(agentLabel(row, 12, "", ""))
+	if noModel != "claude   42m" {
+		t.Fatalf("model must drop first: %q", noModel)
+	}
+	// Too narrow even for the age: the name alone survives.
+	if got := strip(agentLabel(row, 9, "", "")); got != "claude" {
+		t.Fatalf("age must drop before the name: %q", got)
+	}
+}
+
+func TestFrameGroupHeaderCounts(t *testing.T) {
+	in := FrameInput{
+		Width: 30, Height: 24, SelfSession: "$1",
+		Sessions: []FrameSession{{ID: "$1", Name: "alpha", Path: "/a", Project: "p"}},
+		Agents: []AgentEntry{
+			{Project: "p", Session: "agent", State: "working", CLI: "claude"},
+			{Project: "p", Session: "agent-codex", State: "idle", CLI: "codex"},
+			{Project: "p", Session: "web", State: "running", Kind: AgentEntryKindService},
+			{Project: "p", Session: "db", State: "running", Kind: AgentEntryKindService},
+			{Project: "p", Session: "idler", State: "exited(1)", Kind: AgentEntryKindService},
+		},
+	}
+	rows := frameRows(t, Frame(in).Body)
+	if !strings.Contains(rows[2], "agents · 2") {
+		t.Fatalf("agents header count: %q", rows[2])
+	}
+	if !strings.Contains(rows[5], "services · 3") {
+		t.Fatalf("services header count: %q", rows[5])
+	}
+	// Dead-service forensics: exit code word in the model slot.
+	var corpse string
+	for _, content := range rows {
+		if strings.Contains(content, "idler") {
+			corpse = content
+		}
+	}
+	if !strings.Contains(corpse, "✗") || !strings.Contains(corpse, "exit 1") {
+		t.Fatalf("dead service row must carry the exit code: %q", corpse)
+	}
+}
+
+func TestFrameOverflowFoldsIdleFirst(t *testing.T) {
+	// Five agents, room for three roster rows: the fold hides DIM rows
+	// first, so the late signal rows survive while early idle ones join
+	// the `… +n` tally — a signal row is never the hidden one.
+	in := FrameInput{Width: 30, Height: 7, SelfSession: "$1",
+		Sessions: []FrameSession{{ID: "$1", Name: "p", Path: "/p", Project: "p"}},
+		Agents: []AgentEntry{
+			{Project: "p", Session: "agent-i1", State: "idle", CLI: "idle1"},
+			{Project: "p", Session: "agent-i2", State: "idle", CLI: "idle2"},
+			{Project: "p", Session: "agent-w1", State: "working", CLI: "work1"},
+			{Project: "p", Session: "agent-i3", State: "idle", CLI: "idle3"},
+			{Project: "p", Session: "agent-a1", State: "attention", CLI: "attn1"},
+		}}
+	rows := frameRows(t, Frame(in).Body)
+	joined := ""
+	for _, content := range rows {
+		joined += content + "\n"
+	}
+	for _, want := range []string{"work1", "attn1", "… +3 more"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing %q in %q", want, joined)
+		}
+	}
+	for _, hidden := range []string{"idle2", "idle3"} {
+		if strings.Contains(joined, hidden) {
+			t.Fatalf("idle row %q must fold before signal rows: %q", hidden, joined)
+		}
+	}
+}
+
+func TestFrameBranchChurn(t *testing.T) {
+	in := twoSessionInput()
+	in.Fleet = []FleetEntry{{ID: "projalpha", Token: string(StateRunning), Churn: "+128 −40", Name: "alpha"}}
+	rows := frameRows(t, Frame(in).Body)
+	if !strings.Contains(rows[2], "⎇ main  +128 −40") {
+		t.Fatalf("churn must ride the branch segment: %q", rows[2])
+	}
+	// A clean tree (no churn) keeps the bare branch.
+	in.Fleet[0].Churn = ""
+	rows = frameRows(t, Frame(in).Body)
+	if !strings.Contains(rows[2], "⎇ main") || strings.Contains(rows[2], "+") {
+		t.Fatalf("clean tree must not grow churn: %q", rows[2])
+	}
+}
+
+func TestParseAgentsEpochDetailRoundTrip(t *testing.T) {
+	entries := []AgentEntry{
+		{Project: "p1", Session: "agent", State: "working", CLI: "claude", Model: "fable",
+			Epoch: 1_700_000_000, Detail: "claude - fable - detached"},
+		{Project: "p1", Session: "web", State: "running", Epoch: 1_700_000_100, Kind: AgentEntryKindService},
+	}
+	got := ParseAgents(Agents(entries, 80))
+	if len(got) != 2 || got[0] != entries[0] || got[1] != entries[1] {
+		t.Fatalf("v2 round trip: %+v", got)
+	}
+	// The v1 grammar (pre-epoch/detail) still parses across the binary
+	// swap — the row just has no epoch or detail.
+	v1 := []string{
+		"1\x1fp1\x1fagent\x1fworking\x1fclaude\x1ffable",
+		"1\x1fp1\x1fweb\x1frunning\x1f\x1f\x1fsvc",
+	}
+	old := ParseAgents(v1)
+	if len(old) != 2 || old[0].CLI != "claude" || old[0].Epoch != 0 ||
+		old[1].Kind != AgentEntryKindService {
+		t.Fatalf("v1 compat parse: %+v", old)
+	}
+}
+
+func TestParseFleetChurnAndCompat(t *testing.T) {
+	v := ProjectView{ID: "p1", Name: "alpha", Churn: "+12 −3"}
+	got := ParseFleet(Fleet([]ProjectView{v}, 80))
+	if len(got) != 1 || got[0].Churn != "+12 −3" || got[0].Name != "alpha" {
+		t.Fatalf("v2 round trip: %+v", got)
+	}
+	old := ParseFleet([]string{"1\x1fp1\x1f●\x1frelease\x1fv2.0.0\x1f3\x1falpha"})
+	if len(old) != 1 || old[0].Pending != 3 || old[0].Name != "alpha" || old[0].Churn != "" {
+		t.Fatalf("v1 compat parse: %+v", old)
 	}
 }
 

@@ -22,6 +22,10 @@
 #   pane+window @vibe_state  raw state; the WINDOW copy is what the
 #                       sidebar's signal filter reads (a glyph alone
 #                       cannot tell working from idle)
+#   window @vibe_state_epoch  unix epoch of the last state CHANGE —
+#                       stamped only when the value moves, so the
+#                       sidebar's age column means time IN STATE
+#                       (docs/tui-layout.md "Signal density")
 #   window @vibe_session  the container-side session this window views —
 #                       the join key against `vibe ps` truth, so a
 #                       session with a viewer is never also a ghost
@@ -52,9 +56,20 @@ case "$0" in */*) here="${0%/*}" ;; *) here="." ;; esac
 # shellcheck source=theme.sh disable=SC1091
 . "$here/theme.sh"
 
-info="$(tmux display-message -p -t "$pane" '#{pane_dead}|#{@vibe_title}' 2>/dev/null)" || exit 0
+info="$(tmux display-message -p -t "$pane" '#{pane_dead}|#{@vibe_state}|#{@vibe_title}' 2>/dev/null)" || exit 0
 dead="${info%%|*}"
-prev_title="${info#*|}"
+rest="${info#*|}"
+prev_state="${rest%%|*}"
+prev_title="${rest#*|}"
+
+# The epoch stamp rides the state write below, but only when the state
+# CHANGES (the one `date` subprocess this hot path allows itself): ages
+# mean time IN STATE, and a repeated event must not reset the clock.
+# Bash-3.2 + set -u array expansion needs the ${arr[@]+…} guard.
+epoch_args=()
+stamp_epoch() {
+  epoch_args=(set-option -w -t "$pane" @vibe_state_epoch "$(date +%s)" \;)
+}
 
 if [ -n "$forced" ]; then
   # pane-died path: an agent pane's death here means the FRONTEND is
@@ -65,9 +80,12 @@ if [ -n "$forced" ]; then
   # agent state (so host shell panes never grow a dot).
   [ "$forced" = "frontend-dead" ] || exit 0
   [ "$dead" = "1" ] || exit 0
-  [ -n "$(tmux show-options -pqv -t "$pane" @vibe_state 2>/dev/null)" ] || exit 0
+  prev_pane="$(tmux show-options -pqv -t "$pane" @vibe_state 2>/dev/null)"
+  [ -n "$prev_pane" ] || exit 0
   vibe_state_style "$forced" || exit 0
-  tmux set-option -p -t "$pane" @vibe_state "$forced" \; \
+  [ "$prev_pane" = "$forced" ] || stamp_epoch
+  tmux ${epoch_args[@]+"${epoch_args[@]}"} \
+    set-option -p -t "$pane" @vibe_state "$forced" \; \
     set-option -p -t "$pane" @vibe_glyph "$vibe_glyph" \; \
     set-option -p -t "$pane" @vibe_dot_fg "$vibe_state_hex" \; \
     set-option -w -t "$pane" @vibe_glyph "$vibe_glyph" \; \
@@ -123,7 +141,9 @@ if [ "$state" = "attention" ]; then
   attn=1
 fi
 
-tmux set-option -p -t "$pane" @vibe_state "$state" \; \
+[ "$state" = "$prev_state" ] || stamp_epoch
+tmux ${epoch_args[@]+"${epoch_args[@]}"} \
+  set-option -p -t "$pane" @vibe_state "$state" \; \
   set-option -p -t "$pane" @vibe_glyph "$vibe_glyph" \; \
   set-option -p -t "$pane" @vibe_dot_fg "$dot_fg" \; \
   set-option -w -t "$pane" @vibe_glyph "$vibe_glyph" \; \

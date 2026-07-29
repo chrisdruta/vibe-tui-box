@@ -517,6 +517,8 @@ func (a *App) RenderAgents(ctx context.Context, req RenderRequest) (RenderResult
 				State:   row.State,
 				CLI:     row.CLI,
 				Model:   row.Model,
+				Epoch:   row.Since,
+				Detail:  row.Detail,
 			})
 		}
 		// Workspace services ride the same porcelain with the kind
@@ -526,6 +528,7 @@ func (a *App) RenderAgents(ctx context.Context, req RenderRequest) (RenderResult
 				Project: string(rec.ID),
 				Session: row.Name,
 				State:   row.State,
+				Epoch:   row.Since,
 				Kind:    tmuxui.AgentEntryKindService,
 			})
 		}
@@ -541,7 +544,18 @@ func (a *App) RenderFleet(ctx context.Context, req RenderRequest) (RenderResult,
 	}
 	views := make([]tmuxui.ProjectView, 0, len(records))
 	for _, rec := range records {
-		views = append(views, a.projectView(ctx, rec))
+		view := a.projectView(ctx, rec)
+		// Churn for the branch line: only for in-use projects (a
+		// running container), and only on THIS fetch-path renderer —
+		// projectView is shared with `_state`, the frame-splice hot
+		// path, which must never grow a subprocess.
+		for _, c := range view.Containers {
+			if c.Running {
+				view.Churn = gitChurn(ctx, rec.Root)
+				break
+			}
+		}
+		views = append(views, view)
 	}
 	return RenderResult{Lines: tmuxui.Fleet(views, req.Width)}, nil
 }

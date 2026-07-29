@@ -7,6 +7,7 @@ package tmuxui
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
@@ -26,6 +27,11 @@ type ProjectView struct {
 	Version    string
 	Containers []ContainerView
 	Pending    int // broker requests awaiting a decision
+	// Churn is the working-tree churn line ("+128 −40") the branch row
+	// wears (docs/tui-layout.md "Signal density") — computed on the
+	// fetch path (one `git diff --shortstat` per in-use project), empty
+	// for a clean tree, a cold project, or no git at all.
+	Churn string
 }
 
 type ContainerView struct {
@@ -140,21 +146,25 @@ type AgentEntry struct {
 	State   string // agent-session state vocabulary (theme.go AgentStates)
 	CLI     string // the CLI actually running at that address
 	Model   string
+	Epoch   int64  // unix epoch the state was entered; 0 unknown
+	Detail  string // the feeder's free-text qualifier ("detached", …)
 	Kind    string // "" = agent session; AgentEntryKindService = svc window
 }
 
 // Agents renders the `vibe _agents` porcelain, one container-side agent
 // session or workspace-service window per line:
 //
-//	1<US>project<US>session<US>state<US>cli<US>model[<US>kind]
+//	2<US>project<US>session<US>state<US>cli<US>model<US>epoch<US>detail[<US>kind]
 //
-// The leading field is the protocol version; the trailing kind is
-// omitted for agent rows, `svc` for workspace services. Sessions are
-// addresses (or svc window names sharing the same closed charset): a
-// name that could not survive a tmux target, a state-file name, or a
-// mouse-range name is dropped outright rather than escaped — every
-// consumer of this porcelain turns the session into one of those. CLI
-// and model are container-fed free text, sanitized and bounded here.
+// The leading field is the protocol version — bumped to 2 when epoch
+// and detail joined the row (the signal-density pass); the trailing
+// kind is omitted for agent rows, `svc` for workspace services.
+// Sessions are addresses (or svc window names sharing the same closed
+// charset): a name that could not survive a tmux target, a state-file
+// name, or a mouse-range name is dropped outright rather than escaped
+// — every consumer of this porcelain turns the session into one of
+// those. CLI, model, and detail are container-fed free text, sanitized
+// and bounded here; an unknown epoch writes empty.
 func Agents(entries []AgentEntry, width int) []string {
 	if width <= 0 {
 		width = 80
@@ -164,12 +174,18 @@ func Agents(entries []AgentEntry, width int) []string {
 		if e.Project == "" || !sessionNameRe.MatchString(e.Session) {
 			continue
 		}
-		line := fmt.Sprintf("1%s%s%s%s%s%s%s%s%s%s",
+		epoch := ""
+		if e.Epoch > 0 {
+			epoch = strconv.FormatInt(e.Epoch, 10)
+		}
+		line := fmt.Sprintf("2%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
 			fleetSep, e.Project,
 			fleetSep, e.Session,
 			fleetSep, terminal.Line(e.State, 24),
 			fleetSep, terminal.Line(e.CLI, width),
-			fleetSep, terminal.Line(e.Model, width))
+			fleetSep, terminal.Line(e.Model, width),
+			fleetSep, epoch,
+			fleetSep, terminal.Line(e.Detail, width))
 		if e.Kind == AgentEntryKindService {
 			line += fleetSep + AgentEntryKindService
 		}
@@ -180,9 +196,10 @@ func Agents(entries []AgentEntry, width int) []string {
 
 // Fleet renders the `vibe _fleet` porcelain, one project per line:
 //
-//	1<US>id<US>token<US>mode<US>version<US>pending<US>display-name
+//	2<US>id<US>token<US>mode<US>version<US>pending<US>churn<US>display-name
 //
-// The leading field is the protocol version. The display name comes
+// The leading field is the protocol version — bumped to 2 when churn
+// joined the row (the signal-density pass). The display name comes
 // last because it is the only free-text field; it is sanitized, and
 // consumers re-truncate for display, so the width budget only bounds
 // pathological names. No projects renders no lines.
@@ -192,13 +209,33 @@ func Fleet(views []ProjectView, width int) []string {
 	}
 	lines := make([]string, 0, len(views))
 	for _, v := range views {
-		lines = append(lines, fmt.Sprintf("1%s%s%s%s%s%s%s%s%s%d%s%s",
+		lines = append(lines, fmt.Sprintf("2%s%s%s%s%s%s%s%s%s%d%s%s%s%s",
 			fleetSep, v.ID,
 			fleetSep, v.Token(),
 			fleetSep, v.Mode,
 			fleetSep, v.Version,
 			fleetSep, v.Pending,
+			fleetSep, terminal.Line(v.Churn, 24),
 			fleetSep, terminal.Line(v.Name, width)))
 	}
 	return lines
+}
+
+// CompactAge renders a duration in seconds as the sidebar's and
+// `vibe ps`'s compact age ("42m"/"3h"/"2d") — one rendering for every
+// surface that shows time-in-state.
+func CompactAge(s int64) string {
+	if s < 0 {
+		s = 0
+	}
+	switch {
+	case s < 60:
+		return fmt.Sprintf("%ds", s)
+	case s < 3600:
+		return fmt.Sprintf("%dm", s/60)
+	case s < 86400:
+		return fmt.Sprintf("%dh", s/3600)
+	default:
+		return fmt.Sprintf("%dd", s/86400)
+	}
 }

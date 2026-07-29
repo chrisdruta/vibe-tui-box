@@ -3,7 +3,6 @@ package app
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
+	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
 )
 
 // RegisterRequest registers the project containing Dir. DisplayName
@@ -153,7 +153,7 @@ func parseAgentPS(out string, now time.Time) (agents, services []AgentPSRow) {
 		}
 		if ts, err := strconv.ParseInt(parts[2], 10, 64); err == nil && ts > 0 {
 			row.Since = ts
-			row.Age = compactAge(now.Unix() - ts)
+			row.Age = tmuxui.CompactAge(now.Unix() - ts)
 		}
 		if row.CLI == "svc" {
 			row.CLI = ""
@@ -176,22 +176,6 @@ func sanitizeField(s string) string {
 		}
 	}
 	return b.String()
-}
-
-func compactAge(s int64) string {
-	if s < 0 {
-		s = 0
-	}
-	switch {
-	case s < 60:
-		return fmt.Sprintf("%ds", s)
-	case s < 3600:
-		return fmt.Sprintf("%dm", s/60)
-	case s < 86400:
-		return fmt.Sprintf("%dh", s/3600)
-	default:
-		return fmt.Sprintf("%dd", s/86400)
-	}
 }
 
 // ForgetRequest removes the registration of the project containing Dir.

@@ -31,6 +31,7 @@ type FrameWindow struct {
 	Model   string
 	State   string // raw @vibe_state; "" on pre-state artifacts (see windowSignal)
 	Session string // the container-side session this window views (@vibe_session)
+	Epoch   int64  // @vibe_state_epoch: when the state was entered; 0 unknown
 }
 
 // FrameSession is one tmux session on the vibe socket.
@@ -51,6 +52,10 @@ type FrameInput struct {
 	Fleet         []FleetEntry // engine truth from the fleet cache; may be empty
 	Detail        []string     // own-project detail block from the detail cache
 	Agents        []AgentEntry // container-side truth from the `vibe ps` cache
+	// Now is the frame's clock (unix seconds): ages render at frame
+	// time from cached epochs, so minute granularity needs no cadence
+	// the frame does not already have. 0 disables ages.
+	Now int64
 }
 
 // FrameOutput is one rendered frame: the click map in the
@@ -77,43 +82,64 @@ type FleetEntry struct {
 	Mode    string
 	Version string
 	Pending int
+	Churn   string // "+128 −40" working-tree churn; "" clean/unknown
 	Name    string
 }
 
 // ParseFleet parses the `vibe _fleet` porcelain, skipping lines of an
-// unknown protocol version or shape.
+// unknown protocol version or shape. The v1 grammar (pre-churn) still
+// parses so a cache written by the previous engine keeps rendering
+// across the binary swap.
 func ParseFleet(lines []string) []FleetEntry {
 	var out []FleetEntry
 	for _, line := range lines {
 		f := strings.Split(line, fleetSep)
-		if len(f) != 7 || f[0] != "1" || f[1] == "" {
+		v1, v2 := len(f) == 7 && f[0] == "1", len(f) == 8 && f[0] == "2"
+		if (!v1 && !v2) || f[1] == "" {
 			continue
 		}
 		pending, _ := strconv.Atoi(f[5])
-		out = append(out, FleetEntry{
+		e := FleetEntry{
 			ID: f[1], Token: f[2], Mode: f[3], Version: f[4],
-			Pending: pending, Name: f[6],
-		})
+			Pending: pending, Name: f[len(f)-1],
+		}
+		if v2 {
+			e.Churn = f[6]
+		}
+		out = append(out, e)
 	}
 	return out
 }
 
 // ParseAgents parses the `vibe _agents` porcelain, the read twin of
 // Agents(), skipping lines of an unknown protocol version or shape.
-// The optional seventh field is the row kind (`svc` = workspace
+// The optional trailing field is the row kind (`svc` = workspace
 // service); an unknown kind drops the line like any other shape error.
+// The v1 grammar (pre-epoch/detail) still parses so a cache written by
+// the previous engine keeps rendering across the binary swap.
 func ParseAgents(lines []string) []AgentEntry {
 	var out []AgentEntry
 	for _, line := range lines {
 		f := strings.Split(line, fleetSep)
-		if len(f) < 6 || len(f) > 7 || f[0] != "1" || f[1] == "" || !sessionNameRe.MatchString(f[2]) {
+		v1, v2 := len(f) >= 6 && len(f) <= 7 && f[0] == "1", len(f) >= 8 && len(f) <= 9 && f[0] == "2"
+		if (!v1 && !v2) || f[1] == "" || !sessionNameRe.MatchString(f[2]) {
 			continue
 		}
 		e := AgentEntry{
 			Project: f[1], Session: f[2], State: f[3], CLI: f[4], Model: f[5],
 		}
-		if len(f) == 7 {
-			if f[6] != AgentEntryKindService {
+		kind, hasKind := "", false
+		if v2 {
+			if epoch, err := strconv.ParseInt(f[6], 10, 64); err == nil && epoch > 0 {
+				e.Epoch = epoch
+			}
+			e.Detail = f[7]
+			kind, hasKind = f[len(f)-1], len(f) == 9
+		} else {
+			kind, hasKind = f[len(f)-1], len(f) == 7
+		}
+		if hasKind {
+			if kind != AgentEntryKindService {
 				continue
 			}
 			e.Kind = AgentEntryKindService
@@ -128,13 +154,15 @@ func ParseAgents(lines []string) []AgentEntry {
 //
 //	G<US>width<US>height<US>self_session_id
 //	S<US>session_id<US>name<US>path<US>project_id
-//	W<US>session_id<US>glyph<US>dot_hex<US>attn<US>window_id<US>window_name<US>active<US>model[<US>state<US>session]
+//	W<US>session_id<US>glyph<US>dot_hex<US>attn<US>window_id<US>window_name<US>active<US>model[<US>state<US>session[<US>epoch]]
 //
 // Windows attach to their session by id; records for unknown sessions
 // and malformed lines are dropped, never errors — a sidebar frame
 // renders what it can. The W record's trailing fields are optional: a
-// sidebar.sh older than the nested roster feeds nine, and the frame
-// degrades to glyph-only signal detection (windowSignal).
+// sidebar.sh older than the nested roster feeds nine and the frame
+// degrades to glyph-only signal detection (windowSignal); one older
+// than the signal-density pass feeds eleven and the row just has no
+// age.
 func ParseFrameData(data string) FrameInput {
 	in := FrameInput{Width: 30, Height: 24}
 	index := map[string]int{}
@@ -170,6 +198,11 @@ func ParseFrameData(data string) FrameInput {
 			}
 			if len(f) >= 11 {
 				w.State, w.Session = f[9], f[10]
+			}
+			if len(f) >= 12 {
+				if epoch, err := strconv.ParseInt(f[11], 10, 64); err == nil && epoch > 0 {
+					w.Epoch = epoch
+				}
 			}
 			in.Sessions[i].Windows = append(in.Sessions[i].Windows, w)
 		}
@@ -228,22 +261,28 @@ func (c *frameCanvas) putAt(row int, content, target string) {
 }
 
 // agentRow is one nested agent row inside a project block: the state
-// dot, the CLI actually running, its dim model, and the one click
-// target — a window jump ("SESSION:WINDOW") for a viewer-backed agent,
-// the attach-only viewer spawn ("SESSION:agent-NAME") for a
-// container-side session with no window.
+// dot, the CLI actually running, its dim model (or the state word that
+// takes the model's slot on attention/exited rows), the right-aligned
+// age, and the one click target — a window jump ("SESSION:WINDOW") for
+// a viewer-backed agent, the attach-only viewer spawn
+// ("SESSION:agent-NAME") for a container-side session with no window.
 type agentRow struct {
 	dot    string // colored glyph, ready to draw
 	name   string
-	model  string
+	model  string // the model slot: model, or the state word (stateWord)
+	age    string // compact time-in-state, right-aligned; "" unknown
 	target string
 	dim    bool // presence-not-signal (idle): the row renders dim
 	// Grouped-block fields (docs/tui-layout.md "Workspace services",
 	// second dogfood): header rows are the dim `agents` / `services`
-	// labels — render-only, no dot; conn is the tree connector ("├ ",
-	// "└ ") entry rows hang from when the block is grouped.
+	// labels — render-only, no dot; count is the header's dim entry
+	// tally (docs/tui-layout.md "Signal density"); conn is the tree
+	// connector ("├ ", "└ ") entry rows hang from when the block is
+	// grouped.
 	header bool
+	count  int
 	conn   string
+	hide   bool // folded into the `… +n` overflow slot (rosterBlock)
 }
 
 // treeConns hangs a group's rows off its header: ├ for every row but
@@ -257,6 +296,112 @@ func treeConns(rows []agentRow) []agentRow {
 		}
 	}
 	return rows
+}
+
+// stateWord is the text that takes the model's slot on exactly the
+// rows where the dot's color is the whole message (glance ambiguity,
+// and color-blindness — docs/tui-layout.md "Signal density"):
+// "attention", and "exit RC" on ✗ rows. Every other state pays
+// nothing: signal styles, never hides, and quiet stays quiet.
+func stateWord(state string) string {
+	if state == "attention" {
+		return state
+	}
+	if rest, ok := strings.CutPrefix(state, "exited"); ok {
+		rc := strings.TrimSuffix(strings.TrimPrefix(rest, "("), ")")
+		if rc == "" {
+			return "exited"
+		}
+		return "exit " + rc
+	}
+	return ""
+}
+
+// modelSlot resolves a row's model-slot text from its state and model.
+func modelSlot(state, model string) string {
+	if w := stateWord(state); w != "" {
+		return w
+	}
+	return model
+}
+
+// rowAge renders the right-aligned age for a roster row: time IN
+// STATE, from the cached epoch against the frame's clock.
+func rowAge(now, epoch int64) string {
+	if now <= 0 || epoch <= 0 || epoch > now {
+		return ""
+	}
+	return CompactAge(now - epoch)
+}
+
+// rosterBlock lays out one project block's roster within avail rows:
+// grouped under counted `agents` / `services` headers when services
+// exist (flat otherwise, so the common agents-only project pays
+// nothing), the trailing slot becoming the `… +n` overflow count when
+// the rows don't fit. The fold takes DIM (nominal) rows first, bottom
+// up — a signal row is never the hidden one while a quiet one shows
+// (docs/tui-layout.md "Signal density"); headers always render, since
+// their counts stand in for whatever folded.
+func rosterBlock(agents, services []agentRow, avail int) []agentRow {
+	if avail <= 0 {
+		return nil
+	}
+	grouped := len(services) > 0
+	headers := 0
+	if grouped {
+		headers = 1
+		if len(agents) > 0 {
+			headers = 2
+		}
+	}
+	hidden := 0
+	if total := len(agents) + len(services) + headers; total > avail {
+		slots := avail - headers - 1 // the marker takes a row of its own
+		if slots < 0 {
+			slots = 0
+		}
+		hidden = len(agents) + len(services) - slots
+		k := hidden
+		for pass := 0; pass < 2 && k > 0; pass++ {
+			for _, list := range [][]agentRow{services, agents} { // bottom of the block first
+				for i := len(list) - 1; i >= 0 && k > 0; i-- {
+					if list[i].hide || (pass == 0 && !list[i].dim) {
+						continue
+					}
+					list[i].hide = true
+					k--
+				}
+			}
+		}
+	}
+	var out []agentRow
+	addGroup := func(name string, rows []agentRow) {
+		if len(rows) == 0 {
+			return
+		}
+		if grouped {
+			out = append(out, agentRow{name: name, header: true, count: len(rows)})
+		}
+		var vis []agentRow
+		for _, r := range rows {
+			if !r.hide {
+				vis = append(vis, r)
+			}
+		}
+		if grouped {
+			vis = treeConns(vis)
+		}
+		out = append(out, vis...)
+	}
+	addGroup("agents", agents)
+	addGroup("services", services)
+	if hidden > 0 {
+		out = append(out, agentRow{name: fmt.Sprintf("… +%d more", hidden), header: true})
+	}
+	if len(out) > avail {
+		out = out[:avail]
+	}
+	return out
 }
 
 // windowSignal reports whether a viewer window's agent asks something
@@ -281,8 +426,8 @@ func windowSignal(w FrameWindow) bool {
 // dim), and a blank slop row, all claiming the session as click
 // target. Cold registered
 // projects (fleet entries with no live session) render dim, barless,
-// and unclickable. The footer hint owns the last row (render-only) and
-// content clips above it. The same pass renders the tray's ghost cells
+// and unclickable. The footer hints own the last rows (render-only)
+// and content clips above them. The same pass renders the tray's ghost cells
 // for the own project, so presence (tray) and signal (sidebar) are
 // computed from one join.
 func Frame(in FrameInput) FrameOutput {
@@ -377,7 +522,8 @@ func Frame(in FrameInput) FrameOutput {
 			agents = append(agents, agentRow{
 				dot:    dotc + w.Glyph,
 				name:   w.Name,
-				model:  w.Model,
+				model:  modelSlot(w.State, w.Model),
+				age:    rowAge(in.Now, w.Epoch),
 				target: s.ID + ":" + w.ID,
 				dim:    !windowSignal(w),
 			})
@@ -421,7 +567,8 @@ func Frame(in FrameInput) FrameOutput {
 			agents = append(agents, agentRow{
 				dot:    fg(hex) + glyph,
 				name:   name,
-				model:  ag.Model,
+				model:  modelSlot(ag.State, ag.Model),
+				age:    rowAge(in.Now, ag.Epoch),
 				target: target,
 				dim:    !AgentSignal(ag.State),
 			})
@@ -449,28 +596,18 @@ func Frame(in FrameInput) FrameOutput {
 			if dead {
 				token = ":svcx-"
 			}
+			// Dead-service forensics: the RC already rides the folded
+			// exited(RC) state — the word joins the row instead of
+			// collapsing to a bare ✗, and pairs with the age: a corpse
+			// tells you what and when.
 			services = append(services, agentRow{
 				dot:    fg(hex) + glyph,
 				name:   sv.Session,
+				model:  stateWord(sv.State),
+				age:    rowAge(in.Now, sv.Epoch),
 				target: s.ID + token + sv.Session,
 				dim:    !dead,
 			})
-		}
-		// Grouped block (second dogfood, 2026-07-28): with services
-		// present the roster splits under dim `agents` / `services`
-		// header rows and entries hang off tree connectors; the per-row
-		// `svc` qualifier is gone — the header says it once. A block
-		// with no services keeps the flat form verbatim, so the common
-		// agents-only project pays nothing.
-		if len(services) > 0 {
-			grouped := make([]agentRow, 0, len(agents)+len(services)+2)
-			if len(agents) > 0 {
-				grouped = append(grouped, agentRow{name: "agents", header: true})
-				grouped = append(grouped, treeConns(agents)...)
-			}
-			grouped = append(grouped, agentRow{name: "services", header: true})
-			grouped = append(grouped, treeConns(services)...)
-			agents = grouped
 		}
 		if self {
 			ghosts, ghostMap = ghostCells(agentsByProject[s.Project], viewed)
@@ -485,7 +622,14 @@ func Frame(in FrameInput) FrameOutput {
 		// to agents alone. The row keeps the session as click slop.
 		var meta []string
 		if s.Branch != "" {
-			meta = append(meta, "⎇ "+s.Branch)
+			// Churn rides the branch segment (`⎇ main  +128 −40`):
+			// fleet-cache truth on the fetch cadence — "has the agent
+			// actually changed anything" without opening lazygit.
+			branch := "⎇ " + s.Branch
+			if f, ok := fleetByID[s.Project]; ok && f.Churn != "" {
+				branch += "  " + f.Churn
+			}
+			meta = append(meta, branch)
 		}
 		if s.Project != "" {
 			seen[s.Project] = true
@@ -516,32 +660,19 @@ func Frame(in FrameInput) FrameOutput {
 		}
 		// The nested rows close the block. When they don't fit, this
 		// block's last slot becomes its OWN overflow count (per-block,
-		// not one fleet-wide tally); the slop row stays reserved so two
-		// blocks can never run together.
+		// not one fleet-wide tally) with DIM rows folded first; the
+		// slop row stays reserved so two blocks can never run together.
 		avail := c.limit - row - 1
 		if avail < 0 {
 			avail = 0
 		}
-		shown := min(len(agents), avail)
-		for i, a := range agents[:shown] {
-			if hidden := len(agents) - shown; hidden > 0 && i == shown-1 {
-				// The overflow tally counts ENTRIES only — a clipped
-				// header row is layout, not a hidden agent or service.
-				n := 1
-				for _, h := range agents[shown:] {
-					if !h.header {
-						n++
-					}
-				}
-				if agents[shown-1].header {
-					n--
-				}
-				c.putAt(row, gutter+"  "+cDim+terminal.Line(fmt.Sprintf("… +%d more", n), amax)+ansiReset, "")
-				row++
-				break
-			}
+		for _, a := range rosterBlock(agents, services, avail) {
 			if a.header {
-				c.putAt(row, gutter+"  "+cDim+terminal.Line(a.name, amax)+ansiReset, "")
+				label := a.name
+				if a.count > 0 {
+					label = fmt.Sprintf("%s · %d", a.name, a.count)
+				}
+				c.putAt(row, gutter+"  "+cDim+terminal.Line(label, amax)+ansiReset, "")
 				row++
 				continue
 			}
@@ -573,36 +704,67 @@ func Frame(in FrameInput) FrameOutput {
 	// no longer draws would otherwise persist on the pane.
 	fmt.Fprintf(&c.body, "\x1b[%d;1H\x1b[J", row+1)
 
-	// The footer hint row (render-only, never clickable): the cold-start
-	// pointer to the palette — the cheatsheet only appears once the
-	// prefix is already known. It owns the last row, so the content
-	// clip lifts for exactly this write.
+	// The footer hint rows (render-only, never clickable): the
+	// cold-start pointer to the palette — the cheatsheet only appears
+	// once the prefix is already known — and, height-gated under it,
+	// the review-stack keys (the product's best surface and, before
+	// the prefix is known, its least discoverable). The second row
+	// renders only when the frame has slack, so a short pane loses the
+	// new hint, never the old one. They own the last rows, so the
+	// content clip lifts for exactly these writes.
 	if fr := in.Height - 1; fr > c.used {
 		c.limit = in.Height
-		c.putAt(fr, " "+cDim+terminal.Line("C-Space · Space palette", max)+ansiReset, "")
+		if fr-1 > c.used {
+			c.putAt(fr-1, " "+cDim+terminal.Line("C-Space · Space palette", max)+ansiReset, "")
+			c.putAt(fr, " "+cDim+terminal.Line("f files · g git · v clip", max)+ansiReset, "")
+		} else {
+			c.putAt(fr, " "+cDim+terminal.Line("C-Space · Space palette", max)+ansiReset, "")
+		}
 	}
 	c.body.WriteString("\x1b[H") // park the cursor; a trailing newline cannot scroll
 	return FrameOutput{Map: strings.Join(c.maps, " "), Ghosts: ghosts, GhostMap: ghostMap, Body: c.body.String()}
 }
 
 // agentLabel renders a nested row's text: the CLI actually running,
-// then its model dim — the model dropped first when the two cannot
-// share the line (tui-layout.md budgets). A dim (idle) row keeps its
-// place in the roster but whispers.
+// its dim model slot, and the dim age right-aligned on the budget's
+// edge. The drop order under pressure (tui-layout.md "Signal density"
+// budgets): the model slot first, the age second-to-last, the name
+// never. A dim (idle) row keeps its place in the roster but whispers.
 func agentLabel(a agentRow, budget int, cFG, cDim string) string {
 	c := cFG
 	if a.dim {
 		c = cDim
 	}
 	name := terminal.Line(a.name, budget)
-	if a.model == "" {
-		return c + name + ansiReset
+	used := len([]rune(name))
+	age := a.age
+	if age != "" && used+2+len([]rune(age)) > budget {
+		age = ""
 	}
-	model := terminal.Line(a.model, budget)
-	if len([]rune(name))+2+len([]rune(model)) > budget {
-		return c + name + ansiReset
+	slot := ""
+	if a.model != "" {
+		m := terminal.Line(a.model, budget)
+		need := used + 2 + len([]rune(m))
+		if age != "" {
+			need += 2 + len([]rune(age))
+		}
+		if need <= budget {
+			slot = m
+		}
 	}
-	return c + name + ansiReset + "  " + cDim + model + ansiReset
+	out := c + name + ansiReset
+	if slot != "" {
+		out += "  " + cDim + slot + ansiReset
+		used += 2 + len([]rune(slot))
+	}
+	if age != "" {
+		pad := budget - used - len([]rune(age))
+		if pad < 2 {
+			pad = 2
+		}
+		out += strings.Repeat(" ", pad) + cDim + age + ansiReset
+	}
+	return out
 }
 
 // ghostLabelRe strips everything outside the CLI display charset

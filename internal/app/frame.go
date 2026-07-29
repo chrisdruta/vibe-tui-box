@@ -1,11 +1,15 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
@@ -51,6 +55,7 @@ func (a *App) RenderFrame(ctx context.Context, req FrameRequest) (FrameResult, e
 		return fail(err)
 	}
 	in := tmuxui.ParseFrameData(string(data))
+	in.Now = a.deps.Clock.Now().Unix()
 	for i := range in.Sessions {
 		in.Sessions[i].Branch = gitBranch(in.Sessions[i].Path)
 	}
@@ -113,4 +118,36 @@ func gitBranch(dir string) string {
 		return line[:7] // detached: the short sha is the label
 	}
 	return line
+}
+
+var churnRe = regexp.MustCompile(`(\d+) insertion|(\d+) deletion`)
+
+// gitChurn renders the working-tree churn for the branch line
+// (`+128 −40`, docs/tui-layout.md "Signal density"). Unlike gitBranch
+// this DOES run a git subprocess — one `git diff --shortstat HEAD`
+// (staged and unstaged both count: the question is "has the agent
+// changed anything", not "what isn't staged yet") — so it belongs to
+// the fetch-path renderers only, never the frame path. A clean tree,
+// a non-repo, or any git failure is simply no churn.
+func gitChurn(ctx context.Context, dir string) string {
+	if dir == "" {
+		return ""
+	}
+	if _, err := os.Lstat(filepath.Join(dir, ".git")); err != nil {
+		return ""
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "diff", "--shortstat", "HEAD").Output()
+	if err != nil || len(bytes.TrimSpace(out)) == 0 {
+		return ""
+	}
+	ins, del := 0, 0
+	for _, m := range churnRe.FindAllStringSubmatch(string(out), -1) {
+		if m[1] != "" {
+			ins, _ = strconv.Atoi(m[1])
+		}
+		if m[2] != "" {
+			del, _ = strconv.Atoi(m[2])
+		}
+	}
+	return fmt.Sprintf("+%d −%d", ins, del)
 }

@@ -473,8 +473,8 @@ func TestPSAgentRows(t *testing.T) {
 	psKey := dockerfake.ExecKey([]string{"bash", model.PayloadAgentPS})
 	base := time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC).Unix()
 	docker.ExecOutputs[psKey] = fmt.Sprintf(
-		"agent|working|%d|claude - opus|claude|opus\nagent-codex|exited(3)|%d|detached\nbad line\nevil|id\x1ble|%d|\nweb|running|||svc|\nblender|exited(137)|||svc|\n",
-		base-90, base-7200, base-5)
+		"agent|working|%d|claude - opus|claude|opus\nagent-codex|exited(3)|%d|detached\nbad line\nevil|id\x1ble|%d|\nweb|running|%d||svc|\nblender|exited(137)|||svc|\n",
+		base-90, base-7200, base-5, base-10800)
 	res, err = a.PS(ctx, PSRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
@@ -490,6 +490,11 @@ func TestPSAgentRows(t *testing.T) {
 		res.Services[1].Name != "blender" || res.Services[1].State != "exited(137)" ||
 		res.Services[0].CLI != "" {
 		t.Fatalf("service rows wrong: %+v", res.Services)
+	}
+	// Services ship an epoch since the signal-density pass; one written
+	// before it (empty field) just has no age.
+	if res.Services[0].Age != "3h" || res.Services[0].Since != base-10800 || res.Services[1].Age != "" {
+		t.Fatalf("service ages wrong: %+v", res.Services)
 	}
 	if res.Agents[0].Name != "agent" || res.Agents[0].State != "working" || res.Agents[0].Age != "1m" {
 		t.Fatalf("row 0 wrong: %+v", res.Agents[0])

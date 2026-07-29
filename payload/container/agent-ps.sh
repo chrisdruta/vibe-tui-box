@@ -143,17 +143,42 @@ done < <(printf '%s\n' "${!candidates[@]}" | sort)
 # converses. The cli field's literal `svc` is the row's kind marker
 # for the engine parser; names are svc.sh-vetted but re-stripped —
 # free bytes never reach the field protocol.
+#
+# The epoch means time IN STATE, like the agent rows': a running
+# service counts from its process start (/proc starttime — tmux has no
+# pane-start format, and #{window_activity} resets with every byte a
+# chatty service prints); a dead one counts from #{window_activity},
+# which stopped moving when the pane died. Unknown stays empty.
 if tmux has-session -t "=services" 2>/dev/null; then
-  while IFS='|' read -r wname wdead wstatus; do
+  now="$(date +%s)"
+  up=""
+  read -r up _ </proc/uptime 2>/dev/null || true
+  up="${up%%.*}"
+  clk="$(getconf CLK_TCK 2>/dev/null || true)"
+  case "$clk" in '' | *[!0-9]*) clk=100 ;; esac
+  while IFS='|' read -r wname wdead wstatus wpid wactivity; do
     wname="${wname//[^a-zA-Z0-9_-]/}"
     [ -n "$wname" ] || continue
-    wstate="running"
+    wstate="running" wepoch=""
     if [ "$wdead" = "1" ]; then
       wstatus="${wstatus//[^0-9]/}"
       wstate="exited(${wstatus:-?})"
+      wepoch="${wactivity//[^0-9]/}"
+    else
+      case "$wpid" in '' | *[!0-9]*) wpid="" ;; esac
+      if [ -n "$up" ] && [ -n "$wpid" ] && [ -r "/proc/$wpid/stat" ]; then
+        # starttime is stat field 22; comm can hold spaces and parens,
+        # so count from after the closing ')' (state is field 3 there).
+        stat="$(cat "/proc/$wpid/stat" 2>/dev/null || true)"
+        # shellcheck disable=SC2086  # word-splitting the stat fields is the point
+        set -- ${stat##*) }
+        ticks="${20:-}"
+        case "$ticks" in '' | *[!0-9]*) ticks="" ;; esac
+        [ -n "$ticks" ] && wepoch=$((now - up + ticks / clk))
+      fi
     fi
-    printf '%s|%s|||svc|\n' "$wname" "$wstate"
+    printf '%s|%s|%s||svc|\n' "$wname" "$wstate" "$wepoch"
   done < <(tmux list-windows -t "=services" \
-    -F '#{window_name}|#{pane_dead}|#{pane_dead_status}' 2>/dev/null || true)
+    -F '#{window_name}|#{pane_dead}|#{pane_dead_status}|#{pane_pid}|#{window_activity}' 2>/dev/null || true)
 fi
 exit 0
