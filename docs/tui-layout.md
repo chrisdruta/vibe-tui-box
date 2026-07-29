@@ -18,6 +18,9 @@ the CLI; design agreed on the first agent-surfaces dogfood, wired the
 same day. Updated 2026-07-26 (fourth pass) with the roster and the
 meta line: every live agent is a sidebar row (idle dim), each block
 reads identity → meta → roster, and ● is agents-only on that surface.
+Updated 2026-07-29 (signal-density pass) with age, state words,
+counts, churn, and the footer's second row — design agreed on
+mockups, unshipped.
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -458,6 +461,76 @@ the sidebar cannot see them at all.
   if dogfood asks for it.
 - **Chooser: out of scope.** Launching a service IS the hook; there is
   nothing for a launch surface to offer.
+
+### Signal density: age, words, counts, churn (2026-07-29, designed, unshipped)
+
+A screenshot audit of tools one layer up (an agent multiplexer, a
+worktree orchestrator, a task manager — unnamed here, per the
+README's stance) surfaced six glance signals the sidebar withholds
+while already owning most of the data. Design agreed on mockups; the
+inline treatment won — one line per entry stays law. Target block:
+
+```
+▍ vibe-tui-box ●
+▍   ⎇ main  +128 −40
+▍   ● dev · 9766b8d8
+▍   ▲ 2 pending
+▍   agents · 2
+▍   ├ ● claude  Fable 5   42m
+▍   └ ● codex              3h
+▍   services · 3
+▍   ├ ● web                2h
+▍   ├ ● logger             2h
+▍   └ ✗ idler  exit 1     12m
+
+ C-Space·Space palette
+ f files · g git · v clip
+```
+
+- **Age on every roster row** — right-aligned, dim, compact
+  (`42m`/`3h`/`2d`), meaning time IN STATE, not session uptime.
+  Services already ship an epoch in agent-ps.sh's second pass and the
+  porcelain drops it; agents get theirs from state-render.sh stamping
+  `@vibe_state_epoch` beside `@vibe_state` only when the value
+  CHANGES. The text renders at frame time from cached epochs — minute
+  granularity needs no cadence the frame does not already have; no
+  new polling, no extra container round-trips.
+- **State words for `attention`/`exited` only** — the word takes the
+  model's slot on exactly the rows where the dot's color is the whole
+  message today (glance ambiguity, and color-blindness). Nominal rows
+  pay nothing: signal styles, never hides, and quiet stays quiet.
+- **Dead-service forensics** — `✗ idler  exit 1     12m`: the RC
+  already rides the folded `exited(RC)` state from
+  `#{pane_dead_status}`; plumb it to the row instead of collapsing to
+  a bare ✗. Pairs with the age: a corpse tells you what and when.
+- **Group-header counts** — dim `agents · 2` / `services · 3` on the
+  headers the grouped block already draws, and the shared `… +n`
+  overflow folds IDLE rows first: a signal row is never the hidden
+  one.
+- **Churn on the branch line** — `⎇ main  +128 −40`, dim. One
+  host-side `git diff --shortstat` per in-use project, riding the
+  cached engine layer on the `@vibe_engine_refresh` cadence — never
+  the frame path, so `#(vibe _state)` stays the conf's whole splice
+  budget. Answers "has the agent actually changed anything" without
+  opening lazygit.
+- **The footer's second row** — `f files · g git · v clip` under the
+  cold-start palette pointer, height-gated: it renders only when the
+  frame has slack, so a short pane loses the new hint, never the old
+  one. The review stack is the product's best surface and, before the
+  prefix is known, its least discoverable.
+
+Budgets: per-row drop order under the text budget is dot+name never,
+age second-to-last, model/detail first — extending agentLabel's
+model-drops-first precedent. Porcelain: `AgentEntry` grows `Epoch`
+and `Detail`, and the `_agents` grammar gains the two fields (the
+leading version field exists for exactly this).
+
+Rejected in the same pass: the two-line detail row (bends "every
+live agent is a row" into "some agents are two"), and the per-agent
+activity one-liner — container-fed free text rendered into trusted
+sidebar chrome crosses the `terminal.Encode` separation the broker
+surface is built on; that one is a decision record to write, not a
+cleanup to ship, if dogfood ever asks.
 
 ### Launch surfaces: the agents chooser (2026-07-26, third pass)
 

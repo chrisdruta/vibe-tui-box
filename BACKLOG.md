@@ -8,6 +8,19 @@ section at the bottom — as revisable records, not fences.
 
 ## Open
 
+- **UP NEXT — wire the signal-density pass (designed 2026-07-29,
+  tui-layout.md "Signal density: age, words, counts, churn").** The
+  spec is written and the mockup agreed; this line is the sequencing
+  the roadmap deliberately no longer does for TUI arcs. Scope:
+  `AgentEntry` grows `Epoch`/`Detail` and the `_agents` grammar with
+  them; state-render.sh stamps `@vibe_state_epoch` on transition;
+  one per-project `git diff --shortstat` joins the cached engine
+  layer; the renderer takes the rest — right-aligned ages, state
+  words in the model slot for attention/exited, group-header counts
+  with idle-first overflow, exit codes on ✗ rows, the height-gated
+  second footer row. No new polling, no new container round-trips,
+  the splice budget unchanged.
+
 - **Reduced-trust profile for unattended runs (`vibe agent --jailed`).**
   A weaker-trust posture for letting an agent run without a human watching:
   read-only workspace bind (or a disposable worktree bind), a scratch
