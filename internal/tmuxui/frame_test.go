@@ -527,6 +527,42 @@ func TestFrameMetaLineWrapsAtSegments(t *testing.T) {
 	}
 }
 
+func TestFrameSpinCells(t *testing.T) {
+	// Working dots report their drawn ANSI coordinates (1-based
+	// ROW:COL) for the sidebar's sub-tick overlay; everything else
+	// reports nothing (docs/tui-layout.md "The working spinner").
+	in := twoSessionInput()
+	out := Frame(in)
+	if out.Spin != "9:5" {
+		t.Fatalf("beta's working viewer should be the one spin cell: %q", out.Spin)
+	}
+
+	// Grouped block: connector rows indent the dot two further columns,
+	// and a working CACHE row (viewer-less) spins too. Its tray ghost
+	// cell carries the @vibe_spin format ref instead of a literal
+	// glyph, so the animator drives it for free.
+	in = twoSessionInput()
+	in.Agents[2].State = "working"
+	in.Agents = append(in.Agents, AgentEntry{
+		Project: "projalpha", Session: "web", State: "running", Kind: AgentEntryKindService})
+	out = Frame(in)
+	if out.Spin != "7:7 12:5" {
+		t.Fatalf("conn-row working dot must shift with the connector: %q", out.Spin)
+	}
+	if !strings.Contains(out.Ghosts, "#{@vibe_spin}") {
+		t.Fatalf("a working ghost's dot should ride the animator option: %q", out.Ghosts)
+	}
+
+	// A working row clipped above the footer reports no cell — the
+	// overlay must never paint outside the drawn frame.
+	in = twoSessionInput()
+	in.Height = 8 // beta's block falls below the clip
+	out = Frame(in)
+	if out.Spin != "" {
+		t.Fatalf("clipped rows must not spin: %q", out.Spin)
+	}
+}
+
 func TestWrapSegments(t *testing.T) {
 	if got := wrapSegments([]string{"a", "b", "c"}, 10); len(got) != 1 || got[0] != "a · b · c" {
 		t.Fatalf("fitting segments must join on one row: %+v", got)

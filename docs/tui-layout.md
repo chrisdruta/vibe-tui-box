@@ -24,7 +24,10 @@ mockups, unshipped. Updated 2026-07-29 (polish pass) with the meta
 line's segment-boundary overflow wrap, the roster ages' `<1m` floor,
 the `bright` palette entry, the pinned canvas (`window-style` /
 `popup-style` bg), and the ▤ cell's move to the bar's left cluster —
-screenshot dogfood, wired the same day.
+screenshot dogfood, wired the same day. Updated 2026-07-29 (spinner)
+with the working-dot animator: the `@vibe_spin` channel, the tab and
+ghost formats, and the sidebar's sub-tick overlay — the status-redraw
+mechanism measured on the pinned 3.7b, wired the same day.
 
 Floor: tmux ≥ 3.4 (styles containing formats, user mouse ranges). The
 theme block, `@vibe_winlist` (derived from the stock 3.7 window-list
@@ -289,6 +292,48 @@ for. Pane FOREGROUND deliberately stays the terminal's — inner apps
 own their text; bg is the one attribute the chrome needs pinned.
 Light-scheme hosts override both in the user conf, the sanctioned
 customization point.
+
+### The working spinner (2026-07-29)
+
+The `working` dot animates — a braille orbit (`theme.go
+SpinnerFrames`, rendered into theme.sh as `VIBE_SPIN_FRAMES`) that is
+**presentation of the state, never a state glyph**: every surface
+falls back to the static ● whenever no animator runs, and the frames
+are visually disjoint from the dot/circle vocabulary so a frozen frame
+cannot be misread as a state. Three surfaces, two mechanisms, one
+budget rule (no new `#()` splices, no `status-interval` change, zero
+cost while nothing works):
+
+- **The tray rides an option.** `spin.sh` — one per server, noclobber
+  lock beside the tmux socket (no flock(1) on stock macOS; the race
+  left open costs a duplicate animator writing identical frames) —
+  rotates the global `@vibe_spin` at 4Hz while any window's
+  `@vibe_state` is `working`, and exits restoring the static dot when
+  nothing is (liveness checked every ~2s). **Measured on the pinned
+  3.7b: a bare `set -g` on a user option redraws the status line by
+  itself, ~350 bytes, status only** — that measurement is the whole
+  design: the tab-dot formats read
+  `#{?#{==:#{@vibe_state},working},#{@vibe_spin},#{@vibe_glyph}}`, a
+  working ghost cell's glyph is the `#{@vibe_spin}` ref itself, and
+  the conf defaults the option to the static ● (`-goq`) so no
+  animator means exactly the pre-spinner bar. Two spawn doors, both
+  blind behind the lock: state-render.sh on every `working` event
+  (instant, viewer windows), and the sidebar's frame whenever it
+  carries spin cells (the healer — a viewer-less working agent has no
+  title events on this server).
+- **The sidebar repaints its own cells.** `vibe _frame --spin` (the
+  fifth protocol line, before the body; flag-gated so an older
+  sidebar.sh keeps its four-line protocol across a binary swap)
+  reports the drawn working dots' ANSI `ROW:COL`, and the render loop
+  sub-divides its 2s tick into four 500ms steps that repaint exactly
+  those cells — pure printf, no tmux round trip, no engine call per
+  animation frame. The frame's own glyph stays the static ●, so a
+  skipped overlay degrades to the pre-spinner look.
+- **The pane-border dot deliberately does NOT animate.** Option
+  writes repaint the status line only (the same measurement), so a
+  border reference to `@vibe_spin` would freeze on whatever frame was
+  current at the border's last redraw and read as broken. The border
+  keeps ●; the working agent's own TUI is right below it anyway.
 
 ### Agent surfaces: presence vs activity (2026-07-26, supersedes the aggregate roster)
 
@@ -861,7 +906,8 @@ surface stays honest.
 
 The spec's regressions are owned by tests: `_state` display form in
 `internal/tmuxui/views_test.go`, frame layout/click-map/truncation,
-the signal filter, the gutter bars, and the ghost cells' format
+the signal filter, the gutter bars, the spin cells' coordinates and
+clip guard, and the ghost cells' format
 escaping in `internal/tmuxui/frame_test.go`, the porcelain round trips
 (`_fleet`, `_agents`, the frame's tmux records) beside them, and the
 user-conf epilogue in `internal/app/tui_test.go`. The manual check that

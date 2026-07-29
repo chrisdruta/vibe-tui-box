@@ -64,13 +64,17 @@ type FrameInput struct {
 // fragment published as the self session's @vibe_ghosts, spliced into
 // the generated winlist), the ghost map (the cells' session names in
 // range order, space-separated, published as @vibe_ghost_map — the
-// name table the indexed ghost-N ranges resolve through), and the ANSI
-// body, newline-free (every row is absolutely positioned) so it
-// transports as a single protocol line.
+// name table the indexed ghost-N ranges resolve through), the spin
+// cells ("ROW:COL" pairs, space-separated, 1-based ANSI coordinates of
+// every drawn WORKING dot — the sidebar's sub-tick overlay repaints
+// exactly these cells between frames, docs/tui-layout.md "The working
+// spinner"), and the ANSI body, newline-free (every row is absolutely
+// positioned) so it transports as a single protocol line.
 type FrameOutput struct {
 	Map      string
 	Ghosts   string
 	GhostMap string
+	Spin     string
 	Body     string
 }
 
@@ -283,6 +287,11 @@ type agentRow struct {
 	count  int
 	conn   string
 	hide   bool // folded into the `… +n` overflow slot (rosterBlock)
+	// spin marks a working row's dot for the sub-tick overlay: the
+	// frame reports its drawn coordinates so the sidebar can animate
+	// exactly that cell without re-rendering (the frame's own glyph
+	// stays the static ● — the fallback truth under a dead animator).
+	spin bool
 }
 
 // treeConns hangs a group's rows off its header: ├ for every row but
@@ -512,6 +521,7 @@ func Frame(in FrameInput) FrameOutput {
 	c.body.WriteString("\x1b[H\x1b[K")
 	row := 1
 	ghosts, ghostMap := "", ""
+	var spin []string
 	seen := map[string]bool{}
 	for _, s := range sessions {
 		self := s.ID == in.SelfSession
@@ -563,6 +573,7 @@ func Frame(in FrameInput) FrameOutput {
 				age:    rowAge(in.Now, w.Epoch),
 				target: s.ID + ":" + w.ID,
 				dim:    !windowSignal(w),
+				spin:   w.State == "working",
 			})
 		}
 		// Container-side sessions the window pass did not draw (the
@@ -608,6 +619,7 @@ func Frame(in FrameInput) FrameOutput {
 				age:    rowAge(in.Now, ag.Epoch),
 				target: target,
 				dim:    !AgentSignal(ag.State),
+				spin:   ag.State == "working",
 			})
 		}
 		// Workspace services close the roster (docs/tui-layout.md
@@ -715,12 +727,17 @@ func Frame(in FrameInput) FrameOutput {
 				row++
 				continue
 			}
-			pre, budget := "  ", amax
+			pre, budget, dotCol := "  ", amax, 5
 			if a.conn != "" {
-				pre, budget = "  "+cDim+a.conn+ansiReset, amax-2
+				pre, budget, dotCol = "  "+cDim+a.conn+ansiReset, amax-2, 7
 				if budget < 8 {
 					budget = 8
 				}
+			}
+			// A drawn working dot reports its ANSI coordinates for the
+			// sub-tick overlay — only rows putAt will actually paint.
+			if a.spin && row < c.limit {
+				spin = append(spin, fmt.Sprintf("%d:%d", row+1, dotCol))
 			}
 			c.putAt(row, gutter+pre+a.dot+ansiReset+" "+agentLabel(a, budget, cFG, cDim), a.target)
 			row++
@@ -761,7 +778,8 @@ func Frame(in FrameInput) FrameOutput {
 		}
 	}
 	c.body.WriteString("\x1b[H") // park the cursor; a trailing newline cannot scroll
-	return FrameOutput{Map: strings.Join(c.maps, " "), Ghosts: ghosts, GhostMap: ghostMap, Body: c.body.String()}
+	return FrameOutput{Map: strings.Join(c.maps, " "), Ghosts: ghosts, GhostMap: ghostMap,
+		Spin: strings.Join(spin, " "), Body: c.body.String()}
 }
 
 // agentLabel renders a nested row's text: the CLI actually running,
@@ -849,6 +867,14 @@ func ghostCells(agents []AgentEntry, viewed map[string]bool) (cells, ghostMap st
 		glyph, hex, ok := AgentStyle(ag.State)
 		if !ok {
 			glyph, hex = string(StateNone), PaletteHex("dim")
+		}
+		// A working ghost's dot rides the animator's option instead of
+		// the literal glyph: the cell is a format fragment the status
+		// line re-expands on every @vibe_spin write, so a viewer-less
+		// working agent spins in the tray for free. The option's conf
+		// default is the static ● — no animator, no difference.
+		if ag.State == "working" {
+			glyph = "#{@vibe_spin}"
 		}
 		label := ag.CLI
 		if label == "" {

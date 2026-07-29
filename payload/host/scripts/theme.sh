@@ -27,6 +27,11 @@ VIBE_THM_GREEN="#9ece6a"
 VIBE_THM_YELLOW="#e0af68"
 VIBE_THM_RED="#f7768e"
 
+# The working dot's animation frames (docs/tui-layout.md "The working
+# spinner") — presentation of the working state, never a state glyph;
+# space-separated so bash-3.2 callers word-split into an array.
+VIBE_SPIN_FRAMES="⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏"
+
 # hex (#rrggbb) -> truecolor foreground escape, on stdout.
 vibe_fg() {
   local h="${1#\#}"

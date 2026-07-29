@@ -28,12 +28,14 @@ type FrameRequest struct {
 
 // FrameResult is the rendered frame: the click map for
 // @vibe_sidebar_map, the tray's ghost cells for @vibe_ghosts, the
-// ghost map (session names in range order) for @vibe_ghost_map, and
-// the newline-free ANSI body.
+// ghost map (session names in range order) for @vibe_ghost_map, the
+// working-dot spin cells for the sidebar's sub-tick overlay, and the
+// newline-free ANSI body.
 type FrameResult struct {
 	Map      string
 	Ghosts   string
 	GhostMap string
+	Spin     string
 	Body     string
 }
 
@@ -77,7 +79,8 @@ func (a *App) RenderFrame(ctx context.Context, req FrameRequest) (FrameResult, e
 		}
 	}
 	out := tmuxui.Frame(in)
-	return FrameResult{Map: out.Map, Ghosts: out.Ghosts, GhostMap: out.GhostMap, Body: out.Body}, nil
+	return FrameResult{Map: out.Map, Ghosts: out.Ghosts, GhostMap: out.GhostMap,
+		Spin: out.Spin, Body: out.Body}, nil
 }
 
 // gitBranch reads .git/HEAD directly — no git subprocess on the frame

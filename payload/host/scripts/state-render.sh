@@ -154,6 +154,14 @@ tmux ${epoch_args[@]+"${epoch_args[@]}"} \
   set-option -w -t "$pane" @vibe_model "$model" \; \
   set-option -g @vibe_state_serial "$$$RANDOM" 2>/dev/null || exit 0
 
+# The working animator (docs/tui-layout.md "The working spinner"):
+# fire-and-forget, double-forked so this hot path never waits. spin.sh
+# self-guards with a lock, so the redundant spawn every working event
+# costs is one noclobber open.
+if [ "$state" = "working" ]; then
+  ( (bash "$here/spin.sh" >/dev/null 2>&1) & )
+fi
+
 # Human labels: the window and border track the channel's display.
 # Guard on the PANE's own settled label (@vibe_title, fetched with the
 # dead check above), never the window name — two agent panes sharing a

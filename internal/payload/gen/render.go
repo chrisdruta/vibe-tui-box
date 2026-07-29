@@ -222,6 +222,12 @@ func themeSH() string {
 	for _, c := range tmuxui.Palette {
 		fmt.Fprintf(&b, "VIBE_THM_%s=%q\n", strings.ToUpper(c.Name), c.Hex)
 	}
+	fmt.Fprintf(&b, `
+# The working dot's animation frames (docs/tui-layout.md "The working
+# spinner") — presentation of the working state, never a state glyph;
+# space-separated so bash-3.2 callers word-split into an array.
+VIBE_SPIN_FRAMES=%q
+`, strings.Join(tmuxui.SpinnerFrames, " "))
 	b.WriteString(`
 # hex (#rrggbb) -> truecolor foreground escape, on stdout.
 vibe_fg() {

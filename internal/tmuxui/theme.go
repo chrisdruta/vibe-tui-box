@@ -127,6 +127,16 @@ func AgentLive(state string) bool {
 	return false
 }
 
+// SpinnerFrames animates the WORKING dot (docs/tui-layout.md "The
+// working spinner") — a presentation of `working`, never a state
+// glyph: any surface without a live animator falls back to the static
+// ● the AgentStates map owns. Braille orbit: single-width, and
+// visually disjoint from the dot/circle state vocabulary so a frozen
+// frame can never be misread as a state. Rendered into theme.sh
+// (VIBE_SPIN_FRAMES) for the host animator and the sidebar's sub-tick
+// overlay; the tray reads the animator's @vibe_spin option instead.
+var SpinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
 // StateToken is the compact one-glyph container/project state for the
 // engine renderers.
 type StateToken string

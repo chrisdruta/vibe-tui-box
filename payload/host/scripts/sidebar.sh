@@ -219,17 +219,25 @@ esac
 
 # ── render ───────────────────────────────────────────────────────────────
 
+# Theme (palette + spinner frames) for the working-dot overlay below —
+# same artifact, same values as the conf's @thm twin.
+case "$0" in */*) here="${0%/*}" ;; *) here="." ;; esac
+# shellcheck source=theme.sh disable=SC1091
+. "$here/theme.sh"
+
 # ── engine cache ─────────────────────────────────────────────────────────
 # Lifetime- and user-matched to the tmux server: beside its socket
 # (/tmp/tmux-UID is already 0700). Empty cache_dir disables the whole
 # engine layer — every consumer guards on it.
 cache_dir=""
+spin_lock=""
 sock="$(tmux display-message -p '#{socket_path}' 2>/dev/null)"
 if [ -n "$sock" ]; then
   cache_dir="${sock%/*}/vibe-tui-cache"
   if ! mkdir -p "$cache_dir" 2>/dev/null || ! chmod 700 "$cache_dir" 2>/dev/null; then
     cache_dir=""
   fi
+  spin_lock="${sock%/*}/vibe-tui-spin.lock"
 fi
 
 # fetch_engine — refresh the fleet + own-project detail caches in the
@@ -312,10 +320,13 @@ watch_engine() {
 # gutter bars, the nested agent rows, the click map) lives in the
 # engine's `vibe _frame` renderer (internal/tmuxui/frame.go), where it
 # is table-tested; this side only gathers the raw tmux porcelain and
-# paints the returned bytes. The renderer answers three protocol lines:
-# the click map (published as @vibe_sidebar_map for the click mode
-# above — no second copy of the layout arithmetic to drift), the tray's
-# ghost cells (published as the session's @vibe_ghosts), and the
+# paints the returned bytes. The renderer (called with --spin — the
+# same-artifact contract; an older engine without the flag never meets
+# this script) answers four protocol lines before the body: the click
+# map (published as @vibe_sidebar_map for the click mode above — no
+# second copy of the layout arithmetic to drift), the tray's ghost
+# cells (published as the session's @vibe_ghosts), the ghost map, and
+# the working-dot spin cells the sub-tick overlay repaints, then the
 # newline-free ANSI body. Engine facts still come cache-only: _frame
 # reads the fleet/agents/detail caches, never Docker, so frames stay
 # cheap.
@@ -335,15 +346,26 @@ frame() {
       printf 'G%s%s\n' "$us" "$geo"
       tmux list-sessions -F "S$us#{session_id}$us#{?#{@vibe_name},#{@vibe_name},#{session_name}}$us#{session_path}$us#{@vibe_project}" 2>/dev/null
       tmux list-windows -a -F "W$us#{session_id}$us#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}$us#{@vibe_state}$us#{@vibe_session}$us#{@vibe_state_epoch}" 2>/dev/null
-    } | "$exe" _frame --cache "$cache_dir" 2>/dev/null
+    } | "$exe" _frame --cache "$cache_dir" --spin 2>/dev/null
   )" || return 0
-  case "$out" in *"$nl"*"$nl"*"$nl"*) ;; *) return 0 ;; esac # malformed: keep last frame
+  case "$out" in *"$nl"*"$nl"*"$nl"*"$nl"*) ;; *) return 0 ;; esac # malformed: keep last frame
   map="${out%%"$nl"*}"
   rest="${out#*"$nl"}"
   ghosts="${rest%%"$nl"*}"
   rest="${rest#*"$nl"}"
   gmap="${rest%%"$nl"*}"
+  rest="${rest#*"$nl"}"
+  spin_cells="${rest%%"$nl"*}"
   printf '%s' "${rest#*"$nl"}"
+  # The healer door for the tray animator (docs/tui-layout.md "The
+  # working spinner"): a viewer-less working agent has no title events
+  # on this server, so state-render.sh's instant door never fires for
+  # it. Spawn attempts gate on the lock's absence — one -e test per
+  # frame; spin.sh re-checks under noclobber, so the race is its
+  # problem and costs nothing.
+  if [ -n "$spin_cells" ] && [ -n "$spin_lock" ] && [ ! -e "$spin_lock" ]; then
+    ( (bash "$here/spin.sh" >/dev/null 2>&1) & )
+  fi
   if [ "$map" != "$last_map" ]; then
     tmux set-option -p -t "${TMUX_PANE:-}" @vibe_sidebar_map "$map" 2>/dev/null
     last_map="$map"
@@ -369,6 +391,17 @@ frame() {
 
 # This copy's own path, for the slow tick's self-upgrade drift check.
 self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+# The working-dot overlay (docs/tui-layout.md "The working spinner"):
+# between frames the loop repaints ONLY the spin cells the renderer
+# reported — pure printf, no tmux round trip and no engine call per
+# animation frame. The frame's own glyph stays the static ●, so a
+# skipped overlay (short pane, stale theme) degrades to today's look.
+# shellcheck disable=SC2206  # word-split ON PURPOSE: frames are space-separated
+spin_frames=(${VIBE_SPIN_FRAMES-})
+spin_n=${#spin_frames[@]}
+spin_fg="$(vibe_fg "${VIBE_THM_GREEN:-#9ece6a}")"
+spin_i=0
+spin_cells=""
 last_map=""
 last_ghosts=""
 last_gmap=""
@@ -390,7 +423,25 @@ fetch_engine # warm the cache so engine rows appear within a tick or two
 watch_engine # start the push channel (idempotent; slow tick retries)
 frame
 while :; do
-  sleep 2
+  # The 2s tick, sub-divided while anything works: four 500ms steps,
+  # each advancing the spinner and repainting exactly the reported
+  # cells. Wall-clock per tick stays 2s either way — the poll cadence
+  # below never changes.
+  if [ -n "$spin_cells" ] && [ "$spin_n" -gt 0 ]; then
+    st=0
+    while [ "$st" -lt 4 ]; do
+      sleep 0.5
+      st=$((st + 1))
+      spin_i=$(((spin_i + 1) % spin_n))
+      buf=""
+      for cell in $spin_cells; do
+        buf="$buf"$'\033'"[${cell%%:*};${cell#*:}H$spin_fg${spin_frames[spin_i]}"$'\033'"[0m"
+      done
+      printf '%s\033[H' "$buf"
+    done
+  else
+    sleep 2
+  fi
   # ONE round trip per idle tick: die-check and change detection
   # together. '/' separates because either serial may be empty and
   # whitespace splitting would collapse the hole.

@@ -361,6 +361,7 @@ var uiCommands = map[string]Command{
 			var req FrameCmdRequest
 			return parseInto(args, "_frame", &req.Options, func(fs *flag.FlagSet) any {
 				fs.StringVar(&req.Cache, "cache", "", "engine cache directory beside the tmux socket")
+				fs.BoolVar(&req.Spin, "spin", false, "emit the working-dot spin cells as a protocol line")
 				return &req
 			})
 		},
@@ -373,8 +374,16 @@ var uiCommands = map[string]Command{
 			// Four protocol lines: the click map, the tray's ghost
 			// cells, the ghost map their indexed ranges resolve
 			// through, then the newline-free ANSI body the sidebar
-			// loop paints verbatim.
-			return &renderResult{Lines: []string{res.Map, res.Ghosts, res.GhostMap, res.Body}}, nil
+			// loop paints verbatim. --spin (the same artifact's
+			// sidebar.sh) inserts the working-dot spin cells as a
+			// fifth line BEFORE the body — flag-gated so an older
+			// script keeps its four-line protocol across a binary
+			// swap; the body stays the tail either way.
+			lines := []string{res.Map, res.Ghosts, res.GhostMap, res.Body}
+			if r.Spin {
+				lines = []string{res.Map, res.Ghosts, res.GhostMap, res.Spin, res.Body}
+			}
+			return &renderResult{Lines: lines}, nil
 		},
 	},
 }
@@ -383,6 +392,7 @@ var uiCommands = map[string]Command{
 type FrameCmdRequest struct {
 	Options
 	Cache string
+	Spin  bool
 }
 
 // WatchCmdRequest drives the hidden engine-truth push daemon.

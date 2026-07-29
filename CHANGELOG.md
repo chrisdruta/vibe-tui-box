@@ -63,6 +63,24 @@ The v1 line and its history remain in git up to the cutover commit.
   Legacy bare-timestamp records keep busting until their next rebuild
   re-mints. Also fixed in passing: unversioned grok's BoM row now says
   `stable channel` — its installer's actual default — not `latest`.
+- New: **the working dot spins** (docs/tui-layout.md "The working
+  spinner", 2026-07-29). While an agent works, its dot animates — a
+  braille orbit that is presentation of the state, never a state
+  glyph: any surface without a live animator falls back to the static
+  ●. The tray rides one option: spin.sh (one per server, noclobber
+  lock beside the socket) rotates `@vibe_spin` at 4Hz while anything
+  works, and the design leans on a measurement, not a hope — on the
+  pinned 3.7b a bare `set -g` redraws the status line by itself
+  (~350 bytes, status only), so the tab dots and working ghost cells
+  animate with zero new `#()` splices and no `status-interval`
+  change. The sidebar animates its own pane: `vibe _frame --spin`
+  reports the drawn working dots' coordinates (a flag-gated fifth
+  protocol line) and the render loop sub-divides its 2s tick into
+  four 500ms repaints of exactly those cells — pure printf, no tmux
+  and no engine per animation frame. The pane-border dot deliberately
+  stays static (the same measurement: borders don't repaint on option
+  writes, and a frozen frame would read as broken), and everything
+  costs nothing while no agent works.
 - Changed: **the sidebar's polish pass, first round** (docs/tui-layout.md,
   2026-07-29 screenshot dogfood). The meta line wraps at segment
   boundaries onto continuation rows when it overflows the text budget
