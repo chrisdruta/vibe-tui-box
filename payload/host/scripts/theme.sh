@@ -6,8 +6,8 @@
 # tmux-tui.conf renders from the same source.
 #
 # vibe theme — the ONE palette + state map for every script renderer:
-# today sidebar.sh (fleet + agent roster); state-render.sh and ps.sh
-# rejoin it when their feeders return (BACKLOG).
+# sidebar.sh (fleet + agent roster), state-render.sh (dot + state
+# colors), spin.sh (the working-dot spinner).
 #
 # Sourced, never executed. Pure definitions: no subprocesses, no output,
 # no set-option mutation; bash-3.2-safe (host + container). Callers may

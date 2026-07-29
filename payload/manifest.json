@@ -214,8 +214,8 @@
     {
       "path": "host/scripts/theme.sh",
       "mode": "0755",
-      "size": 2758,
-      "digest": "sha256:d46916785361c5f6c6011f25d63d223ec7c03a2e15a912df3454dc4b57d0f4e3"
+      "size": 2752,
+      "digest": "sha256:7e4204773f5226af93ccdcdd9d4b5d8d45c8c3d805d084f67ae12daf4741d6f2"
     },
     {
       "path": "host/tmux-tui.conf",
@@ -284,5 +284,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:2dd28564b7cc3984b6ff995cbf7ddd9bc4308d26c1644196e7fe76274aa8b6a0"
+  "digest": "sha256:e7a6cdb65f6cb9ce55345223f25cdd599967d57b096504304e028b978964a152"
 }

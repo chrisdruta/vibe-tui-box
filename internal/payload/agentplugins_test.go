@@ -13,8 +13,8 @@ import (
 // tool-complete PATH that deliberately lacks the agent CLIs — the
 // script's main body no-ops and the named function runs against the
 // given environment. The payload is shell, so these fixtures are the
-// unit tests the sandbox seeding contract demanded (BACKLOG, Codex
-// adversarial review 2026-07-24).
+// unit tests the sandbox seeding contract demanded (Codex adversarial
+// review 2026-07-24; shipped with the 2026-07-26 hardening pass).
 func runAgentPlugins(t *testing.T, env []string, body string) {
 	t.Helper()
 	script, err := filepath.Abs(filepath.Join("..", "..", "payload", "container", "agent-plugins.sh"))
