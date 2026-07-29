@@ -59,7 +59,7 @@ func TestUpStatusRunDown(t *testing.T) {
 		t.Fatalf("want 1 container, got %d", len(creates))
 	}
 	created := creates[0].Request.(dockerapi.CreateRequest)
-	wantEnv := []string{"FLAG=1", "CLAUDE_CONFIG_DIR=/vibe/agent-state/claude", "DISABLE_AUTOUPDATER=1"}
+	wantEnv := []string{"FLAG=1", "XDG_RUNTIME_DIR=/run/user/1000", "CLAUDE_CONFIG_DIR=/vibe/agent-state/claude", "DISABLE_AUTOUPDATER=1"}
 	if fmt.Sprint(created.Env) != fmt.Sprint(wantEnv) {
 		t.Fatalf("container env wrong: %v", created.Env)
 	}

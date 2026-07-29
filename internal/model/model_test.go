@@ -139,6 +139,33 @@ func TestCompileAgentStateEnv(t *testing.T) {
 	}
 }
 
+// TestCompileRuntimeDir pins the runtime-dir contract: the dev
+// container mounts a real tmpfs at the XDG runtime dir (so
+// state-dir.sh records clear on every container boot) and the engine
+// env var points spec-following tools at it.
+func TestCompileRuntimeDir(t *testing.T) {
+	plan, errs := Compile(testInput(t, minimalManifest))
+	if len(errs) > 0 {
+		t.Fatalf("compile diagnostics: %v", errs)
+	}
+	var tmpfs *Mount
+	for i := range plan.Dev.Mounts {
+		if plan.Dev.Mounts[i].Target == RuntimeDirTarget {
+			tmpfs = &plan.Dev.Mounts[i]
+		}
+	}
+	if tmpfs == nil || tmpfs.Kind != TmpfsMount || tmpfs.Source != "" {
+		t.Fatalf("runtime dir mount wrong: %+v", tmpfs)
+	}
+	var envs []string
+	for _, e := range plan.Dev.Environment {
+		envs = append(envs, e.Key+"="+e.Value)
+	}
+	if !slices.Contains(envs, "XDG_RUNTIME_DIR="+RuntimeDirTarget) {
+		t.Fatalf("dev env missing XDG_RUNTIME_DIR: %v", envs)
+	}
+}
+
 func TestCompileDeterministic(t *testing.T) {
 	p1, errs := Compile(testInput(t, sidecarManifest))
 	if len(errs) > 0 {
@@ -199,6 +226,7 @@ func TestCompileRejectsReservedTarget(t *testing.T) {
 		PayloadTarget,
 		ResultsTarget,
 		AgentStateTarget + "/nested",
+		RuntimeDirTarget + "/nested",
 		"/vibe", // contains engine-owned targets
 	} {
 		manifest := strings.Replace(sidecarManifest, "target: /models", "target: "+target, 1)
@@ -222,6 +250,21 @@ func TestValidateMountOverlap(t *testing.T) {
 	})
 	if verrs := Validate(plan); len(verrs) == 0 {
 		t.Fatal("nested mount target should be rejected")
+	}
+}
+
+func TestValidateTmpfsSource(t *testing.T) {
+	plan, errs := Compile(testInput(t, minimalManifest))
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	for i := range plan.Dev.Mounts {
+		if plan.Dev.Mounts[i].Kind == TmpfsMount {
+			plan.Dev.Mounts[i].Source = "/x"
+		}
+	}
+	if verrs := Validate(plan); len(verrs) == 0 {
+		t.Fatal("tmpfs mount with a source should be rejected")
 	}
 }
 

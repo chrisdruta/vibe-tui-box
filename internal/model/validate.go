@@ -75,10 +75,16 @@ func validateMounts(base string, mounts []Mount, add func(string, string)) {
 			add(field, fmt.Sprintf("target %q must be normalized and not /", t))
 			continue
 		}
-		if m.Source == "" {
-			add(field, "mount source is required")
-		}
-		if m.Kind != BindMount && m.Kind != VolumeMount {
+		switch m.Kind {
+		case BindMount, VolumeMount:
+			if m.Source == "" {
+				add(field, "mount source is required")
+			}
+		case TmpfsMount:
+			if m.Source != "" {
+				add(field, fmt.Sprintf("tmpfs mount must not have a source, got %q", m.Source))
+			}
+		default:
 			add(field, fmt.Sprintf("unsupported mount kind %q", m.Kind))
 		}
 		for _, prev := range targets {

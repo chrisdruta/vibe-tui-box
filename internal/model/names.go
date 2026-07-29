@@ -57,11 +57,18 @@ const (
 	PayloadTarget    = "/vibe/payload"
 	AgentStateTarget = "/vibe/agent-state"
 	ResultsTarget    = "/vibe/results"
+	// RuntimeDirTarget is the dev container's XDG runtime dir, backed by
+	// a real tmpfs mount. The uid in the path is a contract with the dev
+	// user (vscode, uid 1000 in the devcontainer base — compile pins the
+	// user, the tmpfs mount options mint the ownership). tmpfs clears on
+	// every container boot, so state-dir.sh records can't go stale across
+	// a hard stop/start the way writable-layer /tmp lets them.
+	RuntimeDirTarget = "/run/user/1000"
 )
 
 // ReservedTargets lists every engine-owned mount target.
 func ReservedTargets() []string {
-	return []string{WorkspaceTarget, PayloadTarget, AgentStateTarget, ResultsTarget}
+	return []string{WorkspaceTarget, PayloadTarget, AgentStateTarget, ResultsTarget, RuntimeDirTarget}
 }
 
 // reservedTargetFor returns the engine-owned target that t equals,

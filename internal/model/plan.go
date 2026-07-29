@@ -73,6 +73,7 @@ type MountKind string
 const (
 	BindMount   MountKind = "bind"
 	VolumeMount MountKind = "volume"
+	TmpfsMount  MountKind = "tmpfs"
 )
 
 type Mount struct {

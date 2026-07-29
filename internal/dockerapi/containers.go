@@ -59,19 +59,32 @@ func (s *SDK) CreateContainer(ctx context.Context, req CreateRequest) (Container
 	mounts := make([]mount.Mount, 0, len(req.Mounts))
 	for _, m := range req.Mounts {
 		var kind mount.Type
+		var tmpfs *mount.TmpfsOptions
 		switch m.Kind {
 		case BindMount:
 			kind = mount.TypeBind
 		case VolumeMount:
 			kind = mount.TypeVolume
+		case TmpfsMount:
+			kind = mount.TypeTmpfs
+			// XDG-shaped runtime dir: private to the dev user. Ownership
+			// must be minted here — the closed policy drops CAP_CHOWN, so
+			// a root-owned tmpfs would be dead weight the container can
+			// never claim. uid/gid match compile's dev user (vscode, 1000).
+			tmpfs = &mount.TmpfsOptions{
+				SizeBytes: 64 << 20,
+				Mode:      0o700,
+				Options:   [][]string{{"uid", "1000"}, {"gid", "1000"}},
+			}
 		default:
 			return "", fmt.Errorf("%w: mount kind %q", domain.ErrInvalid, m.Kind)
 		}
 		mounts = append(mounts, mount.Mount{
-			Type:     kind,
-			Source:   m.Source,
-			Target:   m.Target,
-			ReadOnly: m.ReadOnly,
+			Type:         kind,
+			Source:       m.Source,
+			Target:       m.Target,
+			ReadOnly:     m.ReadOnly,
+			TmpfsOptions: tmpfs,
 		})
 	}
 

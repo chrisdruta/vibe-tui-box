@@ -109,6 +109,7 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 		Mounts: []Mount{
 			{Kind: BindMount, Source: in.Project.Root, Target: WorkspaceTarget},
 			{Kind: VolumeMount, Source: AgentStateVolumeName(id), Target: AgentStateTarget},
+			{Kind: TmpfsMount, Target: RuntimeDirTarget},
 		},
 	}
 	if !in.Artifact.IsZero() {
@@ -143,6 +144,11 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 	}
 	dev.Ports, errs = compilePorts("runtime.ports", m.Runtime.Ports, errs)
 	dev.Environment = compileEnv(m.Runtime.Env)
+	// Engine-provided: points spec-following tools (state-dir.sh first
+	// among them) at the runtime tmpfs mounted above. Comes after user
+	// env, cannot be shadowed.
+	dev.Environment = append(dev.Environment,
+		Env{Key: "XDG_RUNTIME_DIR", Value: RuntimeDirTarget})
 	for _, agent := range m.Image.Agents {
 		// Claude relocates all its state (including .claude.json) under
 		// CLAUDE_CONFIG_DIR, so logins land in the agent-state volume and

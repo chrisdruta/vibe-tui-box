@@ -26,6 +26,10 @@
         "value": "2"
       },
       {
+        "key": "XDG_RUNTIME_DIR",
+        "value": "/run/user/1000"
+      },
+      {
         "key": "CLAUDE_CONFIG_DIR",
         "value": "/vibe/agent-state/claude"
       },
@@ -44,6 +48,11 @@
         "kind": "volume",
         "source": "vibe-abcdefghijkl-agent-state",
         "target": "/vibe/agent-state"
+      },
+      {
+        "kind": "tmpfs",
+        "source": "",
+        "target": "/run/user/1000"
       },
       {
         "kind": "bind",
@@ -161,5 +170,5 @@
       "claude"
     ]
   },
-  "canonical_hash": "sha256:2f1831f50a233ac52687e5a3dd5fa3b32891914c12393513f2ed2f12901747da"
+  "canonical_hash": "sha256:26499599131614361c2a40ce92f9f73ab9a96da4bc680e267c9c21bedddf1024"
 }

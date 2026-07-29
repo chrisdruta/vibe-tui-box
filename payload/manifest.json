@@ -106,8 +106,8 @@
     {
       "path": "container/state-dir.sh",
       "mode": "0644",
-      "size": 782,
-      "digest": "sha256:5c06d27bc1e68112b617dcd7d1f581e98844ba72f0325bd144afa48fcec8dd6d"
+      "size": 1119,
+      "digest": "sha256:d21d906bf4261c64630e5fd52843a9fef9e009ad3ccb5d8179b4f130dcd3da9e"
     },
     {
       "path": "container/statusline.sh",
@@ -284,5 +284,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:cd71edf245e6315781c772dac7fe134198f8cc4d03bb065c7a0c68b89a98a781"
+  "digest": "sha256:2dd28564b7cc3984b6ff995cbf7ddd9bc4308d26c1644196e7fe76274aa8b6a0"
 }
