@@ -139,7 +139,7 @@ func TestGenerateInstallRefresh(t *testing.T) {
 	codexAt := strings.Index(out, "@openai/codex@")
 	grokAt := strings.Index(out, "x.ai/cli/install.sh")
 	claudeAt := strings.Index(out, "claude.ai/install.sh")
-	if !(codexAt < grokAt && grokAt < claudeAt) {
+	if codexAt >= grokAt || grokAt >= claudeAt {
 		t.Fatalf("agent layer order want codex < grok < claude, got %d/%d/%d:\n%s", codexAt, grokAt, claudeAt, out)
 	}
 }
