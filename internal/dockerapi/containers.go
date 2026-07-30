@@ -57,34 +57,35 @@ func (s *SDK) CreateContainer(ctx context.Context, req CreateRequest) (Container
 	}
 
 	mounts := make([]mount.Mount, 0, len(req.Mounts))
+	var tmpfsMounts map[string]string
 	for _, m := range req.Mounts {
 		var kind mount.Type
-		var tmpfs *mount.TmpfsOptions
 		switch m.Kind {
 		case BindMount:
 			kind = mount.TypeBind
 		case VolumeMount:
 			kind = mount.TypeVolume
 		case TmpfsMount:
-			kind = mount.TypeTmpfs
 			// XDG-shaped runtime dir: private to the dev user. Ownership
 			// must be minted here — the closed policy drops CAP_CHOWN, so
 			// a root-owned tmpfs would be dead weight the container can
 			// never claim. uid/gid match compile's dev user (vscode, 1000).
-			tmpfs = &mount.TmpfsOptions{
-				SizeBytes: 64 << 20,
-				Mode:      0o700,
-				Options:   [][]string{{"uid", "1000"}, {"gid", "1000"}},
+			// Rides HostConfig.Tmpfs (the --tmpfs path) rather than the
+			// typed Mounts API: the daemon whitelists tmpfs options there
+			// and rejects uid/gid, while --tmpfs hands them to the kernel.
+			if tmpfsMounts == nil {
+				tmpfsMounts = map[string]string{}
 			}
+			tmpfsMounts[m.Target] = "uid=1000,gid=1000,mode=0700,size=64m"
+			continue
 		default:
 			return "", fmt.Errorf("%w: mount kind %q", domain.ErrInvalid, m.Kind)
 		}
 		mounts = append(mounts, mount.Mount{
-			Type:         kind,
-			Source:       m.Source,
-			Target:       m.Target,
-			ReadOnly:     m.ReadOnly,
-			TmpfsOptions: tmpfs,
+			Type:     kind,
+			Source:   m.Source,
+			Target:   m.Target,
+			ReadOnly: m.ReadOnly,
 		})
 	}
 
@@ -93,6 +94,7 @@ func (s *SDK) CreateContainer(ctx context.Context, req CreateRequest) (Container
 	}
 	hostConfig := &container.HostConfig{
 		Mounts:         mounts,
+		Tmpfs:          tmpfsMounts,
 		PortBindings:   bindings,
 		CapDrop:        strslice.StrSlice{"ALL"},
 		SecurityOpt:    []string{"no-new-privileges:true"},
