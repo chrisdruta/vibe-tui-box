@@ -21,8 +21,12 @@ type Client interface {
 	StartContainer(ctx context.Context, id ContainerID) error
 	StopContainer(ctx context.Context, id ContainerID, timeout time.Duration) error
 	RemoveContainer(ctx context.Context, id ContainerID, opts RemoveOptions) error
+	RenameContainer(ctx context.Context, id ContainerID, name ContainerName) error
 	WaitContainer(ctx context.Context, id ContainerID) (int, error)
 	ListProjectContainers(ctx context.Context, project domain.ProjectID) ([]ContainerState, error)
+	// ListManagedContainers enumerates every engine-managed container on
+	// the host across all projects, running or not.
+	ListManagedContainers(ctx context.Context) ([]ContainerState, error)
 
 	Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 	Attach(ctx context.Context, req AttachRequest) error

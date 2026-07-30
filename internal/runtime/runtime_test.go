@@ -63,7 +63,7 @@ func newFixture(t *testing.T, manifest string, opts ...func(*store.Store, *model
 		t.Fatal(err)
 	}
 	docker := dockerfake.New()
-	svc, err := NewService(docker, st, locks)
+	svc, err := NewService(docker, st, locks, layout.State)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,6 +206,13 @@ func TestUpCreatesFullTopology(t *testing.T) {
 		Network: netName,
 		Policy:  dockerapi.Policy{DropAllCapabilities: true, NoNewPrivileges: true},
 	}
+	// The transaction nonce is per-Up random; verify its shape, then
+	// compare the rest exactly.
+	nonce := dev.Labels[TxnLabel]
+	if len(nonce) != 32 {
+		t.Fatalf("txn label %q is not a 32-hex nonce", nonce)
+	}
+	want.Labels[TxnLabel] = nonce
 	assertCreateEqual(t, dev, want)
 }
 
@@ -430,28 +437,64 @@ func TestDownFailsWhenRemoveFails(t *testing.T) {
 	}
 }
 
-// TestReplaceFailsWhenStopFails pins that the container-replacement path
-// (forced up) propagates a StopContainer failure.
+// TestReplaceFailsWhenStopFails pins that the container-replacement
+// path (forced up) surfaces a StopContainer failure AND rolls back:
+// the old generation keeps running at its canonical names and no
+// transaction leftovers (.prev/.next or journal) survive.
 func TestReplaceFailsWhenStopFails(t *testing.T) {
 	f := newFixture(t, testManifest)
 	ctx := context.Background()
 	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
 		t.Fatal(err)
 	}
+	before := runningNames(f.docker)
 	f.docker.StopErr = errors.New("stop boom")
 
 	_, err := f.svc.Up(ctx, f.cand, UpOptions{Force: true})
 	if err == nil || !strings.Contains(err.Error(), "stop boom") {
 		t.Fatalf("forced replace must surface the stop failure, got %v", err)
 	}
-	if len(f.docker.CallsTo("RemoveContainer")) != 0 {
-		t.Fatal("replace should not remove after a stop failure")
-	}
+	assertRolledBack(t, f, before)
 }
 
-// TestReplaceFailsWhenRemoveFails pins that the container-replacement path
-// propagates a RemoveContainer failure that is not ErrNotFound.
-func TestReplaceFailsWhenRemoveFails(t *testing.T) {
+// TestReplaceStartFailureRestoresOld pins the rollback of a failed
+// swap: the staged replacement started but the start failed after the
+// old container was already retired — the old generation must come
+// back under its canonical name, running.
+func TestReplaceStartFailureRestoresOld(t *testing.T) {
+	f := newFixture(t, testManifest)
+	ctx := context.Background()
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	before := runningNames(f.docker)
+	// Fail exactly the starts of this transaction's new containers —
+	// identified by ID, since the swap renames them to canonical names
+	// before starting; the rollback's restart of the old (pre-existing)
+	// generation must still succeed.
+	preexisting := map[dockerapi.ContainerID]bool{}
+	for _, c := range f.docker.Containers {
+		preexisting[c.ID] = true
+	}
+	f.docker.StartHookErr = func(c dockerapi.ContainerState) error {
+		if !preexisting[c.ID] {
+			return errors.New("start boom")
+		}
+		return nil
+	}
+
+	_, err := f.svc.Up(ctx, f.cand, UpOptions{Force: true})
+	if err == nil || !strings.Contains(err.Error(), "start boom") {
+		t.Fatalf("forced replace must surface the start failure, got %v", err)
+	}
+	assertRolledBack(t, f, before)
+}
+
+// TestReplaceCleanupFailureLeavesDebris pins the commit-side semantics:
+// a RemoveContainer failure during post-commit cleanup must NOT fail
+// the up — the new generation is proven — and the retired .prev
+// containers stay as debris for the next up's sweep.
+func TestReplaceCleanupFailureLeavesDebris(t *testing.T) {
 	f := newFixture(t, testManifest)
 	ctx := context.Background()
 	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
@@ -459,9 +502,60 @@ func TestReplaceFailsWhenRemoveFails(t *testing.T) {
 	}
 	f.docker.RemoveErr = errors.New("remove boom")
 
-	_, err := f.svc.Up(ctx, f.cand, UpOptions{Force: true})
-	if err == nil || !strings.Contains(err.Error(), "remove boom") {
-		t.Fatalf("forced replace must surface the remove failure, got %v", err)
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{Force: true}); err != nil {
+		t.Fatalf("cleanup failure must not fail a committed replace, got %v", err)
+	}
+	prev := 0
+	for name := range f.docker.Containers {
+		if strings.HasSuffix(string(name), ".prev") {
+			prev++
+		}
+	}
+	if prev == 0 {
+		t.Fatal("expected retired .prev debris after failed cleanup")
+	}
+
+	// The next up sweeps the debris once removal works again.
+	f.docker.RemoveErr = nil
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for name := range f.docker.Containers {
+		if strings.HasSuffix(string(name), ".prev") || strings.HasSuffix(string(name), ".next") {
+			t.Fatalf("debris %s survived the sweep", name)
+		}
+	}
+}
+
+// runningNames snapshots which containers are currently running.
+func runningNames(docker *dockerfake.Client) map[dockerapi.ContainerName]bool {
+	out := map[dockerapi.ContainerName]bool{}
+	for name, c := range docker.Containers {
+		if c.Running {
+			out[name] = true
+		}
+	}
+	return out
+}
+
+// assertRolledBack verifies a failed replacement restored the previous
+// generation exactly: same canonical names running, no transaction
+// leftovers, and no replacement journal on disk.
+func assertRolledBack(t *testing.T, f *fixture, before map[dockerapi.ContainerName]bool) {
+	t.Helper()
+	for name := range before {
+		c, ok := f.docker.Containers[name]
+		if !ok || !c.Running {
+			t.Fatalf("container %s not restored to running after rollback", name)
+		}
+	}
+	for name := range f.docker.Containers {
+		if strings.HasSuffix(string(name), ".prev") || strings.HasSuffix(string(name), ".next") {
+			t.Fatalf("transaction leftover %s survived rollback", name)
+		}
+	}
+	if _, err := os.Stat(f.svc.journalPath(testProjectID)); !os.IsNotExist(err) {
+		t.Fatalf("replacement journal should be gone after rollback, stat err=%v", err)
 	}
 }
 

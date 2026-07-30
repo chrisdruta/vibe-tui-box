@@ -2,12 +2,16 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
 )
 
@@ -59,7 +63,7 @@ type realClock struct{}
 func (realClock) Now() time.Time { return time.Now() }
 
 func TestGCFlow(t *testing.T) {
-	a, _ := newTestApp(t)
+	a, docker := newTestApp(t)
 	a.deps.Clock = realClock{}
 	ctx := context.Background()
 	dir := newProject(t)
@@ -193,8 +197,9 @@ func TestGCFlow(t *testing.T) {
 		t.Fatalf("min-age run removed %+v, %v", res.Removed, err)
 	}
 
-	// Forgetting the project releases its state: broker dir, approved and
-	// pending candidates; the newest release artifact stays.
+	// Forgetting the project releases its registry state — but its
+	// containers still exist, and live containers root their candidate:
+	// only the pending candidate (no containers) goes now.
 	rec := mustResolve(t, a, dir)
 	if _, err := a.Forget(ctx, ForgetRequest{Dir: dir}); err != nil {
 		t.Fatal(err)
@@ -207,10 +212,20 @@ func TestGCFlow(t *testing.T) {
 	if !ids["broker "+string(rec.ID)] {
 		t.Fatalf("stale broker dir not removed: %+v", after.Removed)
 	}
-	for _, c := range []domain.Digest{c2, c3} {
-		if ok, _ := a.deps.Store.Exists(ctx, store.CandidateObject, c); ok {
-			t.Fatalf("forgotten project's candidate %s survived", c)
-		}
+	if ok, _ := a.deps.Store.Exists(ctx, store.CandidateObject, c2); !ok {
+		t.Fatal("live containers must keep rooting their candidate after forget")
+	}
+	if ok, _ := a.deps.Store.Exists(ctx, store.CandidateObject, c3); ok {
+		t.Fatal("forgotten project's pending candidate survived")
+	}
+
+	// Once the containers are gone too, the candidate follows.
+	docker.Containers = map[dockerapi.ContainerName]*dockerapi.ContainerState{}
+	if _, err := a.GC(ctx, GCRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := a.deps.Store.Exists(ctx, store.CandidateObject, c2); ok {
+		t.Fatal("forgotten project's candidate survived with no containers")
 	}
 	if ok, _ := a.deps.Store.Exists(ctx, store.ArtifactObject, relNew); !ok {
 		t.Fatal("newest release artifact must survive with no projects")
@@ -224,4 +239,199 @@ func mustCandidateSnapshot(t *testing.T, a *App, digest domain.Digest) domain.Di
 		t.Fatal(err)
 	}
 	return rec.Snapshot
+}
+
+// TestGCInterruptedApproval pins the live-container root: containers
+// running a candidate the registry no longer points at (a reconcile
+// that never reached its registry update, or one rolled back on paper
+// only) must keep that candidate and its snapshot alive.
+func TestGCInterruptedApproval(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.deps.Clock = realClock{}
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	up1, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c1 := up1.Candidate
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("SECRET=v2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	up2, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c2 := up2.Candidate
+	s2 := mustCandidateSnapshot(t, a, c2)
+
+	// Simulate the interrupted approval: containers stay on c2 while
+	// the registry pointer moves back to c1.
+	rec := mustResolve(t, a, dir)
+	if _, err := a.deps.Registry.Update(ctx, rec.ID, rec.Revision, func(r *registry.Record) error {
+		r.Approved = &c1
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := a.GC(ctx, GCRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	for what, d := range map[string]domain.Digest{"candidate c2": c2, "snapshot s2": s2, "candidate c1": c1} {
+		kind := store.CandidateObject
+		if what == "snapshot s2" {
+			kind = store.SnapshotObject
+		}
+		if ok, _ := a.deps.Store.Exists(ctx, kind, d); !ok {
+			t.Fatalf("%s must survive: containers or the registry still reference it", what)
+		}
+	}
+}
+
+// TestGCFailsClosedOnBadContainerMetadata pins that GC aborts rather
+// than collects when live-container metadata cannot be trusted.
+func TestGCFailsClosedOnBadContainerMetadata(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	docker.Containers["rogue"] = &dockerapi.ContainerState{
+		ID:   "ctr-rogue",
+		Name: "rogue",
+		Labels: map[string]string{
+			"dev.vibe.managed":   "true",
+			"dev.vibe.project":   "abcdefghijklmnopqrstuvwxyz",
+			"dev.vibe.candidate": "not-a-digest",
+		},
+	}
+	if _, err := a.GC(ctx, GCRequest{}); err == nil || !strings.Contains(err.Error(), "malformed candidate label") {
+		t.Fatalf("malformed candidate label must abort gc, got %v", err)
+	}
+
+	docker.Containers["rogue"].Labels["dev.vibe.candidate"] = ""
+	if _, err := a.GC(ctx, GCRequest{}); err == nil {
+		t.Fatal("missing candidate label must abort gc")
+	}
+}
+
+// TestGCFailsClosedWithoutDocker pins that an unreachable daemon
+// aborts GC: without the live-container roots the root set is
+// incomplete.
+func TestGCFailsClosedWithoutDocker(t *testing.T) {
+	a, docker := newTestApp(t)
+	docker.PingErr = errors.New("daemon down")
+	if _, err := a.GC(context.Background(), GCRequest{}); err == nil || !strings.Contains(err.Error(), "daemon") {
+		t.Fatalf("gc without docker must fail closed, got %v", err)
+	}
+}
+
+// TestGCFailsClosedOnBadArtifactLabelAndMissingRecord pins the two
+// remaining fail-closed metadata paths: a present-but-malformed
+// artifact label, and a live-container candidate whose record cannot
+// be read.
+func TestGCFailsClosedOnBadArtifactLabelAndMissingRecord(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	good := domain.SHA256([]byte("candidate")).String()
+	docker.Containers["rogue"] = &dockerapi.ContainerState{
+		ID:   "ctr-rogue",
+		Name: "rogue",
+		Labels: map[string]string{
+			"dev.vibe.managed":   "true",
+			"dev.vibe.project":   "abcdefghijklmnopqrstuvwxyz",
+			"dev.vibe.candidate": good,
+			"dev.vibe.artifact":  "not-a-digest",
+		},
+	}
+	if _, err := a.GC(ctx, GCRequest{}); err == nil || !strings.Contains(err.Error(), "malformed artifact label") {
+		t.Fatalf("malformed artifact label must abort gc, got %v", err)
+	}
+
+	// Valid labels, but no candidate record exists for the digest.
+	delete(docker.Containers["rogue"].Labels, "dev.vibe.artifact")
+	if _, err := a.GC(ctx, GCRequest{}); err == nil || !strings.Contains(err.Error(), "record is unreadable") {
+		t.Fatalf("unreadable candidate record for a live root must abort gc, got %v", err)
+	}
+}
+
+// TestGCFailsClosedOnMissingProjectLabel pins that a managed container
+// that cannot name its project aborts GC — the project label gates
+// journal cleanup.
+func TestGCFailsClosedOnMissingProjectLabel(t *testing.T) {
+	a, docker := newTestApp(t)
+	docker.Containers["rogue"] = &dockerapi.ContainerState{
+		ID:   "ctr-rogue",
+		Name: "rogue",
+		Labels: map[string]string{
+			"dev.vibe.managed":   "true",
+			"dev.vibe.candidate": domain.SHA256([]byte("c")).String(),
+		},
+	}
+	if _, err := a.GC(context.Background(), GCRequest{}); err == nil || !strings.Contains(err.Error(), "project label") {
+		t.Fatalf("missing project label must abort gc, got %v", err)
+	}
+
+	// Nonempty but malformed is equally fail-closed: a misfiled project
+	// key would let the real project's journal look container-free.
+	docker.Containers["rogue"].Labels["dev.vibe.project"] = "Not-A-Valid-Project-Id!"
+	if _, err := a.GC(context.Background(), GCRequest{}); err == nil || !strings.Contains(err.Error(), "project label") {
+		t.Fatalf("malformed project label must abort gc, got %v", err)
+	}
+}
+
+// TestGCJournalCleanupRespectsLiveContainers pins that an unregistered
+// project's replacement journal is only collected once the project has
+// no managed containers left.
+func TestGCJournalCleanupRespectsLiveContainers(t *testing.T) {
+	a, docker := newTestApp(t)
+	a.deps.Clock = realClock{}
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	rec := mustResolve(t, a, dir)
+	replaceDir := filepath.Join(a.deps.Layout.State, "replace")
+	if err := os.MkdirAll(replaceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	journalFile := filepath.Join(replaceDir, string(rec.ID)+".json")
+	if err := os.WriteFile(journalFile, []byte(`{"version":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Forget(ctx, ForgetRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Containers still exist: the journal must be skipped, not removed.
+	res, err := a.GC(ctx, GCRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(journalFile); err != nil {
+		t.Fatalf("journal of a live unregistered project must survive: %v", err)
+	}
+	found := false
+	for _, e := range res.Skipped {
+		if strings.Contains(e.ID, "replace-journal") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("skipped journal must be reported: %+v", res.Skipped)
+	}
+
+	// Containers gone: the journal follows.
+	docker.Containers = map[dockerapi.ContainerName]*dockerapi.ContainerState{}
+	if _, err := a.GC(ctx, GCRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(journalFile); !os.IsNotExist(err) {
+		t.Fatalf("journal of a containerless unregistered project must be collected, stat err=%v", err)
+	}
 }

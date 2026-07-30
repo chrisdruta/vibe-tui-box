@@ -37,10 +37,22 @@ type Client struct {
 	CreateErrOnce error
 	// CreateHook runs after a successful create, letting tests emulate
 	// container side effects (e.g. a dev build writing its output).
-	CreateHook  func(dockerapi.CreateRequest)
-	StartErr    error
-	StopErr     error
-	RemoveErr   error
+	CreateHook func(dockerapi.CreateRequest)
+	StartErr   error
+	StopErr    error
+	RemoveErr  error
+	RenameErr  error
+	// Per-container failure hooks for transaction tests: each runs after
+	// the target is located and before any mutation; a non-nil return
+	// fails the call. Nil hooks mean "succeed with defaults".
+	StartHookErr  func(dockerapi.ContainerState) error
+	StopHookErr   func(dockerapi.ContainerState) error
+	RemoveHookErr func(dockerapi.ContainerState) error
+	RenameHookErr func(dockerapi.ContainerState, dockerapi.ContainerName) error
+	// StartExits models containers that exit immediately after a
+	// successful start: StartContainer returns nil but Running stays
+	// false, like a crashing sidecar.
+	StartExits  map[dockerapi.ContainerID]bool
 	WaitCodes   map[dockerapi.ContainerID]int
 	ExecResults map[string]dockerapi.ExecResult // keyed by argv joined with \x00
 	ExecOutputs map[string]string               // stdout written to Streams.Out, same key
@@ -188,7 +200,12 @@ func (c *Client) StartContainer(ctx context.Context, id dockerapi.ContainerID) e
 	if err != nil {
 		return err
 	}
-	state.Running = true
+	if c.StartHookErr != nil {
+		if err := c.StartHookErr(*state); err != nil {
+			return err
+		}
+	}
+	state.Running = !c.StartExits[id]
 	return nil
 }
 
@@ -203,6 +220,11 @@ func (c *Client) StopContainer(ctx context.Context, id dockerapi.ContainerID, ti
 	if err != nil {
 		return err
 	}
+	if c.StopHookErr != nil {
+		if err := c.StopHookErr(*state); err != nil {
+			return err
+		}
+	}
 	state.Running = false
 	return nil
 }
@@ -216,11 +238,47 @@ func (c *Client) RemoveContainer(ctx context.Context, id dockerapi.ContainerID, 
 	defer c.mu.Unlock()
 	for name, state := range c.Containers {
 		if state.ID == id {
+			if c.RemoveHookErr != nil {
+				if err := c.RemoveHookErr(*state); err != nil {
+					return err
+				}
+			}
 			delete(c.Containers, name)
 			return nil
 		}
 	}
 	return fmt.Errorf("%w: container id %s", domain.ErrNotFound, id)
+}
+
+func (c *Client) RenameContainer(ctx context.Context, id dockerapi.ContainerID, name dockerapi.ContainerName) error {
+	c.record("RenameContainer", struct {
+		ID   dockerapi.ContainerID
+		Name dockerapi.ContainerName
+	}{id, name})
+	if c.RenameErr != nil {
+		return c.RenameErr
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	state, err := c.findByID(id)
+	if err != nil {
+		return err
+	}
+	if c.RenameHookErr != nil {
+		if err := c.RenameHookErr(*state, name); err != nil {
+			return err
+		}
+	}
+	if state.Name == name {
+		return nil
+	}
+	if _, exists := c.Containers[name]; exists {
+		return fmt.Errorf("%w: container %s already exists", domain.ErrConflict, name)
+	}
+	delete(c.Containers, state.Name)
+	state.Name = name
+	c.Containers[name] = state
+	return nil
 }
 
 func (c *Client) WaitContainer(ctx context.Context, id dockerapi.ContainerID) (int, error) {
@@ -242,6 +300,19 @@ func (c *Client) ListProjectContainers(ctx context.Context, project domain.Proje
 	var out []dockerapi.ContainerState
 	for _, state := range c.Containers {
 		if state.Labels["dev.vibe.project"] == string(project) {
+			out = append(out, *state)
+		}
+	}
+	return out, nil
+}
+
+func (c *Client) ListManagedContainers(ctx context.Context) ([]dockerapi.ContainerState, error) {
+	c.record("ListManagedContainers", nil)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var out []dockerapi.ContainerState
+	for _, state := range c.Containers {
+		if state.Labels["dev.vibe.managed"] == "true" {
 			out = append(out, *state)
 		}
 	}

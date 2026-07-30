@@ -137,11 +137,20 @@ Persistent records are versioned JSON, decoded with
 
 **Ordering and safety.** Lock order is fixed: store-global →
 artifact/candidate → project; never acquire earlier while holding
-later. Mutable records (registry `Approved`, pins) move
-only *after* the durable object they reference exists and its containers
-run — a failed `up` must not move the approved-candidate pointer.
-Reconciliation never removes a container it did not decide to replace,
-and refuses name-colliding containers that lack `dev.vibe.managed`.
+later. The store-global lock is shared by reference-minting flows
+(from their first store publish through their durable root write) and
+exclusive for GC, with an intent gate inside the locker preventing
+shared-churn starvation. Mutable records (registry `Approved`, pins)
+move only *after* the durable object they reference exists and its
+containers run — a failed `up` must not move the approved-candidate
+pointer. Container replacement is journaled and failure-atomic: the
+old generation is parked as `.prev` and restored on any failure, and
+nothing is deleted before its replacement (or restoration) is proven —
+see `internal/runtime/transaction.go`. Reconciliation never removes a
+container it did not decide to replace, and refuses name-colliding
+containers that lack `dev.vibe.managed`. GC roots include candidates
+and artifacts labeled on live managed containers and fails closed on
+unreadable live metadata.
 
 **Untrusted text.** Agent-authored strings (request reason/summary,
 statusline messages, Dockerfiles shown in prompts) reach a terminal only

@@ -121,7 +121,7 @@ func New(deps Dependencies) (*App, error) {
 	if err := deps.Layout.Validate(); err != nil {
 		return nil, err
 	}
-	rt, err := runtime.NewService(deps.Docker, deps.Store, deps.Locks)
+	rt, err := runtime.NewService(deps.Docker, deps.Store, deps.Locks, deps.Layout.State)
 	if err != nil {
 		return nil, err
 	}

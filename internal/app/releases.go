@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/lock"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
@@ -34,6 +35,14 @@ func (a *App) Provision(ctx context.Context, req ProvisionRequest) (ProvisionRes
 	if err != nil {
 		return fail(err)
 	}
+
+	// Shared store-global hold from the artifact publish through the
+	// project pin, shielding the span from an exclusive GC.
+	sharedStore, err := a.deps.Locks.AcquireShared(ctx, lock.StoreGlobal())
+	if err != nil {
+		return fail(err)
+	}
+	defer sharedStore.Release()
 
 	staging, err := a.deps.Store.NewStaging("artifact")
 	if err != nil {
@@ -125,6 +134,13 @@ func (a *App) Update(ctx context.Context, req UpdateRequest) (UpdateResult, erro
 	if req.Version == "" {
 		return fail(fmt.Errorf("%w: a release version is required (e.g. --version v2.0.0)", domain.ErrInvalid))
 	}
+	// Same span discipline as Provision: the acquired artifact is
+	// unrooted until the pin (or the newest-release rule) covers it.
+	sharedStore, err := a.deps.Locks.AcquireShared(ctx, lock.StoreGlobal())
+	if err != nil {
+		return fail(err)
+	}
+	defer sharedStore.Release()
 	artifact, err := a.deps.Release.Acquire(ctx, req.Version)
 	if err != nil {
 		return fail(err)

@@ -41,8 +41,10 @@ const (
 // Up reconciles the project to the candidate's plan: ensure network and
 // volumes, then compare each desired container against what exists and
 // create, start, or replace as needed — sidecars first, dev container
-// last. Pre-existing healthy containers are never removed unless their
-// replacement was decided first.
+// last. Replacement is transactional: the old generation is parked
+// under .prev names and restored on any failure (including lifecycle
+// hooks and the pre-commit liveness check); it is deleted only after
+// the journal — the durable phase marker — commits.
 func (s *Service) Up(ctx context.Context, cand Candidate, opts UpOptions) (State, error) {
 	plan := cand.Plan
 	project := plan.Project.ID
@@ -52,6 +54,12 @@ func (s *Service) Up(ctx context.Context, cand Candidate, opts UpOptions) (State
 		return State{}, err
 	}
 	defer held.Release()
+
+	// Recover any interrupted transaction and clear committed debris
+	// before reconciling on top of it.
+	if err := s.sweep(ctx, project); err != nil {
+		return State{}, err
+	}
 
 	// Hold the candidate, its snapshot, and the artifact through the
 	// whole operation.
@@ -96,15 +104,20 @@ func (s *Service) Up(ctx context.Context, cand Candidate, opts UpOptions) (State
 		}
 	}
 
+	tx, err := newTxn(s, project, cand.Record.Digest)
+	if err != nil {
+		return State{}, err
+	}
+
 	// Sidecars first, dev last, so the agent container starts into a
 	// working service topology.
 	devAction := actionNone
 	desired := append(append([]model.Container{}, plan.Services...), plan.Dev)
 	for _, c := range desired {
-		req := s.createRequest(plan, cand.Record, c)
-		action, err := s.reconcileContainer(ctx, req, opts)
+		req := s.createRequest(plan, cand.Record, c, tx.j.Nonce)
+		action, err := s.reconcileContainer(ctx, tx, req, opts)
 		if err != nil {
-			return State{}, fmt.Errorf("container %s: %w", c.Name, err)
+			return State{}, tx.rollback(ctx, fmt.Errorf("container %s: %w", c.Name, err))
 		}
 		if c.Name == plan.Dev.Name {
 			devAction = action
@@ -112,14 +125,44 @@ func (s *Service) Up(ctx context.Context, cand Candidate, opts UpOptions) (State
 	}
 
 	if err := s.runLifecycle(ctx, plan, devAction, opts); err != nil {
+		return State{}, tx.rollback(ctx, err)
+	}
+	// Pre-commit liveness: "the daemon accepted start" is not proof; a
+	// sidecar that started and immediately exited must fail the
+	// transaction while the old generation is still restorable. A
+	// point-in-time gate, not a readiness check.
+	if err := s.checkLiveness(ctx, desired); err != nil {
+		return State{}, tx.rollback(ctx, err)
+	}
+	if err := tx.commit(); err != nil {
+		// The journal stays; the next Up's sweep rolls back. Never
+		// delete the .prev generation while the phase marker exists.
 		return State{}, err
 	}
+	// The transaction is committed: .prev leftovers are debris. Removal
+	// is best-effort; failures are swept by the next Up.
+	_ = s.clearDebris(ctx, project)
 
 	containers, err := s.docker.ListProjectContainers(ctx, project)
 	if err != nil {
 		return State{}, err
 	}
 	return summarize(project, cand.Record.Digest, containers), nil
+}
+
+// checkLiveness re-inspects every desired container after the
+// lifecycle hooks and requires it to still be running.
+func (s *Service) checkLiveness(ctx context.Context, desired []model.Container) error {
+	for _, c := range desired {
+		st, err := s.docker.InspectContainer(ctx, dockerapi.ContainerName(c.Name))
+		if err != nil {
+			return fmt.Errorf("container %s: %w", c.Name, err)
+		}
+		if !st.Running {
+			return fmt.Errorf("container %s exited after start; failing the reconcile before commit", c.Name)
+		}
+	}
+	return nil
 }
 
 // runLifecycle executes the payload lifecycle hooks in the dev
@@ -213,8 +256,10 @@ func (s *Service) loadEnvFile(plan model.Plan, snapPath string) ([]envfile.Entry
 
 // createRequest translates one planned container into a Docker create
 // request. Only planned (manifest) environment is baked in; env-file
-// values stay exec-scoped.
-func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c model.Container) dockerapi.CreateRequest {
+// values stay exec-scoped. The transaction nonce is stamped as an
+// immutable ownership label so crash recovery can prove which
+// containers this transaction created.
+func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c model.Container, nonce string) dockerapi.CreateRequest {
 	var env []string
 	for _, e := range c.Environment {
 		env = append(env, e.Key+"="+e.Value)
@@ -233,10 +278,11 @@ func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c mo
 	for _, p := range c.Ports {
 		ports = append(ports, dockerapi.PortBinding(p))
 	}
-	planLabels := make(map[string]string, len(c.Labels))
+	planLabels := make(map[string]string, len(c.Labels)+1)
 	for _, l := range c.Labels {
 		planLabels[l.Key] = l.Value
 	}
+	planLabels[TxnLabel] = nonce
 
 	image := c.Image.Ref
 	if !c.Image.Digest.IsZero() {
@@ -275,12 +321,14 @@ func pinnedRef(ref string, digest domain.Digest) string {
 }
 
 // reconcileContainer brings one container to its desired specification
-// and reports what it had to do.
-func (s *Service) reconcileContainer(ctx context.Context, req dockerapi.CreateRequest, opts UpOptions) (containerAction, error) {
+// and reports what it had to do. Every mutation is journaled through
+// the transaction BEFORE it executes, so a crash at any point is
+// recoverable by the sweep.
+func (s *Service) reconcileContainer(ctx context.Context, tx *txn, req dockerapi.CreateRequest, opts UpOptions) (containerAction, error) {
 	existing, err := s.docker.InspectContainer(ctx, req.Name)
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
-		return s.createAndStart(ctx, req, opts)
+		return s.createFresh(ctx, tx, req, opts)
 	case err != nil:
 		return actionNone, err
 	}
@@ -293,34 +341,73 @@ func (s *Service) reconcileContainer(ctx context.Context, req dockerapi.CreateRe
 		if existing.Running {
 			return actionNone, nil
 		}
+		if _, err := tx.append(journalEntry{Kind: "start", Name: string(req.Name), ID: string(existing.ID)}); err != nil {
+			return actionNone, err
+		}
 		return actionStarted, s.docker.StartContainer(ctx, existing.ID)
 	}
 
-	// Replacement decided: stop and remove, then create fresh.
+	// Replacement decided: stage the new container while the old one is
+	// still running, then retire and swap. The old generation survives
+	// as <name>.prev until the whole transaction commits.
+	idx, err := tx.append(journalEntry{
+		Kind:       "replace",
+		Name:       string(req.Name),
+		OldID:      string(existing.ID),
+		WasRunning: existing.Running,
+	})
+	if err != nil {
+		return actionNone, err
+	}
+	staged := req
+	staged.Name = req.Name + stagedSuffix
+	newID, err := s.createOnly(ctx, staged, opts)
+	if err != nil {
+		return actionNone, err
+	}
+	if err := tx.backfill(idx, func(e *journalEntry) { e.NewID = string(newID) }); err != nil {
+		return actionNone, err
+	}
 	if existing.Running {
 		if err := s.docker.StopContainer(ctx, existing.ID, dockerapi.StopTimeout); err != nil {
 			return actionNone, err
 		}
 	}
-	if err := s.docker.RemoveContainer(ctx, existing.ID, dockerapi.RemoveOptions{Force: true}); err != nil && !errors.Is(err, domain.ErrNotFound) {
+	if err := s.docker.RenameContainer(ctx, existing.ID, req.Name+retiredSuffix); err != nil {
 		return actionNone, err
 	}
-	return s.createAndStart(ctx, req, opts)
+	if err := s.docker.RenameContainer(ctx, newID, req.Name); err != nil {
+		return actionNone, err
+	}
+	return actionCreated, s.docker.StartContainer(ctx, newID)
 }
 
-// createAndStart creates and starts one container, pulling the image
-// once if creation reports it missing.
-func (s *Service) createAndStart(ctx context.Context, req dockerapi.CreateRequest, opts UpOptions) (containerAction, error) {
+// createFresh journals and creates a container that did not exist.
+func (s *Service) createFresh(ctx context.Context, tx *txn, req dockerapi.CreateRequest, opts UpOptions) (containerAction, error) {
+	idx, err := tx.append(journalEntry{Kind: "create", Name: string(req.Name)})
+	if err != nil {
+		return actionNone, err
+	}
+	id, err := s.createOnly(ctx, req, opts)
+	if err != nil {
+		return actionNone, err
+	}
+	if err := tx.backfill(idx, func(e *journalEntry) { e.NewID = string(id) }); err != nil {
+		return actionNone, err
+	}
+	return actionCreated, s.docker.StartContainer(ctx, id)
+}
+
+// createOnly creates one container without starting it, pulling the
+// image once if creation reports it missing.
+func (s *Service) createOnly(ctx context.Context, req dockerapi.CreateRequest, opts UpOptions) (dockerapi.ContainerID, error) {
 	id, err := s.docker.CreateContainer(ctx, req)
 	if errors.Is(err, domain.ErrNotFound) {
 		pullErr := s.docker.PullImage(ctx, dockerapi.ResolvedImage{Ref: dockerapi.ImageRef(req.Image)}, opts.Progress)
 		if pullErr != nil {
-			return actionNone, pullErr
+			return "", pullErr
 		}
 		id, err = s.docker.CreateContainer(ctx, req)
 	}
-	if err != nil {
-		return actionNone, err
-	}
-	return actionCreated, s.docker.StartContainer(ctx, id)
+	return id, err
 }

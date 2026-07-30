@@ -29,13 +29,16 @@ type Service struct {
 	docker dockerapi.Client
 	store  *store.Store
 	locks  lock.Locker
+	// replaceDir holds per-project replacement journals — the durable
+	// phase markers for container-replacement transactions.
+	replaceDir string
 }
 
-func NewService(docker dockerapi.Client, st *store.Store, locks lock.Locker) (*Service, error) {
-	if docker == nil || st == nil || locks == nil {
-		return nil, fmt.Errorf("%w: runtime service requires docker, store, and locks", domain.ErrInvalid)
+func NewService(docker dockerapi.Client, st *store.Store, locks lock.Locker, stateDir string) (*Service, error) {
+	if docker == nil || st == nil || locks == nil || stateDir == "" {
+		return nil, fmt.Errorf("%w: runtime service requires docker, store, locks, and a state dir", domain.ErrInvalid)
 	}
-	return &Service{docker: docker, store: st, locks: locks}, nil
+	return &Service{docker: docker, store: st, locks: locks, replaceDir: filepath.Join(stateDir, "replace")}, nil
 }
 
 // LoadCandidate leases a published candidate and decodes its plan,

@@ -15,6 +15,11 @@ const (
 	CandidateLabel = "dev.vibe.candidate"
 	ArtifactLabel  = "dev.vibe.artifact"
 	RoleLabel      = "dev.vibe.role"
+	// TxnLabel carries the replacement-transaction nonce on every
+	// container a transaction creates: content labels identify what a
+	// container runs, the nonce identifies who made it, which is what
+	// crash recovery must prove before it may delete anything.
+	TxnLabel = "dev.vibe.txn"
 )
 
 // objectLabels is the label set for networks and volumes, which exist

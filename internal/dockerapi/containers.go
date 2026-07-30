@@ -17,9 +17,13 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 )
 
-// projectLabel is duplicated from the runtime package to keep the
-// dependency direction inward; runtime owns the full label vocabulary.
-const projectLabel = "dev.vibe.project"
+// projectLabel and managedLabel are duplicated from the runtime package
+// to keep the dependency direction inward; runtime owns the full label
+// vocabulary.
+const (
+	projectLabel = "dev.vibe.project"
+	managedLabel = "dev.vibe.managed"
+)
 
 func (s *SDK) InspectContainer(ctx context.Context, name ContainerName) (ContainerState, error) {
 	resp, err := s.cli.ContainerInspect(ctx, string(name))
@@ -153,6 +157,10 @@ func (s *SDK) StopContainer(ctx context.Context, id ContainerID, timeout time.Du
 	return mapErr("stop container", s.cli.ContainerStop(ctx, string(id), container.StopOptions{Timeout: &seconds}))
 }
 
+func (s *SDK) RenameContainer(ctx context.Context, id ContainerID, name ContainerName) error {
+	return mapErr("rename container", s.cli.ContainerRename(ctx, string(id), string(name)))
+}
+
 func (s *SDK) RemoveContainer(ctx context.Context, id ContainerID, opts RemoveOptions) error {
 	err := s.cli.ContainerRemove(ctx, string(id), container.RemoveOptions{
 		Force:         opts.Force,
@@ -162,14 +170,22 @@ func (s *SDK) RemoveContainer(ctx context.Context, id ContainerID, opts RemoveOp
 }
 
 func (s *SDK) ListProjectContainers(ctx context.Context, project domain.ProjectID) ([]ContainerState, error) {
+	return s.listByLabel(ctx, "list project containers", projectLabel+"="+string(project))
+}
+
+func (s *SDK) ListManagedContainers(ctx context.Context) ([]ContainerState, error) {
+	return s.listByLabel(ctx, "list managed containers", managedLabel+"=true")
+}
+
+func (s *SDK) listByLabel(ctx context.Context, op, label string) ([]ContainerState, error) {
 	summaries, err := s.cli.ContainerList(ctx, container.ListOptions{
 		All: true,
 		Filters: filters.NewArgs(
-			filters.Arg("label", projectLabel+"="+string(project)),
+			filters.Arg("label", label),
 		),
 	})
 	if err != nil {
-		return nil, mapErr("list project containers", err)
+		return nil, mapErr(op, err)
 	}
 	states := make([]ContainerState, 0, len(summaries))
 	for _, sum := range summaries {

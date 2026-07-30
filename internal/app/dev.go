@@ -9,6 +9,7 @@ import (
 
 	"github.com/chrisdruta/vibe-tui-box/internal/dev"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/lock"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
@@ -75,6 +76,15 @@ func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) 
 		return fail(err)
 	}
 
+	// Shared store-global hold from the build's first store publish
+	// (its source snapshot, exposed before the artifact exists) through
+	// the registry pin, shielding both from an exclusive GC.
+	sharedStore, err := a.deps.Locks.AcquireShared(ctx, lock.StoreGlobal())
+	if err != nil {
+		return fail(err)
+	}
+	defer sharedStore.Release()
+
 	devRecord, artifact, err := a.dev.Build(ctx, rec.ID, sourceRoot, a.deps.Progress)
 	if err != nil {
 		return fail(err)
@@ -125,6 +135,14 @@ func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, erro
 	if rec.Mode != registry.ModeDev {
 		return fail(fmt.Errorf("%w: project is not in dev mode", domain.ErrInvalid))
 	}
+	// Shared store-global hold from release-artifact resolution through
+	// the registry update: the artifact this project reverts to is not
+	// its root until the record points at it.
+	sharedStore, err := a.deps.Locks.AcquireShared(ctx, lock.StoreGlobal())
+	if err != nil {
+		return fail(err)
+	}
+	defer sharedStore.Release()
 	var release *store.ArtifactRecord
 	if artifacts, err := a.deps.Store.ListArtifactRecords(); err == nil {
 		for i := range artifacts {

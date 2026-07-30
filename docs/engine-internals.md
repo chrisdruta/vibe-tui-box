@@ -89,25 +89,56 @@ candidate, and snapshot leases held): ensure networks, then volumes →
 for each planned container, sidecars first and the dev container last,
 compare any existing container by its `dev.vibe.candidate` label —
 matching containers are started if stopped, mismatched (or `--force`)
-ones are stopped, removed, and recreated, and images are pulled lazily
-only when create reports them missing → run lifecycle hooks
-(post-create marker-guarded on every reconcile, post-start only after
-an actual create or start; only when the payload is mounted and carries
-`lifecycle.sh`). There is no rollback: a failed reconcile leaves what
-it created for the next idempotent run to converge, never removes a
-container it did not decide to replace, and refuses name-colliding
-containers lacking `dev.vibe.managed`. The approved-candidate pointer
-moves afterwards, in `app`, under a fresh CAS registry update — which
-is why a failed `up` cannot move it.
+ones are replaced transactionally, and images are pulled lazily only
+when create reports them missing → run lifecycle hooks (post-create
+marker-guarded on every reconcile, post-start only after an actual
+create or start; only when the payload is mounted and carries
+`lifecycle.sh`) → re-inspect every desired container and require it
+running (a sidecar that started and immediately exited fails the
+reconcile while the old generation is still restorable).
+
+Replacement is failure-atomic. Every container mutation is recorded in
+a durable per-project journal (`state/replace/<id>.json`, written
+before the Docker call it describes) stamped with a per-transaction
+nonce that also rides every created container as the immutable
+`dev.vibe.txn` label. A replacement stages the new container as
+`<name>.next` (created, never started — the old one keeps running
+through any pull), then stops and parks the old one as `<name>.prev`,
+renames the staged one in, and starts it. On any failure — container
+op, lifecycle hook, or the liveness gate — the whole topology rolls
+back in reverse: stop the new, park it aside, restore and restart the
+old, and only after the restore is proven delete the new. Matching is
+by recorded container ID or the full ownership conjunction (name +
+nonce + managed + project + candidate labels), never name alone; an
+old container that vanished externally fails closed with the unproven
+replacement kept (something running beats nothing). The journal is the
+single phase marker: deleting it (fsynced) is commit, after which
+`.prev` leftovers are debris; a present journal makes the next `up`'s
+sweep finish the rollback before reconciling, and an unreadable one
+aborts fail-closed. A failed reconcile still never removes a container
+it did not decide to replace and refuses name-colliding containers
+lacking `dev.vibe.managed`. The approved-candidate pointer moves
+afterwards, in `app`, under a fresh CAS registry update — which is why
+a failed `up` cannot move it.
 
 Garbage collection is app-orchestrated (`app.GC` gathers roots:
 registry pins, approved candidates, pending broker bindings, the
-newest release artifact, and their snapshots) over store primitives
-(`ListObjects` / `ObjectStat` / `RemoveObject` / `CleanStaging`).
-`RemoveObject` takes the object's exclusive flock non-blocking — any
-live shared lease defeats it — then leaves the published path in one
-rename before deleting. GC holds the store-global lock; an age floor
-shields in-flight publishes that are not yet referenced.
+newest release artifact, candidates and artifacts labeled on live
+managed containers — running or stopped, any project — and their
+snapshots) over store primitives (`ListObjects` / `ObjectStat` /
+`RemoveObject` / `CleanStaging`). Live-container metadata fails
+closed: an unreachable daemon, a malformed candidate or artifact
+label, or an unreadable candidate record aborts the whole GC rather
+than narrowing the root set. `RemoveObject` takes the object's
+exclusive flock non-blocking — any live shared lease defeats it — then
+leaves the published path in one rename before deleting. GC holds the
+store-global lock exclusively, while every flow that mints a durable
+reference (up, init, broker adoption, dev builds, release publishes,
+dev off) holds it shared from its first store publish until its root
+record is written — candidate publication is idempotent and preserves
+mtimes, so the age floor alone cannot shield a re-referenced old
+object. The age floor remains as defense-in-depth for in-flight
+publishes.
 
 ## Concurrency
 
@@ -117,6 +148,17 @@ later one:
 ```text
 store-global → artifact/candidate → project
 ```
+
+The store-global lock has reader/writer semantics: reference-minting
+flows hold it shared, GC exclusively. Every acquisition first passes
+through the name's intent gate inside the locker (a per-process
+singleton that serializes waiters through one blocking flock, released
+per logical holder), so an exclusive waiter drains existing shared
+holders instead of being systematically starved by new ones — the
+nonblocking poll loop alone only wins if the lock happens to be free
+at a poll instant. Fairness across processes is kernel wake order:
+probabilistic, an availability property only, never load-bearing for
+safety.
 
 Mutable records move only *after* the durable object they reference
 exists and its containers run. Read-only status is a bare Docker list —

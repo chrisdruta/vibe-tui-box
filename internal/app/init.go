@@ -9,6 +9,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/doctor"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/initproject"
+	"github.com/chrisdruta/vibe-tui-box/internal/lock"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
@@ -117,6 +118,15 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 		DisplayName: filepath.Base(root.Path),
 		Mode:        registry.ModeRelease,
 	}
+	// Shared store-global hold from artifact selection through the
+	// registry write: the selected artifact is unrooted until the
+	// record pinning it exists, and an exclusive GC in that window
+	// could otherwise collect it.
+	sharedStore, err := a.deps.Locks.AcquireShared(ctx, lock.StoreGlobal())
+	if err != nil {
+		return InitResult{}, initRecoveryErr(err)
+	}
+	defer sharedStore.Release()
 	// Release-mode projects pin release artifacts only — on a dogfood
 	// host the newest artifact is often a dev build, which only `vibe
 	// dev on` may pin (same filter as DevOff's revert). No release

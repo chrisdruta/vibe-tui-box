@@ -3,7 +3,11 @@
 // acquisition site to timeout errors.
 //
 // Fixed order (never acquire an earlier class while holding a later
-// one): store-global → artifact/candidate → project.
+// one): store-intent → store-global → artifact/candidate → project.
+// The intent gate is internal to the locker: every acquisition of a
+// name first passes through that name's intent lock, so exclusive
+// waiters cannot be systematically starved by streams of shared
+// holders (see AcquireShared).
 package lock
 
 import "context"
@@ -13,6 +17,10 @@ type Locker interface {
 	// Acquire blocks until the named exclusive lock is held or ctx is
 	// done. The returned Lock must be released by the same process.
 	Acquire(ctx context.Context, name string) (Lock, error)
+	// AcquireShared blocks until the named lock is held shared or ctx
+	// is done. Shared holders coexist with each other and exclude
+	// exclusive holders.
+	AcquireShared(ctx context.Context, name string) (Lock, error)
 }
 
 // Lock is one held advisory lock.

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/lock"
+	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
 )
 
@@ -48,6 +50,13 @@ func (a *App) GC(ctx context.Context, req GCRequest) (GCResult, error) {
 		return fail(err)
 	}
 	defer held.Release()
+
+	// Live containers are GC roots, so an unreachable daemon means the
+	// root set cannot be computed — fail closed rather than collect
+	// objects a running deployment may reference.
+	if err := a.deps.Docker.Ping(ctx); err != nil {
+		return fail(fmt.Errorf("gc needs the Docker daemon to enumerate live containers (start Docker and rerun): %w", err))
+	}
 
 	cutoff := a.deps.Clock.Now().Add(-req.MinAge)
 	roots, err := a.gcRoots(ctx)
@@ -119,22 +128,68 @@ func (a *App) GC(ctx context.Context, req GCRequest) (GCResult, error) {
 
 // gcRoots gathers everything that must survive: per-project artifact
 // pins, the newest release artifact (`dev off` hands back to it),
-// approved candidates, candidates bound to pending broker requests, and
-// the snapshots those candidates reference.
+// approved candidates, candidates bound to pending broker requests,
+// candidates and artifacts referenced by live managed containers (a
+// reconcile that never reached its registry update still has a running
+// deployment), and the snapshots those candidates reference.
 type gcRoots struct {
 	registered map[domain.ProjectID]bool
-	artifacts  map[domain.Digest]bool
-	candidates map[domain.Digest]bool
-	snapshots  map[domain.Digest]bool
+	// liveProjects holds every project with at least one managed
+	// container, whether or not it is still registered.
+	liveProjects map[domain.ProjectID]bool
+	artifacts    map[domain.Digest]bool
+	candidates   map[domain.Digest]bool
+	snapshots    map[domain.Digest]bool
 }
 
 func (a *App) gcRoots(ctx context.Context) (gcRoots, error) {
 	roots := gcRoots{
-		registered: map[domain.ProjectID]bool{},
-		artifacts:  map[domain.Digest]bool{},
-		candidates: map[domain.Digest]bool{},
-		snapshots:  map[domain.Digest]bool{},
+		registered:   map[domain.ProjectID]bool{},
+		liveProjects: map[domain.ProjectID]bool{},
+		artifacts:    map[domain.Digest]bool{},
+		candidates:   map[domain.Digest]bool{},
+		snapshots:    map[domain.Digest]bool{},
 	}
+
+	// Live containers root their candidate and artifact. Metadata that
+	// cannot be trusted fails the whole GC: a malformed label must
+	// never demote a live reference to garbage. Stopped containers
+	// count (they are restartable deployments), as do .prev/.next
+	// leftovers of replacement transactions.
+	live, err := a.deps.Docker.ListManagedContainers(ctx)
+	if err != nil {
+		return roots, err
+	}
+	liveCandidates := map[domain.Digest]bool{}
+	for _, c := range live {
+		// The project label gates journal cleanup (gcProjectState), so
+		// a container that cannot name its project validly fails the
+		// GC the same way an unparsable candidate does — a malformed
+		// ID would misfile the container and let its real project's
+		// state look container-free.
+		project, err := domain.ParseProjectID(c.Labels[runtime.ProjectLabel])
+		if err != nil {
+			return roots, fmt.Errorf("%w: managed container %s has a missing or malformed project label; refusing to collect through it",
+				domain.ErrConflict, c.Name)
+		}
+		roots.liveProjects[project] = true
+		cd, err := domain.ParseDigest(c.Labels[runtime.CandidateLabel])
+		if err != nil {
+			return roots, fmt.Errorf("%w: managed container %s has a missing or malformed candidate label; refusing to collect through it",
+				domain.ErrConflict, c.Name)
+		}
+		roots.candidates[cd] = true
+		liveCandidates[cd] = true
+		if raw, ok := c.Labels[runtime.ArtifactLabel]; ok {
+			ad, err := domain.ParseDigest(raw)
+			if err != nil {
+				return roots, fmt.Errorf("%w: managed container %s has a malformed artifact label; refusing to collect through it",
+					domain.ErrConflict, c.Name)
+			}
+			roots.artifacts[ad] = true
+		}
+	}
+
 	records, err := a.deps.Registry.List(ctx)
 	if err != nil {
 		return roots, err
@@ -175,6 +230,22 @@ func (a *App) gcRoots(ctx context.Context) (gcRoots, error) {
 	}
 	for _, rec := range candRecords {
 		if roots.candidates[rec.Digest] && !rec.Snapshot.IsZero() {
+			roots.snapshots[rec.Snapshot] = true
+		}
+		delete(liveCandidates, rec.Digest)
+	}
+	// A candidate rooted by a live container whose record the listing
+	// missed: its snapshot cannot be determined without the record, so
+	// read it directly and fail closed when that is impossible —
+	// registry/broker-rooted candidates stay lenient (nothing live
+	// depends on their loadability), live-container roots do not.
+	for d := range liveCandidates {
+		rec, err := a.deps.Store.ReadCandidateRecord(d)
+		if err != nil {
+			return roots, fmt.Errorf("%w: candidate %s is referenced by a live container but its record is unreadable (%v); refusing to collect through it",
+				domain.ErrConflict, d, err)
+		}
+		if !rec.Snapshot.IsZero() {
 			roots.snapshots[rec.Snapshot] = true
 		}
 	}
@@ -330,7 +401,52 @@ func (a *App) gcProjectState(req GCRequest, roots gcRoots, result *GCResult) err
 		}
 		result.Removed = append(result.Removed, entry)
 	}
+
+	// Replacement journals are "<project-id>.json" (temp debris is
+	// ".<project-id>.json.tmp-*"). An unregistered project never runs
+	// `up` again, so its files would otherwise persist forever — but a
+	// journal is a transaction phase marker, so it is only removed when
+	// the container enumeration (already done under this exclusive
+	// lock) shows the project has no managed containers left; otherwise
+	// it is reported, never collected through.
+	replaceDir := filepath.Join(a.deps.Layout.State, "replace")
+	repEntries, err := os.ReadDir(replaceDir)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, e := range repEntries {
+		project, ok := replaceFileProject(e.Name())
+		if !ok || roots.registered[project] {
+			continue
+		}
+		entry := GCEntry{Kind: "state", ID: "replace-journal " + e.Name()}
+		if roots.liveProjects[project] {
+			entry.Reason = "unregistered project still has managed containers"
+			result.Skipped = append(result.Skipped, entry)
+			continue
+		}
+		if !req.DryRun {
+			if err := os.Remove(filepath.Join(replaceDir, e.Name())); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+		result.Removed = append(result.Removed, entry)
+	}
 	return nil
+}
+
+// replaceFileProject extracts the project ID from a replacement-journal
+// filename or its atomic-write temp debris.
+func replaceFileProject(name string) (domain.ProjectID, bool) {
+	if id, ok := strings.CutSuffix(name, ".json"); ok && !strings.HasPrefix(name, ".") {
+		return domain.ProjectID(id), true
+	}
+	if rest, ok := strings.CutPrefix(name, "."); ok {
+		if i := strings.Index(rest, ".json.tmp-"); i > 0 {
+			return domain.ProjectID(rest[:i]), true
+		}
+	}
+	return "", false
 }
 
 // treeSize sums regular-file sizes best-effort for reporting.

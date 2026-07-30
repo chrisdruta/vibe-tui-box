@@ -13,6 +13,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/builder"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
+	"github.com/chrisdruta/vibe-tui-box/internal/lock"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
@@ -210,6 +211,17 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 	if err := a.deps.Docker.Ping(ctx); err != nil {
 		return fail(err)
 	}
+	// Shared store-global hold across the whole approval flow: every
+	// reference it mints — the snapshot freezeInputs publishes, the
+	// candidate, the containers, the approved pointer — stays shielded
+	// from an exclusive GC until Registry.Update roots it durably.
+	// Republication preserves object mtimes, so GC's MinAge alone
+	// cannot shield a re-referenced old object.
+	sharedStore, err := a.deps.Locks.AcquireShared(ctx, lock.StoreGlobal())
+	if err != nil {
+		return fail(err)
+	}
+	defer sharedStore.Release()
 	// A rebuild mints a new token before compiling so the tools image
 	// tracks the channel-tracking (unversioned) agents; it is persisted
 	// below (with Approved) only once the containers are actually up.

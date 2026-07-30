@@ -15,6 +15,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/builder"
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/lock"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
@@ -75,6 +76,15 @@ func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestL
 		completed[r.RequestID] = true
 	}
 
+	// Shared store-global hold across adoption: prepareCandidate's
+	// first publish is the freezeInputs snapshot, exposed before the
+	// candidate and its pending binding exist; the hold shields the
+	// whole publish-to-pending-record span from an exclusive GC.
+	sharedStore, err := a.deps.Locks.AcquireShared(ctx, lock.StoreGlobal())
+	if err != nil {
+		return fail(err)
+	}
+	defer sharedStore.Release()
 	for _, raw := range raws {
 		id := raw.Request.ID
 		if prev, ok := known[id]; ok && prev.Content == raw.Digest {
