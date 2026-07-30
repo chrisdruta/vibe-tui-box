@@ -62,7 +62,7 @@ jobs:
 
   docker-integration:
     # The one place SDK translation meets a real daemon
-    # (internal/dockerapi TestSDKLifecycle self-skips without one; the
+    # (internal/dockerapi's TestSDK* tests self-skip without one; the
     # ubuntu runner has one).
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -72,7 +72,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test -v -run TestSDKLifecycle ./internal/dockerapi/
+      - run: go test -v -run TestSDK ./internal/dockerapi/
 
   fuzz:
     # Short bursts over every hostile-input surface. Found crashers land
