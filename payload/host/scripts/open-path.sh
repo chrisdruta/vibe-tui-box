@@ -105,6 +105,7 @@ case "$word" in
 esac
 
 # '~' means a HOST home the container cannot see — not this door.
+# shellcheck disable=SC2088  # literal ~ match on purpose: $word is text, never expanded
 case "$word" in
 '~' | '~/'*) exit 0 ;;
 esac
@@ -149,7 +150,7 @@ fi
 # operator can see, never silent (the 2026-07-27 decision).
 case "$cpath" in
 *.*)
-  ext="$(printf '%s' "${cpath##*.}" | tr 'A-Z' 'a-z')"
+  ext="$(printf '%s' "${cpath##*.}" | tr '[:upper:]' '[:lower:]')"
   case "$ext" in
   png | jpg | jpeg | gif | webp | bmp)
     fmt=symbols

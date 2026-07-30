@@ -58,8 +58,8 @@ trap 'rm -f "$lock" 2>/dev/null' EXIT
 # The static working dot — the frame every surface falls back to when
 # no animator runs, restored on the way out. From the theme's state
 # map, not a literal: theme.go owns every glyph.
-# shellcheck disable=SC2154  # vibe_glyph: set by vibe_state_style
 vibe_state_style working || exit 0
+# shellcheck disable=SC2154  # vibe_glyph: set by vibe_state_style above
 restore="$vibe_glyph"
 
 # shellcheck disable=SC2206  # word-split ON PURPOSE: frames are space-separated
