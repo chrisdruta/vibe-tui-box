@@ -29,6 +29,17 @@ The v1 line and its history remain in git up to the cutover commit.
   base. Engine-authored, so no per-digest approval — no project bytes
   enter the build; the manifest only selects recipes. The dogfood
   manifest drops its hand-rolled claude-install extension Dockerfile.
+- Restored: **in-container GitHub push** (2026-07-29 — the v1 gh
+  wiring had silently died in the cutover). `gh` rides every agent
+  image as a pinned release artifact; `GH_CONFIG_DIR` points into the
+  agent-state volume so a per-project fine-grained PAT pasted into
+  `gh auth login` survives rebuilds; post-start wires gh as git's
+  credential helper and rewrites SSH remotes to HTTPS in the
+  container-local gitconfig. One deliberate delta from v1: the wiring
+  is no longer login-gated — this container has no SSH keys and no
+  host gitconfig (v1's reason to wait for the opt-in), so pre-login
+  push now asks for `gh auth login` instead of dying on publickey.
+  See [docs/configuration.md](docs/configuration.md) "GitHub access".
 - New: `--refresh-agents` on `vibe up` / `vibe rebuild` re-pulls the
   channel-tracking agents to latest. The agent installers otherwise freeze at whatever
   the Docker layer cache captured on the first build, so a plain rebuild

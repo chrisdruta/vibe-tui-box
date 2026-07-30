@@ -82,8 +82,8 @@
     {
       "path": "container/lifecycle.sh",
       "mode": "0644",
-      "size": 2449,
-      "digest": "sha256:52e2d2620a66b6e340aa3eae51574844938b989db3179995339bde81b331aff3"
+      "size": 4482,
+      "digest": "sha256:972295b4701d988e1fed8a8bbbd5ac6cd7252bf5245f69b96b5f3475e1f362ea"
     },
     {
       "path": "container/nvim/init.lua",
@@ -284,5 +284,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:e7a6cdb65f6cb9ce55345223f25cdd599967d57b096504304e028b978964a152"
+  "digest": "sha256:f3e475bc1450ad223390f1e10dacb9f7ef16a0fd5d138f34647fa0b8a320e9c5"
 }

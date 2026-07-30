@@ -22,6 +22,10 @@
         "value": "/run/user/1000"
       },
       {
+        "key": "GH_CONFIG_DIR",
+        "value": "/vibe/agent-state/gh"
+      },
+      {
         "key": "CLAUDE_CONFIG_DIR",
         "value": "/vibe/agent-state/claude"
       },
@@ -95,5 +99,5 @@
       "claude"
     ]
   },
-  "canonical_hash": "sha256:9ee1c857687ee698afd0ab7e415279abff490423a824ee44c097334a8ff5e4e6"
+  "canonical_hash": "sha256:d64a2de7d167570dc1d0875b838b0b48973bedcc0345b5f34fce2ec5814a4474"
 }

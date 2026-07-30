@@ -67,6 +67,14 @@ const (
 	lazygitVersion     = "0.63.1"
 	lazygitSHA256AMD64 = "8e033bc78c8e192dee9510e951f6c9e154289b7198d22c924ed1d0a951b0dac1"
 	lazygitSHA256ARM64 = "555dbc9a8efcf2e33bc24e7fbd9463e9fa375e3c5e23cc270763733c38eeae36"
+	// gh is the in-container push path (docs/configuration.md "GitHub
+	// access" — the v2 revival of v1's per-project gh logins): rides
+	// every agent image like the review stack, because agents commit and
+	// a push-dead container was the v2 cutover's silent regression.
+	// Pinned release artifact, per-arch checksums.
+	ghVersion     = "2.96.0"
+	ghSHA256AMD64 = "83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60"
+	ghSHA256ARM64 = "06f86ec7103d41993b76cd78072f43595c34aaa56506d971d9860e67140bf909"
 	// nvim-treesitter's build-time parser compile shells out to the
 	// tree-sitter CLI. The 0.25 line is the newest OFFICIAL binary
 	// that runs on the bookworm-era bases: every 0.26.x prebuilt
@@ -414,6 +422,22 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 `})
 		out = append(out, reviewLayers()...)
+		out = append(out, installChunk{part: InstallPart{ID: "gh", Title: "gh", Detail: ghVersion}, text: `# gh (GitHub CLI): the in-container push path. Logins are per-project
+# fine-grained tokens behind GH_CONFIG_DIR on the agent-state volume;
+# lifecycle.sh post-start wires git to push through them
+# (docs/configuration.md "GitHub access").
+RUN tmp="$(mktemp -d)" \
+    && case "$(uname -m)" in \
+         x86_64)  arch=amd64; sha="` + ghSHA256AMD64 + `" ;; \
+         aarch64) arch=arm64; sha="` + ghSHA256ARM64 + `" ;; \
+         *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o "$tmp/gh.tar.gz" "https://github.com/cli/cli/releases/download/v` + ghVersion + `/gh_` + ghVersion + `_linux_${arch}.tar.gz" \
+    && echo "${sha}  $tmp/gh.tar.gz" | sha256sum -c - \
+    && tar -C "$tmp" -xzf "$tmp/gh.tar.gz" \
+    && install -m 0755 "$tmp/gh_` + ghVersion + `_linux_${arch}/bin/gh" /usr/local/bin/gh \
+    && rm -rf "$tmp"
+`})
 	}
 	if want[string(schema.ToolchainGo)] {
 		out = append(out, installChunk{part: InstallPart{ID: "go", Title: "go", Detail: goVersion}, text: `# Go toolchain: official tarball pinned by version + per-arch checksum,

@@ -149,6 +149,12 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 	// env, cannot be shadowed.
 	dev.Environment = append(dev.Environment,
 		Env{Key: "XDG_RUNTIME_DIR", Value: RuntimeDirTarget})
+	// gh logins relocate onto the agent-state volume like the agent
+	// CLIs' state: a per-project fine-grained token pasted into
+	// `gh auth login` survives rebuilds and stays compartmentalized per
+	// project (docs/configuration.md "GitHub access").
+	dev.Environment = append(dev.Environment,
+		Env{Key: "GH_CONFIG_DIR", Value: path.Join(AgentStateTarget, "gh")})
 	for _, agent := range m.Image.Agents {
 		// Claude relocates all its state (including .claude.json) under
 		// CLAUDE_CONFIG_DIR, so logins land in the agent-state volume and

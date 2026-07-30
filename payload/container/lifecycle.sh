@@ -57,6 +57,38 @@ if [ "$mode" = "post-create" ]; then
   exit 0
 fi
 
-# post-start: nothing to do without a hook.
+# post-start: engine git wiring, then the project hook.
+
+# GitHub git wiring — the v2 port of v1's post-start block, widened
+# from login-gated to unconditional: this container has no SSH keys
+# and no host gitconfig (v1's reason to wait for the opt-in), so the
+# wiring is static and pre-login push simply asks for `gh auth login`
+# instead of dying on publickey. Logins are per-project fine-grained
+# tokens behind GH_CONFIG_DIR on the agent-state volume
+# (docs/configuration.md "GitHub access"). Both settings land in the
+# container-local ~/.gitconfig — dies with the container, which is
+# why this reruns on every start (it restores them after a rebuild;
+# host git is never touched). Best-effort: wiring must not fail up.
+if command -v gh >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
+  # gh as git's credential helper for github.com + gists — what
+  # `gh auth setup-git` writes, minus its must-be-logged-in gate. The
+  # empty helper first resets any inherited helper chain; unset-then-
+  # add keeps multi-valued keys idempotent across starts (plain set
+  # would clobber, bare --add would accumulate duplicates).
+  for gh_host in github.com gist.github.com; do
+    git config --global --unset-all credential."https://$gh_host".helper 2>/dev/null || true
+    { git config --global --add credential."https://$gh_host".helper "" \
+        && git config --global --add credential."https://$gh_host".helper "!gh auth git-credential"; } \
+      || echo "vibe: gh credential-helper wiring failed for $gh_host" >&2
+  done
+  # Rewrite both GitHub SSH remote forms — scp-style
+  # (git@github.com:owner/repo) and ssh:// — to HTTPS: no SSH keys in
+  # here, so a repo cloned over SSH on the host is otherwise push-dead.
+  git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
+  { git config --global --add url."https://github.com/".insteadOf "git@github.com:" \
+      && git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/"; } \
+    || echo "vibe: GitHub SSH->HTTPS rewrite failed" >&2
+fi
+
 [ -r "$hook" ] || exit 0
 exec bash "$hook"

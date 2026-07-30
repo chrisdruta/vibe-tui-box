@@ -206,3 +206,51 @@ post-create likewise installs and enables Claude Code's official
 fresh container without the recommendation popup. Same contract as the
 codex plugin: best-effort, marker-guarded on the volume, retried on a
 later `up`.
+
+## GitHub access
+
+The container can push. `gh` rides every agent image, and on every
+start the engine wires git to it: gh becomes git's credential helper
+for github.com, and both GitHub SSH remote forms (`git@github.com:`,
+`ssh://git@github.com/`) rewrite to HTTPS — container-side only, in
+the container-local `~/.gitconfig` (the container has no SSH keys, so
+an SSH-cloned repo shared with the host would otherwise be push-dead
+in here; host git is untouched). Until you log in, a push asks for
+`gh auth login` and fails — that gate is the design: credentials
+enter only when you paste them.
+
+Preferred: a **per-project fine-grained PAT** — single-repository
+access, an expiry, and only the permissions below — pasted into
+`gh auth login` inside the container (choose HTTPS; SSH never uses
+the PAT). `GH_CONFIG_DIR` points into the agent-state volume, so the
+login persists across rebuilds and stays compartmentalized per
+project, exactly like the agent logins. There is deliberately no
+`GH_TOKEN` passthrough from the host: container env is baked at
+create time and visible to every process, while a pasted login stays
+on the volume behind gh's own storage.
+
+### Fine-grained PAT quick reference
+
+Create at GitHub → Settings → Developer settings → Fine-grained tokens
+(<https://github.com/settings/personal-access-tokens/new>). Repository
+access: **Only select repositories** → the one project repo. Set an
+expiration. Repository permissions:
+
+| Permission      | Access         | Enables                                            |
+| --------------- | -------------- | -------------------------------------------------- |
+| Contents        | Read and write | clone, pull, push, branches, merges, releases      |
+| Pull requests   | Read and write | `gh pr create/view/comment/merge`                  |
+| Actions         | Read-only      | `gh run list/view/watch` — following CI runs       |
+| Commit statuses | Read-only      | `gh pr checks`, commit status on PRs               |
+| Workflows       | Read and write | pushes that touch `.github/workflows/` (see below) |
+| Metadata        | Read-only      | added automatically (required)                     |
+
+**Workflows is the conscious trade in this set.** Without it, GitHub
+rejects any push containing changes under `.github/workflows/` —
+annoying in repos where CI files are part of normal development. With
+it, whatever runs in the container can modify CI, which is a
+privilege-escalation path (a malicious change to a workflow file
+executes with the repository's Actions credentials). Grant it for
+interactive work on repos whose CI you edit; leave it off for
+low-trust projects, where a rejected workflow-file push is the
+guardrail working.

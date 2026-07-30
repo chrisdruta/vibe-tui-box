@@ -132,6 +132,7 @@ func TestCompileAgentStateEnv(t *testing.T) {
 		"CLAUDE_CONFIG_DIR=/vibe/agent-state/claude",
 		"DISABLE_AUTOUPDATER=1",
 		"CODEX_HOME=/vibe/agent-state/codex",
+		"GH_CONFIG_DIR=/vibe/agent-state/gh",
 	} {
 		if !slices.Contains(got, want) {
 			t.Fatalf("dev env missing %q: %v", want, got)
