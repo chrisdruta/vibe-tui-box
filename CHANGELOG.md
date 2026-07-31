@@ -720,6 +720,23 @@ The v1 line and its history remain in git up to the cutover commit.
 - Fixed: an all-pinned agent selection no longer sends the
   `VIBE_AGENT_REFRESH` build arg its Dockerfile never declares, which
   drew the daemon's unconsumed-build-arg warning on every build.
+- New: **the briefing gets wired** (2026-07-31, closing the backlog's
+  root-AGENTS.md-import flag). The seeded `.vibe/AGENTS.md` reached no
+  agent mechanically — Claude Code auto-reads only CLAUDE.md, and
+  codex reads root AGENTS.md prose but has no import syntax — so
+  `vibe init` now also seeds a root AGENTS.md pointer (prose for
+  codex, `@.vibe/AGENTS.md` for Claude) and a one-line
+  `CLAUDE.md` → `@AGENTS.md` shim. Existing root files are never
+  touched: they come back as `kept existing …` notices with the wiring
+  hint, and the seeds are engine-owned constants — presets stay
+  confined to `.vibe/`. This repo grew its own shim the same day
+  (dogfood claude sessions had been flying without the dev guide).
+- Changed: **svg joins the preview extensions** (2026-07-31) — and was
+  never the recorded one-liner: the pinned chafa source build had no
+  librsvg, so "chafa handles it" was true of v1's environment, not
+  this build. `librsvg2-dev` joins the chafa layer's codec packages
+  and `svg` joins open-path.sh's extension gate; first tools-image
+  rebuild picks up the loader.
 
 ## v1 final state (unreleased, superseded by the v2 cutover)
 

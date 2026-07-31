@@ -115,26 +115,11 @@ section at the bottom — as revisable records, not fences.
   the 3.7 floor, and its WINCH repaint covers the resize-clear, so a
   split variant could ride show-image.sh as-is when wanted
   (kitty-graphics placeholders remain only a fidelity play, gated on a
-  kitty-capable frontend). And svg stays off the image-extension list
-  until dogfood asks (chafa handles it; v1's format sniffing had edge
-  cases).
-
-- **Briefing wiring (decided 2026-07-31, unshipped — closes the old
-  root-AGENTS.md-import open flag).** The seeded `.vibe/AGENTS.md`
-  reaches no agent mechanically today: Claude Code auto-reads only
-  CLAUDE.md (AGENTS.md needs an explicit `@AGENTS.md` import or a
-  symlink), and codex reads root AGENTS.md prose but has no import
-  syntax at all. Decided route — file wiring: presets keep seeding the
-  briefing content into `.vibe/AGENTS.md`, and additionally seed a
-  root AGENTS.md pointer/import line plus a one-line `CLAUDE.md`
-  containing `@AGENTS.md`. Claude resolves the import chain
-  mechanically (relative `@` imports, 4 hops); codex follows the root
-  prose pointer at model discretion — accepted. Runtime injection via
-  the claude-plugin's SessionStart hook (engine-owned, zero drift) was
-  the runner-up and remains a claude-side upgrade candidate beside the
-  plugin-skill entry above. This repo's own shim shipped 2026-07-31
-  (root CLAUDE.md → `@AGENTS.md` — dogfood Claude sessions had been
-  flying without the dev guide).
+  kitty-capable frontend). (The svg lever shipped 2026-07-31 — and was
+  never the recorded one-liner: the pinned chafa source build had no
+  librsvg, so "chafa handles it" was true of v1's environment, not
+  this build. librsvg2-dev joined the chafa layer, svg joined the
+  extension gate; verify on the next tools-image rebuild.)
 
 ## Decision records (settled calls — revisable with new evidence)
 
@@ -239,6 +224,18 @@ history). Read the mechanisms as historical; the calls stand.
   checkout (worktree/volume clone, branch, merge-back — see
   "Productize worktrees"), demand-gated on claude's own isolation
   visibly not covering a real dogfood need.
+
+- **Briefing delivery is file wiring (2026-07-31, Chris).** How the
+  container briefing reaches agents: `vibe init` seeds
+  `.vibe/AGENTS.md` (content) plus a root AGENTS.md pointer and a
+  one-line `CLAUDE.md` → `@AGENTS.md` shim, never touching existing
+  root files. Grounds: Claude Code auto-reads only CLAUDE.md and
+  resolves `@` imports mechanically (4 hops); codex natively reads
+  root AGENTS.md prose but has no import syntax, so its pointer is
+  prose followed at model discretion — accepted. Runtime injection
+  via the claude-plugin's SessionStart hook (engine-owned, zero
+  drift) was the runner-up and remains a claude-side upgrade
+  candidate beside the plugin-skill entry above.
 
 - **Roster stays render-only — no dismiss affordance (2026-07-25;
   SUPERSEDED 2026-07-28, Chris — the sidebar right-click design).**

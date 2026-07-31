@@ -237,7 +237,7 @@ workspace" message), and verifies existence over `vibe exec`. Text opens in the 
 (review.sh/edit.sh `file` mode, `+line` jump). Everything that isn't
 a resolvable path is a silent no-op — the gesture costs prose nothing.
 
-Image extensions (png/jpg/jpeg/gif/webp/bmp) open the **preview
+Image extensions (png/jpg/jpeg/gif/webp/bmp/svg) open the **preview
 window**: ONE reusable window per project session, found by its
 `@vibe_view` marker (the window NAME carries `⌗ filename` — a name
 lookup would break the reuse the first time the name changed),

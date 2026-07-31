@@ -406,7 +406,7 @@ RUN apt-get update \
 # window (docs/tui-layout.md "Preview window"); pinned source build —
 # distro chafa predates --probe and the current sixel work.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libglib2.0-dev libjpeg62-turbo-dev libpng-dev libwebp-dev libfreetype6-dev xz-utils \
+    && apt-get install -y --no-install-recommends libglib2.0-dev libjpeg62-turbo-dev libpng-dev libwebp-dev libfreetype6-dev librsvg2-dev xz-utils \
     && tmp="$(mktemp -d)" \
     && curl -fsSL -o "$tmp/chafa.tar.xz" "https://hpjansson.org/chafa/releases/chafa-` + chafaVersion + `.tar.xz" \
     && echo "` + chafaSHA256 + `  $tmp/chafa.tar.xz" | sha256sum -c - \

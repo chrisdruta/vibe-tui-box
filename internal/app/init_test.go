@@ -90,8 +90,15 @@ func TestInitRendersRegistersAndPins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Preset != "minimal" || len(res.Created) != 1 {
+	// One preset file plus the root briefing pair (AGENTS.md, CLAUDE.md).
+	if res.Preset != "minimal" || len(res.Created) != 3 {
 		t.Fatalf("init result: %+v", res)
+	}
+	if len(res.RootSkipped) != 0 {
+		t.Fatalf("nothing should be skipped in a fresh dir: %+v", res.RootSkipped)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "CLAUDE.md")); err != nil {
+		t.Fatalf("root CLAUDE.md shim not seeded: %v", err)
 	}
 	if res.Record.Artifact.IsZero() {
 		t.Fatal("init did not pin the installed artifact")

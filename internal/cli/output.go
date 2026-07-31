@@ -418,6 +418,15 @@ func (r *initResult) RenderHuman(w io.Writer) error {
 			return err
 		}
 	}
+	for _, f := range r.Result.RootSkipped {
+		hint := "point it at .vibe/AGENTS.md yourself (agents don't find it on their own)"
+		if f == "CLAUDE.md" {
+			hint = "make sure it imports `@AGENTS.md` so claude loads the briefing"
+		}
+		if _, err := fmt.Fprintf(w, "  kept existing %s — %s\n", f, hint); err != nil {
+			return err
+		}
+	}
 	if _, err := fmt.Fprintf(w, "auto memory: %s (agent.memory in .vibe/vibe.yaml)\n", r.Result.Memory); err != nil {
 		return err
 	}
@@ -427,11 +436,12 @@ func (r *initResult) RenderHuman(w io.Writer) error {
 
 func (r *initResult) RenderJSON(w io.Writer) error {
 	return writeJSON(w, "init", struct {
-		Record  registry.Record `json:"record"`
-		Created []string        `json:"created"`
-		Preset  string          `json:"preset"`
-		Memory  string          `json:"memory"`
-	}{r.Result.Record, r.Result.Created, r.Result.Preset, string(r.Result.Memory)})
+		Record      registry.Record `json:"record"`
+		Created     []string        `json:"created"`
+		RootSkipped []string        `json:"root_skipped,omitempty"`
+		Preset      string          `json:"preset"`
+		Memory      string          `json:"memory"`
+	}{r.Result.Record, r.Result.Created, r.Result.RootSkipped, r.Result.Preset, string(r.Result.Memory)})
 }
 
 type doctorResult struct {

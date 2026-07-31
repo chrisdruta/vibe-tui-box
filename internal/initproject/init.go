@@ -5,6 +5,7 @@ package initproject
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -93,4 +94,47 @@ func Materialize(root string, files map[string][]byte) ([]string, error) {
 		return nil, fmt.Errorf("create .vibe: %w", err)
 	}
 	return created, nil
+}
+
+// The root briefing pair. The seeded .vibe/AGENTS.md reaches no agent
+// by itself: Claude Code auto-reads only CLAUDE.md (an AGENTS.md needs
+// the @AGENTS.md import shim), and codex reads root AGENTS.md prose
+// but has no import syntax — so the pointer is prose for codex and an
+// @-import for Claude, resolved through the shim. Engine-owned
+// constants, never preset-authored: presets stay confined to .vibe/.
+const (
+	rootAgentsFile = "AGENTS.md"
+	rootClaudeFile = "CLAUDE.md"
+	rootAgentsSeed = "Read [.vibe/AGENTS.md](.vibe/AGENTS.md) before working in this\nrepository from inside its vibe container — it is the container\nbriefing: write scopes, the read-only /vibe/* mounts, and the rebuild\nrequest protocol.\n\n@.vibe/AGENTS.md\n"
+	rootClaudeSeed = "@AGENTS.md\n"
+)
+
+// SeedRootBriefing creates the root AGENTS.md pointer and the
+// CLAUDE.md → @AGENTS.md shim beside a freshly materialized .vibe.
+// Existing root files are never touched (O_EXCL): each survivor comes
+// back as skipped so the caller can tell the operator to wire the
+// pointer themselves.
+func SeedRootBriefing(root string) (created, skipped []string, _ error) {
+	for _, f := range []struct{ name, content string }{
+		{rootAgentsFile, rootAgentsSeed},
+		{rootClaudeFile, rootClaudeSeed},
+	} {
+		fh, err := os.OpenFile(filepath.Join(root, f.name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				skipped = append(skipped, f.name)
+				continue
+			}
+			return nil, nil, fmt.Errorf("seed %s: %w", f.name, err)
+		}
+		_, werr := fh.WriteString(f.content)
+		if cerr := fh.Close(); werr == nil {
+			werr = cerr
+		}
+		if werr != nil {
+			return nil, nil, fmt.Errorf("seed %s: %w", f.name, werr)
+		}
+		created = append(created, f.name)
+	}
+	return created, skipped, nil
 }

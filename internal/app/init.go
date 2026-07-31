@@ -32,8 +32,12 @@ type InitRequest struct {
 type InitResult struct {
 	Record  registry.Record
 	Created []string
-	Preset  string
-	Memory  schema.MemoryMode
+	// RootSkipped lists root briefing files (AGENTS.md, CLAUDE.md) that
+	// already existed and were left untouched — the operator wires the
+	// .vibe/AGENTS.md pointer into those themselves.
+	RootSkipped []string
+	Preset      string
+	Memory      schema.MemoryMode
 }
 
 func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
@@ -109,6 +113,11 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 
 	// From here the .vibe tree exists; failures leave it for inspection
 	// and the error names the recovery command.
+	rootCreated, rootSkipped, err := initproject.SeedRootBriefing(abs)
+	if err != nil {
+		return InitResult{}, initRecoveryErr(err)
+	}
+	created = append(created, rootCreated...)
 	root, err := paths.Discover(abs)
 	if err != nil {
 		return InitResult{}, initRecoveryErr(err)
@@ -146,7 +155,7 @@ func (a *App) Init(ctx context.Context, req InitRequest) (InitResult, error) {
 	if err != nil {
 		return InitResult{}, initRecoveryErr(err)
 	}
-	return InitResult{Record: rec, Created: created, Preset: presetName, Memory: memory}, nil
+	return InitResult{Record: rec, Created: created, RootSkipped: rootSkipped, Preset: presetName, Memory: memory}, nil
 }
 
 func initRecoveryErr(err error) error {

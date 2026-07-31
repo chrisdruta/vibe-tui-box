@@ -172,8 +172,8 @@
     {
       "path": "host/scripts/open-path.sh",
       "mode": "0755",
-      "size": 6863,
-      "digest": "sha256:e410828b4a4ee222cdbf52b6542ed0866743fb9be1dd8075da5a5f2a1cfc8ee2"
+      "size": 6869,
+      "digest": "sha256:40c66e3b03ef51d284bec2b39fb7ad39115d0e047be1331771d5b6f15b9d4395"
     },
     {
       "path": "host/scripts/palette.sh",
@@ -284,5 +284,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:c2ac711c4135620ff4706c04d36ee5375f3b0d20e92b0bf9b5d0981da70edc5c"
+  "digest": "sha256:f2a0aac6764ec5b4a80bdbfb5025b454b71b4976139ba8947933189efd30c955"
 }

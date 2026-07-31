@@ -22,7 +22,7 @@ is the one home of that exit-code table.
 
 | Command | Effect |
 | --- | --- |
-| `vibe init [--preset NAME] [--auto-memory[=BOOL]]` | Seed `.vibe/` from an embedded preset (`minimal`, `go`, `node`, `bun`, `playwright`), register, pin the newest artifact. Interactive runs ask about Claude auto memory unless the flag decides it; scripted/`--json` runs default it off |
+| `vibe init [--preset NAME] [--auto-memory[=BOOL]]` | Seed `.vibe/` from an embedded preset (`minimal`, `go`, `node`, `bun`, `playwright`), register, pin the newest artifact. Also seeds the root briefing wiring — an AGENTS.md pointer at `.vibe/AGENTS.md` and a `CLAUDE.md` → `@AGENTS.md` shim — skipping (with a notice) any root file that already exists. Interactive runs ask about Claude auto memory unless the flag decides it; scripted/`--json` runs default it off |
 | `vibe register [--name NAME]` | Register an existing project |
 | `vibe up` | Freeze inputs → compile candidate → reconcile containers → mark approved. Idempotent: warm caches, no agent re-pulls |
 | `vibe rebuild` | Same, but recreate containers even when already in sync — and always re-pull the unversioned (channel-tracking) agents to latest; pin one in `image.agents` (`claude@2.1.220`) to hold it |
@@ -176,10 +176,12 @@ baked into the tools image at pinned versions with an opinionated,
 ascii-safe config — reviewing an agent's work needs nothing installed
 on the host. Both popups say how to leave in their border; inside
 nvim, `q` quits from anywhere, `-` closes an open file back to the
-listing, and `Space` shows the keymap. To use your OWN editor instead,
-rebind the key in the user conf — e.g.
+listing, and `Space` shows the keymap. To use your OWN tools instead,
+rebind the keys in `~/.config/vibe/tui.conf` — e.g.
 `bind f display-popup -d "#{session_path}" -w 90% -h 90% -E "nvim ."`
-runs your host nvim with your config against the same checkout.
+runs your host nvim with your config against the same checkout, and
+`bind g display-popup -d "#{session_path}" -w 90% -h 90% -E lazygit`
+does the same for your host lazygit.
 
 Layout knobs (tmux user options on the vibe socket; see
 [tui-layout.md](tui-layout.md)): `@vibe_sidebar_on` (default 1),

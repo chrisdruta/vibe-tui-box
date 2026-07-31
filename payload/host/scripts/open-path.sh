@@ -152,7 +152,7 @@ case "$cpath" in
 *.*)
   ext="$(printf '%s' "${cpath##*.}" | tr '[:upper:]' '[:lower:]')"
   case "$ext" in
-  png | jpg | jpeg | gif | webp | bmp)
+  png | jpg | jpeg | gif | webp | bmp | svg)
     fmt=symbols
     v="$(tmux display-message -p '#{version}' 2>/dev/null)"
     maj="${v%%.*}"
