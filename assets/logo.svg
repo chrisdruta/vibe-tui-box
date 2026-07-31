@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 560" role="img" aria-label="vibe-tui-box: a line-art takeout box whose side panel is the vibe tmux cockpit, with chopsticks">
+  <title>vibe-tui-box</title>
+  <style>
+    .box { stroke: #7aa2f7; }
+    .wm  { fill: #a9b6d8; }
+    @media (prefers-color-scheme: light) {
+      .box { stroke: #3d59a1; }
+      .wm  { fill: #3d59a1; }
+    }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; }
+  </style>
+
+  <!-- wire handle -->
+  <path class="box" d="M 150 130 Q 240 40 330 130" fill="none" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- lid band (wider than the body) -->
+  <path class="box" d="M 105 132 L 375 132 L 363 174 L 117 174 Z" fill="none" stroke-width="6" stroke-linejoin="round"/>
+
+  <!-- body: the takeout trapezoid -->
+  <path class="box" d="M 117 174 L 363 174 L 325 400 L 155 400 Z" fill="none" stroke-width="6" stroke-linejoin="round"/>
+
+  <!-- side panel: the true cockpit anatomy — sidebar + agent pane,
+       host dock strip, tray (brand cell · tab · clock) -->
+  <rect x="152" y="200" width="176" height="130" rx="7" fill="#141d33" stroke="#7aa2f7" stroke-width="3"/>
+  <!-- sidebar | agent split -->
+  <line x1="200" y1="200" x2="200" y2="286" stroke="#7aa2f7" stroke-width="2.5"/>
+  <!-- sidebar: coral gutter bar, project name, roster rows -->
+  <line x1="159" y1="212" x2="159" y2="228" stroke="#e8735a" stroke-width="3"/>
+  <rect x="165" y="211" width="26" height="4" fill="#a9b6d8"/>
+  <rect x="165" y="221" width="20" height="3" fill="#5c6b96"/>
+  <rect x="165" y="231" width="24" height="3" fill="#5c6b96"/>
+  <!-- agent pane, coral active border -->
+  <rect x="205" y="205" width="118" height="76" rx="4" fill="none" stroke="#e8735a" stroke-width="3"/>
+  <!-- host dock strip -->
+  <line x1="152" y1="286" x2="328" y2="286" stroke="#7aa2f7" stroke-width="2.5"/>
+  <line x1="152" y1="300" x2="328" y2="300" stroke="#7aa2f7" stroke-width="2.5"/>
+  <!-- tray: brand cell, centered tab, clock -->
+  <circle cx="166" cy="315" r="4" fill="#e8735a"/>
+  <text x="176" y="319" font-size="11" fill="#a9b6d8">vibe</text>
+  <rect x="213" y="306" width="54" height="17" rx="4" fill="#3d59a1"/>
+  <circle cx="222" cy="314" r="3" fill="#9ece6a"/>
+  <text x="247" y="318" font-size="9.5" fill="#dbe3f7" text-anchor="middle">claude</text>
+  <text x="322" y="318" font-size="9" fill="#5c6b96" text-anchor="end">6:51</text>
+
+  <!-- chopsticks, coral tips, leaning bottom-right -->
+  <line class="box" x1="338" y1="352" x2="452" y2="466" stroke-width="8" stroke-linecap="round"/>
+  <line x1="435" y1="449" x2="452" y2="466" stroke="#e8735a" stroke-width="8" stroke-linecap="round"/>
+  <line class="box" x1="358" y1="336" x2="468" y2="446" stroke-width="8" stroke-linecap="round"/>
+  <line x1="451" y1="429" x2="468" y2="446" stroke="#e8735a" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- wordmark -->
+  <text class="wm" x="240" y="524" font-size="42" text-anchor="middle">vibe-tui-box</text>
+</svg>
