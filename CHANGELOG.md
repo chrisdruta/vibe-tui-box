@@ -40,6 +40,25 @@ The v1 line and its history remain in git up to the cutover commit.
   host gitconfig (v1's reason to wait for the opt-in), so pre-login
   push now asks for `gh auth login` instead of dying on publickey.
   See [docs/configuration.md](docs/configuration.md) "GitHub access".
+- New: **per-project egress visibility** (R6, 2026-07-31). Every
+  provisioned project's plan synthesizes a dns ledger sidecar
+  (`vibe-<id>-svc-dns`: digest-pinned CoreDNS, engine-authored Corefile
+  from the artifact payload, bounded query log) that the dev
+  container's resolver rides — the log IS the project's domain ledger,
+  read raw via `vibe logs dns` or joined with a pure-/proc live-socket
+  sample in the tui palette's "network egress" popup (prefix+E, hidden
+  `_egress` porcelain — no new public verb). Opt out per project with
+  `runtime.egress: off`; `dns` joins the reserved service names (a
+  manifest with a user `services.dns` now fails validation). Visibility
+  only: direct-to-IP and DoH bypass the ledger by design
+  ([docs/security.md](docs/security.md) "Egress"). The sidecar is the
+  one closed-policy exception: it runs as root with exactly
+  `NET_BIND_SERVICE` re-granted (the CoreDNS binary's file capabilities
+  cannot exec against an empty permitted set — found live 2026-07-31),
+  inexpressible from the manifest and validation-scoped to that one
+  container. Note: every
+  provisioned project's candidate hash changes, so the first `vibe up`
+  after this upgrade replaces containers once.
 - New: `--refresh-agents` on `vibe up` / `vibe rebuild` re-pulls the
   channel-tracking agents to latest. The agent installers otherwise freeze at whatever
   the Docker layer cache captured on the first build, so a plain rebuild

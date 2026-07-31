@@ -555,6 +555,85 @@ func (r *requestListResult) RenderJSON(w io.Writer) error {
 	}{r.Result.Pending, r.Result.Problems})
 }
 
+type egressResult struct {
+	Result app.EgressResult
+}
+
+// RenderHuman prints the two egress sections. All variable content is
+// already sanitized by the app layer (terminal.Line per field); the
+// chrome here is renderer literals only.
+func (r *egressResult) RenderHuman(w io.Writer) error {
+	res := r.Result
+	if _, err := fmt.Fprintln(w, "resolved domains (dns ledger):"); err != nil {
+		return err
+	}
+	switch {
+	case !res.DNSAvailable:
+		if _, err := fmt.Fprintf(w, "  %s\n", res.DNSNote); err != nil {
+			return err
+		}
+	case len(res.Domains) == 0:
+		if _, err := fmt.Fprintln(w, "  no queries in the log window"); err != nil {
+			return err
+		}
+	default:
+		for _, d := range res.Domains {
+			if _, err := fmt.Fprintf(w, "  %6d  %-6s %s\n", d.Queries, d.LastType, d.Name); err != nil {
+				return err
+			}
+		}
+	}
+	if res.UnparsedLogLines > 0 {
+		if _, err := fmt.Fprintf(w, "  … %d unparseable log lines\n", res.UnparsedLogLines); err != nil {
+			return err
+		}
+	}
+	if res.DomainsTruncated || res.LogTruncated {
+		if _, err := fmt.Fprintln(w, "  … (truncated)"); err != nil {
+			return err
+		}
+	}
+
+	if _, err := fmt.Fprintln(w, "live connections (one-shot sample):"); err != nil {
+		return err
+	}
+	switch {
+	case !res.SamplerAvailable:
+		if _, err := fmt.Fprintf(w, "  %s\n", res.SamplerNote); err != nil {
+			return err
+		}
+	case len(res.Conns) == 0:
+		if _, err := fmt.Fprintln(w, "  no live connections"); err != nil {
+			return err
+		}
+	default:
+		for _, c := range res.Conns {
+			who := "(unattributed)"
+			if c.PID > 0 {
+				who = fmt.Sprintf("%d %s", c.PID, c.Comm)
+			}
+			if _, err := fmt.Fprintf(w, "  %-5s %s → %s  %s\n", c.Proto, c.Local, c.Remote, who); err != nil {
+				return err
+			}
+		}
+	}
+	if res.MalformedRows > 0 {
+		if _, err := fmt.Fprintf(w, "  … %d malformed sample rows\n", res.MalformedRows); err != nil {
+			return err
+		}
+	}
+	if res.ConnsTruncated {
+		if _, err := fmt.Fprintln(w, "  … (truncated)"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *egressResult) RenderJSON(w io.Writer) error {
+	return writeJSON(w, "egress", r.Result)
+}
+
 type requestShowResult struct {
 	Result app.RequestShowResult
 }

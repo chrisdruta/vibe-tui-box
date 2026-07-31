@@ -176,7 +176,9 @@ managed container, the dev container as non-root `vscode`,
 loopback-only ports, the exact registered root as the only writable
 host bind, engine-owned mounts, engine-named volumes — is stated
 normatively in [security.md](security.md); the compiler enforces it and
-no schema surface can express an exception. Custom import targets must
+no schema surface can express an exception (the one engine-compiled
+exception, the dns forwarder's root + `NET_BIND_SERVICE`, is recorded
+there too). Custom import targets must
 be absolute, normalized, unique, and may not equal, contain, or be
 contained by an engine-owned target.
 
@@ -186,6 +188,19 @@ interpolation — frozen into the snapshot, and injected only per exec
 process value, never in the plan digest. Manifest `runtime.env` is
 planned configuration — container-ambient and digest-covered by
 design.
+
+Egress visibility: every provisioned plan (unless `runtime.egress:
+off`) synthesizes a dns ledger sidecar — digest-pinned CoreDNS, an
+engine-authored Corefile bind-mounted read-only from the artifact
+payload, its query log bounded and read via the logs API. The dev
+container's resolver points at the sidecar's runtime-resolved address
+(never in the canonical plan; stamped as the `dev.vibe.dns` label, and
+address drift across a restart escalates the journaled start to a
+replace). The tui palette's "network egress" popup joins the parsed
+ledger with a one-shot in-container socket sample
+(`payload/container/egress-sample.sh`, pure /proc, unprivileged) —
+rendered engine-side through the terminal encoder, unlike the raw
+`vibe logs dns` residual.
 
 ## Extension builds
 

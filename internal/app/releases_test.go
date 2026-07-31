@@ -9,8 +9,10 @@ import (
 	"testing/fstest"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
+	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
+	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
 )
 
@@ -106,6 +108,65 @@ func TestProvisionPinsAndUpUsesPayload(t *testing.T) {
 	}
 	if digestEnv != res.Artifact.PayloadDigest.String() {
 		t.Fatalf("payload digest env %q", digestEnv)
+	}
+}
+
+// TestUpSynthesizesDNSSidecar pins the app-level egress wiring: a
+// provisioned project resolves the pinned CoreDNS ref and creates the
+// dns sidecar ahead of dev, and `runtime.egress: off` restores the
+// pre-feature topology with no CoreDNS resolution.
+func TestUpSynthesizesDNSSidecar(t *testing.T) {
+	run := func(t *testing.T, manifest string) (*dockerfake.Client, []dockerfake.Call) {
+		t.Helper()
+		a, docker := newTestApp(t)
+		withPayload(t, a)
+		ctx := context.Background()
+		dir := newProject(t)
+		if err := os.WriteFile(filepath.Join(dir, paths.ManifestRelPath), []byte(manifest), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.Provision(ctx, ProvisionRequest{Dir: dir}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+			t.Fatal(err)
+		}
+		return docker, docker.CallsTo("CreateContainer")
+	}
+
+	docker, creates := run(t, testManifest)
+	var resolvedCoreDNS bool
+	for _, call := range docker.CallsTo("ResolveImage") {
+		if call.Request.(dockerapi.ImageRef) == dockerapi.ImageRef(model.CoreDNSImageRef) {
+			resolvedCoreDNS = true
+		}
+	}
+	if !resolvedCoreDNS {
+		t.Fatal("CoreDNS ref never resolved")
+	}
+	if len(creates) != 2 {
+		t.Fatalf("create count %d, want dns+dev", len(creates))
+	}
+	dns := creates[0].Request.(dockerapi.CreateRequest)
+	if !strings.HasSuffix(string(dns.Name), "-svc-dns") {
+		t.Fatalf("first create %q, want the dns sidecar", dns.Name)
+	}
+	if !strings.HasPrefix(dns.Image, "coredns/coredns@sha256:") {
+		t.Fatalf("dns sidecar image %q, want the pinned form", dns.Image)
+	}
+
+	off := strings.Replace(testManifest, "runtime:\n", "runtime:\n  egress: off\n", 1)
+	docker, creates = run(t, off)
+	for _, call := range docker.CallsTo("ResolveImage") {
+		if call.Request.(dockerapi.ImageRef) == dockerapi.ImageRef(model.CoreDNSImageRef) {
+			t.Fatal("egress off must not resolve the CoreDNS ref")
+		}
+	}
+	if len(creates) != 1 || strings.HasSuffix(string(creates[0].Request.(dockerapi.CreateRequest).Name), "-svc-dns") {
+		t.Fatalf("egress off should create only dev: %+v", creates)
 	}
 }
 

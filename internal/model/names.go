@@ -64,11 +64,16 @@ const (
 	// every container boot, so state-dir.sh records can't go stale across
 	// a hard stop/start the way writable-layer /tmp lets them.
 	RuntimeDirTarget = "/run/user/1000"
+	// DNSConfTarget is where the dns ledger sidecar sees the
+	// engine-authored CoreDNS config (a read-only bind of the artifact
+	// payload's dns/ subtree). It never exists in the dev container, but
+	// /vibe/* is engine-owned namespace, so imports stay off it.
+	DNSConfTarget = "/vibe/dns"
 )
 
 // ReservedTargets lists every engine-owned mount target.
 func ReservedTargets() []string {
-	return []string{WorkspaceTarget, PayloadTarget, AgentStateTarget, ResultsTarget, RuntimeDirTarget}
+	return []string{WorkspaceTarget, PayloadTarget, AgentStateTarget, ResultsTarget, RuntimeDirTarget, DNSConfTarget}
 }
 
 // reservedTargetFor returns the engine-owned target that t equals,
@@ -103,3 +108,28 @@ const PayloadAgentWatch = PayloadTarget + "/container/agent-watch.sh"
 // (workspace files, workload trust) inside the container; the engine
 // execs it after reconcile when the payload is mounted.
 const PayloadLifecycle = PayloadTarget + "/container/lifecycle.sh"
+
+// PayloadEgressSample is the container-side live-socket sampler for the
+// egress view: pure /proc/net parsing with fd-readlink attribution
+// (unprivileged by design — cap_drop ALL removes NET_RAW), TSV rows
+// behind a version line.
+const PayloadEgressSample = PayloadTarget + "/container/egress-sample.sh"
+
+// DNSServiceName is the engine-generated DNS ledger sidecar's service
+// slot: container vibe-<id12>-svc-dns, read via `vibe logs dns`. The
+// schema mirrors it in reservedServiceNames (string duplicated to keep
+// the dependency direction inward).
+const DNSServiceName = "dns"
+
+// CoreDNSImageRef is the digest-pinned forwarder image the engine
+// synthesizes into every provisioned project's plan. The digest is the
+// multi-arch manifest-list digest (amd64 and arm64 among others), so
+// every release target resolves a platform image from the same pin.
+const CoreDNSImageRef = "coredns/coredns:1.14.6@sha256:900f9c109f7a33545d3c811516e8376df9019147b750f5ce3e254468769176ea"
+
+// PayloadDNSDir is the artifact payload subtree bind-mounted (read-
+// only) at DNSConfTarget in the dns sidecar.
+const PayloadDNSDir = "dns"
+
+// DNSCorefile is the CoreDNS config path inside the dns sidecar.
+const DNSCorefile = DNSConfTarget + "/Corefile"

@@ -33,6 +33,12 @@ func (a *App) prepareCandidate(ctx context.Context, root paths.Root, rec registr
 	defer releaseArtifact()
 
 	refs := []string{frozen.Manifest.Image.Base}
+	if model.EgressDNSEnabled(frozen.Manifest, artifact) {
+		// The engine-synthesized dns sidecar rides the same resolution
+		// loop as manifest images; the ref carries its own @sha256 pin,
+		// so resolution needs neither network nor daemon lookups.
+		refs = append(refs, model.CoreDNSImageRef)
+	}
 	for _, name := range frozen.Manifest.ServiceNames() {
 		refs = append(refs, frozen.Manifest.Services[name].Image)
 	}

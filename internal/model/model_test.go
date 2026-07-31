@@ -12,6 +12,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
+	"github.com/chrisdruta/vibe-tui-box/internal/store"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -44,6 +45,22 @@ func testInput(t *testing.T, manifest string) CompileInput {
 			Path:   "/home/user/.vibe/state/snapshots/deadbeef",
 		},
 	}
+}
+
+// testInputWithArtifact pins a deterministic artifact so compiles gain
+// the artifact-gated pieces (payload mounts, the dns ledger sidecar).
+func testInputWithArtifact(t *testing.T, manifest string) CompileInput {
+	t.Helper()
+	in := testInput(t, manifest)
+	in.Artifact = store.Artifact{
+		Record: store.ArtifactRecord{
+			Digest:        domain.SHA256([]byte("artifact")),
+			Version:       "0.0.0-test",
+			PayloadDigest: domain.SHA256([]byte("payload")),
+		},
+		Path: "/home/user/.vibe/store/artifacts/cafe",
+	}
+	return in
 }
 
 const minimalManifest = `schema: 1
@@ -81,13 +98,17 @@ func TestCompileGolden(t *testing.T) {
 	cases := []struct {
 		name     string
 		manifest string
+		input    func(*testing.T, string) CompileInput
 	}{
-		{"minimal", minimalManifest},
-		{"sidecar", sidecarManifest},
+		{"minimal", minimalManifest, testInput},
+		{"sidecar", sidecarManifest, testInput},
+		// The artifact-bearing compile gains the payload mounts and the
+		// synthesized dns ledger sidecar (first among services).
+		{"dns", sidecarManifest, testInputWithArtifact},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			plan, errs := Compile(testInput(t, tc.manifest))
+			plan, errs := Compile(tc.input(t, tc.manifest))
 			if len(errs) > 0 {
 				t.Fatalf("compile diagnostics: %v", errs)
 			}
@@ -214,6 +235,123 @@ func TestCompileShape(t *testing.T) {
 	}
 	if importMount == nil || !strings.Contains(importMount.Source, "/snapshots/") || !importMount.ReadOnly {
 		t.Fatalf("import mount wrong: %+v", importMount)
+	}
+}
+
+// TestCompileDNSSidecar pins the synthesized ledger sidecar: present
+// (and first) exactly when an artifact is pinned and egress is not
+// refused, with the dev container carrying the semantic resolver link.
+func TestCompileDNSSidecar(t *testing.T) {
+	plan, errs := Compile(testInputWithArtifact(t, sidecarManifest))
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if len(plan.Services) != 2 || plan.Services[0].Name != "vibe-abcdefghijkl-svc-dns" ||
+		plan.Services[1].Name != "vibe-abcdefghijkl-svc-db" {
+		t.Fatalf("dns sidecar should lead the services: %+v", plan.Services)
+	}
+	dns := plan.Services[0]
+	if dns.Image.Ref != CoreDNSImageRef {
+		t.Fatalf("dns image %q", dns.Image.Ref)
+	}
+	if !slices.Equal(dns.Command, []string{"-conf", DNSCorefile}) {
+		t.Fatalf("dns command %v", dns.Command)
+	}
+	if len(dns.Mounts) != 1 || dns.Mounts[0].Target != DNSConfTarget || !dns.Mounts[0].ReadOnly ||
+		dns.Mounts[0].Source != "/home/user/.vibe/store/artifacts/cafe/payload/dns" {
+		t.Fatalf("dns mount wrong: %+v", dns.Mounts)
+	}
+	if dns.Log == nil || dns.Log.MaxSize != "10m" || dns.Log.MaxFiles != 3 {
+		t.Fatalf("dns log bounds wrong: %+v", dns.Log)
+	}
+	if dns.User != "0" {
+		t.Fatalf("dns sidecar must run as root (file-caps exec rule), got user %q", dns.User)
+	}
+	if !dns.Policy.NetBindService || !dns.Policy.DropAllCapabilities || !dns.Policy.NoNewPrivileges {
+		t.Fatalf("dns policy wrong: %+v", dns.Policy)
+	}
+	if len(dns.Environment) != 0 || len(dns.Ports) != 0 {
+		t.Fatalf("dns sidecar must carry no env or ports: %+v", dns)
+	}
+	if plan.Dev.DNSFromService != DNSServiceName {
+		t.Fatalf("dev dns_from_service %q", plan.Dev.DNSFromService)
+	}
+	var inventoried bool
+	for _, img := range plan.Images {
+		if img.Ref == CoreDNSImageRef {
+			inventoried = true
+		}
+	}
+	if !inventoried {
+		t.Fatalf("CoreDNS ref missing from image inventory: %+v", plan.Images)
+	}
+
+	// Opt-out compiles the pre-feature topology.
+	off := strings.Replace(sidecarManifest, "runtime:\n", "runtime:\n  egress: off\n", 1)
+	plan, errs = Compile(testInputWithArtifact(t, off))
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if len(plan.Services) != 1 || plan.Services[0].Name != "vibe-abcdefghijkl-svc-db" {
+		t.Fatalf("egress off should drop the dns sidecar: %+v", plan.Services)
+	}
+	if plan.Dev.DNSFromService != "" {
+		t.Fatalf("egress off should clear dns_from_service, got %q", plan.Dev.DNSFromService)
+	}
+
+	// No artifact means no store-owned Corefile: same pre-feature shape.
+	plan, errs = Compile(testInput(t, sidecarManifest))
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if len(plan.Services) != 1 || plan.Dev.DNSFromService != "" {
+		t.Fatalf("artifact-less compile should have no dns sidecar: %+v", plan.Services)
+	}
+}
+
+func TestValidateLogPolicy(t *testing.T) {
+	for _, bad := range []LogPolicy{
+		{MaxSize: "", MaxFiles: 3},
+		{MaxSize: "10", MaxFiles: 3},
+		{MaxSize: "0m", MaxFiles: 3},
+		{MaxSize: "10m", MaxFiles: 0},
+	} {
+		plan, errs := Compile(testInput(t, minimalManifest))
+		if len(errs) > 0 {
+			t.Fatal(errs)
+		}
+		bad := bad
+		plan.Dev.Log = &bad
+		if verrs := Validate(plan); len(verrs) == 0 {
+			t.Fatalf("log policy %+v should be rejected", bad)
+		}
+	}
+}
+
+func TestValidateDNSFromService(t *testing.T) {
+	plan, errs := Compile(testInput(t, minimalManifest))
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	plan.Dev.DNSFromService = "dns"
+	if verrs := Validate(plan); len(verrs) == 0 {
+		t.Fatal("dns_from_service naming a missing service should be rejected")
+	}
+}
+
+func TestValidateNetBindServiceScope(t *testing.T) {
+	// The one capability re-grant is scoped to the engine dns forwarder;
+	// any other container claiming it is rejected.
+	plan, errs := Compile(testInputWithArtifact(t, sidecarManifest))
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if verrs := Validate(plan); len(verrs) != 0 {
+		t.Fatalf("compiled plan should validate: %v", verrs)
+	}
+	plan.Dev.Policy.NetBindService = true
+	if verrs := Validate(plan); len(verrs) == 0 {
+		t.Fatal("dev claiming NET_BIND_SERVICE should be rejected")
 	}
 }
 

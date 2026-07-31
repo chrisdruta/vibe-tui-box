@@ -243,6 +243,12 @@ func assertCreateEqual(t *testing.T, got, want dockerapi.CreateRequest) {
 			t.Fatalf("label %s: got %q want %q", k, got.Labels[k], v)
 		}
 	}
+	if !equalSlices(got.DNS, want.DNS) {
+		t.Fatalf("dns mismatch: got %v want %v", got.DNS, want.DNS)
+	}
+	if got.Log != want.Log {
+		t.Fatalf("log policy mismatch: got %+v want %+v", got.Log, want.Log)
+	}
 }
 
 func equalSlices(a, b []string) bool {

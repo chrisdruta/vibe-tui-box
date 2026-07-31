@@ -13,8 +13,14 @@ One container per project. The workload inside — agent CLIs, your code,
 anything they install — is untrusted by the host. Every managed
 container drops all capabilities and sets `no-new-privileges`; the dev
 container additionally runs as non-root `vscode` (sidecars keep their
-image's own user under the same closed policy). No Docker socket, no
-host home, no SSH agent, no host network. Published ports bind loopback
+image's own user under the same closed policy). One narrow,
+engine-owned exception: the dns ledger sidecar runs as root with
+exactly `NET_BIND_SERVICE` re-granted — the pinned CoreDNS binary
+carries file capabilities, and a binary whose file capabilities exceed
+the process's permitted set cannot exec under this policy at all. The
+grant is inexpressible from `vibe.yaml` and plan validation rejects it
+on any other container; `no-new-privileges` stays on. No Docker
+socket, no host home, no SSH agent, no host network. Published ports bind loopback
 only. The only *writable* host path in the container is the registered
 project root at `/workspace`; the engine's own mounts (payload, broker
 results) are read-only.
@@ -120,7 +126,12 @@ reach it.
 - **Egress.** The project network reaches the internet. An agent can
   exfiltrate anything it can read — which includes `/workspace` and the
   env values you configured. Give containers the minimum secrets that
-  make the project work.
+  make the project work. What the engine does provide is *visibility*,
+  not enforcement: the per-project DNS ledger (the engine-generated dns
+  sidecar's query log, `vibe logs dns`) and the palette's "network
+  egress" view with a live-socket sample. Direct-to-IP connections and
+  DoH bypass the ledger — the sampler still shows those IPs — and the
+  sampler attributes only the container user's processes.
 - **The workspace.** The agent can modify your code, including files
   that influence *you* (hooks, scripts you might run on the host).
   Review diffs; untrusted projects belong in disposable checkouts with

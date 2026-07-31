@@ -196,7 +196,7 @@ start and attach to it; "add Playwright to this project" typed at the
 agent produces an approval prompt (with a trusted plan diff) and a
 rebuilt container — the original v1.0 story from the port plan.
 
-## R6 — Per-project egress visibility (scheduled 2026-07-31)
+## R6 — Per-project egress visibility ✅ (shipped 2026-07-31)
 
 Graduated from the backlog during the 2026-07-31 cleanup pass: the last
 big capability wanted before the v1.0 cut (Chris). A per-project VIEW of
@@ -204,16 +204,29 @@ what the container talks to — visibility first, enforcement later; the
 guardrail-not-jail philosophy applied to the one surface security.md
 admits is wide open.
 
-- [ ] An engine-generated DNS-forwarder sidecar in the project plan
+Implemented 2026-07-31 (digest-pinned CoreDNS sidecar, runtime-resolved
+resolver + `dev.vibe.dns` drift label, pure-/proc sampler, palette
+"network egress" → hidden `_egress` porcelain, `runtime.egress: off`
+opt-out); live dogfood proof passed the same day: curl-from-dev lands
+in `vibe logs dns`, alias lookups still resolve through the embedded
+DNS, the popup renders both sections, and a stop/up round-trip keeps
+dev's resolver matching the sidecar's live address. One live-found
+correction: the CoreDNS binary's file capabilities EPERM at exec under
+the closed policy, so the sidecar runs as root with exactly
+NET_BIND_SERVICE re-granted (the one policy exception — BACKLOG
+decision record).
+
+- [x] An engine-generated DNS-forwarder sidecar in the project plan
       whose query log IS the project's domain ledger — name-level, no
       MITM, no proxy env vars for tools to ignore.
-- [ ] An in-container live-socket sampler (`ss`/proc-net, works
-      unprivileged; packet capture is off the table by design —
+- [x] An in-container live-socket sampler (proc-net, works
+      unprivileged — no `ss` dependency, uid-1000 attribution only;
+      packet capture is off the table by design —
       cap_drop ALL removes NET_RAW) attributing current connections to
       processes.
-- [ ] Surfaced in the tui — palette window / `vibe exec` trial first,
-      not a top-level verb until it earns harness logic (command
-      surface is ABI).
+- [x] Surfaced in the tui — palette window / `vibe exec` trial first
+      (palette item + prefix+E, no tray cell), not a top-level verb
+      until it earns harness logic (command surface is ABI).
 
 Accepted blind spots: direct-to-IP and DoH skip the DNS log (the
 sampler still shows those IPs). Upgrade path: the sidecar seat is
@@ -221,8 +234,8 @@ exactly where an L7 allowlist proxy would sit (2026-07 research:
 dynamic allowlists > static iptables) — that enforcement half stays
 post-v1.0, consumed by `--jailed`'s network posture.
 
-**Exit:** the tui can show, per project, the domains the container has
-resolved and the live connections attributed to processes.
+**Exit met:** the tui can show, per project, the domains the container
+has resolved and the live connections attributed to processes.
 
 ## The v1.0 gate
 

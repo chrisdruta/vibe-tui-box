@@ -290,6 +290,35 @@ var uiCommands = map[string]Command{
 			return &renderResult{Lines: []string{"selected " + res.Name}}, nil
 		},
 	},
+	"_egress": {
+		Name:    "_egress",
+		Summary: "internal egress view: dns ledger + live sockets",
+		Usage:   "vibe _egress [--tail N]",
+		Hidden:  true,
+		// The palette's "network egress" popup (R6 trial surface — a
+		// public verb must be earned). Runs from the popup's working
+		// directory like the other project-scoped porcelain.
+		Parse: func(args []string) (Request, error) {
+			var req EgressCmdRequest
+			fs := newFlagSet("_egress", &req.Options)
+			fs.IntVar(&req.Tail, "tail", 0, "dns log lines to read (default: recent window)")
+			if err := parseArgs(fs, args); err != nil {
+				return nil, err
+			}
+			if len(fs.Args()) != 0 {
+				return nil, fmt.Errorf("_egress takes no arguments")
+			}
+			return &req, nil
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*EgressCmdRequest)
+			res, err := a.Egress(ctx, app.EgressRequest{Dir: dir, Tail: r.Tail})
+			if err != nil {
+				return nil, err
+			}
+			return &egressResult{Result: res}, nil
+		},
+	},
 	"_dismiss": {
 		Name:    "_dismiss",
 		Summary: "internal dead-session record dismissal",
@@ -425,6 +454,13 @@ type SvcStopCmdRequest struct {
 type SvcSelectCmdRequest struct {
 	Options
 	Name string
+}
+
+// EgressCmdRequest drives the hidden egress view behind the palette's
+// "network egress" popup.
+type EgressCmdRequest struct {
+	Options
+	Tail int
 }
 
 // DismissCmdRequest drives the hidden dead-record dismissal — the

@@ -70,6 +70,8 @@ func TestSDKLifecycle(t *testing.T) {
 		Labels:  labels,
 		Mounts:  []Mount{{Kind: VolumeMount, Source: volName, Target: "/data"}},
 		Network: netName,
+		DNS:     []string{"192.0.2.53"}, // TEST-NET: never queried, only configured
+		Log:     LogPolicy{MaxSize: "1m", MaxFiles: 2},
 		Policy:  Policy{DropAllCapabilities: true, NoNewPrivileges: true},
 	})
 	if err != nil {
@@ -83,6 +85,9 @@ func TestSDKLifecycle(t *testing.T) {
 	state, err := sdk.InspectContainer(ctx, ctrName)
 	if err != nil || !state.Running {
 		t.Fatalf("container not running: %+v, %v", state, err)
+	}
+	if state.Networks[netName] == "" {
+		t.Fatalf("inspect returned no address on %s: %+v", netName, state.Networks)
 	}
 
 	listed, err := sdk.ListProjectContainers(ctx, project)

@@ -52,7 +52,13 @@ type Client struct {
 	// StartExits models containers that exit immediately after a
 	// successful start: StartContainer returns nil but Running stays
 	// false, like a crashing sidecar.
-	StartExits  map[dockerapi.ContainerID]bool
+	StartExits map[dockerapi.ContainerID]bool
+	// MintedIPs is the sticky per-container network address the fake
+	// assigns on start (and clears on stop, like a real daemon that
+	// reports no address for a stopped container). Auto-minted for
+	// containers created with a network; seed a different value to
+	// model address drift across a restart.
+	MintedIPs   map[dockerapi.ContainerID]string
 	WaitCodes   map[dockerapi.ContainerID]int
 	ExecResults map[string]dockerapi.ExecResult // keyed by argv joined with \x00
 	ExecOutputs map[string]string               // stdout written to Streams.Out, same key
@@ -68,6 +74,11 @@ type Client struct {
 	Networks   map[string]dockerapi.NetworkSpec
 
 	nextID int
+	nextIP int
+	// createNetworks remembers each created container's network (keyed
+	// by immutable ID — the .prev/.next rename dance changes names) so
+	// StartContainer knows where to mint an address.
+	createNetworks map[dockerapi.ContainerID]string
 }
 
 var _ dockerapi.Client = (*Client)(nil)
@@ -81,9 +92,11 @@ func New() *Client {
 		ExecOutputs:    map[string]string{},
 		LogsOutputs:    map[dockerapi.ContainerName]string{},
 		WaitCodes:      map[dockerapi.ContainerID]int{},
+		MintedIPs:      map[dockerapi.ContainerID]string{},
 		Containers:     map[dockerapi.ContainerName]*dockerapi.ContainerState{},
 		Volumes:        map[string]dockerapi.VolumeSpec{},
 		Networks:       map[string]dockerapi.NetworkSpec{},
+		createNetworks: map[dockerapi.ContainerID]string{},
 	}
 }
 
@@ -171,6 +184,9 @@ func (c *Client) CreateContainer(ctx context.Context, req dockerapi.CreateReques
 		Image:  req.Image,
 		Labels: req.Labels,
 	}
+	if req.Network != "" {
+		c.createNetworks[id] = req.Network
+	}
 	if c.CreateHook != nil {
 		hook := c.CreateHook
 		c.mu.Unlock()
@@ -206,6 +222,15 @@ func (c *Client) StartContainer(ctx context.Context, id dockerapi.ContainerID) e
 		}
 	}
 	state.Running = !c.StartExits[id]
+	if net := c.createNetworks[id]; net != "" && state.Running {
+		ip := c.MintedIPs[id]
+		if ip == "" {
+			c.nextIP++
+			ip = fmt.Sprintf("10.90.0.%d", c.nextIP)
+			c.MintedIPs[id] = ip
+		}
+		state.Networks = map[string]string{net: ip}
+	}
 	return nil
 }
 
@@ -226,6 +251,7 @@ func (c *Client) StopContainer(ctx context.Context, id dockerapi.ContainerID, ti
 		}
 	}
 	state.Running = false
+	state.Networks = nil
 	return nil
 }
 

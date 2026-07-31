@@ -44,15 +44,30 @@ type Artifact struct {
 }
 
 type Container struct {
-	Name        string          `json:"name"`
-	Image       ImageID         `json:"image"`
-	User        string          `json:"user,omitempty"`
-	Command     []string        `json:"command,omitempty"`
-	Environment []Env           `json:"environment,omitempty"`
-	Mounts      []Mount         `json:"mounts,omitempty"`
-	Ports       []PortBinding   `json:"ports,omitempty"`
-	Labels      []Label         `json:"labels,omitempty"`
-	Policy      ContainerPolicy `json:"policy"`
+	Name        string        `json:"name"`
+	Image       ImageID       `json:"image"`
+	User        string        `json:"user,omitempty"`
+	Command     []string      `json:"command,omitempty"`
+	Environment []Env         `json:"environment,omitempty"`
+	Mounts      []Mount       `json:"mounts,omitempty"`
+	Ports       []PortBinding `json:"ports,omitempty"`
+	Labels      []Label       `json:"labels,omitempty"`
+	// DNSFromService names the plan service whose runtime address
+	// becomes this container's resolver. The plan carries the semantic
+	// link only — the concrete IP is runtime state and must never enter
+	// the canonical hash.
+	DNSFromService string `json:"dns_from_service,omitempty"`
+	// Log bounds the container's json-file log; nil means the daemon
+	// default.
+	Log    *LogPolicy      `json:"log,omitempty"`
+	Policy ContainerPolicy `json:"policy"`
+}
+
+// LogPolicy is a json-file rotation bound for containers whose stdout
+// is an engine read surface (the dns ledger) rather than debris.
+type LogPolicy struct {
+	MaxSize  string `json:"max_size"`
+	MaxFiles int    `json:"max_files"`
 }
 
 // ImageID names an image by reference plus, when resolved, its registry
@@ -106,6 +121,13 @@ type ContainerPolicy struct {
 	NoNewPrivileges     bool        `json:"no_new_privileges"`
 	ReadonlyRootFS      bool        `json:"readonly_root_fs"`
 	Network             NetworkMode `json:"network"`
+	// NetBindService re-grants exactly CAP_NET_BIND_SERVICE on top of
+	// the dropped set. The one legitimate holder is the engine's dns
+	// forwarder (Validate enforces this): the official CoreDNS binary
+	// carries file capabilities, and a binary whose file caps exceed
+	// the process's permitted set fails exec under no-new-privileges.
+	// No schema surface can express it.
+	NetBindService bool `json:"net_bind_service,omitempty"`
 }
 
 type Network struct {

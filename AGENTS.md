@@ -117,7 +117,12 @@ canonical plan.
 
 **Closed container policy.** Every managed container gets
 `cap_drop: ALL` and `no-new-privileges`; the dev container additionally
-runs as `vscode` (sidecars keep their image's user); published
+runs as `vscode` (sidecars keep their image's user). One narrow,
+engine-owned exception: the dns ledger sidecar runs as root with
+exactly `NET_BIND_SERVICE` re-granted (the CoreDNS binary's file
+capabilities EPERM at exec against an empty permitted set); no schema
+surface can express it and `model.Validate` rejects it on any other
+container. Published
 ports bind loopback only; mount targets are absolute, normalized,
 unique, non-nesting, and never collide with the engine-owned targets
 (`/workspace`, `/vibe/payload`, `/vibe/agent-state`, `/vibe/results`).

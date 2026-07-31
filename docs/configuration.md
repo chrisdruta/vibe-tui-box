@@ -87,6 +87,19 @@ bootstrap:
   source is copied into the immutable input snapshot and that copy is
   mounted; editing the source on the host does nothing until the next
   candidate. The workspace itself is the only live bind.
+- **`runtime.egress`** — the per-project DNS ledger, on when absent.
+  Every provisioned project's plan gains an engine-generated CoreDNS
+  sidecar (`vibe-<id>-svc-dns`, digest-pinned in engine code) that the
+  dev container's resolver rides; its query log IS the project's domain
+  ledger — read raw with `vibe logs dns [-f]`, or joined with a
+  live-socket sample via the tui palette's "network egress" popup
+  (prefix+E). Resolution behavior is unchanged (the sidecar forwards to
+  the same resolvers Docker uses today); in-network alias lookups
+  (`db`, `dns`) are answered by Docker's embedded DNS and never appear
+  in the ledger, and direct-to-IP or DoH traffic bypasses it
+  ([security.md](security.md) "Egress"). `egress: off` removes the
+  sidecar and the resolver pointing. `dns` joins the reserved service
+  names.
 - **`runtime.env` / `services.*.env`** — planned configuration:
   container-ambient and part of the plan digest (maps are sorted before
   hashing, so ordering can't change it), never a host process

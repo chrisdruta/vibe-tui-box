@@ -73,7 +73,7 @@ var (
 
 // reservedServiceNames cannot be used for sidecars: they collide with
 // engine-generated container roles.
-var reservedServiceNames = map[string]bool{"dev": true, "base": true, "vibe": true}
+var reservedServiceNames = map[string]bool{"dev": true, "base": true, "vibe": true, "dns": true}
 
 // Validate performs field-level validation and returns every
 // independent diagnostic in source order.

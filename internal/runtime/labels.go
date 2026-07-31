@@ -20,6 +20,12 @@ const (
 	// container runs, the nonce identifies who made it, which is what
 	// crash recovery must prove before it may delete anything.
 	TxnLabel = "dev.vibe.txn"
+	// DNSLabel records the resolver IP a container was created with
+	// (the dns sidecar's runtime address — deliberately outside the
+	// candidate digest). Reconcile compares it against the sidecar's
+	// live address: drift escalates a plain start to a replace, because
+	// resolv.conf is baked at create time.
+	DNSLabel = "dev.vibe.dns"
 )
 
 // objectLabels is the label set for networks and volumes, which exist

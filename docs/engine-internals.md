@@ -69,7 +69,17 @@ format number when its serialized meaning changes.
 - **Docker labels**: every managed object carries `dev.vibe.managed`
   and `dev.vibe.project`; containers add `dev.vibe.candidate`,
   `dev.vibe.artifact`, and `dev.vibe.role` (`dev`, `sidecar:<name>`,
-  or `dev-builder` on dev-mode build containers).
+  or `dev-builder` on dev-mode build containers). Containers whose plan
+  names a resolver service also carry `dev.vibe.dns` — the
+  runtime-resolved sidecar address, deliberately outside the candidate
+  digest; reconcile treats a mismatch as drift and replaces.
+- **Egress view formats**: the sampler TSV
+  (`egress-sample\t1` version line, then
+  `proto\tlocal\tremote\tpid\tcomm` rows — script and parser move
+  together inside one artifact, wrong version fails the whole sample)
+  and the CoreDNS query-log parse anchor (the quoted seven-field
+  request section only; every other line counts as unparsed, never
+  fatal, never rendered raw).
 - **Schema limits** (manifest parser): ≤256 KiB default / 1 MiB ceiling,
   one document, depth ≤32, ≤10,000 nodes, ≤1,000 entries per collection,
   ≤64 KiB per scalar; aliases, anchors, merge keys, custom tags,

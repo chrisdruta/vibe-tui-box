@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/lock"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
 
 // UpOptions controls reconciliation.
@@ -110,18 +112,23 @@ func (s *Service) Up(ctx context.Context, cand Candidate, opts UpOptions) (State
 	}
 
 	// Sidecars first, dev last, so the agent container starts into a
-	// working service topology.
-	devAction := actionNone
+	// working service topology (the dns ledger sidecar leads the plan's
+	// services, so its address exists before anything needs it).
 	desired := append(append([]model.Container{}, plan.Services...), plan.Dev)
-	for _, c := range desired {
-		req := s.createRequest(plan, cand.Record, c, tx.j.Nonce)
-		action, err := s.reconcileContainer(ctx, tx, req, opts)
-		if err != nil {
+	for _, c := range plan.Services {
+		req := s.createRequest(plan, cand.Record, c, tx.j.Nonce, "")
+		if _, err := s.reconcileContainer(ctx, tx, req, opts); err != nil {
 			return State{}, tx.rollback(ctx, fmt.Errorf("container %s: %w", c.Name, err))
 		}
-		if c.Name == plan.Dev.Name {
-			devAction = action
-		}
+	}
+	dnsIP, err := s.resolveDNS(ctx, plan)
+	if err != nil {
+		return State{}, tx.rollback(ctx, err)
+	}
+	devReq := s.createRequest(plan, cand.Record, plan.Dev, tx.j.Nonce, dnsIP)
+	devAction, err := s.reconcileContainer(ctx, tx, devReq, opts)
+	if err != nil {
+		return State{}, tx.rollback(ctx, fmt.Errorf("container %s: %w", plan.Dev.Name, err))
 	}
 
 	if err := s.runLifecycle(ctx, plan, devAction, opts); err != nil {
@@ -254,12 +261,81 @@ func (s *Service) loadEnvFile(plan model.Plan, snapPath string) ([]envfile.Entry
 	return entries, nil
 }
 
+// resolveDNS returns the live project-network address of the sidecar
+// the dev container's resolver points at, or "" when the plan carries
+// no link. Called after the services reconcile, so the sidecar is
+// already started; a missing address is a hard failure — the sidecar
+// is a dependency of dev's resolver, not an optional extra. Rollback
+// interplay self-heals: if a failed transaction restores an older dns
+// generation whose address differs from the restored dev's DNSLabel,
+// the next Up sees exactly that as drift and replaces dev.
+func (s *Service) resolveDNS(ctx context.Context, plan model.Plan) (string, error) {
+	if plan.Dev.DNSFromService == "" {
+		return "", nil
+	}
+	name := model.SidecarContainerName(plan.Project.ID, plan.Dev.DNSFromService)
+	state, err := s.docker.InspectContainer(ctx, dockerapi.ContainerName(name))
+	if err != nil {
+		return "", fmt.Errorf("resolve dns sidecar %s: %w", name, err)
+	}
+	if len(plan.Networks) == 0 {
+		return "", fmt.Errorf("%w: plan links dns to %s but declares no network", domain.ErrInvalid, name)
+	}
+	ip := state.Networks[plan.Networks[0].Name]
+	if ip == "" {
+		return "", fmt.Errorf("%w: dns sidecar %s has no address on network %s (%s)",
+			domain.ErrUnavailable, name, plan.Networks[0].Name, s.dnsCrashDetail(ctx, state))
+	}
+	return ip, nil
+}
+
+// dnsCrashDetail explains an addressless dns sidecar. The usual cause
+// is the forwarder exiting right after start (port-53 bind refused,
+// unreadable Corefile), and the transaction is about to roll the
+// container away — so capture its state and last words while they
+// exist. Log bytes are container-controlled and reach the error text
+// only through the terminal encoder.
+func (s *Service) dnsCrashDetail(ctx context.Context, st dockerapi.ContainerState) string {
+	detail := fmt.Sprintf("running=%v exit=%d", st.Running, st.ExitCode)
+	tail := &boundedBuffer{max: 4096}
+	err := s.docker.Logs(ctx, dockerapi.LogsRequest{
+		Container: st.Name,
+		Tail:      5,
+		Streams:   dockerapi.Streams{Out: tail, Err: tail},
+	})
+	if err != nil || tail.buf.Len() == 0 {
+		return detail
+	}
+	enc := terminal.Encode(tail.buf.String(), terminal.Limits{MaxWidth: 200, MaxLines: 5})
+	return detail + "; last output: " + strings.Join(enc.Lines, " ⏎ ")
+}
+
+// boundedBuffer keeps the first max bytes and drops the rest; the log
+// drain must never grow or fail an error path.
+type boundedBuffer struct {
+	buf bytes.Buffer
+	max int
+}
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	if room := b.max - b.buf.Len(); room > 0 {
+		if len(p) > room {
+			p = p[:room]
+		}
+		b.buf.Write(p)
+	}
+	return len(p), nil
+}
+
 // createRequest translates one planned container into a Docker create
 // request. Only planned (manifest) environment is baked in; env-file
 // values stay exec-scoped. The transaction nonce is stamped as an
 // immutable ownership label so crash recovery can prove which
-// containers this transaction created.
-func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c model.Container, nonce string) dockerapi.CreateRequest {
+// containers this transaction created. dnsIP is the runtime-resolved
+// resolver address for containers whose plan names a DNS service; it
+// rides a label (DNSLabel) rather than the plan so the canonical hash
+// stays deterministic.
+func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c model.Container, nonce, dnsIP string) dockerapi.CreateRequest {
 	var env []string
 	for _, e := range c.Environment {
 		env = append(env, e.Key+"="+e.Value)
@@ -278,11 +354,16 @@ func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c mo
 	for _, p := range c.Ports {
 		ports = append(ports, dockerapi.PortBinding(p))
 	}
-	planLabels := make(map[string]string, len(c.Labels)+1)
+	planLabels := make(map[string]string, len(c.Labels)+2)
 	for _, l := range c.Labels {
 		planLabels[l.Key] = l.Value
 	}
 	planLabels[TxnLabel] = nonce
+	var dns []string
+	if c.DNSFromService != "" && dnsIP != "" {
+		dns = []string{dnsIP}
+		planLabels[DNSLabel] = dnsIP
+	}
 
 	image := c.Image.Ref
 	if !c.Image.Digest.IsZero() {
@@ -291,6 +372,10 @@ func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c mo
 	network := ""
 	if c.Policy.Network == model.NetworkProject && len(plan.Networks) > 0 {
 		network = plan.Networks[0].Name
+	}
+	var logPolicy dockerapi.LogPolicy
+	if c.Log != nil {
+		logPolicy = dockerapi.LogPolicy{MaxSize: c.Log.MaxSize, MaxFiles: c.Log.MaxFiles}
 	}
 	return dockerapi.CreateRequest{
 		Name:    dockerapi.ContainerName(c.Name),
@@ -302,10 +387,13 @@ func (s *Service) createRequest(plan model.Plan, rec store.CandidateRecord, c mo
 		Mounts:  mounts,
 		Ports:   ports,
 		Network: network,
+		DNS:     dns,
+		Log:     logPolicy,
 		Policy: dockerapi.Policy{
 			DropAllCapabilities: c.Policy.DropAllCapabilities,
 			NoNewPrivileges:     c.Policy.NoNewPrivileges,
 			ReadonlyRootFS:      c.Policy.ReadonlyRootFS,
+			NetBindService:      c.Policy.NetBindService,
 		},
 	}
 }
@@ -336,8 +424,14 @@ func (s *Service) reconcileContainer(ctx context.Context, tx *txn, req dockerapi
 	if existing.Labels[ManagedLabel] != "true" {
 		return actionNone, fmt.Errorf("%w: container %s exists but is not managed by vibe", domain.ErrConflict, req.Name)
 	}
-	sameCandidate := existing.Labels[CandidateLabel] == req.Labels[CandidateLabel]
-	if sameCandidate && !opts.Force {
+	// The candidate digest is the equality relation, widened by the one
+	// piece of desired state outside the plan: the resolver address.
+	// Absent keys compare ""=="" everywhere except a dev container whose
+	// dns sidecar re-addressed, which must be replaced — its resolv.conf
+	// was baked at create time.
+	same := existing.Labels[CandidateLabel] == req.Labels[CandidateLabel] &&
+		existing.Labels[DNSLabel] == req.Labels[DNSLabel]
+	if same && !opts.Force {
 		if existing.Running {
 			return actionNone, nil
 		}

@@ -132,6 +132,63 @@ func TestGCResultHuman(t *testing.T) {
 	}
 }
 
+func TestEgressResultRender(t *testing.T) {
+	res := app.EgressResult{
+		DNSAvailable: true,
+		Domains: []app.EgressDomain{
+			{Name: "registry.npmjs.org", Queries: 412, LastType: "A"},
+			// App-layer sanitization delivers encoded notation, never raw
+			// control bytes; the renderer must pass it through untouched.
+			{Name: "evil.⟨U+001B⟩[31mred.example", Queries: 1, LastType: "A"},
+		},
+		UnparsedLogLines: 3,
+		SamplerAvailable: true,
+		Conns: []app.EgressConn{
+			{Proto: "tcp", Local: "10.4.0.2:41892", Remote: "140.82.112.22:443", PID: 4132, Comm: "node"},
+			{Proto: "udp", Local: "10.4.0.2:53412", Remote: "10.4.0.53:53"},
+		},
+	}
+	var buf bytes.Buffer
+	if err := (&egressResult{Result: res}).RenderHuman(&buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"resolved domains (dns ledger):",
+		"412  A      registry.npmjs.org",
+		"evil.⟨U+001B⟩[31mred.example",
+		"… 3 unparseable log lines",
+		"live connections (one-shot sample):",
+		"10.4.0.2:41892 → 140.82.112.22:443  4132 node",
+		"10.4.0.53:53  (unattributed)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("human render missing %q:\n%s", want, out)
+		}
+	}
+	if strings.ContainsRune(out, 0x1b) {
+		t.Fatal("raw escape byte reached the renderer output")
+	}
+
+	// Unavailable halves render their notes as content, not errors.
+	var buf2 bytes.Buffer
+	note := app.EgressResult{DNSAvailable: true, SamplerNote: "dev container is not running (run `vibe up`)"}
+	if err := (&egressResult{Result: note}).RenderHuman(&buf2); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf2.String(), "dev container is not running") {
+		t.Fatalf("sampler note missing:\n%s", buf2.String())
+	}
+
+	kind, data := decodeEnvelope(t, &egressResult{Result: res})
+	if kind != "egress" {
+		t.Fatalf("kind = %q", kind)
+	}
+	if _, ok := data["Domains"].([]any); !ok {
+		t.Fatalf("domains missing from envelope: %v", data)
+	}
+}
+
 func TestHumanBytes(t *testing.T) {
 	cases := []struct {
 		n    int64

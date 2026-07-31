@@ -33,6 +33,10 @@ type ContainerState struct {
 	Running  bool
 	ExitCode int
 	Labels   map[string]string
+	// Networks maps attached network name to the container's IPv4
+	// address. Populated by InspectContainer only; list calls leave it
+	// nil, and a stopped container reports no addresses.
+	Networks map[string]string
 }
 
 // MountKind mirrors model.MountKind without importing it.
@@ -62,6 +66,18 @@ type Policy struct {
 	DropAllCapabilities bool
 	NoNewPrivileges     bool
 	ReadonlyRootFS      bool
+	// NetBindService re-grants exactly CAP_NET_BIND_SERVICE on top of
+	// the dropped set (the engine's dns forwarder — its binary carries
+	// file capabilities that EPERM at exec with an empty permitted
+	// set). The drop-all + no-new-privileges gate still applies.
+	NetBindService bool
+}
+
+// LogPolicy mirrors model.LogPolicy without importing it: json-file
+// rotation bounds. The zero value means the daemon default.
+type LogPolicy struct {
+	MaxSize  string // e.g. "10m"
+	MaxFiles int
 }
 
 // CreateRequest mirrors the canonical model with engine-owned types.
@@ -76,7 +92,9 @@ type CreateRequest struct {
 	Mounts  []Mount
 	Ports   []PortBinding
 	Workdir string
-	Network string // project network name, DefaultNetwork, or "" (no network)
+	Network string   // project network name, DefaultNetwork, or "" (no network)
+	DNS     []string // resolver IPs the embedded DNS forwards to; empty = daemon default
+	Log     LogPolicy
 	Policy  Policy
 }
 

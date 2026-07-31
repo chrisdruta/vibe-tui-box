@@ -1,0 +1,16 @@
+# Engine-authored CoreDNS config for the per-project egress ledger
+# sidecar. Mounted read-only from the store-owned artifact payload at
+# /vibe/dns; the engine passes `-conf /vibe/dns/Corefile`.
+#
+# Upstream is the sidecar's own /etc/resolv.conf — Docker's embedded
+# resolver (127.0.0.11) forwarding to the host's resolvers — so
+# resolution behavior for workloads is unchanged; the only addition is
+# the query log on stdout, which `docker logs` / `vibe logs dns` reads
+# as the project's domain ledger. CoreDNS's fixed plugin order runs
+# log ahead of cache, so cache hits are logged too.
+.:53 {
+    errors
+    log
+    cache
+    forward . /etc/resolv.conf
+}

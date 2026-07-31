@@ -232,6 +232,21 @@ history). Read the mechanisms as historical; the calls stand.
   drift) was the runner-up and remains a claude-side upgrade
   candidate beside the plugin-skill entry above.
 
+- **DNS forwarder runs root + NET_BIND_SERVICE (2026-07-31, Chris).**
+  The first live R6 rebuild died with `exec /coredns: operation not
+  permitted`: the official CoreDNS image's binary carries file
+  capabilities (`cap_net_bind_service=+ep`), and a binary whose file
+  caps exceed the process's permitted set cannot exec under
+  cap_drop ALL + no-new-privileges. Chosen fix: the engine compiles
+  the dns sidecar with `User "0"` and exactly `NET_BIND_SERVICE`
+  re-granted (file caps become a subset of what the process already
+  holds, so exec proceeds and nnp stays on); scope is enforced by
+  `model.Validate` and the grant has no schema surface. Runner-up —
+  an engine-built caps-free image from the pinned CoreDNS release
+  binary — rejected as a whole build path against a one-field policy
+  delta; it remains the fallback if the official image ever grows a
+  posture we can't hold.
+
 - **Roster stays render-only — no dismiss affordance (2026-07-25;
   SUPERSEDED 2026-07-28, Chris — the sidebar right-click design).**
   The three grounds each moved: right-click is no longer tmux's stock

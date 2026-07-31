@@ -39,6 +39,7 @@ type Runtime struct {
 	Ports   []Port     `yaml:"ports,omitempty"`
 	Imports []Import   `yaml:"imports,omitempty"`
 	Env     OrderedEnv `yaml:"env,omitempty"`
+	Egress  EgressMode `yaml:"egress,omitempty"`
 }
 
 type Import struct {
@@ -165,6 +166,27 @@ func (m *MemoryMode) UnmarshalText(b []byte) error {
 		return nil
 	default:
 		return fmt.Errorf("%w: agent.memory %q: known modes are auto, off", domain.ErrInvalid, b)
+	}
+}
+
+// EgressMode selects the engine-generated DNS ledger sidecar. Unlike
+// MemoryMode the zero value (absent) means ON: the ledger is pure
+// visibility with unchanged resolution behavior, so every provisioned
+// project carries it unless the manifest refuses.
+type EgressMode string
+
+const (
+	EgressOn  EgressMode = "on"
+	EgressOff EgressMode = "off"
+)
+
+func (e *EgressMode) UnmarshalText(b []byte) error {
+	switch v := EgressMode(b); v {
+	case EgressOn, EgressOff:
+		*e = v
+		return nil
+	default:
+		return fmt.Errorf("%w: runtime.egress %q: known modes are on, off", domain.ErrInvalid, b)
 	}
 }
 

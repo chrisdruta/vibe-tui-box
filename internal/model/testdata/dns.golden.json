@@ -1,0 +1,238 @@
+{
+  "format": 1,
+  "project": {
+    "id": "abcdefghijklmnopqrstuvwxyz",
+    "root": "/home/user/project",
+    "display_name": "project"
+  },
+  "artifact": {
+    "digest": "sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c",
+    "version": "0.0.0-test"
+  },
+  "dev": {
+    "name": "vibe-abcdefghijkl-dev",
+    "image": {
+      "ref": "vibe-abcdefghijkl-tools"
+    },
+    "user": "vscode",
+    "command": [
+      "/vibe/payload/container/entrypoint.sh"
+    ],
+    "environment": [
+      {
+        "key": "A_FLAG",
+        "value": "1"
+      },
+      {
+        "key": "B_FLAG",
+        "value": "2"
+      },
+      {
+        "key": "XDG_RUNTIME_DIR",
+        "value": "/run/user/1000"
+      },
+      {
+        "key": "GH_CONFIG_DIR",
+        "value": "/vibe/agent-state/gh"
+      },
+      {
+        "key": "CLAUDE_CONFIG_DIR",
+        "value": "/vibe/agent-state/claude"
+      },
+      {
+        "key": "DISABLE_AUTOUPDATER",
+        "value": "1"
+      },
+      {
+        "key": "VIBE_PAYLOAD_DIGEST",
+        "value": "sha256:239f59ed55e737c77147cf55ad0c1b030b6d7ee748a7426952f9b852d5a935e5"
+      }
+    ],
+    "mounts": [
+      {
+        "kind": "bind",
+        "source": "/home/user/project",
+        "target": "/workspace"
+      },
+      {
+        "kind": "volume",
+        "source": "vibe-abcdefghijkl-agent-state",
+        "target": "/vibe/agent-state"
+      },
+      {
+        "kind": "tmpfs",
+        "source": "",
+        "target": "/run/user/1000"
+      },
+      {
+        "kind": "bind",
+        "source": "/home/user/.vibe/store/artifacts/cafe/payload",
+        "target": "/vibe/payload",
+        "read_only": true
+      },
+      {
+        "kind": "bind",
+        "source": "/home/user/.vibe/state/snapshots/deadbeef/imports/0",
+        "target": "/models",
+        "read_only": true
+      }
+    ],
+    "ports": [
+      {
+        "host_ip": "127.0.0.1",
+        "host_port": 34872,
+        "container_port": 34872
+      }
+    ],
+    "labels": [
+      {
+        "key": "dev.vibe.managed",
+        "value": "true"
+      },
+      {
+        "key": "dev.vibe.project",
+        "value": "abcdefghijklmnopqrstuvwxyz"
+      },
+      {
+        "key": "dev.vibe.role",
+        "value": "dev"
+      }
+    ],
+    "dns_from_service": "dns",
+    "policy": {
+      "drop_all_capabilities": true,
+      "no_new_privileges": true,
+      "readonly_root_fs": false,
+      "network": "project"
+    }
+  },
+  "services": [
+    {
+      "name": "vibe-abcdefghijkl-svc-dns",
+      "image": {
+        "ref": "coredns/coredns:1.14.6@sha256:900f9c109f7a33545d3c811516e8376df9019147b750f5ce3e254468769176ea"
+      },
+      "user": "0",
+      "command": [
+        "-conf",
+        "/vibe/dns/Corefile"
+      ],
+      "mounts": [
+        {
+          "kind": "bind",
+          "source": "/home/user/.vibe/store/artifacts/cafe/payload/dns",
+          "target": "/vibe/dns",
+          "read_only": true
+        }
+      ],
+      "labels": [
+        {
+          "key": "dev.vibe.managed",
+          "value": "true"
+        },
+        {
+          "key": "dev.vibe.project",
+          "value": "abcdefghijklmnopqrstuvwxyz"
+        },
+        {
+          "key": "dev.vibe.role",
+          "value": "sidecar:dns"
+        }
+      ],
+      "log": {
+        "max_size": "10m",
+        "max_files": 3
+      },
+      "policy": {
+        "drop_all_capabilities": true,
+        "no_new_privileges": true,
+        "readonly_root_fs": false,
+        "network": "project",
+        "net_bind_service": true
+      }
+    },
+    {
+      "name": "vibe-abcdefghijkl-svc-db",
+      "image": {
+        "ref": "postgres:16"
+      },
+      "environment": [
+        {
+          "key": "POSTGRES_PASSWORD",
+          "value": "x"
+        }
+      ],
+      "mounts": [
+        {
+          "kind": "volume",
+          "source": "vibe-abcdefghijkl-vol-data",
+          "target": "/var/lib/postgresql/data"
+        }
+      ],
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 5432,
+          "container_port": 5432
+        }
+      ],
+      "labels": [
+        {
+          "key": "dev.vibe.managed",
+          "value": "true"
+        },
+        {
+          "key": "dev.vibe.project",
+          "value": "abcdefghijklmnopqrstuvwxyz"
+        },
+        {
+          "key": "dev.vibe.role",
+          "value": "sidecar:db"
+        }
+      ],
+      "policy": {
+        "drop_all_capabilities": true,
+        "no_new_privileges": true,
+        "readonly_root_fs": false,
+        "network": "project"
+      }
+    }
+  ],
+  "networks": [
+    {
+      "name": "vibe-abcdefghijkl"
+    }
+  ],
+  "volumes": [
+    {
+      "name": "vibe-abcdefghijkl-agent-state"
+    },
+    {
+      "name": "vibe-abcdefghijkl-vol-data"
+    }
+  ],
+  "images": [
+    {
+      "ref": "coredns/coredns:1.14.6@sha256:900f9c109f7a33545d3c811516e8376df9019147b750f5ce3e254468769176ea"
+    },
+    {
+      "ref": "mcr.microsoft.com/devcontainers/base:debian"
+    },
+    {
+      "ref": "postgres:16"
+    },
+    {
+      "ref": "vibe-abcdefghijkl-tools"
+    }
+  ],
+  "inputs": {
+    "snapshot": "sha256:16a0eeb0791b6c92451fd284dd9f599e0a7dbe7f6ebea6e2d2d06c7f74aec112",
+    "env_file": ".env"
+  },
+  "tools": {
+    "agents": [
+      "claude"
+    ]
+  },
+  "canonical_hash": "sha256:c2453417f345c28a8d54f190ada03a96e2556e5c774bac205e708b7bc7f6226a"
+}

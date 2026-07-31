@@ -4,10 +4,14 @@ import (
 	"fmt"
 	"net"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 )
+
+// logMaxSizeRe is the daemon's json-file max-size shape.
+var logMaxSizeRe = regexp.MustCompile(`^[1-9][0-9]*[kmg]$`)
 
 // Validate re-checks the completed plan: this is the last gate before
 // anything is persisted or handed to Docker, and it assumes nothing
@@ -45,6 +49,17 @@ func Validate(p Plan) []domain.FieldError {
 		if !c.Policy.DropAllCapabilities || !c.Policy.NoNewPrivileges {
 			add(base+": policy", "closed container policy is mandatory")
 		}
+		if c.Policy.NetBindService && c.Name != SidecarContainerName(p.Project.ID, DNSServiceName) {
+			add(base+": policy", "only the engine dns forwarder may re-grant NET_BIND_SERVICE")
+		}
+		if c.Log != nil {
+			if !logMaxSizeRe.MatchString(c.Log.MaxSize) {
+				add(base+": log", fmt.Sprintf("max size %q must be a positive count with a k/m/g suffix", c.Log.MaxSize))
+			}
+			if c.Log.MaxFiles < 1 {
+				add(base+": log", fmt.Sprintf("max files %d must be at least 1", c.Log.MaxFiles))
+			}
+		}
 		validateMounts(base, c.Mounts, add)
 		for i, port := range c.Ports {
 			ip := net.ParseIP(port.HostIP)
@@ -54,6 +69,16 @@ func Validate(p Plan) []domain.FieldError {
 			if port.HostPort < 1 || port.HostPort > 65535 || port.ContainerPort < 1 || port.ContainerPort > 65535 {
 				add(fmt.Sprintf("%s: ports[%d]", base, i), "port out of range")
 			}
+		}
+	}
+	for _, c := range containers {
+		if c.DNSFromService == "" {
+			continue
+		}
+		want := SidecarContainerName(p.Project.ID, c.DNSFromService)
+		if _, ok := names[want]; !ok {
+			add("container "+c.Name+": dns_from_service",
+				fmt.Sprintf("service %q has no container %q in the plan", c.DNSFromService, want))
 		}
 	}
 	return errs

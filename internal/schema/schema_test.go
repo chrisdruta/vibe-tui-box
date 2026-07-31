@@ -199,6 +199,7 @@ func TestValidateDiagnostics(t *testing.T) {
 		{"escaping import source", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: ../up, target: /d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].source"},
 		{"relative import target", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: m, target: d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].target"},
 		{"reserved service", "schema: 1\nimage: {base: x, agents: [claude]}\nservices: {dev: {image: y}}\nagent: {cmd: claude}\n", "services.dev"},
+		{"reserved dns service", "schema: 1\nimage: {base: x, agents: [claude]}\nservices: {dns: {image: y}}\nagent: {cmd: claude}\n", "services.dns"},
 		{"agent not installed", "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: codex}\n", "agent.cmd"},
 		{"bad env key", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {env: {\"BAD-KEY\": \"1\"}}\nagent: {cmd: claude}\n", "runtime.env.BAD-KEY"},
 		{"absolute env_file", "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\nenv_file: /etc/passwd\n", "env_file"},
@@ -237,6 +238,29 @@ func TestUnknownEnum(t *testing.T) {
 	}
 	if _, err := load(t, "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude, memory: always}\n"); err == nil {
 		t.Fatal("unknown memory enum accepted")
+	}
+	if _, err := load(t, "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {egress: none}\nagent: {cmd: claude}\n"); err == nil {
+		t.Fatal("unknown egress enum accepted")
+	}
+}
+
+func TestRuntimeEgressModes(t *testing.T) {
+	doc := mustLoad(t, "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {egress: off}\nagent: {cmd: claude}\n")
+	if doc.Manifest.Runtime.Egress != EgressOff {
+		t.Fatalf("egress = %q, want off", doc.Manifest.Runtime.Egress)
+	}
+	if errs := doc.Validate(); len(errs) != 0 {
+		t.Fatalf("egress: off should validate: %v", errs)
+	}
+	doc = mustLoad(t, "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {egress: on}\nagent: {cmd: claude}\n")
+	if doc.Manifest.Runtime.Egress != EgressOn {
+		t.Fatalf("egress = %q, want on", doc.Manifest.Runtime.Egress)
+	}
+	// Absent means the zero value — the engine treats it as on: the
+	// ledger default is inverted relative to agent.memory.
+	doc = mustLoad(t, "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n")
+	if doc.Manifest.Runtime.Egress != "" {
+		t.Fatalf("absent egress = %q, want zero", doc.Manifest.Runtime.Egress)
 	}
 }
 

@@ -182,8 +182,40 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 		dev.Environment = append(dev.Environment,
 			Env{Key: "VIBE_PAYLOAD_DIGEST", Value: in.Artifact.Record.PayloadDigest.String()})
 	}
+	if EgressDNSEnabled(*m, in.Artifact) {
+		dev.DNSFromService = DNSServiceName
+	}
 	dev.Labels = commonLabels(id, "dev")
 	plan.Dev = dev
+
+	// The dns ledger sidecar comes first so every later container could
+	// be pointed at a running resolver (v1 points only dev). It runs as
+	// root with NetBindService re-granted: the CoreDNS binary's file
+	// capabilities (cap_net_bind_service=+ep) must be a subset of the
+	// process's already-permitted set or exec fails EPERM under the
+	// closed policy — root + the one capability satisfies that, and
+	// no-new-privileges stays on.
+	if EgressDNSEnabled(*m, in.Artifact) {
+		policy := defaultPolicy()
+		policy.NetBindService = true
+		plan.Services = append(plan.Services, Container{
+			Name:    SidecarContainerName(id, DNSServiceName),
+			Image:   resolve(CoreDNSImageRef),
+			User:    "0",
+			Command: []string{"-conf", DNSCorefile},
+			Mounts: []Mount{{
+				Kind:     BindMount,
+				Source:   path.Join(in.Artifact.PayloadPath(), PayloadDNSDir),
+				Target:   DNSConfTarget,
+				ReadOnly: true,
+			}},
+			// The query log IS the ledger, so its stdout is bounded here
+			// instead of growing with the daemon default.
+			Log:    &LogPolicy{MaxSize: "10m", MaxFiles: 3},
+			Policy: policy,
+			Labels: commonLabels(id, "sidecar:"+DNSServiceName),
+		})
+	}
 
 	// Sidecars in deterministic name order.
 	for _, name := range m.ServiceNames() {
@@ -234,6 +266,15 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 	}
 	plan.CanonicalHash = hash
 	return plan, nil
+}
+
+// EgressDNSEnabled reports whether the plan gets the dns ledger
+// sidecar: opt-out via runtime.egress, and no artifact means no
+// store-owned Corefile to mount (artifact-less projects already run
+// degraded). Shared with the app layer's image-resolution loop so the
+// two can't drift.
+func EgressDNSEnabled(m schema.Manifest, artifact store.Artifact) bool {
+	return m.Runtime.Egress != schema.EgressOff && !artifact.IsZero()
 }
 
 // sortedStrings canonicalizes a manifest-ordered enum list for the

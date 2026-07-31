@@ -42,6 +42,17 @@ func (s *SDK) InspectContainer(ctx context.Context, name ContainerName) (Contain
 	if resp.Config != nil {
 		state.Labels = resp.Config.Labels
 	}
+	if resp.NetworkSettings != nil {
+		for netName, ep := range resp.NetworkSettings.Networks {
+			if ep == nil || ep.IPAddress == "" {
+				continue
+			}
+			if state.Networks == nil {
+				state.Networks = map[string]string{}
+			}
+			state.Networks[netName] = ep.IPAddress
+		}
+	}
 	return state, nil
 }
 
@@ -96,13 +107,34 @@ func (s *SDK) CreateContainer(ctx context.Context, req CreateRequest) (Container
 	if !req.Policy.DropAllCapabilities || !req.Policy.NoNewPrivileges {
 		return "", fmt.Errorf("%w: closed container policy is mandatory", domain.ErrInvalid)
 	}
+	if len(req.DNS) > 0 && req.Network == "" {
+		return "", fmt.Errorf("%w: dns servers require a network", domain.ErrInvalid)
+	}
 	hostConfig := &container.HostConfig{
 		Mounts:         mounts,
 		Tmpfs:          tmpfsMounts,
 		PortBindings:   bindings,
+		DNS:            req.DNS,
 		CapDrop:        strslice.StrSlice{"ALL"},
 		SecurityOpt:    []string{"no-new-privileges:true"},
 		ReadonlyRootfs: req.Policy.ReadonlyRootFS,
+	}
+	if req.Policy.NetBindService {
+		hostConfig.CapAdd = strslice.StrSlice{"NET_BIND_SERVICE"}
+	}
+	if req.Log != (LogPolicy{}) {
+		// json-file, not "local": the docker-logs demux is the ledger
+		// read path and json-file is the proven default format.
+		if req.Log.MaxSize == "" || req.Log.MaxFiles < 1 {
+			return "", fmt.Errorf("%w: log policy requires max size and max files", domain.ErrInvalid)
+		}
+		hostConfig.LogConfig = container.LogConfig{
+			Type: "json-file",
+			Config: map[string]string{
+				"max-size": req.Log.MaxSize,
+				"max-file": strconv.Itoa(req.Log.MaxFiles),
+			},
+		}
 	}
 	var netConfig *network.NetworkingConfig
 	switch req.Network {

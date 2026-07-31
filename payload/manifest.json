@@ -68,6 +68,12 @@
       "digest": "sha256:e445316b2ba5b8378eca812b8eb3ce4d7ab16bb788755c6c57bc7d59bc3dd86e"
     },
     {
+      "path": "container/egress-sample.sh",
+      "mode": "0755",
+      "size": 4057,
+      "digest": "sha256:b32d59add0f3c45dae06f5ce91c07e607ebbacc654b7ab0bea4db6d1ee57aca1"
+    },
+    {
       "path": "container/entrypoint.sh",
       "mode": "0755",
       "size": 441,
@@ -134,6 +140,12 @@
       "digest": "sha256:fd02e5aad1a03539dc50900ddc898e4e24d33b23945d952baa500eb6ca3b3048"
     },
     {
+      "path": "dns/Corefile",
+      "mode": "0644",
+      "size": 666,
+      "digest": "sha256:b778e2c1f2c9183cdba39bcad298a89ac3c4a67c1597579523ff8db2095e5a52"
+    },
+    {
       "path": "host/scripts/agent-menu.sh",
       "mode": "0755",
       "size": 6743,
@@ -178,8 +190,8 @@
     {
       "path": "host/scripts/palette.sh",
       "mode": "0644",
-      "size": 4095,
-      "digest": "sha256:b6a93de77062eda23bff18c8fafb45d69703c98c1e422145b9fe781c276af1be"
+      "size": 4227,
+      "digest": "sha256:ecd9ffc14f63f387f6654f2db7476007f50a0b1edbeaf5d1d3bb9d6927f6f729"
     },
     {
       "path": "host/scripts/popup.sh",
@@ -220,8 +232,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 33592,
-      "digest": "sha256:75df90f7f2727da6ee21fcfa99746625b8969816ee58912709d6795135a7f53c"
+      "size": 33901,
+      "digest": "sha256:81557fc02dbc43ca3b24b499b602f59c4ae8e84cf065251b9841aeacefe92eef"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -284,5 +296,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:f2a0aac6764ec5b4a80bdbfb5025b454b71b4976139ba8947933189efd30c955"
+  "digest": "sha256:753adc745f0a91603728675380e3eced1d1f8105edf7673053abb1cd84a00105"
 }
