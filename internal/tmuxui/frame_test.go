@@ -810,18 +810,90 @@ func TestAgentsPorcelainServiceKind(t *testing.T) {
 	lines := Agents([]AgentEntry{
 		{Project: "p", Session: "agent-codex", State: "idle", CLI: "codex"},
 		{Project: "p", Session: "web", State: "running", Kind: AgentEntryKindService},
+		{Project: "p", Session: "dns", State: "stale", Kind: AgentEntryKindSidecar},
 	}, 80)
-	if len(lines) != 2 {
+	if len(lines) != 3 {
 		t.Fatalf("lines: %v", lines)
 	}
 	back := ParseAgents(lines)
-	if len(back) != 2 || back[0].Kind != "" || back[1].Kind != AgentEntryKindService ||
+	if len(back) != 3 || back[0].Kind != "" || back[1].Kind != AgentEntryKindService ||
 		back[1].Session != "web" || back[1].State != "running" {
 		t.Fatalf("roundtrip: %+v", back)
+	}
+	if back[2].Kind != AgentEntryKindSidecar || back[2].Session != "dns" || back[2].State != "stale" {
+		t.Fatalf("sidecar roundtrip: %+v", back[2])
 	}
 	// An unknown trailing kind drops the line like any shape error.
 	if got := ParseAgents([]string{lines[1] + "x"}); len(got) != 0 {
 		t.Fatalf("unknown kind must drop: %+v", got)
+	}
+}
+
+// Engine sidecars ride the services group (2026-07-31): one row per
+// sidecar container after the workspace services, dim `sidecar` slot
+// while running, the state word taking the slot on ◐ stale / ○
+// stopped, the click degrading to the project switch (nothing to
+// attach to).
+func TestFrameSidecarRows(t *testing.T) {
+	in := FrameInput{
+		Width: 34, Height: 24, SelfSession: "$1",
+		Sessions: []FrameSession{
+			{ID: "$1", Name: "alpha", Path: "/a", Project: "projalpha"},
+		},
+		Agents: []AgentEntry{
+			{Project: "projalpha", Session: "web", State: "running", Kind: AgentEntryKindService},
+			{Project: "projalpha", Session: "dns", State: "running", Kind: AgentEntryKindSidecar},
+		},
+	}
+	out := Frame(in)
+	rows := frameRows(t, out.Body)
+	clicks := mapRows(t, out.Map)
+	if !strings.Contains(rows[2], "services · 2") {
+		t.Fatalf("header counts svc + sidecar rows: %q", rows[2])
+	}
+	if !strings.Contains(rows[3], "├ ") || !strings.Contains(rows[3], "web") {
+		t.Fatalf("workspace service leads the group: %q", rows[3])
+	}
+	if !strings.Contains(rows[4], "└ ") || !strings.Contains(rows[4], "dns") ||
+		!strings.Contains(rows[4], "sidecar") {
+		t.Fatalf("sidecar closes the tree with its qualifier: %q", rows[4])
+	}
+	if clicks[4] != "$1" {
+		t.Fatalf("sidecar click is the project switch: %q", clicks[4])
+	}
+	dim := fg(PaletteHex("dim"))
+	if !strings.Contains(out.Body, dim+"dns") {
+		t.Fatal("a running sidecar whispers (dim name)")
+	}
+	if strings.Contains(out.GhostMap, "dns") {
+		t.Fatalf("sidecars never ghost: %q", out.GhostMap)
+	}
+
+	// Stale and stopped are the glances that need eyes: fg name, the
+	// state word in the model slot, engine glyphs on the dot.
+	in.Agents[1].State = "stale"
+	out = Frame(in)
+	rows = frameRows(t, out.Body)
+	if !strings.Contains(rows[4], "◐") || !strings.Contains(rows[4], "stale") {
+		t.Fatalf("stale sidecar row: %q", rows[4])
+	}
+	if !strings.Contains(out.Body, fg(PaletteHex("fg"))+"dns") {
+		t.Fatal("a stale sidecar speaks (fg name)")
+	}
+	in.Agents[1].State = "stopped"
+	out = Frame(in)
+	rows = frameRows(t, out.Body)
+	if !strings.Contains(rows[4], "○") || !strings.Contains(rows[4], "stopped") {
+		t.Fatalf("stopped sidecar row: %q", rows[4])
+	}
+	// An unknown state draws nothing rather than guessing.
+	in.Agents[1].State = "meltdown"
+	out = Frame(in)
+	rows = frameRows(t, out.Body)
+	for _, r := range rows {
+		if strings.Contains(r, "dns") {
+			t.Fatalf("unknown sidecar state must not render: %q", r)
+		}
 	}
 }
 

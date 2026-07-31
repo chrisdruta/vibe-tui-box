@@ -101,6 +101,27 @@ func AgentStyle(state string) (glyph, hex string, ok bool) {
 	return "", "", false
 }
 
+// SidecarStyle resolves an engine sidecar container state (the
+// `_agents` sidecar kind's running/stale/stopped vocabulary) to its
+// roster dot. It deliberately speaks the CONTAINER glyph set on the
+// agent surface — a sidecar row is Docker truth, not a session — with
+// running borrowing the workspace services' blue ● so nominal infra
+// rows read as siblings; ◐/○ keep the engine meaning they have
+// everywhere else, colored to their urgency (stale asks for a
+// rebuild, stopped under a live project is an outage). Unknown states
+// report false; callers draw nothing rather than guess.
+func SidecarStyle(state string) (glyph, hex string, ok bool) {
+	switch state {
+	case "running":
+		return string(StateRunning), PaletteHex("blue"), true
+	case "stale":
+		return string(StateStale), PaletteHex("yellow"), true
+	case "stopped":
+		return string(StateStopped), PaletteHex("red"), true
+	}
+	return "", "", false
+}
+
 // AgentSignal reports whether a state asks something of the operator —
 // the sidebar's row STYLING (docs/tui-layout.md "The roster" —
 // 2026-07-26: every live agent is a row; signal no longer hides,

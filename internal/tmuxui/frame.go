@@ -118,7 +118,8 @@ func ParseFleet(lines []string) []FleetEntry {
 // ParseAgents parses the `vibe _agents` porcelain, the read twin of
 // Agents(), skipping lines of an unknown protocol version or shape.
 // The optional trailing field is the row kind (`svc` = workspace
-// service); an unknown kind drops the line like any other shape error.
+// service, `sidecar` = engine sidecar container); an unknown kind
+// drops the line like any other shape error.
 // The v1 grammar (pre-epoch/detail) still parses so a cache written by
 // the previous engine keeps rendering across the binary swap.
 func ParseAgents(lines []string) []AgentEntry {
@@ -143,10 +144,10 @@ func ParseAgents(lines []string) []AgentEntry {
 			kind, hasKind = f[len(f)-1], len(f) == 7
 		}
 		if hasKind {
-			if kind != AgentEntryKindService {
+			if kind != AgentEntryKindService && kind != AgentEntryKindSidecar {
 				continue
 			}
-			e.Kind = AgentEntryKindService
+			e.Kind = kind
 		}
 		out = append(out, e)
 	}
@@ -504,12 +505,16 @@ func Frame(in FrameInput) FrameOutput {
 	}
 	agentsByProject := make(map[string][]AgentEntry, len(in.Agents))
 	servicesByProject := map[string][]AgentEntry{}
+	sidecarsByProject := map[string][]AgentEntry{}
 	for _, ag := range in.Agents {
-		if ag.Kind == AgentEntryKindService {
+		switch ag.Kind {
+		case AgentEntryKindService:
 			servicesByProject[ag.Project] = append(servicesByProject[ag.Project], ag)
-			continue
+		case AgentEntryKindSidecar:
+			sidecarsByProject[ag.Project] = append(sidecarsByProject[ag.Project], ag)
+		default:
+			agentsByProject[ag.Project] = append(agentsByProject[ag.Project], ag)
 		}
-		agentsByProject[ag.Project] = append(agentsByProject[ag.Project], ag)
 	}
 
 	var c frameCanvas
@@ -656,6 +661,31 @@ func Frame(in FrameInput) FrameOutput {
 				age:    rowAge(in.Now, sv.Epoch),
 				target: s.ID + token + sv.Session,
 				dim:    !dead,
+			})
+		}
+		// Engine sidecars close the services group (2026-07-31, Chris —
+		// they left the meta line, whose ragged clip kept hiding exactly
+		// which sidecar exists): one row per sidecar container, dim
+		// `sidecar` in the model slot while running, the state word
+		// (stale/stopped) taking the slot otherwise — the same
+		// color-blindness rule the agent rows follow. There is nothing
+		// to attach to, so the click is the project switch the name row
+		// already carries.
+		for _, sc := range sidecarsByProject[s.Project] {
+			glyph, hex, ok := SidecarStyle(sc.State)
+			if !ok {
+				continue
+			}
+			slot := "sidecar"
+			if sc.State != "running" {
+				slot = sc.State
+			}
+			services = append(services, agentRow{
+				dot:    fg(hex) + glyph,
+				name:   sc.Session,
+				model:  slot,
+				target: s.ID,
+				dim:    sc.State == "running",
 			})
 		}
 		if self {

@@ -60,16 +60,32 @@ func (v ProjectView) Token() StateToken {
 	return StateRunning
 }
 
-// State renders the display line for `vibe _state`. Its one consumer
-// is the status bar, which splices the output verbatim — so this is
+// State renders the display cell for `vibe _state`. Its consumers are
+// tmux status lines, which splice the output verbatim — so this is
 // display form, not protocol (the old version-prefixed line leaked
-// "1 ● 2" into the bar): the state glyph, then ▲n only while requests
-// are pending.
+// "1 ● 2" into the bar). Nominal renders EMPTY (2026-07-31, Chris —
+// the always-on ● beside the clock's dim `·` read as "two dots"; the
+// bar now extends the sidebar's own rule that absence of a glyph IS
+// the nominal signal): only ◐/○ and ▲n appear, and a non-empty cell
+// carries its own trailing dim ` · ` separator toward the clock — a
+// tmux format cannot test #() emptiness, so the separator must live
+// and die with the cell.
 func State(v ProjectView) string {
-	if v.Pending > 0 {
-		return fmt.Sprintf("%s ▲%d", v.Token(), v.Pending)
+	cell := ""
+	switch tok := v.Token(); tok {
+	case StateStale, StateStopped:
+		cell = string(tok)
 	}
-	return string(v.Token())
+	if v.Pending > 0 {
+		if cell != "" {
+			cell += " "
+		}
+		cell += fmt.Sprintf("▲%d", v.Pending)
+	}
+	if cell == "" {
+		return ""
+	}
+	return cell + "#[fg=" + PaletteHex("dim") + "] · #[default]"
 }
 
 // Sidebar renders one project's detail for `vibe _sidebar`: the ONE
@@ -80,8 +96,15 @@ func State(v ProjectView) string {
 // roster's agents-only dot). Segments join with ` · `: one per
 // container — bare role when nominal (absence of a glyph IS the
 // nominal signal), ◐/○ prefixed when stale/stopped — with the engine
-// version riding the first (`dev-` hashes stripped to their first 8,
-// release versions as-is), then `▲n` for pending. The frame draws the
+// version riding the first (`dev-` hashes render as `build <hex8>` —
+// 2026-07-31, Chris: the bare hash kept reading as "what even is
+// this?"; `build` names it in `vibe dev status`'s own vocabulary
+// ("dev build: source → binary", and the hex IS the binary digest's
+// first 8) — release versions as-is), then `▲n` for pending. `sidecar:*`
+// containers are NOT segments (2026-07-31, Chris — `sidecar:d…` was
+// the line's ragged clip magnet): they render as rows in the services
+// tree instead (frame.go, the sidecar rows), fed by the `_agents`
+// porcelain's sidecar kind. The frame draws the
 // line dim; the name row above it stays bash-drawn and never appears
 // here. Roles and versions are semi-trusted and go through the
 // encoder like everything else.
@@ -94,10 +117,13 @@ func Sidebar(v ProjectView, width int) []string {
 		if len(rest) > 8 {
 			rest = rest[:8]
 		}
-		ver = rest
+		ver = "build " + rest
 	}
 	var segs []string
-	for i, c := range v.Containers {
+	for _, c := range v.Containers {
+		if strings.HasPrefix(c.Role, "sidecar:") {
+			continue
+		}
 		seg := c.Role
 		switch {
 		case !c.Running:
@@ -105,7 +131,7 @@ func Sidebar(v ProjectView, width int) []string {
 		case !c.InSync:
 			seg = string(StateStale) + " " + seg
 		}
-		if i == 0 && ver != "" {
+		if len(segs) == 0 && ver != "" {
 			seg += " " + ver
 		}
 		segs = append(segs, seg)
@@ -140,6 +166,14 @@ const fleetSep = "\x1f"
 // attachable address of its own.
 const AgentEntryKindService = "svc"
 
+// AgentEntryKindSidecar marks an AgentEntry as an engine sidecar
+// container (2026-07-31): Session is the sidecar's manifest name
+// (role minus the `sidecar:` prefix), State the engine vocabulary
+// running/stale/stopped — Docker truth from the fetch path, no
+// container-side feeder involved. It rides the services group in the
+// sidebar; nothing about it is attachable.
+const AgentEntryKindSidecar = "sidecar"
+
 type AgentEntry struct {
 	Project string // full project ID, the join key for tmux @vibe_project
 	Session string // inner tmux session name — the ADDRESS `vibe attach` takes
@@ -158,7 +192,9 @@ type AgentEntry struct {
 //
 // The leading field is the protocol version — bumped to 2 when epoch
 // and detail joined the row (the signal-density pass); the trailing
-// kind is omitted for agent rows, `svc` for workspace services.
+// kind is omitted for agent rows, `svc` for workspace services,
+// `sidecar` for engine sidecars (a new kind VALUE is not a new shape:
+// an older parser drops unknown-kind lines by design, no bump).
 // Sessions are addresses (or svc window names sharing the same closed
 // charset): a name that could not survive a tmux target, a state-file
 // name, or a mouse-range name is dropped outright rather than escaped
@@ -186,8 +222,8 @@ func Agents(entries []AgentEntry, width int) []string {
 			fleetSep, terminal.Line(e.Model, width),
 			fleetSep, epoch,
 			fleetSep, terminal.Line(e.Detail, width))
-		if e.Kind == AgentEntryKindService {
-			line += fleetSep + AgentEntryKindService
+		if e.Kind == AgentEntryKindService || e.Kind == AgentEntryKindSidecar {
+			line += fleetSep + e.Kind
 		}
 		lines = append(lines, line)
 	}

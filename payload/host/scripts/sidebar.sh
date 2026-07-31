@@ -81,9 +81,29 @@ sidebar_w() { # the one width knob: @vibe_sidebar_w (conf), default 30
 create_in() {
   win="$1"
   self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-  # Full-height split BEFORE the leftmost pane; input off so stray clicks
-  # can't type into the render loop; focus returns to where the user was.
-  pane="$(tmux split-window -fhb -l "$(sidebar_w)" -t "$win" -P -F '#{pane_id}' \
+  # Split BEFORE the agent pane — deliberately NOT full-height (-f):
+  # the host dock owns the full window bottom (2026-07-31, dock.sh),
+  # so the sidebar sits above it, and dropping -f is what makes the
+  # async ensure hooks commute — whichever of dock/sidebar lands
+  # second, the geometry converges on sidebar-above-full-width-dock.
+  # The split targets the first non-chrome pane explicitly: -t WINDOW
+  # would split the ACTIVE pane, which can be the dock. Input off so
+  # stray clicks can't type into the render loop; focus returns to
+  # where the user was.
+  target=""
+  while IFS="$tab" read -r id role; do
+    case "$role" in
+      host | sidebar) ;;
+      *)
+        target="$id"
+        break
+        ;;
+    esac
+  done <<EOF
+$(tmux list-panes -t "$win" -F "#{pane_id}$tab#{@vibe_role}" 2>/dev/null)
+EOF
+  [ -n "$target" ] || target="$win"
+  pane="$(tmux split-window -hb -l "$(sidebar_w)" -t "$target" -P -F '#{pane_id}' \
     "exec bash '$self' render")"
   # No pane-level @vibe_glyph shadow here: the border format role-gates
   # the dot instead. (The old empty-string shadow leaked further than the

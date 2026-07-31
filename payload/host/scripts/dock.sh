@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 #
 # vibe tui host dock toggle — the bottom host-shell pane as an IDE-style
-# panel (VS Code ctrl+` feel). Collapse shrinks the @vibe_role=host pane
+# panel (VS Code ctrl+` feel). The dock owns the FULL window bottom
+# (2026-07-31, Chris — created -f, so the sidebar sits above it): the
+# collapsed strip runs edge to edge and reads as one chrome band with
+# the tray below, instead of a right-column stub T-junctioning into the
+# sidebar border. Collapse shrinks the @vibe_role=host pane
 # of the given window to a single row, so its top border + "host" title
 # remain as a slim chrome bar across the bottom; toggle again restores
 # the previous height. Pure resize — the shell and its state are never
@@ -71,7 +75,7 @@ if [ -z "$pane" ]; then
   size="$(dock_size)"
   [ "$mode" = "ensure" ] && size=1
   sp="$(tmux display-message -p -t "$win" '#{session_path}' 2>/dev/null)"
-  pane="$(tmux split-window -d -v -l "$size" -t "$win" -c "${sp:-$HOME}" -P -F '#{pane_id}' 2>/dev/null)" || exit 0
+  pane="$(tmux split-window -d -f -v -l "$size" -t "$win" -c "${sp:-$HOME}" -P -F '#{pane_id}' 2>/dev/null)" || exit 0
   [ -n "$pane" ] || exit 0
   tmux set-option -p -t "$pane" @vibe_role "host" \; \
     set-option -p -t "$pane" @vibe_title "host" 2>/dev/null

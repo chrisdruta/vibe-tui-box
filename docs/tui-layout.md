@@ -53,11 +53,12 @@ the transient layer, lazygit-pattern):
 │ ▏  ● codex  needs in… │                                           │
 │                       │                                           │
 │  · cold-project       │                                           │
-│                       ├─ host ────────────────────────────────────┤
-│ C-Space·Space palette │ chris@host:~/dev/vibe-tui-box$            │
-├───────────────────────┴───────────────────────────────────────────┤
+│ C-Space·Space palette │                                           │
+├─ host ────────────────┴───────────────────────────────────────────┤
+│ chris@host:~/dev/vibe-tui-box$                                    │
+├───────────────────────────────────────────────────────────────────┤
 │ ─────────────────────────────── rule ─────────────────────────────│
-│ 🥡 vibe-tui-box  ▤  ● claude  ● codex  +           ⌨ · ● · 18:51 │
+│ 🥡 vibe-tui-box  ▤  ● claude  ● codex  +               ⌨ · 6:51 PM│
 └───────────────────────────────────────────────────────────────────┘
 
 prefix+f → ╭─ files · nvim/oil ───╮   (90% popups, container-side via
@@ -70,7 +71,18 @@ figure — the UI adds no outer border; pane borders and the two status
 lines are the only chrome. Left to right, top to bottom: sidebar
 (fleet section with agent rows nested inside each project block under
 its gutter bar, footer hint on the last row), agent pane with
-role-gated border title, host dock collapsed to its 1-row strip, then
+role-gated border title, host dock collapsed to its 1-row strip
+spanning the FULL window bottom (2026-07-31, Chris — the dock was a
+right-column stub whose border T-junctioned into the sidebar's edge,
+and the bottom read as clutter; created with `-f` it runs edge to
+edge under the sidebar too, so strip + rule + tray finally read as
+the one chrome band the bar decision below always claimed. The
+sidebar gave up its full-height `-f` split for this — which is also
+what makes the async dock/sidebar ensure hooks commute: either
+creation order converges on sidebar-above-dock. Cost: an EXPANDED
+dock now shades the sidebar's bottom `@vibe_dock_size` too — accepted,
+the dock is collapsed at rest and a shorter roster while running host
+commands is the lesser eyesore), then
 the two status lines (rule + tray — the second tray tab here is a
 ghost cell: a container-side session with no viewer window yet).
 
@@ -103,13 +115,20 @@ Top-preferrers set `status-position top` in the user conf.
 | `+` cell | clickable — opens the **agents chooser** (launch what's down, reach what's up — "Launch surfaces" below) |
 | cheatsheet | key hints, shown only while prefix held (replaces tabs) |
 | prefix/copy | `⌨` / `copy` indicators (stamped `status-right`) |
-| engine state | state glyph, `▲n` only when pending > 0; click opens the request list (`#(vibe _state)` splice in user range `req`) |
-| clock | `%H:%M` (stamped `status-right`) |
+| engine state | `◐`/`○` and `▲n` only — **nominal renders empty** (2026-07-31); click opens the request list (`#(vibe _state)` splice in user range `req`) |
+| clock | `%l:%M %p` — 12-hour, space-padded hour for stable width (stamped `status-right`; 2026-07-31, and `%-I` is glibc-only while `%l` exists on darwin too) |
 
-The right segments read `⌨ · ● · 18:51` — a dim ` · ` separator
-between prefix/copy, the engine-state cell, and the clock (2026-07-26;
-before, the bare state dot sat flush against the clock and nothing
-signaled it was a distinct, clickable cell). The cheatsheet's
+The right segments read `⌨ · 6:51 PM` at rest and
+`⌨ · ◐ ▲2 · 6:51 PM` under signal. A NON-EMPTY state cell carries its
+own trailing dim ` · ` separator toward the clock (views.go `State` —
+a tmux format cannot test `#()` emptiness, so the separator lives and
+dies with the cell). This supersedes the 2026-07-26 always-on
+separator twice over: that pass fixed the bare state dot sitting
+flush against the clock, but its dim `·` beside the always-on nominal
+`●` read as **two dots** (2026-07-31 dogfood) — the bar now extends
+the sidebar's rule that absence of a glyph IS the nominal signal, and
+the clickable request-list cell simply isn't there until something
+asks for eyes. The cheatsheet's
 inventory includes the stock affordances people forget (`z` zoom, `[`
 scroll/copy, `x` close) alongside the vibe binds — it is the only
 discoverability surface once the prefix is down.
@@ -275,7 +294,9 @@ a byte touches the terminal.
 ### Default arrangement
 
 Agent pane dominant; sidebar far left at `@vibe_sidebar_w` fixed cols,
-one per window kept in lockstep; dock parked collapsed (1 row) on
+one per window kept in lockstep, split above the dock (not full
+height — 2026-07-31, see "The frame"); dock full-width at the window
+bottom, parked collapsed (1 row) on
 session create, expanding to `@vibe_dock_size`; pane borders on top
 with role-gated dot + title.
 
@@ -292,6 +313,17 @@ for. Pane FOREGROUND deliberately stays the terminal's — inner apps
 own their text; bg is the one attribute the chrome needs pinned.
 Light-scheme hosts override both in the user conf, the sanctioned
 customization point.
+
+**Border cells too (2026-07-31, Chris).** The 2026-07-29 pass missed
+that border cells are not pane content: `window-style`'s bg never
+reaches them, so the fg-only `pane-border-style` /
+`pane-active-border-style` left every chrome line — title rows, the
+sidebar's vertical rule, the dock strip — on the emulator's default
+bg. Invisible on a near-black scheme, but pixel-sampling the aubergine
+WSL dogfood screenshot showed `#300a24` bands through every border
+while panes sat on `#0e1421`. All border styles now carry
+`bg=#{@thm_bg}` (pane, active-pane, popup, and the previously unset
+`menu-border-style`), closing the leak class for good.
 
 ### The working spinner (2026-07-29)
 
@@ -524,6 +556,28 @@ the sidebar cannot see them at all.
   if dogfood asks for it.
 - **Chooser: out of scope.** Launching a service IS the hook; there is
   nothing for a launch surface to offer.
+- **Engine sidecars join the tree (2026-07-31, Chris).** The manifest
+  sidecars — the OTHER thing this section's terminology note names —
+  now render as rows closing the services group, after the svc
+  windows: `├ ● dns  sidecar` with the dim `sidecar` qualifier in the
+  model slot while running, the state word (`stale`/`stopped`) taking
+  the slot otherwise, engine glyphs on the dot (● blue nominal like a
+  running svc sibling, ◐ yellow stale, ○ red stopped — SidecarStyle
+  in theme.go). They ride the `_agents` porcelain as a third row kind
+  (`sidecar`), fed from `runtime.Status` Docker truth on the fetch
+  path — no container feeder, so a stopped sidecar stays visible with
+  the dev container down, and a new kind VALUE is not a new porcelain
+  shape (old parsers drop unknown kinds by design). This moved them
+  OUT of the meta line (engine-facts display form above), whose clip
+  kept hiding which sidecar existed. Grouping consequence: a project
+  with a sidecar always has a services group, so the agents-only flat
+  form now belongs only to projects with neither. Clicks: LEFT
+  degrades to the project switch (there is nothing to attach to — a
+  sidecar has no window, no session); no right-click verbs — sidecar
+  lifecycle belongs to `vibe up`/`rebuild`, not the roster. The
+  chooser and tray ignore the kind (agent surfaces only), and rows
+  have no age: `runtime.Status` carries no start time, and inventing
+  one from inspect is not worth the field until dogfood asks.
 
 ### Signal density: age, words, counts, churn (2026-07-29, designed; shipped same day)
 
@@ -851,12 +905,24 @@ never does layout math. The contract the renderer implements:
   container its bare role when nominal (absence of a glyph IS the
   nominal signal; the sidebar's ● belongs to agents alone), `◐ role`
   stale / `○ role` stopped otherwise, the engine version riding the
-  first segment (`dev-` hashes stripped of the prefix and cut to 8:
-  `dev 9766b8d8`; release versions as-is), then `▲n` pending. This
+  first segment (`dev-` hashes stripped of the prefix, cut to 8, and
+  labeled: `dev build 9766b8d8` — 2026-07-31, Chris, the "what even
+  is this hash" dogfood: `build` names it in `vibe dev status`'s own
+  vocabulary, whose binary digest this is the first 8 of; a
+  git-SHA-instead was considered and rejected — the version string
+  participates in content-addressed artifact-record reuse, so git
+  identity would either break the identical-inputs-identical-records
+  invariant or display stale SHAs on reused builds; release versions
+  as-is), then `▲n` pending. This
   supersedes the multi-line detail block with its `● dev · hash` rows
   (2026-07-26, same dogfood as the meta line: the detail's ● read as
   an agent named "dev"), which itself superseded the mode+version
-  header line and the `%-12s`-padded state words.
+  header line and the `%-12s`-padded state words. **`sidecar:*`
+  containers are not segments** (2026-07-31, Chris): at sidebar width
+  the wrap/clip kept landing on exactly the sidecar's name
+  (`sidecar:d…`), so sidecars render as rows in the services tree
+  instead ("Workspace services" below) and the meta line keeps only
+  the dev container's facts.
 - Budgets derive from pane width: text budget is `width−3` (floor 8);
   nested agent rows spend the gutter bar + indent + dot (`budget−4`,
   floor 8) with the dim model suffix dropped first when the name and

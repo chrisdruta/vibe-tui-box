@@ -77,9 +77,10 @@ func (a *App) RenderChooser(ctx context.Context, req ChooserRequest) (RenderResu
 	if req.CacheDir != "" {
 		if agents, err := os.ReadFile(filepath.Join(req.CacheDir, "agents")); err == nil {
 			for _, ag := range tmuxui.ParseAgents(strings.Split(string(agents), "\n")) {
-				// Workspace services never launch and never reattach —
-				// the chooser is an agent surface only.
-				if ag.Project == string(req.Project) && ag.Kind != tmuxui.AgentEntryKindService {
+				// Workspace services and engine sidecars never launch
+				// and never reattach — the chooser is an agent surface
+				// only, so only kindless (agent) rows pass.
+				if ag.Project == string(req.Project) && ag.Kind == "" {
 					in.Agents = append(in.Agents, ag)
 				}
 			}

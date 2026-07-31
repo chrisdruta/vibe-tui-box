@@ -34,12 +34,29 @@ func TestTokens(t *testing.T) {
 }
 
 func TestStateDisplayForm(t *testing.T) {
+	// Nominal is EMPTY — the bar shows nothing next to the clock unless
+	// something asks for eyes (2026-07-31, the two-dots dogfood).
 	v := runningView()
-	if got := State(v); got != "●" {
-		t.Fatalf("state line %q, want bare glyph", got)
+	if got := State(v); got != "" {
+		t.Fatalf("state line %q, want empty when nominal", got)
 	}
+	if got := State(ProjectView{}); got != "" {
+		t.Fatalf("state line %q, want empty with no containers", got)
+	}
+	// A non-empty cell carries its own trailing dim separator toward
+	// the clock — the format string cannot make it conditional.
+	sep := "#[fg=" + PaletteHex("dim") + "] · #[default]"
 	v.Pending = 2
-	if got := State(v); got != "● ▲2" {
+	if got := State(v); got != "▲2"+sep {
+		t.Fatalf("state line %q", got)
+	}
+	v.Containers[0].InSync = false
+	if got := State(v); got != "◐ ▲2"+sep {
+		t.Fatalf("state line %q", got)
+	}
+	v.Pending = 0
+	v.Containers[1].Running = false
+	if got := State(v); got != "○"+sep {
 		t.Fatalf("state line %q", got)
 	}
 }
@@ -54,12 +71,13 @@ func TestSidebarDetailBlock(t *testing.T) {
 			}
 		}
 	}
-	// ONE compact line: a segment per container (bare role when
-	// nominal — no ● here, that dot belongs to agents; the version
-	// rides the first), then ▲n — never the display name (bash-drawn)
-	// and never the old mode/state words.
+	// ONE compact line: a segment per non-sidecar container (bare role
+	// when nominal — no ● here, that dot belongs to agents; the version
+	// rides the first; sidecars render as services-tree rows instead),
+	// then ▲n — never the display name (bash-drawn) and never the old
+	// mode/state words.
 	lines := Sidebar(v, 60)
-	if len(lines) != 1 || lines[0] != "dev v2.0.0 · sidecar:db · ▲1" {
+	if len(lines) != 1 || lines[0] != "dev v2.0.0 · ▲1" {
 		t.Fatalf("sidebar shape: %q", lines)
 	}
 	for _, line := range lines {
@@ -75,16 +93,18 @@ func TestSidebarDetailGlyphsAndDevHash(t *testing.T) {
 	v.Containers[0].InSync = false
 	v.Containers[1].Running = false
 	lines := Sidebar(v, 60)
-	// Stale renders ◐, stopped ○; the dev hash drops its prefix and
-	// cuts to 8. One line, segments joined.
-	if len(lines) != 1 || lines[0] != "◐ dev 9766b8d8 · ○ sidecar:db" {
+	// Stale renders ◐; the dev hash drops its prefix, cuts to 8, and
+	// wears the `build` label (the hex is the binary digest `vibe dev
+	// status` names). The stopped sidecar is NOT a segment — its row
+	// lives in the services tree.
+	if len(lines) != 1 || lines[0] != "◐ dev build 9766b8d8" {
 		t.Fatalf("stale/dev-hash line wrong: %q", lines)
 	}
 	// No containers: mode + version keep the line from rendering
 	// empty.
 	v.Containers = nil
 	lines = Sidebar(v, 60)
-	if len(lines) != 1 || lines[0] != "dev 9766b8d8" {
+	if len(lines) != 1 || lines[0] != "dev build 9766b8d8" {
 		t.Fatalf("containerless line wrong: %q", lines)
 	}
 }

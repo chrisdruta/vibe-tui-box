@@ -480,7 +480,7 @@ func TestTuiBarePathEscapesDisplayName(t *testing.T) {
 	// directive. Strip it and confirm the name portion is exactly the
 	// escaped form — and that collapsing the escaped ## pairs leaves no
 	// lone #( that tmux would execute.
-	prefix := fmt.Sprintf("#(%s _state --project %s) ", a.deps.Executable, reg.Record.ID)
+	prefix := fmt.Sprintf("#(%s _state --project %s)", a.deps.Executable, reg.Record.ID)
 	name := strings.TrimPrefix(status, prefix)
 	if name != tmux.EscapeFormat(evil) {
 		t.Fatalf("display-name portion = %q, want %q", name, tmux.EscapeFormat(evil))

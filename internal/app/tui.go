@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
@@ -239,8 +240,10 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 		return fail(err)
 	}
 	// The display name is operator input landing in a format string
-	// where #() executes commands; escape it like any other data.
-	status := fmt.Sprintf("#(%s _state --project %s) %s", a.deps.Executable, rec.ID, tmux.EscapeFormat(rec.DisplayName))
+	// where #() executes commands; escape it like any other data. No
+	// space between the splice and the name: a non-empty state cell
+	// brings its own trailing separator, and nominal renders nothing.
+	status := fmt.Sprintf("#(%s _state --project %s)%s", a.deps.Executable, rec.ID, tmux.EscapeFormat(rec.DisplayName))
 	if conf != "" {
 		// A server that predates this conf (conf applies at server start
 		// only) still gets current paths stamped onto it.
@@ -279,14 +282,18 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 		}
 		// The tray's right cluster: the v1 prefix/copy flashes, the
 		// clickable engine-state cell (range "req" → request list in the
-		// conf's mouse dispatch), and the clock, dim ` · ` between the
-		// segments (tui-layout.md 2026-07-26: the bare state dot flush
-		// against the clock read as one cell). The display name stays
+		// conf's mouse dispatch), and the 12-hour clock (2026-07-31; %l
+		// space-pads the hour — stable width — and unlike glibc-only
+		// %-I it exists in darwin's strftime too). The state cell owns
+		// the dim ` · ` toward the clock (views.go State: nominal is
+		// EMPTY, so a static separator would dangle — this supersedes
+		// the 2026-07-26 always-on separator, whose dim `·` beside the
+		// always-on ● read as two dots). The display name stays
 		// out — the sidebar and the OS title carry identity; the bar
 		// never repeats it.
 		status = fmt.Sprintf("#{?client_prefix,#[fg=#{@thm_coral}#,bold]⌨#[default]#[fg=#{@thm_dim}] · #[default],}"+
 			"#{?pane_in_mode,#[fg=#{@thm_yellow}#,bold]copy#[default]#[fg=#{@thm_dim}] · #[default],}"+
-			"#[range=user|req]#(%s _state --project %s)#[norange]#[fg=#{@thm_dim}] · %%H:%%M#[default] ",
+			"#[range=user|req]#(%s _state --project %s)#[norange]#[fg=#{@thm_dim}]%%l:%%M %%p#[default] ",
 			a.deps.Executable, rec.ID)
 	}
 	if err := a.deps.Tmux.SetOption(ctx, session, "status-right", status); err != nil {
@@ -496,7 +503,8 @@ func (a *App) RenderState(ctx context.Context, req RenderRequest) (RenderResult,
 //
 // Cost: one container exec per project whose dev container is running
 // (the inspect that answers "running" is the same one _fleet already
-// pays). It is a FETCH-path renderer by design — the sidebar calls it
+// pays) plus one runtime.Status listing per project for the sidecar
+// rows. It is a FETCH-path renderer by design — the sidebar calls it
 // on the engine cadence, never per frame.
 func (a *App) RenderAgents(ctx context.Context, req RenderRequest) (RenderResult, error) {
 	fail := opFail[RenderResult]("_agents", "")
@@ -531,6 +539,33 @@ func (a *App) RenderAgents(ctx context.Context, req RenderRequest) (RenderResult
 				Epoch:   row.Since,
 				Kind:    tmuxui.AgentEntryKindService,
 			})
+		}
+		// Engine sidecars ride it too (2026-07-31): Docker truth, not a
+		// container feeder, so a stopped or stale sidecar stays visible
+		// in the sidebar's services group even with the dev container
+		// down. Session is the manifest name (role minus the prefix);
+		// state folds to the running/stale/stopped vocabulary
+		// SidecarStyle draws.
+		if state, err := a.runtime.Status(ctx, rec); err == nil {
+			for _, c := range state.Containers {
+				name, ok := strings.CutPrefix(c.Role, "sidecar:")
+				if !ok {
+					continue
+				}
+				st := "running"
+				switch {
+				case !c.Running:
+					st = "stopped"
+				case !c.InSync:
+					st = "stale"
+				}
+				entries = append(entries, tmuxui.AgentEntry{
+					Project: string(rec.ID),
+					Session: name,
+					State:   st,
+					Kind:    tmuxui.AgentEntryKindSidecar,
+				})
+			}
 		}
 	}
 	return RenderResult{Lines: tmuxui.Agents(entries, req.Width)}, nil

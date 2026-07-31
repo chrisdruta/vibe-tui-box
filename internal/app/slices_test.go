@@ -575,6 +575,9 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 	a, docker := newTestApp(t)
 	ctx := context.Background()
 	dir := newProject(t)
+	// A manifest sidecar so `_agents` has an engine sidecar row to
+	// carry beside the container-side feeder rows.
+	writeManifest(t, dir, testManifest+"services:\n  cache:\n    image: \"redis:7\"\n")
 	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
 		t.Fatal(err)
 	}
@@ -583,10 +586,11 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 	}
 	rec := mustResolve(t, a, dir)
 
-	// _state is display form (glyph, ▲n only when pending); the running
-	// project with no pending requests renders the bare glyph.
+	// _state is display form (◐/○ and ▲n only — nominal renders EMPTY:
+	// absence of a glyph is the nominal signal on the bar too, so the
+	// running project with no pending requests renders nothing).
 	state, err := a.RenderState(ctx, RenderRequest{Project: rec.ID})
-	if err != nil || len(state.Lines) != 1 || state.Lines[0] != "●" {
+	if err != nil || len(state.Lines) != 1 || state.Lines[0] != "" {
 		t.Fatalf("state render: %+v, %v", state, err)
 	}
 	// _sidebar is display form too: the one compact meta segment line
@@ -614,7 +618,7 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 	docker.ExecOutputs[dockerfake.ExecKey([]string{"bash", model.PayloadAgentPS})] =
 		"agent|working|1700000100|claude - opus - detached|claude|opus\nagent-ghost|idle|0||\nbad name|idle|0||\n"
 	agents, err := a.RenderAgents(ctx, RenderRequest{Width: 80})
-	if err != nil || len(agents.Lines) != 2 {
+	if err != nil || len(agents.Lines) != 3 {
 		t.Fatalf("agents render: %+v, %v", agents, err)
 	}
 	fields = strings.Split(agents.Lines[0], "\x1f")
@@ -622,6 +626,13 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 		fields[2] != "agent" || fields[3] != "working" || fields[4] != "claude" || fields[5] != "opus" ||
 		fields[6] != "1700000100" || fields[7] != "claude - opus - detached" {
 		t.Fatalf("agents porcelain fields: %q", fields)
+	}
+	// The engine sidecar closes the project's listing: Docker truth
+	// (no feeder), the manifest name as session, the sidecar kind
+	// trailing.
+	fields = strings.Split(agents.Lines[2], "\x1f")
+	if len(fields) != 9 || fields[2] != "cache" || fields[3] != "running" || fields[8] != "sidecar" {
+		t.Fatalf("sidecar porcelain fields: %q", fields)
 	}
 	// Scoped to one project, and empty for a project that has none.
 	scoped, err := a.RenderAgents(ctx, RenderRequest{Project: "no-such-project"})
