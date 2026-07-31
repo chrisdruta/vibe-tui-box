@@ -107,19 +107,14 @@ section at the bottom — as revisable records, not fences.
   2026-07-26 — see CHANGELOG; the plugin's marketplace-install
   rejection moved to the decision records.)
 
-- **tui follow-ups (low priority; trimmed 2026-07-31 — the ultrawide
-  lever, a patched tmux pin or upstream knob lifting the compile-time
-  1MB DCS input buffer show-image.sh shrinks under, dropped as least
-  likely to ever matter).** Review-as-split: the preview window proved
-  native sixel ingest in a host pane survives adjacent-pane redraws on
-  the 3.7 floor, and its WINCH repaint covers the resize-clear, so a
-  split variant could ride show-image.sh as-is when wanted
-  (kitty-graphics placeholders remain only a fidelity play, gated on a
-  kitty-capable frontend). (The svg lever shipped 2026-07-31 — and was
-  never the recorded one-liner: the pinned chafa source build had no
-  librsvg, so "chafa handles it" was true of v1's environment, not
-  this build. librsvg2-dev joined the chafa layer, svg joined the
-  extension gate; verify on the next tools-image rebuild.)
+- **Review-as-split (low priority; the last tui lever standing —
+  svg shipped 2026-07-31 and the ultrawide/patched-tmux lever was
+  dropped the same day as least likely to ever matter).** The preview
+  window proved native sixel ingest in a host pane survives
+  adjacent-pane redraws on the 3.7 floor, and its WINCH repaint covers
+  the resize-clear, so a split variant could ride show-image.sh as-is
+  when wanted (kitty-graphics placeholders remain only a fidelity
+  play, gated on a kitty-capable frontend).
 
 ## Decision records (settled calls — revisable with new evidence)
 
