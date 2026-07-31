@@ -12,30 +12,13 @@ section at the bottom — as revisable records, not fences.
   A weaker-trust posture for letting an agent run without a human watching:
   read-only workspace bind (or a disposable worktree bind), a scratch
   agent-state volume so no OAuth tokens or session history ride along, no
-  env file, and network `none` or routed through the egress sidecar (next
-  entry). In engine terms this is a plan variant the engine compiles from a
+  env file, and network `none` or routed through the egress sidecar
+  (graduated to ROADMAP R6, 2026-07-31). In engine terms this is a plan variant the engine compiles from a
   flag — no schema surface — and doctor verifies the reduced posture; per
   the 2026-07-22 security review it also rejects services, extensions, and
   imports. This is the "different boundary per trust level" answer to inner
   sandboxes (see the no-nested-sandboxes decision record). Demand-gated on
   the first real unattended run.
-
-- **Per-project egress visibility (wanted 2026-07-22).** A per-project VIEW
-  of what the container talks to — visibility first, enforcement later; the
-  guardrail-not-jail philosophy applied to the one surface security.md
-  admits is wide open. Sketch: (1) an engine-generated DNS-forwarder
-  sidecar in the project plan whose query log IS the project's domain
-  ledger — name-level, no MITM, no proxy env vars for tools to ignore;
-  (2) an in-container live-socket sampler (`ss`/proc-net, works
-  unprivileged; packet capture is off the table by design — cap_drop ALL
-  removes NET_RAW) attributing current connections to processes;
-  (3) surfaced in the tui — palette window / `vibe exec` trial first, not a
-  top-level verb until it earns harness logic. Accepted blind spots:
-  direct-to-IP and DoH skip the DNS log (the sampler still shows those
-  IPs). Upgrade path: the sidecar seat is exactly where an L7 allowlist
-  proxy would sit (2026-07 research: dynamic allowlists > static
-  iptables) — that enforcement half is what `--jailed`'s network posture
-  consumes.
 
 - **Productize worktrees.** In v2 each worktree that registers becomes its
   own project with its own engine-named agent-state volume, so parallel
@@ -52,24 +35,19 @@ section at the bottom — as revisable records, not fences.
   repository relationship (explicit opt-in only), and removal never
   deletes agent-state volumes automatically.
 
-- **Upstream a codex-plugin sandbox override.** The official
+- **Codex-plugin sandbox patch — permanent maintenance (reframed
+  2026-07-31; was "upstream an override").** The official
   codex-plugin-cc pins per-thread sandbox modes over the app-server API
   (`sandbox: "read-only"` / `"workspace-write"` in its scripts), which
-  `$CODEX_HOME/config.toml` cannot override — so lifecycle.sh
-  post-create rewrites the pins to `danger-full-access` inside the
-  container, exact-matched against plugin v1.0.6 and a no-op on
-  anything else. That patch should die: file/land an upstream option
-  (env var or config key the plugin honors, e.g. a sandbox override for
-  externally-sandboxed environments), then drop `codex_patch_plugin`.
-  Until then, bump the sed patterns when the plugin pin moves.
-
-- **Host conveniences.** v1's install-tmux.sh (pinned tmux source build
-  for hosts below 3.4) and start-ollama.sh. Revive on demand.
-  (2026-07-25: the CONTAINER side of that pin is back — the tools
-  recipe builds v1's exact tmux version+checksum with --enable-sixel;
-  the v2 cutover had silently regressed to distro tmux, reintroducing
-  the sixel-drop v1 pinned against. The host-side installer stays
-  retired.)
+  `$CODEX_HOME/config.toml` cannot override — so `codex_patch_plugin`
+  (agent-plugins.sh, run from lifecycle.sh post-create) rewrites the
+  pins to `danger-full-access` inside the container. The sed patterns
+  are matched against plugin v1.0.6's source, scoped to the
+  openai-codex marketplace tree, and degrade to a logged no-op on
+  source they don't recognize. Filing/landing an upstream option was
+  considered and declined (2026-07-31, Chris); the patch is owned for
+  life: bump the patterns when the plugin pin moves, with the no-op
+  warning as the tripwire.
 
 - **Agent-management follow-ups (recorded 2026-07-26 beside the
   launch-surface contract, tui-layout.md "Launch surfaces").** (1)
@@ -129,33 +107,34 @@ section at the bottom — as revisable records, not fences.
   2026-07-26 — see CHANGELOG; the plugin's marketplace-install
   rejection moved to the decision records.)
 
-- **tui follow-ups (low priority).** Review-as-split
-  — images in a tmux split survive redraws only via kitty-graphics Unicode
-  placeholders, which need the OUTER terminal to speak kitty graphics
-  (Windows Terminal is sixel-only), so the revisit trigger is a
-  kitty-capable frontend becoming real (then test
-  `chafa -f kitty --passthrough tmux`). (2026-07-27: premise
-  weakened — the preview window proved native sixel ingest in a host
-  pane survives adjacent-pane redraws on the 3.7 floor, and its WINCH
-  repaint covers the resize-clear; a split variant could ride
-  show-image.sh as-is. Kitty placeholders remain only a fidelity
-  play, same trigger.) Two preview-window levers recorded from the
-  ship (2026-07-28), both demand-gated: tmux discards sixel DCS over
-  its 1MB input buffer (compile-time), so show-image.sh shrinks to
-  fit — ultrawide fidelity would want a patched pin or an upstream
-  knob; and the image-extension list excludes svg until dogfood asks
-  (chafa handles it, v1's format sniffing had edge cases).
+- **tui follow-ups (low priority; trimmed 2026-07-31 — the ultrawide
+  lever, a patched tmux pin or upstream knob lifting the compile-time
+  1MB DCS input buffer show-image.sh shrinks under, dropped as least
+  likely to ever matter).** Review-as-split: the preview window proved
+  native sixel ingest in a host pane survives adjacent-pane redraws on
+  the 3.7 floor, and its WINCH repaint covers the resize-clear, so a
+  split variant could ride show-image.sh as-is when wanted
+  (kitty-graphics placeholders remain only a fidelity play, gated on a
+  kitty-capable frontend). And svg stays off the image-extension list
+  until dogfood asks (chafa handles it; v1's format sniffing had edge
+  cases).
 
-- **Host editor passthrough (parked 2026-07-26; recipe documented
-  same day).** The original editor-as-surface idea — your own host
-  nvim/config as the viewer — survives as a `~/.config/vibe/tui.conf`
-  rebind of `prefix+f/g`, now documented with an example in
-  usage.md's TUI section. First-classing it (e.g. a preferred-editor
-  knob) stays demand-gated and against the knobs-stay-minimal record.
-
-- **Open flag:** should the root AGENTS.md import a project-level
-  `.vibe/AGENTS.md` the way the future preset template will tell consumer
-  projects to?
+- **Briefing wiring (decided 2026-07-31, unshipped — closes the old
+  root-AGENTS.md-import open flag).** The seeded `.vibe/AGENTS.md`
+  reaches no agent mechanically today: Claude Code auto-reads only
+  CLAUDE.md (AGENTS.md needs an explicit `@AGENTS.md` import or a
+  symlink), and codex reads root AGENTS.md prose but has no import
+  syntax at all. Decided route — file wiring: presets keep seeding the
+  briefing content into `.vibe/AGENTS.md`, and additionally seed a
+  root AGENTS.md pointer/import line plus a one-line `CLAUDE.md`
+  containing `@AGENTS.md`. Claude resolves the import chain
+  mechanically (relative `@` imports, 4 hops); codex follows the root
+  prose pointer at model discretion — accepted. Runtime injection via
+  the claude-plugin's SessionStart hook (engine-owned, zero drift) was
+  the runner-up and remains a claude-side upgrade candidate beside the
+  plugin-skill entry above. This repo's own shim shipped 2026-07-31
+  (root CLAUDE.md → `@AGENTS.md` — dogfood Claude sessions had been
+  flying without the dev guide).
 
 ## Decision records (settled calls — revisable with new evidence)
 

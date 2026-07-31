@@ -38,13 +38,14 @@ flowchart LR
     R1 --> R3["R3 · provenance"]
     R4["R4 · hardening debt ✅"] --> G
     R5["R5 · lifecycle & presets ✅"] --> G
+    R6["R6 · egress visibility"] --> G
     R2 --> G["v1.0"]
     R3 --> G
 ```
 
 R1 unblocks R2 and R3 (an installer and an attestation both need real
-release artifacts to point at). R4 and R5 are independent and can proceed
-in parallel at any time.
+release artifacts to point at). R4 and R5 shipped; R6 is independent of
+the release chain and can proceed at any time.
 
 **Current sequencing (2026-07-28, Chris).** This supersedes the
 2026-07-26 declaration that R1 was the main thread with TUI work
@@ -195,9 +196,37 @@ start and attach to it; "add Playwright to this project" typed at the
 agent produces an approval prompt (with a trusted plan diff) and a
 rebuilt container — the original v1.0 story from the port plan.
 
+## R6 — Per-project egress visibility (scheduled 2026-07-31)
+
+Graduated from the backlog during the 2026-07-31 cleanup pass: the last
+big capability wanted before the v1.0 cut (Chris). A per-project VIEW of
+what the container talks to — visibility first, enforcement later; the
+guardrail-not-jail philosophy applied to the one surface security.md
+admits is wide open.
+
+- [ ] An engine-generated DNS-forwarder sidecar in the project plan
+      whose query log IS the project's domain ledger — name-level, no
+      MITM, no proxy env vars for tools to ignore.
+- [ ] An in-container live-socket sampler (`ss`/proc-net, works
+      unprivileged; packet capture is off the table by design —
+      cap_drop ALL removes NET_RAW) attributing current connections to
+      processes.
+- [ ] Surfaced in the tui — palette window / `vibe exec` trial first,
+      not a top-level verb until it earns harness logic (command
+      surface is ABI).
+
+Accepted blind spots: direct-to-IP and DoH skip the DNS log (the
+sampler still shows those IPs). Upgrade path: the sidecar seat is
+exactly where an L7 allowlist proxy would sit (2026-07 research:
+dynamic allowlists > static iptables) — that enforcement half stays
+post-v1.0, consumed by `--jailed`'s network posture.
+
+**Exit:** the tui can show, per project, the domains the container has
+resolved and the live connections attributed to processes.
+
 ## The v1.0 gate
 
-- [ ] R1–R5 shipped, or consciously cut with the reason recorded in
+- [ ] R1–R6 shipped, or consciously cut with the reason recorded in
       BACKLOG.md (R3 is pre-cut to checksums, above).
 - [ ] **The trust proof: a second, real, non-vibe project** registered
       and worked daily through the engine for a sustained stretch
@@ -231,7 +260,8 @@ pins move when something breaks or a deliberate refresh is wanted.
 ## Deliberately after v1.0
 
 Demand-gated work, detailed in [BACKLOG.md](BACKLOG.md): the reduced-trust
-`vibe agent --jailed` profile, per-project egress visibility, worktree
+`vibe agent --jailed` profile (consuming R6's egress-enforcement
+half), worktree
 productization (the review stack is fully resolved — viewing shipped
 2026-07-26, images 2026-07-27, A/R verdict capture dropped and the
 revdiff trial retired by decision), plus event-driven
