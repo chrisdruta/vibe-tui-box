@@ -45,10 +45,13 @@ tree, so committing (or even building) changes nothing you can run:
 
 ```sh
 vibe dev sync    # rebuild the dev artifact from this source, repin it,
-                 # repoint ~/.vibe/bin/vibe at the fresh build
+                 # repoint ~/.vibe/bin/vibe at the fresh build, AND
+                 # restamp a running tui (@vibe_exe/@vibe_payload_dir):
+                 # host-side pieces land live — sidebars self-exec the
+                 # new script within a slow tick (~30s)
 vibe rebuild     # recreate containers on the new artifact's payload
-                 # (post-create reruns; `vibe up` suffices when only
-                 # host-side pieces changed)
+                 # (post-create reruns; container-side pieces need this
+                 # — nothing restamps a mounted payload)
 ```
 
 When you finish a change the operator will try live, say so and name

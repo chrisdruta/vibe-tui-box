@@ -110,6 +110,7 @@ func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) 
 	if err != nil {
 		return fail(err)
 	}
+	a.restampTui(ctx, updated, binPath)
 	a.bumpTuiSerial(ctx)
 	return DevOnResult{Record: devRecord, Project: updated, Artifact: artifact.Record, BinaryPath: binPath}, nil
 }
@@ -195,6 +196,10 @@ func (a *App) DevOff(ctx context.Context, req DevOffRequest) (DevOffResult, erro
 	// record is inert once the project is in release mode (nothing reads
 	// it) and store GC reclaims it, so a failure here is safe to ignore.
 	_ = os.Remove(a.devRecordPath(rec.ID))
+	// The reverse handoff restamps too. With no release artifact,
+	// BinaryPath is "" and restampTui declines: nothing was handed
+	// back, so the server keeps pointing at the dev binary it has.
+	a.restampTui(ctx, updated, result.BinaryPath)
 	a.bumpTuiSerial(ctx)
 	return result, nil
 }

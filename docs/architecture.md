@@ -286,7 +286,16 @@ engine-pinned golang builder image (resolved to a digest per build and
 recorded), records provenance (source Merkle root — which covers
 go.mod/go.sum — builder digest, output digest), stamps the binary
 `dev-src-<digest12>`, and repoints `~/.vibe/bin/vibe` at the dev build;
-`dev off` hands back to the newest release artifact. A dev artifact can never satisfy a release pin
+`dev off` hands back to the newest release artifact. Every shim
+handoff (`dev on`/`sync`, `dev off`, `update` with a pinned project)
+also lands on a running tui server: it re-materializes the conf and
+restamps `@vibe_exe` (the symlink, never a resolved digest path) and
+`@vibe_payload_dir` before the serial bump, so engine calls and
+click-time script resolution follow immediately and sidebar render
+loops self-exec on payload-dir drift — without this, a sync changed
+nothing a live server executes until the next `vibe tui` join
+(fire-and-forget like the serial: a dead server never fails the
+sync). A dev artifact can never satisfy a release pin
 or another project's record, and no broker action, rebuild, or lifecycle
 step can invoke `dev sync`.
 

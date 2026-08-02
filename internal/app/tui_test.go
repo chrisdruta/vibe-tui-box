@@ -233,7 +233,7 @@ func TestMaterializeTuiConfAppendsUserConf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, hostDir, err := a.materializeTuiConf(ctx, rec)
+	path, hostDir, err := a.materializeTuiConf(ctx, rec, a.deps.Executable)
 	if err != nil {
 		t.Fatal(err)
 	}

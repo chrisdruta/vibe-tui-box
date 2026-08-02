@@ -153,6 +153,12 @@ func (a *App) Update(ctx context.Context, req UpdateRequest) (UpdateResult, erro
 	if err != nil {
 		return fail(err)
 	}
+	// Unpinned (no registered project here) leaves the live server
+	// alone: there is no record to materialize a conf from, and the
+	// next `vibe tui` join stamps as it always has.
+	if pinned != nil {
+		a.restampTui(ctx, *pinned, binPath)
+	}
 	a.bumpTuiSerial(ctx)
 	return UpdateResult{Artifact: artifact.Record, Pinned: pinned, BinaryPath: binPath}, nil
 }

@@ -35,6 +35,15 @@ func seedReleaseArtifact(t *testing.T, a *App, binary string) store.ArtifactReco
 	if err := os.WriteFile(binPath, []byte(binary), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// A host tui conf, like every real release artifact carries: the
+	// reverse handoff (dev off) restamps the live server from it.
+	confPath := filepath.Join(staging, store.ArtifactPayloadRelPath, "host", "tmux-tui.conf")
+	if err := os.MkdirAll(filepath.Dir(confPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(confPath, []byte("# release conf body\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	digest, _, err := store.DigestTree(staging)
 	if err != nil {
 		t.Fatal(err)
@@ -369,9 +378,14 @@ func newEngineRepo(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module "+EngineModule+"\n\ngo 1.26\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Reuse the preset-payload fixture layout on disk.
+	// Reuse the preset-payload fixture layout on disk. The host conf
+	// makes dev artifacts restamp-eligible (restampTui materializes it).
 	script := "#!/bin/sh\nexec sleep infinity\n"
-	files := map[string]string{"payload/container/entrypoint.sh": script}
+	conf := "# dev conf body\nset -g status on\n"
+	files := map[string]string{
+		"payload/container/entrypoint.sh": script,
+		"payload/host/tmux-tui.conf":      conf,
+	}
 	for p, content := range files {
 		full := filepath.Join(dir, filepath.FromSlash(p))
 		os.MkdirAll(filepath.Dir(full), 0o755)
@@ -379,7 +393,10 @@ func newEngineRepo(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	manifest, err := payloadManifestFor(map[string]string{"container/entrypoint.sh": script})
+	manifest, err := payloadManifestFor(map[string]string{
+		"container/entrypoint.sh": script,
+		"host/tmux-tui.conf":      conf,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -516,6 +533,109 @@ func TestDevModeFlow(t *testing.T) {
 	otherRec := mustResolve(t, a, other)
 	if otherRec.Mode != registry.ModeRelease {
 		t.Fatal("dev mode leaked to another project")
+	}
+}
+
+// TestBinaryHandoffRestampsTui pins the live half of the shim handoff
+// (2026-08-01, Chris — a dev sync landed and NOTHING in the running UI
+// changed): repointing the `vibe` symlink must also restamp the live
+// server's @vibe_exe (the symlink itself, never this process's resolved
+// path) and @vibe_payload_dir (the fresh artifact's payload host dir),
+// bump the engine serial only AFTER both so the refetch it triggers
+// already runs the new binary, and re-materialize the conf in agreement
+// with the stamps so a prefix+R re-source cannot revert them.
+func TestBinaryHandoffRestampsTui(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newEngineRepo(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	docker.CreateHook = func(req dockerapi.CreateRequest) {
+		if req.Labels["dev.vibe.role"] != "dev-builder" {
+			return
+		}
+		for _, m := range req.Mounts {
+			if m.Target == "/out" {
+				os.WriteFile(filepath.Join(m.Source, "vibe"), []byte("DEV-BINARY"), 0o755)
+			}
+		}
+	}
+	a.deps.Prompt = terminal.AutoApprove{Approve: true}
+	rt := &recordingTmux{}
+	a.deps.Tmux = rt
+
+	on, err := a.DevOn(ctx, DevOnRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := rt.globalValue("@vibe_exe"); !ok || v != on.BinaryPath {
+		t.Fatalf("@vibe_exe = %q (%v), want the handed-off symlink %q", v, ok, on.BinaryPath)
+	}
+	lease, err := a.deps.Store.Open(ctx, store.ArtifactObject, on.Artifact.Digest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDir := filepath.Join(lease.Object.Path, store.ArtifactPayloadRelPath, "host")
+	lease.Close()
+	if v, ok := rt.globalValue("@vibe_payload_dir"); !ok || v != wantDir {
+		t.Fatalf("@vibe_payload_dir = %q (%v), want %q", v, ok, wantDir)
+	}
+	// The stamps land before the serial bump in recorded order.
+	exeAt, serialAt := -1, -1
+	for i, g := range rt.globals {
+		switch g.Option {
+		case "@vibe_exe":
+			exeAt = i
+		case "@vibe_engine_serial":
+			if serialAt == -1 {
+				serialAt = i
+			}
+		}
+	}
+	if exeAt == -1 || serialAt == -1 || exeAt > serialAt {
+		t.Fatalf("restamp must precede the serial bump: %+v", rt.globals)
+	}
+	// The regenerated conf's prologue carries the same exe and payload
+	// dir the options got.
+	conf, err := os.ReadFile(filepath.Join(a.deps.Layout.State, "tui", "tmux-tui.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{on.BinaryPath, wantDir, "# dev conf body"} {
+		if !strings.Contains(string(conf), want) {
+			t.Fatalf("materialized conf missing %q:\n%s", want, conf)
+		}
+	}
+	// And it is re-sourced into the live server — the attach-time heal
+	// for the operator who is already attached.
+	if len(rt.sourced) != 1 || !strings.HasSuffix(rt.sourced[0], "tmux-tui.conf") {
+		t.Fatalf("conf not re-sourced: %v", rt.sourced)
+	}
+
+	// The reverse handoff restamps from the release artifact.
+	release := seedReleaseArtifact(t, a, "RELEASE-BINARY")
+	off, err := a.DevOff(ctx, DevOffRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := rt.globalValue("@vibe_exe"); !ok || v != off.BinaryPath {
+		t.Fatalf("dev off @vibe_exe = %q (%v), want %q", v, ok, off.BinaryPath)
+	}
+	lease, err = a.deps.Store.Open(ctx, store.ArtifactObject, release.Digest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDir = filepath.Join(lease.Object.Path, store.ArtifactPayloadRelPath, "host")
+	lease.Close()
+	if v, _ := rt.globalValue("@vibe_payload_dir"); v != wantDir {
+		t.Fatalf("dev off @vibe_payload_dir = %q, want %q", v, wantDir)
+	}
+
+	// A dead server never fails the operation that did the real work.
+	a.deps.Tmux = &recordingTmux{fail: true}
+	if _, err := a.DevOn(ctx, DevOnRequest{Dir: dir}); err != nil {
+		t.Fatalf("dead-server restamp failed the sync: %v", err)
 	}
 }
 

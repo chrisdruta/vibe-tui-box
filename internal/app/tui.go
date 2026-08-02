@@ -218,7 +218,7 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 			return fail(err)
 		}
 	}
-	conf, payloadHostDir, err := a.materializeTuiConf(ctx, rec)
+	conf, payloadHostDir, err := a.materializeTuiConf(ctx, rec, a.deps.Executable)
 	if err != nil {
 		return fail(err)
 	}
@@ -394,8 +394,11 @@ func (a *App) reapAgentClients(ctx context.Context, rec registry.Record) {
 // returns it beside the artifact's payload host dir, which the conf's
 // scripts resolve through (@vibe_payload_dir). An artifact without the
 // conf — or no artifact at all — yields "" and the TUI runs bare, as
-// before the conf existed.
-func (a *App) materializeTuiConf(ctx context.Context, rec registry.Record) (string, string, error) {
+// before the conf existed. exe is the engine path the prologue stamps
+// as @vibe_exe: `vibe tui` passes its own executable, restampTui the
+// freshly repointed shim symlink — the prologue must agree with the
+// live options or a prefix+R re-source would revert them.
+func (a *App) materializeTuiConf(ctx context.Context, rec registry.Record, exe string) (string, string, error) {
 	artifact, release, err := a.loadArtifact(ctx, rec)
 	if err != nil {
 		return "", "", err
@@ -418,7 +421,7 @@ func (a *App) materializeTuiConf(ctx context.Context, rec registry.Record) (stri
 	}
 	prologue := fmt.Sprintf("# Materialized by `vibe tui` from artifact %s; regenerated every run.\n"+
 		"set-environment -g VIBE_TUI_CONF \"%s\"\nset -g @vibe_exe \"%s\"\nset -g @vibe_payload_dir \"%s\"\n\n",
-		artifact.Record.Digest, path, a.deps.Executable, hostDir)
+		artifact.Record.Digest, path, exe, hostDir)
 	// The sanctioned customization point (docs/tui-layout.md): the user
 	// conf loads after the payload body so it wins, -q keeps a missing
 	// file silent, and the store-owned conf is never forked. Home is the
