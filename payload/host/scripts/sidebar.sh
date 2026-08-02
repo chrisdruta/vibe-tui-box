@@ -202,6 +202,22 @@ click)
       here="$(cd "$(dirname "$0")" && pwd)"
       exec bash "$here/agent-open.sh" "$client" "${sid%%:*}" -s "${sid#*:svcx-}"
       ;;
+    *:svcfold)
+      # services-HEADER click: fold/unfold that block's services tree
+      # (frame.go rosterBlock renders the collapsed header from the S
+      # record's trailing flag). State is a session option so each
+      # project folds alone and the preference dies with the session;
+      # the serial bump repaints every sidebar on its next 2s tick —
+      # the same channel every dot write rides.
+      sess="${sid%%:*}"
+      if [ "$(tmux show-options -qv -t "$sess" @vibe_svc_fold 2>/dev/null)" = "1" ]; then
+        tmux set-option -t "$sess" -u @vibe_svc_fold 2>/dev/null
+      else
+        tmux set-option -t "$sess" @vibe_svc_fold 1 2>/dev/null
+      fi
+      tmux set-option -g @vibe_state_serial "$$$RANDOM" 2>/dev/null
+      exit 0
+      ;;
     *:dead-*)
       # dead viewer-less row: the ✗ is signal, not reach — LEFT-click
       # degrades to the project switch (an attach would refuse); the
@@ -364,7 +380,7 @@ frame() {
   out="$(
     {
       printf 'G%s%s\n' "$us" "$geo"
-      tmux list-sessions -F "S$us#{session_id}$us#{?#{@vibe_name},#{@vibe_name},#{session_name}}$us#{session_path}$us#{@vibe_project}" 2>/dev/null
+      tmux list-sessions -F "S$us#{session_id}$us#{?#{@vibe_name},#{@vibe_name},#{session_name}}$us#{session_path}$us#{@vibe_project}$us#{@vibe_svc_fold}" 2>/dev/null
       tmux list-windows -a -F "W$us#{session_id}$us#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}$us#{@vibe_state}$us#{@vibe_session}$us#{@vibe_state_epoch}" 2>/dev/null
     } | "$exe" _frame --cache "$cache_dir" --spin 2>/dev/null
   )" || return 0

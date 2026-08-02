@@ -662,6 +662,7 @@ func TestParseFrameData(t *testing.T) {
 	data := strings.Join([]string{
 		"G" + us + "42" + us + "20" + us + "$7",
 		"S" + us + "$7" + us + "alpha" + us + "/work/a" + us + "projid",
+		"S" + us + "$8" + us + "beta" + us + "/work/b" + us + "projid2" + us + "1", // six fields: folded services
 		"W" + us + "$7" + us + "●" + us + "#9ece6a" + us + "1" + us + "@1" + us + "claude" + us + "1" + us + "opus" + us + "attention" + us + "agent" + us + "1700000042",
 		"W" + us + "$7" + us + "●" + us + "#5c6b96" + us + "0" + us + "@4" + us + "old" + us + "0" + us + "", // nine fields: pre-state artifact
 		"W" + us + "$999" + us + "●" + us + "x" + us + "0" + us + "@2" + us + "orphan" + us + "0" + us + "",  // unknown session: dropped
@@ -672,8 +673,13 @@ func TestParseFrameData(t *testing.T) {
 	if in.Width != 42 || in.Height != 20 || in.SelfSession != "$7" {
 		t.Fatalf("geometry: %+v", in)
 	}
-	if len(in.Sessions) != 1 || len(in.Sessions[0].Windows) != 2 {
+	if len(in.Sessions) != 2 || len(in.Sessions[0].Windows) != 2 {
 		t.Fatalf("sessions: %+v", in.Sessions)
+	}
+	// The five-field S record (a pre-fold sidebar.sh) parses unfolded;
+	// the six-field one carries the flag.
+	if in.Sessions[0].SvcFold || !in.Sessions[1].SvcFold {
+		t.Fatalf("svc_fold: %+v", in.Sessions)
 	}
 	w := in.Sessions[0].Windows[0]
 	if w.Name != "claude" || !w.Attn || !w.Active || w.Model != "opus" || w.ID != "@1" ||
@@ -751,8 +757,13 @@ func TestFrameServiceRows(t *testing.T) {
 	if !strings.Contains(rows[3], "└ ") || !strings.Contains(rows[3], "claude") {
 		t.Fatalf("agent row closes its group: %q", rows[3])
 	}
-	if !strings.Contains(rows[4], "services") || clicks[4] != "" {
+	// The services header carries the fold toggle — the one header
+	// that clicks (sidebar.sh `:svcfold`); expanded it wears no ▸.
+	if !strings.Contains(rows[4], "services") || clicks[4] != "$1:svcfold" {
 		t.Fatalf("services header row: %q click=%q", rows[4], clicks[4])
+	}
+	if strings.Contains(rows[4], "▸") {
+		t.Fatalf("an expanded services header must not wear the fold tell: %q", rows[4])
 	}
 	if !strings.Contains(rows[5], "├ ") || !strings.Contains(rows[5], "web") || strings.Contains(rows[5], "svc ") {
 		t.Fatalf("running service row, no svc qualifier: %q", rows[5])
@@ -803,6 +814,71 @@ func TestFrameServiceRows(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("service row target must survive an open services viewer")
+	}
+}
+
+func TestFrameServicesFold(t *testing.T) {
+	in := FrameInput{
+		Width: 30, Height: 24, SelfSession: "$1",
+		Sessions: []FrameSession{
+			{ID: "$1", Name: "alpha", Path: "/a", Project: "projalpha", SvcFold: true},
+		},
+		Agents: []AgentEntry{
+			{Project: "projalpha", Session: "agent", State: "working", CLI: "claude", Model: "opus"},
+			{Project: "projalpha", Session: "web", State: "running", Kind: AgentEntryKindService},
+			{Project: "projalpha", Session: "db", State: "running", Kind: AgentEntryKindService},
+		},
+	}
+	out := Frame(in)
+	rows := frameRows(t, out.Body)
+	clicks := mapRows(t, out.Map)
+
+	// Folded, the group is exactly its counted header wearing the ▸
+	// tell, still the toggle target — the way back is the way in. The
+	// agents group is untouched.
+	if !strings.Contains(rows[2], "agents · 1") || !strings.Contains(rows[3], "claude") {
+		t.Fatalf("agents group must survive the fold: %q / %q", rows[2], rows[3])
+	}
+	if !strings.Contains(rows[4], "services · 2 ▸") || clicks[4] != "$1:svcfold" {
+		t.Fatalf("folded services header: %q click=%q", rows[4], clicks[4])
+	}
+	for _, content := range rows {
+		if strings.Contains(content, "web") || strings.Contains(content, "db") {
+			t.Fatalf("folded service entries must not render: %q", content)
+		}
+	}
+	// All-nominal entries fold quiet: the header keeps the dim look.
+	if !strings.Contains(out.Body, fg(PaletteHex("dim"))+"services · 2 ▸") {
+		t.Fatal("a fold hiding only nominal rows keeps the dim header")
+	}
+
+	// A fold never quiets the glance: hiding a SIGNAL row (a dead
+	// service) renders the header bright.
+	in.Agents[2].State = "exited(137)"
+	out = Frame(in)
+	if !strings.Contains(out.Body, fg(PaletteHex("fg"))+"services · 2 ▸") {
+		t.Fatal("a fold hiding a signal row must render its header bright")
+	}
+
+	// Folded entries leave the overflow math too: the block that
+	// overflowed expanded (TestFrameGroupedOverflowCountsEntries) fits
+	// folded, and the agent rows come back.
+	in = FrameInput{Width: 30, Height: 8, SelfSession: "$1",
+		Sessions: []FrameSession{{ID: "$1", Name: "alpha", Path: "/a", Project: "p", SvcFold: true}},
+		Agents: []AgentEntry{
+			{Project: "p", Session: "agent", State: "working", CLI: "claude"},
+			{Project: "p", Session: "s1", State: "running", Kind: AgentEntryKindService},
+			{Project: "p", Session: "s2", State: "running", Kind: AgentEntryKindService},
+			{Project: "p", Session: "s3", State: "running", Kind: AgentEntryKindService},
+			{Project: "p", Session: "s4", State: "running", Kind: AgentEntryKindService},
+		}}
+	joined := ""
+	for _, content := range frameRows(t, Frame(in).Body) {
+		joined += content + "\n"
+	}
+	if strings.Contains(joined, "more") || !strings.Contains(joined, "claude") ||
+		!strings.Contains(joined, "services · 4 ▸") {
+		t.Fatalf("folding must reclaim the overflowed rows: %q", joined)
 	}
 }
 

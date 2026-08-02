@@ -41,6 +41,10 @@ type FrameSession struct {
 	Path    string // session_path; the caller resolves Branch from it
 	Branch  string
 	Project string // full project ID (@vibe_project), join key for engine facts
+	// SvcFold collapses this block's services tree to its counted
+	// header (@vibe_svc_fold, toggled by the header's own click —
+	// sidebar.sh click mode). Per session, so each project folds alone.
+	SvcFold bool
 	Windows []FrameWindow
 }
 
@@ -158,7 +162,7 @@ func ParseAgents(lines []string) []AgentEntry {
 // `vibe _frame`: US-separated, line-typed records.
 //
 //	G<US>width<US>height<US>self_session_id
-//	S<US>session_id<US>name<US>path<US>project_id
+//	S<US>session_id<US>name<US>path<US>project_id[<US>svc_fold]
 //	W<US>session_id<US>glyph<US>dot_hex<US>attn<US>window_id<US>window_name<US>active<US>model[<US>state<US>session[<US>epoch]]
 //
 // Windows attach to their session by id; records for unknown sessions
@@ -167,7 +171,9 @@ func ParseAgents(lines []string) []AgentEntry {
 // sidebar.sh older than the nested roster feeds nine and the frame
 // degrades to glyph-only signal detection (windowSignal); one older
 // than the signal-density pass feeds eleven and the row just has no
-// age.
+// age. The S record's trailing svc_fold is optional the same way: a
+// sidebar.sh older than the services fold feeds five and no block
+// folds.
 func ParseFrameData(data string) FrameInput {
 	in := FrameInput{Width: 30, Height: 24}
 	index := map[string]int{}
@@ -182,10 +188,11 @@ func ParseFrameData(data string) FrameInput {
 				in.Height = h
 			}
 			in.SelfSession = f[3]
-		case f[0] == "S" && len(f) == 5 && f[1] != "":
+		case f[0] == "S" && (len(f) == 5 || len(f) == 6) && f[1] != "":
 			index[f[1]] = len(in.Sessions)
 			in.Sessions = append(in.Sessions, FrameSession{
 				ID: f[1], Name: f[2], Path: f[3], Project: f[4],
+				SvcFold: len(f) == 6 && f[5] == "1",
 			})
 		case f[0] == "W" && len(f) >= 9 && f[1] != "":
 			i, ok := index[f[1]]
@@ -287,6 +294,7 @@ type agentRow struct {
 	header bool
 	count  int
 	conn   string
+	folded bool // a collapsed group's header: wears the ▸ tell
 	hide   bool // folded into the `… +n` overflow slot (rosterBlock)
 	// spin marks a working row's dot for the sub-tick overlay: the
 	// frame reports its drawn coordinates so the sidebar can animate
@@ -360,11 +368,29 @@ func rowAge(now, epoch int64) string {
 // up — a signal row is never the hidden one while a quiet one shows
 // (docs/tui-layout.md "Signal density"); headers always render, since
 // their counts stand in for whatever folded.
-func rosterBlock(agents, services []agentRow, avail int) []agentRow {
+// svcFold collapses the services group to its header (the header's
+// click toggles @vibe_svc_fold): the entries leave the layout AND the
+// overflow math, so folding a long tree is also what buys a crowded
+// block its agent rows back; the header's count keeps saying what
+// folded, and its ▸ says the hiding was chosen, not overflow. Headers
+// reuse the dim flag (dim is a header's nominal look): a folded group
+// hiding a SIGNAL row — a dead service, a stale sidecar — renders its
+// header bright, so the fold can quiet the tree but never the glance.
+func rosterBlock(agents, services []agentRow, avail int, svcFold bool) []agentRow {
 	if avail <= 0 {
 		return nil
 	}
 	grouped := len(services) > 0
+	folded := grouped && svcFold
+	svcCount, svcSignal := len(services), false
+	if folded {
+		for _, r := range services {
+			if !r.dim {
+				svcSignal = true
+			}
+		}
+		services = nil
+	}
 	headers := 0
 	if grouped {
 		headers = 1
@@ -398,7 +424,7 @@ func rosterBlock(agents, services []agentRow, avail int) []agentRow {
 			return
 		}
 		if grouped {
-			out = append(out, agentRow{name: name, header: true, count: len(rows)})
+			out = append(out, agentRow{name: name, header: true, count: len(rows), dim: true})
 		}
 		var vis []agentRow
 		for _, r := range rows {
@@ -412,9 +438,14 @@ func rosterBlock(agents, services []agentRow, avail int) []agentRow {
 		out = append(out, vis...)
 	}
 	addGroup("agents", agents)
-	addGroup("services", services)
+	if folded {
+		out = append(out, agentRow{name: "services", header: true, count: svcCount,
+			folded: true, dim: !svcSignal})
+	} else {
+		addGroup("services", services)
+	}
 	if hidden > 0 {
-		out = append(out, agentRow{name: fmt.Sprintf("… +%d more", hidden), header: true})
+		out = append(out, agentRow{name: fmt.Sprintf("… +%d more", hidden), header: true, dim: true})
 	}
 	if len(out) > avail {
 		out = out[:avail]
@@ -747,13 +778,28 @@ func Frame(in FrameInput) FrameOutput {
 		if avail < 0 {
 			avail = 0
 		}
-		for _, a := range rosterBlock(agents, services, avail) {
+		for _, a := range rosterBlock(agents, services, avail, s.SvcFold) {
 			if a.header {
 				label := a.name
 				if a.count > 0 {
 					label = fmt.Sprintf("%s · %d", a.name, a.count)
 				}
-				c.putAt(row, gutter+"  "+cDim+terminal.Line(label, amax)+ansiReset, "")
+				if a.folded {
+					label += " ▸"
+				}
+				// The services header is the fold toggle (the `:svcfold`
+				// target flips @vibe_svc_fold in sidebar.sh's click mode);
+				// the agents header and the overflow slot stay render-only.
+				target := ""
+				if a.name == "services" {
+					target = s.ID + ":svcfold"
+				}
+				// A bright header is a folded group hiding a signal row.
+				hcol := cDim
+				if !a.dim {
+					hcol = cFG
+				}
+				c.putAt(row, gutter+"  "+hcol+terminal.Line(label, amax)+ansiReset, target)
 				row++
 				continue
 			}

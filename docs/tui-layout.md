@@ -578,6 +578,21 @@ the sidebar cannot see them at all.
   chooser and tray ignore the kind (agent surfaces only), and rows
   have no age: `runtime.Status` carries no start time, and inventing
   one from inspect is not worth the field until dogfood asks.
+- **The tree folds (2026-08-01, Chris).** The `services` header is
+  the one header that clicks: LEFT toggles `@vibe_svc_fold` on the
+  block's session, collapsing the group to its counted header —
+  `services · 3 ▸`, the ▸ saying the hiding was chosen, not overflow
+  — and back. State is a session option (each project folds alone,
+  the preference dies with the session), fed to the renderer as the
+  S record's optional trailing field, so `rosterBlock` drops the
+  entries from the layout AND the overflow math — folding a long
+  tree is also what buys a crowded block its agent rows back. One
+  carve-out honors the roster law (signal styles, never hides): a
+  fold hiding a signal row — a dead service, a stale sidecar —
+  renders its header BRIGHT instead of dim, so the ✗ can leave the
+  pane but never the glance. The right-click menu ignores the
+  header's target (no verbs on a label), and the toggle repaints
+  every sidebar through the ordinary `@vibe_state_serial` bump.
 
 ### Signal density: age, words, counts, churn (2026-07-29, designed; shipped same day)
 
