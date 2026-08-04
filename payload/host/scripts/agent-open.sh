@@ -112,8 +112,11 @@ path="$(tmux display-message -p -t "$sess" '#{session_path}' 2>/dev/null)"
 # definition for every launch door — app.stampViewerWindow).
 [ -n "$client" ] && tmux switch-client -c "$client" -t "$sess" 2>/dev/null
 if [ -n "$window" ]; then
-  tmux new-window -t "$sess" -c "$path" -n "$name" "exec '$exe' attach '$name' '$window'" 2>/dev/null
+  tmux new-window -t "$sess" -c "$path" -n "$name" "exec '$exe' attach '$name' '$window'" 2>/dev/null && exit 0
 else
-  tmux new-window -t "$sess" -c "$path" -n "$name" "exec '$exe' attach '$name'" 2>/dev/null
+  tmux new-window -t "$sess" -c "$path" -n "$name" "exec '$exe' attach '$name'" 2>/dev/null && exit 0
 fi
+# A failed spawn used to be silent — the one launch door without a
+# toast (2026-08-04 feedback-convention pass).
+[ -n "$client" ] && tmux display-message -c "$client" "vibe: viewer spawn failed — $name" 2>/dev/null
 exit 0

@@ -11,6 +11,10 @@
 # Usage: popup.sh [-w WIDTH] [-h HEIGHT] CLIENT EXE VERB [ARGS…]
 set -euo pipefail
 
+# Two sizes, one convention (2026-08-04): the 85%x70% default for
+# reading surfaces (requests, ps, egress, doctor), and callers pass
+# -w 70% -h 45% for short confirmations (stop, park). Review popups
+# (review.sh) own their full-bleed 90%x90% separately.
 width="85%" height="70%"
 while [ $# -gt 0 ]; do
   case "$1" in

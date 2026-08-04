@@ -545,10 +545,12 @@ the sidebar cannot see them at all.
   `vibe attach services WINDOW`, an existing viewer via a backgrounded
   `vibe _svcselect` (agent-session.sh `svc-select`; the exec-per-click
   cost was the wrong thing to save). RIGHT serves the per-row
-  menu the sidebar already speaks: live rows get **stop**
-  (`kill-window` — honest and cheap; services are the operator's own
-  workload, so the "never drive agents" cession does not apply), dead
-  rows get **dismiss** (clear the corpse). **Restart is rejected for
+  menu the sidebar already speaks: live rows get **stop**, dead rows
+  get **dismiss** (clear the corpse) — one operation underneath
+  (`vibe _svcstop` → agent-session.sh `svc-kill`, a kill-window with
+  the engine's address vetting; services are the operator's own
+  workload, so the "never drive agents" cession does not apply),
+  labeled by intent. **Restart is rejected for
   now**: the command lives only in post-start.sh, and running an
   engine lifecycle hook out-of-band is a line not worth blurring — the
   recorded follow-on is a per-project "re-run post-start" palette verb

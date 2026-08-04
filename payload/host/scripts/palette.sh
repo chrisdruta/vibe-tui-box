@@ -40,19 +40,19 @@ set --
 exec tmux display-menu "$@" -M -O -T " vibe " \
   "agents" a "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/chooser.sh' '#{client_name}'\"" \
   "restart default agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\"" \
-  "stop default agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 40% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \
+  "stop default agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 45% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \
   "container shell" s "new-window -c \"#{session_path}\" -n shell \"'#{@vibe_exe}' shell\"" \
   "attach main proc" e "new-window -c \"#{session_path}\" -n attach \"'#{@vibe_exe}' attach\"" \
   "host shell" h "new-window -c \"#{session_path}\"" \
   "" \
   "project sidebar" b "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/sidebar.sh' toggle '#{window_id}'\"" \
   "host dock" t "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/dock.sh' '#{window_id}'\"" \
-  "clip image → agent" v "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/clip-to-pane.sh' '#{window_id}'\"" \
-  "switch project" o "choose-tree -Zs" \
+  "clip image → agent" v "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/clip-to-pane.sh' '#{window_id}' '#{client_name}'\"" \
+  "projects (live)" o "choose-tree -Zs" \
   "files (nvim)" f "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/review.sh' '#{client_name}' '#{@vibe_exe}' '#{session_path}' files\"" \
   "git (lazygit)" g "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/review.sh' '#{client_name}' '#{@vibe_exe}' '#{session_path}' git\"" \
   "requests" u "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' request list\"" \
-  "agents (vibe ps)" p "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' ps\"" \
+  "ps · all projects" p "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' ps\"" \
   "network egress" E "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' _egress\"" \
   "doctor" D "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' doctor\"" \
   "" \

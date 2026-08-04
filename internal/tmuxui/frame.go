@@ -848,7 +848,9 @@ func Frame(in FrameInput) FrameOutput {
 	// cold-start pointer to the palette — the cheatsheet only appears
 	// once the prefix is already known — and, height-gated under it,
 	// the review-stack keys (the product's best surface and, before
-	// the prefix is known, its least discoverable). The second row
+	// the prefix is known, its least discoverable). The three-surface
+	// curation rule lives at the conf's @vibe_cheat: footer = discovery
+	// pointer, cheat = daily-loop keys, palette = complete. The second row
 	// renders only when the frame has slack, so a short pane loses the
 	// new hint, never the old one. They own the last rows, so the
 	// content clip lifts for exactly these writes.

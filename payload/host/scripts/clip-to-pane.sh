@@ -15,9 +15,16 @@
 set -euo pipefail
 
 window="${1:-}"
+client="${2:-}"
 
+# Toasts target the invoking client (the shared convention — an
+# untargeted display-message lands on tmux's guess of a client).
 note() {
-  tmux display-message "$1" 2>/dev/null || true
+  if [ -n "$client" ]; then
+    tmux display-message -c "$client" "$1" 2>/dev/null || true
+  else
+    tmux display-message "$1" 2>/dev/null || true
+  fi
 }
 
 # The invoking window's session path, straight from tmux (no

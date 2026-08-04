@@ -40,6 +40,21 @@ The v1 line and its history remain in git up to the cutover commit.
   host gitconfig (v1's reason to wait for the opt-in), so pre-login
   push now asks for `gh auth login` instead of dying on publickey.
   See [docs/configuration.md](docs/configuration.md) "GitHub access".
+- Changed: **the UX gunk sweep** (2026-08-04, the step-back's third
+  slice — the audit's stale-comment, naming, and feedback-convention
+  findings). The brand cell says `vibe`, never the project (the old
+  `vibe-tui-box` literal violated the bar-carries-no-project-identity
+  rule, hidden by the dogfood repo's name coinciding); the palette's
+  two "agents" items become "agents" (chooser) and "ps · all projects";
+  project switching settles on "projects". The cheatsheet's split hint
+  uses the ASCII `-` the bind does, and the three-surface curation rule
+  is recorded (footer = discovery pointer, cheat = daily-loop keys,
+  palette = complete). Feedback conventions: clip toasts target the
+  invoking client, a failed viewer spawn finally toasts (the one silent
+  launch door), popup sizes follow one two-size convention, and the
+  kill-server prompt speaks tui vocabulary. Stale comments swept
+  (retired v1 `tui.sh` credit, missing `fit` mode, the doubled
+  diffview obituary, the svcstop doc drift).
 - Changed: **the state layer consolidates — one fetch pass, pruned
   grammars** (2026-08-04, the step-back's second slice). The hidden
   `vibe _fetch` replaces the sidebar's three-renderer fetch loop: ONE

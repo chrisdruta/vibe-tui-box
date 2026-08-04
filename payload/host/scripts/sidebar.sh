@@ -31,11 +31,14 @@
 #                      clicks here; ROW resolves via @vibe_sidebar_map,
 #                      which render publishes each frame, so there is no
 #                      second copy of the layout arithmetic to drift
+#   fit WINDOW_ID      snap sidebar panes back to the chrome width (the
+#                      conf's window-resized hook)
 #
 # Refresh is a 2s poll INSIDE each sidebar pane, but an idle tick is ONE
 # display-message round trip: a full redraw happens only when
 # @vibe_state_serial moved (state-render.sh bumps it with every dot
-# write; tui.sh bumps it on session build/heal) or on every 5th tick —
+# write; the engine's fetch pass bumps it after publishing fresh
+# caches) or on every 5th tick —
 # the 10s forced frame covers what has no serial: the branch line,
 # renames, session create/destroy. The status line stays event-driven.
 # Why not events outright: tmux wait-for has a lost-signal race and no
