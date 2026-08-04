@@ -214,14 +214,14 @@
     {
       "path": "host/scripts/sidebar.sh",
       "mode": "0755",
-      "size": 25139,
-      "digest": "sha256:5752d2b0ad485f79bb2070ea6b339b98bf370a953aa8786f72a848a0641f8fa8"
+      "size": 23523,
+      "digest": "sha256:c4ea4c190171b168c9d567553460e6147de3f208157e2b33c0e533c021f224e3"
     },
     {
       "path": "host/scripts/spin.sh",
       "mode": "0755",
-      "size": 3312,
-      "digest": "sha256:302591d993b1c51610645cfabbc016a3681a1944ac800887a16c199019ae33b6"
+      "size": 3856,
+      "digest": "sha256:35ca9168bb1cf7638fb61bd6fe1588a43b17e07cdab3954b5df363be692eac01"
     },
     {
       "path": "host/scripts/state-render.sh",
@@ -302,5 +302,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:6d32fc49128c5642ebade1765b497ce83521984588f7d11f53fc37588ddf265d"
+  "digest": "sha256:ae00a0bbdde8ad86de9613badf4bf6c50e199fe4a8e14191bac22cd62c3d1945"
 }

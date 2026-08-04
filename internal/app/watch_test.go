@@ -69,9 +69,9 @@ func TestWatchPublishWritesCacheAndBumpsStateSerial(t *testing.T) {
 		t.Fatal("publish must never bump @vibe_engine_serial (refetch loop)")
 	}
 
-	// The temp file never lingers.
-	if _, err := os.Stat(filepath.Join(cache, "agents.watch.tmp")); !os.IsNotExist(err) {
-		t.Fatal("publish must not leave its temp file behind")
+	// The temp files never linger.
+	if leftovers, _ := filepath.Glob(filepath.Join(cache, "*.fetch.tmp")); len(leftovers) != 0 {
+		t.Fatalf("publish must not leave temp files behind: %v", leftovers)
 	}
 }
 

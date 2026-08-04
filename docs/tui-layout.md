@@ -853,16 +853,22 @@ POLL was. The watch channel replaces polling with push:
   EOF ends the sentinel within a second. Verified live: create/kill an
   inner session and touch a record → three `E`s; close stdin → clean
   exit, no orphans.
-- **On `E`: fetch, publish, frame.** The daemon re-runs the fleet
-  agents fetch (the sidebar's exact `_agents` path), replaces the
-  cache tmp+rename (own tmp name — the slow tick writes beside it,
-  last rename wins), and bumps `@vibe_state_serial` — the FRAME-only
-  serial, deliberately not `@vibe_engine_serial`, which would tell the
-  sidebar to refetch what was just fetched. Fetches are floored at 2s
-  apart (state records churn while an agent works; each fetch is a
-  docker exec), so bursts coalesce. Chain: inner change → ≤1s sentinel
-  → fetch (~0.2s) → ≤2s sidebar tick → frame. **~1-3s worst case,
-  down from 30.**
+- **On `E`: fetch, publish, frame.** The daemon runs the SHARED
+  single-pass cache producer (`vibe _fetch`, 2026-08-04 — one engine
+  pass writes fleet + agents + every project's detail, one
+  `runtime.Status` per project where the old three-renderer loop paid
+  three, engine-flock guarded so the sidebar trigger and the daemon
+  can never race the same file: the daemon's publish takes the lock
+  BLOCKING because its event is owed, the sidebar's non-blocking
+  trigger loses quietly). The pass bumps `@vibe_state_serial` once
+  after its last rename — the FRAME-only serial, deliberately not
+  `@vibe_engine_serial`, which would tell the sidebar to refetch what
+  was just fetched. Fetches are floored at 2s apart (state records
+  churn while an agent works; each fetch is a docker exec), so bursts
+  coalesce. Deliberate cost: the full pass adds one git-churn
+  subprocess per running project per coalesced event. Chain: inner
+  change → ≤1s sentinel → fetch (~0.2s) → ≤2s sidebar tick → frame.
+  **~1-3s worst case, down from 30.**
 - **The container-level half (2026-08-04).** The sentinel only speaks
   while its container lives — an out-of-band death (docker stop, OOM,
   a crashing sidecar) took the voice with it and rode the 30s slow

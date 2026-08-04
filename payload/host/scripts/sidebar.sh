@@ -50,9 +50,9 @@
 # candidate, pending requests, dev marker, cold registered projects)
 # stays cache-only: a second serial, @vibe_engine_serial (bumped by
 # state-mutating engine commands, internal/app/notify.go), or the
-# @vibe_engine_refresh slow tick (default 30s) triggers a double-forked
-# background fetch of `vibe _fleet` / `vibe _agents` / `vibe _sidebar`
-# into a socket-derived cache; _frame only ever READS the cache — never
+# @vibe_engine_refresh slow tick (default 30s) triggers ONE double-
+# forked background `vibe _fetch` (the 2026-08-04 single pass) that
+# writes every cache; _frame only ever READS the cache — never
 # Docker — so a slow daemon costs frames nothing and the last good
 # truth keeps rendering. The engine binary itself is a prerequisite
 # (the sidebar only exists under `vibe tui`): if it vanishes
@@ -312,58 +312,22 @@ if [ -n "$sock" ]; then
   spin_lock="${sock%/*}/vibe-tui-spin.lock"
 fi
 
-# fetch_engine — refresh the fleet + own-project detail caches in the
-# background. Double-forked (the inner job reparents to init; this loop
-# never waits and never accumulates zombies), tmp+mv so a failed run
-# keeps the last good cache, and stamp-guarded so concurrent sidebars
-# (one per window) don't stampede: the stamp holds a start epoch — no
-# pid, bash 3.2 has no BASHPID — and ages out after 30s so a fetch that
-# died mid-write can't wedge fetching forever. Never called from
-# frame(); only the loop and startup trigger it.
+# fetch_engine — refresh every engine cache (fleet, agents, all
+# projects' detail) with ONE background `vibe _fetch` (2026-08-04,
+# supersedes the three-renderer loop and its 30s fetch.stamp guard: the
+# engine's own flock now makes redundant triggers exit quietly, and
+# the engine writes tmp+rename itself, so a failed run keeps the last
+# good cache exactly as before). Double-forked — the job reparents to
+# init and this loop never waits. Never called from frame(); only the
+# loop and startup trigger it. Width leaves room for the dim gutter
+# frame() adds and bounds only the detail lines.
 fetch_engine() {
   [ -n "$cache_dir" ] || return 0
   exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null)"
   { [ -n "$exe" ] && [ -x "$exe" ]; } || return 0
-  if [ -f "$cache_dir/fetch.stamp" ]; then
-    fepoch=""
-    IFS= read -r fepoch <"$cache_dir/fetch.stamp" 2>/dev/null || :
-    case "$fepoch" in
-      '' | *[!0-9]*) ;;
-      *) [ $(($(date +%s) - fepoch)) -lt 30 ] && return 0 ;;
-    esac
-  fi
-  # The project id resolves through the pane's session (@vibe_project is
-  # a session option; format lookup walks the chain).
-  proj="$(tmux display-message -p -t "${TMUX_PANE:-}" '#{@vibe_project}' 2>/dev/null)"
   fw="$(sidebar_w)"
   (
-    (
-      date +%s >"$cache_dir/fetch.stamp" 2>/dev/null
-      if "$exe" _fleet --width "$fw" >"$cache_dir/fleet.tmp" 2>/dev/null; then
-        mv -f "$cache_dir/fleet.tmp" "$cache_dir/fleet" 2>/dev/null
-      else
-        rm -f "$cache_dir/fleet.tmp" 2>/dev/null
-      fi
-      # Container-side agent truth (`vibe ps` rows for every running
-      # project): the sidebar's viewer-less rows and the TRAY's ghost
-      # cells both join against this. Fleet-wide, one exec per running
-      # project — the reason it rides the slow fetch and never a frame.
-      if "$exe" _agents --width "$fw" >"$cache_dir/agents.tmp" 2>/dev/null; then
-        mv -f "$cache_dir/agents.tmp" "$cache_dir/agents" 2>/dev/null
-      else
-        rm -f "$cache_dir/agents.tmp" 2>/dev/null
-      fi
-      if [ -n "$proj" ]; then
-        # Width leaves room for the dim gutter frame() adds; a pane
-        # narrower than the knob is transient (the fit hook snaps back).
-        if "$exe" _sidebar --project "$proj" --width $((fw - 4)) >"$cache_dir/detail.tmp" 2>/dev/null; then
-          mv -f "$cache_dir/detail.tmp" "$cache_dir/detail.$proj" 2>/dev/null
-        else
-          rm -f "$cache_dir/detail.tmp" 2>/dev/null
-        fi
-      fi
-      rm -f "$cache_dir/fetch.stamp" 2>/dev/null
-    ) &
+    ("$exe" _fetch --cache "$cache_dir" --width $((fw - 4)) >/dev/null 2>&1) &
   )
 }
 

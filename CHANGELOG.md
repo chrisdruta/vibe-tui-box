@@ -40,6 +40,28 @@ The v1 line and its history remain in git up to the cutover commit.
   host gitconfig (v1's reason to wait for the opt-in), so pre-login
   push now asks for `gh auth login` instead of dying on publickey.
   See [docs/configuration.md](docs/configuration.md) "GitHub access".
+- Changed: **the state layer consolidates — one fetch pass, pruned
+  grammars** (2026-08-04, the step-back's second slice). The hidden
+  `vibe _fetch` replaces the sidebar's three-renderer fetch loop: ONE
+  engine pass (one `runtime.Status` per project, one agent-ps exec and
+  git-churn per running project) writes the fleet, agents, and EVERY
+  project's detail cache — fixing the live staleness bug where only
+  the winning pane's detail refreshed — ages out forgotten projects'
+  detail files, and bumps the repaint serial once; an engine flock
+  replaces the bash fetch.stamp, and the watch daemon publishes
+  through the same path (ending the dual-writer last-rename-wins race
+  on the agents cache). Porcelain v3 drops the never-read fields
+  (`AgentEntry.Detail`, `FleetEntry.Version`), v2 parses one
+  generation, and the pre-07-29 v1 tolerances plus the W-record
+  9/10/11-field shims are pruned — a stale old cache line skips and
+  refills on the first good fetch. Also: the spin healer actually
+  animates viewer-less working agents now (its liveness gate only read
+  window options — the exact case the healer existed for), the
+  project-token prose lives once (`tmuxui.TokenWord`) with the sidecar
+  aggregation rule declared at `Token()`, `_fleet` honors `--project`
+  instead of silently ignoring it, and the inner-session charset
+  regexp is defined once. The legacy `_fleet`/`_agents`/`_sidebar`
+  verbs serve one more generation, then retire.
 - New: **one tui tab runs the fleet** (2026-08-04, the step-back's
   first slice; docs/tui-layout.md frame contract + BACKLOG record
   revision). The cold-row click graduates from up-only to MAKE IT

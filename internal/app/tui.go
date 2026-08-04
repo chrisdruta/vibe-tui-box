@@ -546,13 +546,21 @@ func (a *App) materializeTuiConf(ctx context.Context, rec registry.Record, exe s
 
 // projectView assembles the pure view model the tmux renderers consume.
 func (a *App) projectView(ctx context.Context, rec registry.Record) tmuxui.ProjectView {
+	state, err := a.runtime.Status(ctx, rec)
+	return a.viewFrom(rec, state, err == nil)
+}
+
+// viewFrom builds the view from an ALREADY-FETCHED container state, so
+// one Status pass can feed every surface (`_fetch` runs it once per
+// project where the three legacy renderers each paid their own).
+func (a *App) viewFrom(rec registry.Record, state runtime.State, statusOK bool) tmuxui.ProjectView {
 	view := tmuxui.ProjectView{
 		ID:      string(rec.ID),
 		Name:    rec.DisplayName,
 		Mode:    string(rec.Mode),
 		Version: rec.ReleaseVersion,
 	}
-	if state, err := a.runtime.Status(ctx, rec); err == nil {
+	if statusOK {
 		for _, c := range state.Containers {
 			view.Containers = append(view.Containers, tmuxui.ContainerView{
 				Role:    c.Role,
@@ -589,6 +597,9 @@ func (a *App) renderProject(ctx context.Context, req RenderRequest) (registry.Re
 	return rec, err
 }
 
+// RenderSidebar is legacy-one-generation (2026-08-04): `_fetch` now
+// writes the detail cache; this verb serves only a pre-fetch sidebar.sh
+// for its ≤1-slow-tick window, then retires.
 func (a *App) RenderSidebar(ctx context.Context, req RenderRequest) (RenderResult, error) {
 	fail := opFail[RenderResult]("_sidebar", "")
 	rec, err := a.renderProject(ctx, req)
@@ -607,7 +618,8 @@ func (a *App) RenderState(ctx context.Context, req RenderRequest) (RenderResult,
 	return RenderResult{Lines: []string{tmuxui.State(a.projectView(ctx, rec))}}, nil
 }
 
-// RenderAgents renders `vibe _agents`: every container-side agent
+// RenderAgents renders `vibe _agents` — legacy-one-generation
+// (2026-08-04, `_fetch` owns the cache now): every container-side agent
 // session the fleet knows about, keyed to its project — the truth the
 // sidebar's viewer-less rows and the tray's ghost cells join against
 // tmux's own windows. Project scopes it to one record.
@@ -628,60 +640,71 @@ func (a *App) RenderAgents(ctx context.Context, req RenderRequest) (RenderResult
 		if req.Project != "" && rec.ID != req.Project {
 			continue
 		}
-		agents, services := a.agentRows(ctx, rec)
-		for _, row := range agents {
-			entries = append(entries, tmuxui.AgentEntry{
-				Project: string(rec.ID),
-				Session: row.Name,
-				State:   row.State,
-				CLI:     row.CLI,
-				Model:   row.Model,
-				Epoch:   row.Since,
-				Detail:  row.Detail,
-			})
-		}
-		// Workspace services ride the same porcelain with the kind
-		// marker; Session carries the svc window name.
-		for _, row := range services {
-			entries = append(entries, tmuxui.AgentEntry{
-				Project: string(rec.ID),
-				Session: row.Name,
-				State:   row.State,
-				Epoch:   row.Since,
-				Kind:    tmuxui.AgentEntryKindService,
-			})
-		}
-		// Engine sidecars ride it too (2026-07-31): Docker truth, not a
-		// container feeder, so a stopped or stale sidecar stays visible
-		// in the sidebar's services group even with the dev container
-		// down. Session is the manifest name (role minus the prefix);
-		// state folds to the running/stale/stopped vocabulary
-		// SidecarStyle draws.
-		if state, err := a.runtime.Status(ctx, rec); err == nil {
-			for _, c := range state.Containers {
-				name, ok := strings.CutPrefix(c.Role, "sidecar:")
-				if !ok {
-					continue
-				}
-				st := "running"
-				switch {
-				case !c.Running:
-					st = "stopped"
-				case !c.InSync:
-					st = "stale"
-				}
-				entries = append(entries, tmuxui.AgentEntry{
-					Project: string(rec.ID),
-					Session: name,
-					State:   st,
-					Kind:    tmuxui.AgentEntryKindSidecar,
-				})
-			}
-		}
+		state, err := a.runtime.Status(ctx, rec)
+		entries = append(entries, a.agentEntriesFor(ctx, rec, state, err == nil)...)
 	}
 	return RenderResult{Lines: tmuxui.Agents(entries, req.Width)}, nil
 }
 
+// agentEntriesFor collects one project's roster entries: agent sessions
+// and workspace services from the container-side feeder (one exec),
+// engine sidecars from the ALREADY-FETCHED container state (2026-07-31:
+// Docker truth, not a container feeder, so a stopped or stale sidecar
+// stays visible in the sidebar's services group even with the dev
+// container down — Session is the manifest name, state folds to the
+// running/stale/stopped vocabulary SidecarStyle draws). Shared by the
+// legacy `_agents` renderer and the `_fetch` single pass.
+func (a *App) agentEntriesFor(ctx context.Context, rec registry.Record, state runtime.State, statusOK bool) []tmuxui.AgentEntry {
+	var entries []tmuxui.AgentEntry
+	agents, services := a.agentRows(ctx, rec)
+	for _, row := range agents {
+		entries = append(entries, tmuxui.AgentEntry{
+			Project: string(rec.ID),
+			Session: row.Name,
+			State:   row.State,
+			CLI:     row.CLI,
+			Model:   row.Model,
+			Epoch:   row.Since,
+		})
+	}
+	// Workspace services ride the same porcelain with the kind marker;
+	// Session carries the svc window name.
+	for _, row := range services {
+		entries = append(entries, tmuxui.AgentEntry{
+			Project: string(rec.ID),
+			Session: row.Name,
+			State:   row.State,
+			Epoch:   row.Since,
+			Kind:    tmuxui.AgentEntryKindService,
+		})
+	}
+	if statusOK {
+		for _, c := range state.Containers {
+			name, ok := strings.CutPrefix(c.Role, "sidecar:")
+			if !ok {
+				continue
+			}
+			st := "running"
+			switch {
+			case !c.Running:
+				st = "stopped"
+			case !c.InSync:
+				st = "stale"
+			}
+			entries = append(entries, tmuxui.AgentEntry{
+				Project: string(rec.ID),
+				Session: name,
+				State:   st,
+				Kind:    tmuxui.AgentEntryKindSidecar,
+			})
+		}
+	}
+	return entries
+}
+
+// RenderFleet is legacy-one-generation (2026-08-04): `_fetch` now
+// writes the fleet cache; this verb serves only a pre-fetch sidebar.sh
+// for its ≤1-slow-tick window, then retires.
 func (a *App) RenderFleet(ctx context.Context, req RenderRequest) (RenderResult, error) {
 	fail := opFail[RenderResult]("_fleet", "")
 	records, err := a.deps.Registry.List(ctx)
@@ -690,6 +713,11 @@ func (a *App) RenderFleet(ctx context.Context, req RenderRequest) (RenderResult,
 	}
 	views := make([]tmuxui.ProjectView, 0, len(records))
 	for _, rec := range records {
+		// Honors the renderer-shared --project flag (2026-08-04 — it
+		// used to be silently ignored here).
+		if req.Project != "" && rec.ID != req.Project {
+			continue
+		}
 		view := a.projectView(ctx, rec)
 		// Churn for the branch line: only for in-use projects (a
 		// running container), and only on THIS fetch-path renderer —

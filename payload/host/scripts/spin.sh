@@ -69,8 +69,18 @@ n=${#frames[@]}
 i=0
 while :; do
   if [ $((i % 8)) -eq 0 ]; then
-    states="$(tmux list-windows -a -F '#{@vibe_state}' 2>/dev/null)" || break
-    case "$states" in *working*) ;; *) break ;; esac
+    # Liveness must match every spawn condition (2026-08-04 audit
+    # find): window @vibe_state covers VIEWED agents, but a
+    # viewer-less working agent exists only as a cache row — its tray
+    # ghost embeds the literal `#{@vibe_spin}` reference
+    # (frame.go ghostCells), so the sessions' @vibe_ghosts carry the
+    # tell. Before this, the healer door spawned an animator that
+    # exited on its first check for exactly the case it existed for.
+    states="$(
+      tmux list-windows -a -F '#{@vibe_state}' 2>/dev/null
+      tmux list-sessions -F '#{@vibe_ghosts}' 2>/dev/null
+    )" || break
+    case "$states" in *working* | *@vibe_spin*) ;; *) break ;; esac
   fi
   tmux set-option -g @vibe_spin "${frames[i % n]}" 2>/dev/null || break
   i=$((i + 1))

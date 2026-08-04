@@ -133,7 +133,7 @@ func Chooser(in ChooserInput) []string {
 		// Kinds land in window names, argv, and menu commands: the
 		// schema's closed set is already safe, but vet anyway — this
 		// porcelain's consumers turn fields into shell words.
-		if !sessionNameRe.MatchString(kind) {
+		if !SessionNameRe.MatchString(kind) {
 			continue
 		}
 		addr, verb := "agent", "launch"
@@ -146,7 +146,7 @@ func Chooser(in ChooserInput) []string {
 	// address, only for CLIs agent-session.sh knows how to start
 	// without repo instruction files.
 	for _, kind := range kinds {
-		if !coldKinds[kind] || !sessionNameRe.MatchString(kind) {
+		if !coldKinds[kind] || !SessionNameRe.MatchString(kind) {
 			continue
 		}
 		addr, verb := "agent-cold", "launchc"

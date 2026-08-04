@@ -720,7 +720,7 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 	if err != nil || len(sidebar.Lines) != 1 || sidebar.Lines[0] != "dev" {
 		t.Fatalf("sidebar render: %+v, %v", sidebar, err)
 	}
-	// _fleet porcelain: US-separated, version 2, project ID as join
+	// _fleet porcelain: US-separated, version 3, project ID as join
 	// key. The churn field stays empty here — the test project is no
 	// git repository, and gitChurn answers nothing rather than erring.
 	fleet, err := a.RenderFleet(ctx, RenderRequest{Width: 80})
@@ -728,7 +728,7 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 		t.Fatalf("fleet render: %+v, %v", fleet, err)
 	}
 	fields := strings.Split(fleet.Lines[0], "\x1f")
-	if len(fields) != 8 || fields[0] != "2" || fields[1] != string(rec.ID) || fields[6] != "" {
+	if len(fields) != 7 || fields[0] != "3" || fields[1] != string(rec.ID) || fields[5] != "" {
 		t.Fatalf("fleet porcelain fields: %q", fields)
 	}
 	// _agents porcelain: the container-side `vibe ps` join, one line per
@@ -742,16 +742,16 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 		t.Fatalf("agents render: %+v, %v", agents, err)
 	}
 	fields = strings.Split(agents.Lines[0], "\x1f")
-	if len(fields) != 8 || fields[0] != "2" || fields[1] != string(rec.ID) ||
+	if len(fields) != 7 || fields[0] != "3" || fields[1] != string(rec.ID) ||
 		fields[2] != "agent" || fields[3] != "working" || fields[4] != "claude" || fields[5] != "opus" ||
-		fields[6] != "1700000100" || fields[7] != "claude - opus - detached" {
+		fields[6] != "1700000100" {
 		t.Fatalf("agents porcelain fields: %q", fields)
 	}
 	// The engine sidecar closes the project's listing: Docker truth
 	// (no feeder), the manifest name as session, the sidecar kind
 	// trailing.
 	fields = strings.Split(agents.Lines[2], "\x1f")
-	if len(fields) != 9 || fields[2] != "cache" || fields[3] != "running" || fields[8] != "sidecar" {
+	if len(fields) != 8 || fields[2] != "cache" || fields[3] != "running" || fields[7] != "sidecar" {
 		t.Fatalf("sidecar porcelain fields: %q", fields)
 	}
 	// Scoped to one project, and empty for a project that has none.

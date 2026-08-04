@@ -118,12 +118,12 @@ func TestFleetPorcelain(t *testing.T) {
 		t.Fatalf("fleet: %q", lines)
 	}
 	first := strings.Split(lines[0], fleetSep)
-	if len(first) != 8 || first[0] != "2" || first[1] != "p1" || first[2] != "●" ||
-		first[3] != "release" || first[4] != "v2.0.0" || first[5] != "0" || first[6] != "" || first[7] != "myproj" {
+	if len(first) != 7 || first[0] != "3" || first[1] != "p1" || first[2] != "●" ||
+		first[3] != "release" || first[4] != "0" || first[5] != "" || first[6] != "myproj" {
 		t.Fatalf("fleet fields: %q", first)
 	}
 	second := strings.Split(lines[1], fleetSep)
-	if second[1] != "p2" || second[2] != "·" || second[5] != "3" || second[7] != "other" {
+	if second[1] != "p2" || second[2] != "·" || second[4] != "3" || second[6] != "other" {
 		t.Fatalf("fleet fields: %q", second)
 	}
 	// The churn field rides before the name (the only free-text field
@@ -131,7 +131,7 @@ func TestFleetPorcelain(t *testing.T) {
 	v := runningView()
 	v.Churn = "+128 −40"
 	churned := strings.Split(Fleet([]ProjectView{v}, 80)[0], fleetSep)
-	if churned[6] != "+128 −40" || churned[7] != "myproj" {
+	if churned[5] != "+128 −40" || churned[6] != "myproj" {
 		t.Fatalf("churn field: %q", churned)
 	}
 }
@@ -148,7 +148,7 @@ func TestFleetSanitizesDisplayName(t *testing.T) {
 	if strings.ContainsAny(lines[0], "\x1b\a\n") {
 		t.Fatalf("fleet leaked control bytes: %q", lines[0])
 	}
-	if got := len(strings.Split(lines[0], fleetSep)); got != 8 {
+	if got := len(strings.Split(lines[0], fleetSep)); got != 7 {
 		t.Fatalf("hostile name forged extra fields (%d): %q", got, lines[0])
 	}
 }

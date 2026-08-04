@@ -168,3 +168,18 @@ const (
 	StateStale   StateToken = "◐"
 	StateNone    StateToken = "·"
 )
+
+// TokenWord is the ONE place a project token becomes prose (2026-08-04
+// unification: the fleet meta line used to hand-roll "stale"/"stopped"
+// beside its glyph while other surfaces re-derived their own
+// treatments). Nominal states answer empty — absence of a word, like
+// absence of a glyph, IS the nominal signal.
+func TokenWord(t StateToken) string {
+	switch t {
+	case StateStale:
+		return "stale"
+	case StateStopped:
+		return "stopped"
+	}
+	return ""
+}

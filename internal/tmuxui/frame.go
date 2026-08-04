@@ -88,30 +88,32 @@ type FleetEntry struct {
 	ID      string
 	Token   string
 	Mode    string
-	Version string
 	Pending int
 	Churn   string // "+128 −40" working-tree churn; "" clean/unknown
 	Name    string
 }
 
 // ParseFleet parses the `vibe _fleet` porcelain, skipping lines of an
-// unknown protocol version or shape. The v1 grammar (pre-churn) still
-// parses so a cache written by the previous engine keeps rendering
-// across the binary swap.
+// unknown protocol version or shape. The v2 grammar (which still
+// carried the retired engine-version field) parses one generation so a
+// cache written by the previous engine keeps rendering across the
+// binary swap; v1 (pre-churn, 2026-07-29) tolerance was pruned
+// 2026-08-04 — a stale v1 line skips and its row refills on the first
+// good fetch, the graceful shape every unknown line already gets.
 func ParseFleet(lines []string) []FleetEntry {
 	var out []FleetEntry
 	for _, line := range lines {
 		f := strings.Split(line, fleetSep)
-		v1, v2 := len(f) == 7 && f[0] == "1", len(f) == 8 && f[0] == "2"
-		if (!v1 && !v2) || f[1] == "" {
+		v2, v3 := len(f) == 8 && f[0] == "2", len(f) == 7 && f[0] == "3"
+		if (!v2 && !v3) || f[1] == "" {
 			continue
 		}
-		pending, _ := strconv.Atoi(f[5])
-		e := FleetEntry{
-			ID: f[1], Token: f[2], Mode: f[3], Version: f[4],
-			Pending: pending, Name: f[len(f)-1],
-		}
-		if v2 {
+		e := FleetEntry{ID: f[1], Token: f[2], Mode: f[3], Name: f[len(f)-1]}
+		if v3 {
+			e.Pending, _ = strconv.Atoi(f[4])
+			e.Churn = f[5]
+		} else {
+			e.Pending, _ = strconv.Atoi(f[5])
 			e.Churn = f[6]
 		}
 		out = append(out, e)
@@ -124,30 +126,28 @@ func ParseFleet(lines []string) []FleetEntry {
 // The optional trailing field is the row kind (`svc` = workspace
 // service, `sidecar` = engine sidecar container); an unknown kind
 // drops the line like any other shape error.
-// The v1 grammar (pre-epoch/detail) still parses so a cache written by
-// the previous engine keeps rendering across the binary swap.
+// The v2 grammar (which still carried the retired detail field) parses
+// one generation so a cache written by the previous engine keeps
+// rendering across the binary swap; v1 (pre-epoch, 2026-07-29)
+// tolerance was pruned 2026-08-04 — stale v1 lines skip and refill on
+// the first good fetch.
 func ParseAgents(lines []string) []AgentEntry {
 	var out []AgentEntry
 	for _, line := range lines {
 		f := strings.Split(line, fleetSep)
-		v1, v2 := len(f) >= 6 && len(f) <= 7 && f[0] == "1", len(f) >= 8 && len(f) <= 9 && f[0] == "2"
-		if (!v1 && !v2) || f[1] == "" || !sessionNameRe.MatchString(f[2]) {
+		v2, v3 := len(f) >= 8 && len(f) <= 9 && f[0] == "2", len(f) >= 7 && len(f) <= 8 && f[0] == "3"
+		if (!v2 && !v3) || f[1] == "" || !SessionNameRe.MatchString(f[2]) {
 			continue
 		}
 		e := AgentEntry{
 			Project: f[1], Session: f[2], State: f[3], CLI: f[4], Model: f[5],
 		}
-		kind, hasKind := "", false
-		if v2 {
-			if epoch, err := strconv.ParseInt(f[6], 10, 64); err == nil && epoch > 0 {
-				e.Epoch = epoch
-			}
-			e.Detail = f[7]
-			kind, hasKind = f[len(f)-1], len(f) == 9
-		} else {
-			kind, hasKind = f[len(f)-1], len(f) == 7
+		if epoch, err := strconv.ParseInt(f[6], 10, 64); err == nil && epoch > 0 {
+			e.Epoch = epoch
 		}
+		hasKind := (v3 && len(f) == 8) || (v2 && len(f) == 9)
 		if hasKind {
+			kind := f[len(f)-1]
 			if kind != AgentEntryKindService && kind != AgentEntryKindSidecar {
 				continue
 			}
@@ -163,17 +163,18 @@ func ParseAgents(lines []string) []AgentEntry {
 //
 //	G<US>width<US>height<US>self_session_id
 //	S<US>session_id<US>name<US>path<US>project_id[<US>svc_fold]
-//	W<US>session_id<US>glyph<US>dot_hex<US>attn<US>window_id<US>window_name<US>active<US>model[<US>state<US>session[<US>epoch]]
+//	W<US>session_id<US>glyph<US>dot_hex<US>attn<US>window_id<US>window_name<US>active<US>model<US>state<US>session<US>epoch
 //
 // Windows attach to their session by id; records for unknown sessions
 // and malformed lines are dropped, never errors — a sidebar frame
-// renders what it can. The W record's trailing fields are optional: a
-// sidebar.sh older than the nested roster feeds nine and the frame
-// degrades to glyph-only signal detection (windowSignal); one older
-// than the signal-density pass feeds eleven and the row just has no
-// age. The S record's trailing svc_fold is optional the same way: a
-// sidebar.sh older than the services fold feeds five and no block
-// folds.
+// renders what it can. The W record's 9/10/11-field tolerances
+// (pre-2026-07-26 and pre-07-29 scripts) were pruned 2026-08-04 — a
+// script that old degrades to no window rows for its ≤1-slow-tick
+// self-exec window; empty VALUES in the trailing fields still degrade
+// per-field (no state → windowSignal, no epoch → no age). The S
+// record's trailing svc_fold stays optional one generation: a
+// sidebar.sh older than the services fold (2026-08-02) feeds five and
+// no block folds.
 func ParseFrameData(data string) FrameInput {
 	in := FrameInput{Width: 30, Height: 24}
 	index := map[string]int{}
@@ -194,27 +195,24 @@ func ParseFrameData(data string) FrameInput {
 				ID: f[1], Name: f[2], Path: f[3], Project: f[4],
 				SvcFold: len(f) == 6 && f[5] == "1",
 			})
-		case f[0] == "W" && len(f) >= 9 && f[1] != "":
+		case f[0] == "W" && len(f) == 12 && f[1] != "":
 			i, ok := index[f[1]]
 			if !ok {
 				continue
 			}
 			w := FrameWindow{
-				Glyph:  f[2],
-				DotHex: f[3],
-				Attn:   f[4] == "1",
-				ID:     f[5],
-				Name:   f[6],
-				Active: f[7] == "1",
-				Model:  f[8],
+				Glyph:   f[2],
+				DotHex:  f[3],
+				Attn:    f[4] == "1",
+				ID:      f[5],
+				Name:    f[6],
+				Active:  f[7] == "1",
+				Model:   f[8],
+				State:   f[9],
+				Session: f[10],
 			}
-			if len(f) >= 11 {
-				w.State, w.Session = f[9], f[10]
-			}
-			if len(f) >= 12 {
-				if epoch, err := strconv.ParseInt(f[11], 10, 64); err == nil && epoch > 0 {
-					w.Epoch = epoch
-				}
+			if epoch, err := strconv.ParseInt(f[11], 10, 64); err == nil && epoch > 0 {
+				w.Epoch = epoch
 			}
 			in.Sessions[i].Windows = append(in.Sessions[i].Windows, w)
 		}
@@ -753,11 +751,11 @@ func Frame(in FrameInput) FrameOutput {
 				}
 			}
 		} else if f, ok := fleetByID[s.Project]; ok && s.Project != "" {
-			switch f.Token {
-			case string(StateStale):
-				meta = append(meta, string(StateStale)+" stale")
-			case string(StateStopped):
-				meta = append(meta, string(StateStopped)+" stopped")
+			// Glyph + word from the one shared mapping (theme.go
+			// TokenWord); nominal tokens contribute nothing — absence
+			// IS the signal, the rule every surface shares.
+			if word := TokenWord(StateToken(f.Token)); word != "" {
+				meta = append(meta, f.Token+" "+word)
 			}
 			if f.Pending > 0 {
 				meta = append(meta, fmt.Sprintf("▲%d", f.Pending))
@@ -947,7 +945,7 @@ func ghostCells(agents []AgentEntry, viewed map[string]bool) (cells, ghostMap st
 	var b strings.Builder
 	var names []string
 	for _, ag := range agents {
-		if viewed[ag.Session] || !sessionNameRe.MatchString(ag.Session) || !AgentLive(ag.State) {
+		if viewed[ag.Session] || !SessionNameRe.MatchString(ag.Session) || !AgentLive(ag.State) {
 			continue
 		}
 		glyph, hex, ok := AgentStyle(ag.State)

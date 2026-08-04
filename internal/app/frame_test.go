@@ -61,8 +61,8 @@ func TestRenderFrame(t *testing.T) {
 	cache := t.TempDir()
 	us := "\x1f"
 	fleet := strings.Join([]string{
-		"1" + us + "projself" + us + "●" + us + "release" + us + "v2.0.0" + us + "0" + us + "self",
-		"1" + us + "projother" + us + "◐" + us + "dev" + us + "v2.0.0" + us + "1" + us + "other",
+		"3" + us + "projself" + us + "●" + us + "release" + us + "0" + us + "" + us + "self",
+		"3" + us + "projother" + us + "◐" + us + "dev" + us + "1" + us + "" + us + "other",
 	}, "\n") + "\n"
 	if err := os.WriteFile(filepath.Join(cache, "fleet"), []byte(fleet), 0o600); err != nil {
 		t.Fatal(err)
@@ -71,8 +71,8 @@ func TestRenderFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	agents := strings.Join([]string{
-		"1" + us + "projself" + us + "agent" + us + "working" + us + "claude" + us + "opus",
-		"1" + us + "projself" + us + "agent-ghost" + us + "attention" + us + "codex" + us + "",
+		"3" + us + "projself" + us + "agent" + us + "working" + us + "claude" + us + "opus" + us + "",
+		"3" + us + "projself" + us + "agent-ghost" + us + "attention" + us + "codex" + us + "" + us + "",
 	}, "\n") + "\n"
 	if err := os.WriteFile(filepath.Join(cache, "agents"), []byte(agents), 0o600); err != nil {
 		t.Fatal(err)
@@ -83,7 +83,7 @@ func TestRenderFrame(t *testing.T) {
 		"S" + us + "$1" + us + "selfname" + us + t.TempDir() + us + "projself",
 		"S" + us + "$2" + us + "othername" + us + t.TempDir() + us + "projother",
 		"W" + us + "$1" + us + "●" + us + "#9ece6a" + us + "0" + us + "@1" + us + "claude" + us + "1" + us + "opus" +
-			us + "working" + us + "agent",
+			us + "working" + us + "agent" + us + "",
 	}, "\n")
 
 	res, err := a.RenderFrame(ctx, FrameRequest{

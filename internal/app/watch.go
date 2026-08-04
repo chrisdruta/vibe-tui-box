@@ -137,11 +137,23 @@ func (a *App) watchShimDrifted() bool {
 // dies with the process (kernel-held), so a crashed daemon never
 // wedges the slot the way a stale pidfile would.
 func acquireWatchLock(path string) (*os.File, error) {
+	return acquireFlock(path, false)
+}
+
+// acquireFlock is the shared kernel-held lock: non-blocking callers
+// (redundant spawns, the sidebar's fetch trigger) lose quietly and
+// exit; blocking callers (the watch daemon's owed publish) wait —
+// fetches are short by design.
+func acquireFlock(path string, block bool) (*os.File, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	how := syscall.LOCK_EX
+	if !block {
+		how |= syscall.LOCK_NB
+	}
+	if err := syscall.Flock(int(f.Fd()), how); err != nil {
 		f.Close()
 		return nil, err
 	}
@@ -322,31 +334,13 @@ func (a *App) watchContainerEvents(ctx context.Context) {
 	}
 }
 
-// watchPublish re-runs the fleet agents fetch, replaces the cache the
-// sidebar/tray/chooser read (tmp+rename, own tmp name — the sidebar's
-// slow-tick fetch writes beside us and last rename wins), and bumps
-// @vibe_state_serial: a frame-only signal, deliberately NOT
+// watchPublish runs the shared single-pass cache producer (`_fetch`,
+// blocking-lock mode — this publish is OWED by an event) and lets it
+// bump @vibe_state_serial: a frame-only signal, deliberately NOT
 // @vibe_engine_serial — that one tells the sidebar to fetch, and the
-// whole point is that the fetch already happened here.
+// whole point is that the fetch already happened here. One deliberate
+// cost note: the full pass adds one git-churn subprocess per running
+// project per coalesced event (the 2s floor bounds it).
 func (a *App) watchPublish(ctx context.Context, req WatchRequest) {
-	res, err := a.RenderAgents(ctx, RenderRequest{Width: req.Width})
-	if err != nil {
-		return
-	}
-	body := ""
-	if len(res.Lines) > 0 {
-		body = strings.Join(res.Lines, "\n") + "\n"
-	}
-	tmp := filepath.Join(req.CacheDir, "agents.watch.tmp")
-	if err := os.WriteFile(tmp, []byte(body), 0o600); err != nil {
-		return
-	}
-	if err := os.Rename(tmp, filepath.Join(req.CacheDir, "agents")); err != nil {
-		os.Remove(tmp)
-		return
-	}
-	bumpCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
-	defer cancel()
-	nonce := fmt.Sprintf("w%d.%d", a.deps.Clock.Now().UnixNano(), a.tuiSerial.Add(1))
-	_ = a.deps.Tmux.SetGlobalOption(bumpCtx, "@vibe_state_serial", nonce)
+	_, _ = a.FetchCaches(ctx, FetchRequest{CacheDir: req.CacheDir, Width: req.Width, Block: true})
 }

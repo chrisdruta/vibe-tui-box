@@ -13,10 +13,10 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
 
-// sessionNameRe is the shared inner-session charset (tmux session
+// SessionNameRe is the shared inner-session charset (tmux session
 // names, state-file names, the title channel, and — since the tray's
 // ghost cells — mouse-range names).
-var sessionNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+var SessionNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // ProjectView is the prepared model for one project. (StateToken and
 // the palette live in theme.go — the single source for colors/glyphs.)
@@ -40,7 +40,14 @@ type ContainerView struct {
 	InSync  bool
 }
 
-// Token summarizes the project into one state glyph.
+// Token summarizes the project into one state glyph. The sidecar rule,
+// declared once (2026-08-04 — three surfaces treated one Docker fact
+// three ways): sidecar containers AGGREGATE here (a dead dns degrades
+// the project token — it is part of the project's health), render as
+// ROWS in the services tree (the `_agents` sidecar kind, SidecarStyle
+// glyphs), and stay OUT of the detail line's segments (Sidebar below —
+// `sidecar:d…` was the line's ragged clip magnet). Prose for a token
+// comes from TokenWord (theme.go), never hand-rolled per surface.
 func (v ProjectView) Token() StateToken {
 	if len(v.Containers) == 0 {
 		return StateNone
@@ -181,47 +188,47 @@ type AgentEntry struct {
 	CLI     string // the CLI actually running at that address
 	Model   string
 	Epoch   int64  // unix epoch the state was entered; 0 unknown
-	Detail  string // the feeder's free-text qualifier ("detached", …)
 	Kind    string // "" = agent session; AgentEntryKindService = svc window
 }
 
 // Agents renders the `vibe _agents` porcelain, one container-side agent
 // session or workspace-service window per line:
 //
-//	2<US>project<US>session<US>state<US>cli<US>model<US>epoch<US>detail[<US>kind]
+//	3<US>project<US>session<US>state<US>cli<US>model<US>epoch[<US>kind]
 //
-// The leading field is the protocol version — bumped to 2 when epoch
-// and detail joined the row (the signal-density pass); the trailing
-// kind is omitted for agent rows, `svc` for workspace services,
-// `sidecar` for engine sidecars (a new kind VALUE is not a new shape:
-// an older parser drops unknown-kind lines by design, no bump).
-// Sessions are addresses (or svc window names sharing the same closed
-// charset): a name that could not survive a tmux target, a state-file
-// name, or a mouse-range name is dropped outright rather than escaped
-// — every consumer of this porcelain turns the session into one of
-// those. CLI, model, and detail are container-fed free text, sanitized
-// and bounded here; an unknown epoch writes empty.
+// The leading field is the protocol version — bumped to 3 when the
+// never-consumed detail field left the row (the 2026-08-04 state-layer
+// cleanup; v2 had added epoch and detail together in the
+// signal-density pass, but only epoch ever found a reader); the
+// trailing kind is omitted for agent rows, `svc` for workspace
+// services, `sidecar` for engine sidecars (a new kind VALUE is not a
+// new shape: an older parser drops unknown-kind lines by design, no
+// bump). Sessions are addresses (or svc window names sharing the same
+// closed charset): a name that could not survive a tmux target, a
+// state-file name, or a mouse-range name is dropped outright rather
+// than escaped — every consumer of this porcelain turns the session
+// into one of those. CLI and model are container-fed free text,
+// sanitized and bounded here; an unknown epoch writes empty.
 func Agents(entries []AgentEntry, width int) []string {
 	if width <= 0 {
 		width = 80
 	}
 	lines := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if e.Project == "" || !sessionNameRe.MatchString(e.Session) {
+		if e.Project == "" || !SessionNameRe.MatchString(e.Session) {
 			continue
 		}
 		epoch := ""
 		if e.Epoch > 0 {
 			epoch = strconv.FormatInt(e.Epoch, 10)
 		}
-		line := fmt.Sprintf("2%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+		line := fmt.Sprintf("3%s%s%s%s%s%s%s%s%s%s%s%s",
 			fleetSep, e.Project,
 			fleetSep, e.Session,
 			fleetSep, terminal.Line(e.State, 24),
 			fleetSep, terminal.Line(e.CLI, width),
 			fleetSep, terminal.Line(e.Model, width),
-			fleetSep, epoch,
-			fleetSep, terminal.Line(e.Detail, width))
+			fleetSep, epoch)
 		if e.Kind == AgentEntryKindService || e.Kind == AgentEntryKindSidecar {
 			line += fleetSep + e.Kind
 		}
@@ -232,10 +239,12 @@ func Agents(entries []AgentEntry, width int) []string {
 
 // Fleet renders the `vibe _fleet` porcelain, one project per line:
 //
-//	2<US>id<US>token<US>mode<US>version<US>pending<US>churn<US>display-name
+//	3<US>id<US>token<US>mode<US>pending<US>churn<US>display-name
 //
-// The leading field is the protocol version — bumped to 2 when churn
-// joined the row (the signal-density pass). The display name comes
+// The leading field is the protocol version — bumped to 3 when the
+// never-consumed engine-version field left the row (the 2026-08-04
+// state-layer cleanup: other projects' versions rendered nowhere; the
+// own project's arrives via the detail cache). The display name comes
 // last because it is the only free-text field; it is sanitized, and
 // consumers re-truncate for display, so the width budget only bounds
 // pathological names. No projects renders no lines.
@@ -245,11 +254,10 @@ func Fleet(views []ProjectView, width int) []string {
 	}
 	lines := make([]string, 0, len(views))
 	for _, v := range views {
-		lines = append(lines, fmt.Sprintf("2%s%s%s%s%s%s%s%s%s%d%s%s%s%s",
+		lines = append(lines, fmt.Sprintf("3%s%s%s%s%s%s%s%d%s%s%s%s",
 			fleetSep, v.ID,
 			fleetSep, v.Token(),
 			fleetSep, v.Mode,
-			fleetSep, v.Version,
 			fleetSep, v.Pending,
 			fleetSep, terminal.Line(v.Churn, 24),
 			fleetSep, terminal.Line(v.Name, width)))

@@ -647,7 +647,7 @@ func TestParseFleetRoundTrip(t *testing.T) {
 		t.Fatalf("want 2 entries, got %d", len(entries))
 	}
 	if entries[0].ID != "p1" || entries[0].Pending != 3 || entries[0].Name != "alpha" ||
-		entries[0].Token != string(StateNone) || entries[0].Version != "v2.0.0" {
+		entries[0].Token != string(StateNone) {
 		t.Fatalf("entry 0 mismatch: %+v", entries[0])
 	}
 	if got := ParseFleet([]string{"2\x1ffuture\x1fformat", "garbage", ""}); len(got) != 0 {
@@ -684,8 +684,11 @@ func TestParseFrameData(t *testing.T) {
 		"S" + us + "$7" + us + "alpha" + us + "/work/a" + us + "projid",
 		"S" + us + "$8" + us + "beta" + us + "/work/b" + us + "projid2" + us + "1", // six fields: folded services
 		"W" + us + "$7" + us + "●" + us + "#9ece6a" + us + "1" + us + "@1" + us + "claude" + us + "1" + us + "opus" + us + "attention" + us + "agent" + us + "1700000042",
-		"W" + us + "$7" + us + "●" + us + "#5c6b96" + us + "0" + us + "@4" + us + "old" + us + "0" + us + "", // nine fields: pre-state artifact
-		"W" + us + "$999" + us + "●" + us + "x" + us + "0" + us + "@2" + us + "orphan" + us + "0" + us + "",  // unknown session: dropped
+		// Empty trailing VALUES still parse (a plain window with no
+		// state stamps) — only short SHAPES were pruned.
+		"W" + us + "$7" + us + "●" + us + "#5c6b96" + us + "0" + us + "@4" + us + "old" + us + "0" + us + "" + us + "" + us + "" + us + "",
+		"W" + us + "$7" + us + "●" + us + "x" + us + "0" + us + "@5" + us + "nine" + us + "0" + us + "",                                   // nine fields: pruned 2026-08-04, drops
+		"W" + us + "$999" + us + "●" + us + "x" + us + "0" + us + "@2" + us + "orphan" + us + "0" + us + "" + us + "" + us + "" + us + "", // unknown session: dropped
 		"bogus line",
 		"",
 	}, "\n")
@@ -1130,26 +1133,34 @@ func TestFrameBranchChurn(t *testing.T) {
 	}
 }
 
-func TestParseAgentsEpochDetailRoundTrip(t *testing.T) {
+func TestParseAgentsEpochRoundTrip(t *testing.T) {
 	entries := []AgentEntry{
 		{Project: "p1", Session: "agent", State: "working", CLI: "claude", Model: "fable",
-			Epoch: 1_700_000_000, Detail: "claude - fable - detached"},
+			Epoch: 1_700_000_000},
 		{Project: "p1", Session: "web", State: "running", Epoch: 1_700_000_100, Kind: AgentEntryKindService},
 	}
 	got := ParseAgents(Agents(entries, 80))
 	if len(got) != 2 || got[0] != entries[0] || got[1] != entries[1] {
-		t.Fatalf("v2 round trip: %+v", got)
+		t.Fatalf("v3 round trip: %+v", got)
 	}
-	// The v1 grammar (pre-epoch/detail) still parses across the binary
-	// swap — the row just has no epoch or detail.
+	// The v2 grammar (with the retired detail field) parses one
+	// generation across the binary swap — detail simply drops.
+	v2 := []string{
+		"2\x1fp1\x1fagent\x1fworking\x1fclaude\x1ffable\x1f1700000000\x1fdetached",
+		"2\x1fp1\x1fweb\x1frunning\x1f\x1f\x1f1700000100\x1f\x1fsvc",
+	}
+	old := ParseAgents(v2)
+	if len(old) != 2 || old[0].CLI != "claude" || old[0].Epoch != 1_700_000_000 ||
+		old[1].Kind != AgentEntryKindService {
+		t.Fatalf("v2 compat parse: %+v", old)
+	}
+	// v1 (pre-epoch, pruned 2026-08-04) drops like any unknown shape.
 	v1 := []string{
 		"1\x1fp1\x1fagent\x1fworking\x1fclaude\x1ffable",
 		"1\x1fp1\x1fweb\x1frunning\x1f\x1f\x1fsvc",
 	}
-	old := ParseAgents(v1)
-	if len(old) != 2 || old[0].CLI != "claude" || old[0].Epoch != 0 ||
-		old[1].Kind != AgentEntryKindService {
-		t.Fatalf("v1 compat parse: %+v", old)
+	if got := ParseAgents(v1); len(got) != 0 {
+		t.Fatalf("pruned v1 must drop, got %+v", got)
 	}
 }
 
@@ -1157,11 +1168,17 @@ func TestParseFleetChurnAndCompat(t *testing.T) {
 	v := ProjectView{ID: "p1", Name: "alpha", Churn: "+12 −3"}
 	got := ParseFleet(Fleet([]ProjectView{v}, 80))
 	if len(got) != 1 || got[0].Churn != "+12 −3" || got[0].Name != "alpha" {
-		t.Fatalf("v2 round trip: %+v", got)
+		t.Fatalf("v3 round trip: %+v", got)
 	}
-	old := ParseFleet([]string{"1\x1fp1\x1f●\x1frelease\x1fv2.0.0\x1f3\x1falpha"})
-	if len(old) != 1 || old[0].Pending != 3 || old[0].Name != "alpha" || old[0].Churn != "" {
-		t.Fatalf("v1 compat parse: %+v", old)
+	// v2 (with the retired engine-version field) parses one generation;
+	// the version value simply drops.
+	old := ParseFleet([]string{"2\x1fp1\x1f●\x1frelease\x1fv2.0.0\x1f3\x1f+1 −2\x1falpha"})
+	if len(old) != 1 || old[0].Pending != 3 || old[0].Name != "alpha" || old[0].Churn != "+1 −2" {
+		t.Fatalf("v2 compat parse: %+v", old)
+	}
+	// v1 (pre-churn, pruned 2026-08-04) drops like any unknown shape.
+	if got := ParseFleet([]string{"1\x1fp1\x1f●\x1frelease\x1fv2.0.0\x1f3\x1falpha"}); len(got) != 0 {
+		t.Fatalf("pruned v1 must drop, got %+v", got)
 	}
 }
 

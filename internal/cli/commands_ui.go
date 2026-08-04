@@ -444,6 +444,35 @@ var uiCommands = map[string]Command{
 			return &renderResult{Lines: []string{"up " + res.Record.DisplayName}}, nil
 		},
 	},
+	"_fetch": {
+		Name:    "_fetch",
+		Summary: "internal single-pass sidebar cache producer",
+		Usage:   "vibe _fetch --cache DIR [--width N]",
+		Hidden:  true,
+		// The fetch path consolidated (2026-08-04): one engine pass
+		// writes the fleet, agents, and per-project detail caches and
+		// bumps the repaint serial — replacing the three-renderer shell
+		// loop in sidebar.sh's fetch_engine (kept one generation for an
+		// older script). The engine flock inside makes redundant
+		// triggers exit quietly; --width bounds only the pre-rendered
+		// detail lines.
+		NoCwd: true,
+		Parse: func(args []string) (Request, error) {
+			var req FetchCmdRequest
+			return parseInto(args, "_fetch", &req.Options, func(fs *flag.FlagSet) any {
+				fs.StringVar(&req.Cache, "cache", "", "engine cache directory beside the tmux socket")
+				fs.IntVar(&req.Width, "width", 0, "width budget for the detail lines")
+				return &req
+			})
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*FetchCmdRequest)
+			if _, err := a.FetchCaches(ctx, app.FetchRequest{CacheDir: r.Cache, Width: r.Width}); err != nil {
+				return nil, err
+			}
+			return &renderResult{}, nil
+		},
+	},
 	"_watch": {
 		Name:    "_watch",
 		Summary: "internal engine-truth push daemon",
@@ -539,6 +568,13 @@ type OpenCmdRequest struct {
 type ReapCmdRequest struct {
 	Options
 	Session string
+}
+
+// FetchCmdRequest drives the hidden single-pass cache producer.
+type FetchCmdRequest struct {
+	Options
+	Cache string
+	Width int
 }
 
 // WatchCmdRequest drives the hidden engine-truth push daemon.

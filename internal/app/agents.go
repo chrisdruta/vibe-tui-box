@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
 )
 
 // ContainerCommand is the shared shape for commands that run inside the
@@ -132,9 +132,9 @@ type AttachRequest struct {
 	Nested bool
 }
 
-// sessionNameRe matches the shared inner-session charset (tmux session
-// names, state-file names, the title channel).
-var sessionNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+// The inner-session charset lives in tmuxui.SessionNameRe — one
+// definition for the write side (porcelain emit), the read side
+// (parsers), and these verb gates (2026-08-04, deduped).
 
 func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error) {
 	fail := opFail[ExecResult]("attach", "")
@@ -154,10 +154,10 @@ func (a *App) Attach(ctx context.Context, req AttachRequest) (ExecResult, error)
 		return ExecResult{}, nil
 	}
 
-	if !sessionNameRe.MatchString(req.Session) {
+	if !tmuxui.SessionNameRe.MatchString(req.Session) {
 		return fail(fmt.Errorf("%w: session name %q", domain.ErrInvalid, req.Session))
 	}
-	if req.Window != "" && !sessionNameRe.MatchString(req.Window) {
+	if req.Window != "" && !tmuxui.SessionNameRe.MatchString(req.Window) {
 		return fail(fmt.Errorf("%w: window name %q", domain.ErrInvalid, req.Window))
 	}
 	ok, err := a.probeAgentSession(ctx, name)
@@ -208,7 +208,7 @@ func (a *App) StopSession(ctx context.Context, req StopSessionRequest) (StopSess
 	fail = opFail[StopSessionResult]("stop", rec.ID)
 	// Same policy both sides of the exec (agent-session.sh kill
 	// re-checks): charset-vetted, agent-convention addresses only.
-	if !sessionNameRe.MatchString(req.Session) ||
+	if !tmuxui.SessionNameRe.MatchString(req.Session) ||
 		(req.Session != "agent" && !strings.HasPrefix(req.Session, "agent-")) {
 		return fail(fmt.Errorf("%w: agent session address %q", domain.ErrInvalid, req.Session))
 	}
@@ -254,7 +254,7 @@ func (a *App) StopService(ctx context.Context, req StopServiceRequest) (StopServ
 	fail = opFail[StopServiceResult]("svcstop", rec.ID)
 	// Same policy both sides of the exec (agent-session.sh svc-kill
 	// re-checks): the shared closed charset, window names only.
-	if !sessionNameRe.MatchString(req.Name) {
+	if !tmuxui.SessionNameRe.MatchString(req.Name) {
 		return fail(fmt.Errorf("%w: service window name %q", domain.ErrInvalid, req.Name))
 	}
 	ok, err := a.probeAgentSession(ctx, name)
@@ -297,7 +297,7 @@ func (a *App) SelectService(ctx context.Context, req SelectServiceRequest) (Sele
 		return fail(err)
 	}
 	fail = opFail[SelectServiceResult]("svcselect", rec.ID)
-	if !sessionNameRe.MatchString(req.Name) {
+	if !tmuxui.SessionNameRe.MatchString(req.Name) {
 		return fail(fmt.Errorf("%w: service window name %q", domain.ErrInvalid, req.Name))
 	}
 	ok, err := a.probeAgentSession(ctx, name)
@@ -340,7 +340,7 @@ func (a *App) DismissSession(ctx context.Context, req DismissSessionRequest) (Di
 		return fail(err)
 	}
 	fail = opFail[DismissSessionResult]("dismiss", rec.ID)
-	if !sessionNameRe.MatchString(req.Session) ||
+	if !tmuxui.SessionNameRe.MatchString(req.Session) ||
 		(req.Session != "agent" && !strings.HasPrefix(req.Session, "agent-")) {
 		return fail(fmt.Errorf("%w: agent session address %q", domain.ErrInvalid, req.Session))
 	}
