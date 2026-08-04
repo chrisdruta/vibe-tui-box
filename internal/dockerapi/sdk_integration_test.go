@@ -3,6 +3,7 @@ package dockerapi
 import (
 	"bytes"
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -79,6 +80,23 @@ func TestSDKLifecycle(t *testing.T) {
 	}
 	defer sdk.RemoveContainer(ctx, id, RemoveOptions{Force: true})
 
+	// Subscribe before the start so the stream sees it: the collected
+	// events prove the managed-label filter, the action filter, and the
+	// actor-attribute translation against the real daemon.
+	evCtx, evCancel := context.WithCancel(ctx)
+	defer evCancel()
+	var evMu sync.Mutex
+	var seen []ContainerEvent
+	evDone := make(chan struct{})
+	go func() {
+		defer close(evDone)
+		_ = sdk.Events(evCtx, EventsRequest{Actions: []string{"start", "die"}}, func(ev ContainerEvent) {
+			evMu.Lock()
+			seen = append(seen, ev)
+			evMu.Unlock()
+		})
+	}()
+
 	if err := sdk.StartContainer(ctx, id); err != nil {
 		t.Fatal(err)
 	}
@@ -111,6 +129,30 @@ func TestSDKLifecycle(t *testing.T) {
 	if err := sdk.StopContainer(ctx, id, 2*time.Second); err != nil {
 		t.Fatal(err)
 	}
+
+	// Both lifecycle transitions arrive with the engine's own fields
+	// filled from the daemon's actor attributes.
+	evDeadline := time.Now().Add(10 * time.Second)
+	for {
+		got := map[string]bool{}
+		evMu.Lock()
+		for _, ev := range seen {
+			if ev.Name == ctrName && ev.Project == project {
+				got[ev.Action] = true
+			}
+		}
+		evMu.Unlock()
+		if got["start"] && got["die"] {
+			break
+		}
+		if time.Now().After(evDeadline) {
+			t.Fatalf("events stream missed start/die for %s: %+v", ctrName, seen)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	evCancel()
+	<-evDone
+
 	if err := sdk.RemoveContainer(ctx, id, RemoveOptions{Force: true}); err != nil {
 		t.Fatal(err)
 	}

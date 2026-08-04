@@ -149,6 +149,23 @@ type LogsRequest struct {
 	Streams   Streams
 }
 
+// EventsRequest scopes an Events subscription. Actions is a server-side
+// OR filter over daemon event actions; empty subscribes to every
+// container action — including the exec_* chatter every engine fetch
+// generates, so callers almost always want a list.
+type EventsRequest struct {
+	Actions []string
+}
+
+// ContainerEvent is one daemon event on a managed container, already
+// narrowed to the engine's vocabulary (the SDK actor stays behind this
+// boundary).
+type ContainerEvent struct {
+	Action  string
+	Name    ContainerName
+	Project domain.ProjectID // from the container's project label
+}
+
 type VolumeSpec struct {
 	Name   string
 	Labels map[string]string

@@ -863,9 +863,32 @@ POLL was. The watch channel replaces polling with push:
   docker exec), so bursts coalesce. Chain: inner change → ≤1s sentinel
   → fetch (~0.2s) → ≤2s sidebar tick → frame. **~1-3s worst case,
   down from 30.**
+- **The container-level half (2026-08-04).** The sentinel only speaks
+  while its container lives — an out-of-band death (docker stop, OOM,
+  a crashing sidecar) took the voice with it and rode the 30s slow
+  tick. The same daemon also subscribes to the docker event stream
+  (`dockerapi.Events`, server-filtered to managed-label containers and
+  lifecycle actions only — never the `exec_*` chatter the daemon's own
+  fetches generate, which would make each fetch trigger the next) and
+  on any event bumps `@vibe_engine_serial`: the REFETCH signal,
+  deliberately not the frame-only serial — container truth lives in
+  the fleet/agents caches, and a repaint of stale caches would show
+  nothing. Fleet-wide by label, not per-project (the fleet pane shows
+  other projects' up/down truth too; concurrent daemons double-bumping
+  is harmless — sidebars compare serial inequality once per tick).
+  Bumps coalesce on the same 2s floor; a failed subscription backs off
+  and retries with the slow tick in charge meanwhile. Chain: container
+  dies → event → ≤2s coalesce → sidebar tick refetch → frame:
+  **~2-5s, down from 30.**
 - **Lifecycle.** The tmux server owns the daemon: a 10s liveness probe
   exits it when the server dies (and the canceled exec closes the
-  leash). Container down or stream death → capped backoff (1-10s)
+  leash). The same probe retires the daemon when the host shim stops
+  resolving to its own binary — a handoff landed, and a resident
+  daemon must die to be replaced (its flock blocks any successor);
+  the sidebar's slow tick respawns it from the restamped `@vibe_exe`
+  — the resident-process half of the self-upgrade contract (the
+  sidebar script's half is the exec-on-payload-drift above). Container
+  down or stream death → capped backoff (1-10s)
   reconnect. A stale stream (no line for 60s despite heartbeats) is
   reaped and reconnected. The flock dies with the process — no pidfile
   staleness dance.

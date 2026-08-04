@@ -65,6 +65,13 @@ type Client struct {
 	ExecErr     error
 	LogsOutputs map[dockerapi.ContainerName]string
 	LogsErr     error
+	// EventsCh feeds the fake event stream: Events replays its values
+	// into the sink until the channel closes or ctx cancels. Nil (with
+	// nil EventsErr) blocks until ctx cancels, like a quiet daemon.
+	EventsCh chan dockerapi.ContainerEvent
+	// EventsErr, when set, fails every subscription immediately — a
+	// daemon without event support.
+	EventsErr   error
 	BuildResult dockerapi.BuiltImage
 	BuildErr    error
 
@@ -376,6 +383,24 @@ func ExecKey(argv []string) string {
 func (c *Client) Attach(ctx context.Context, req dockerapi.AttachRequest) error {
 	c.record("Attach", req)
 	return nil
+}
+
+func (c *Client) Events(ctx context.Context, req dockerapi.EventsRequest, sink func(dockerapi.ContainerEvent)) error {
+	c.record("Events", req)
+	if c.EventsErr != nil {
+		return c.EventsErr
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ev, ok := <-c.EventsCh:
+			if !ok {
+				return nil
+			}
+			sink(ev)
+		}
+	}
 }
 
 func (c *Client) Logs(ctx context.Context, req dockerapi.LogsRequest) error {

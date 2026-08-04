@@ -86,12 +86,17 @@ func (a *App) Watch(ctx context.Context, req WatchRequest) error {
 					cancel()
 					return
 				}
+				if a.watchShimDrifted() {
+					cancel()
+					return
+				}
 			}
 		}
 	}()
 
 	events := make(chan struct{}, 1)
 	go a.watchFetchLoop(ctx, req, events)
+	go a.watchContainerEvents(ctx)
 
 	backoff := time.Second
 	for {
@@ -113,6 +118,19 @@ func (a *App) Watch(ctx context.Context, req WatchRequest) error {
 		case <-time.After(backoff):
 		}
 	}
+}
+
+// watchShimDrifted is the daemon's half of the self-upgrade contract
+// (the sidebar script execs itself on payload drift; a resident daemon
+// must DIE to be replaced — its flock blocks any successor): true when
+// the host `vibe` shim no longer resolves to this daemon's own binary,
+// meaning a handoff (dev on/sync, dev off, update) landed. The caller
+// exits, freeing the flock, and the sidebar's slow tick respawns the
+// daemon from the restamped @vibe_exe. A missing or unreadable shim is
+// never drift — running stale beats not running.
+func (a *App) watchShimDrifted() bool {
+	shim, err := filepath.EvalSymlinks(filepath.Join(a.deps.Layout.Bin, "vibe"))
+	return err == nil && shim != a.deps.Executable
 }
 
 // acquireWatchLock takes the singleton flock, non-blocking. The lock
@@ -207,16 +225,22 @@ func (a *App) watchStream(ctx context.Context, project domain.ProjectID, events 
 	return streamed, sc.Err()
 }
 
-// watchFetchLoop is the coalescing consumer: every event owes one
-// fetch, bursts collapse into one fetch per gap window, and a signal
-// that lands mid-fetch is honored by the next pass.
+// watchFetchLoop is the sentinel stream's coalescing consumer: each
+// inner change owes one fetch-and-publish.
 func (a *App) watchFetchLoop(ctx context.Context, req WatchRequest, events <-chan struct{}) {
+	watchCoalesce(ctx, events, func() { a.watchPublish(ctx, req) })
+}
+
+// watchCoalesce is the shared consumer shape: every signal owes one
+// fire, bursts collapse into one fire per gap window, and a signal
+// that lands mid-fire is honored by the next pass.
+func watchCoalesce(ctx context.Context, signals <-chan struct{}, fire func()) {
 	var last time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-events:
+		case <-signals:
 		}
 		if wait := watchFetchGap - time.Since(last); wait > 0 {
 			select {
@@ -224,15 +248,77 @@ func (a *App) watchFetchLoop(ctx context.Context, req WatchRequest, events <-cha
 				return
 			case <-time.After(wait):
 			}
-			// The window absorbed any burst; the fetch below speaks
+			// The window absorbed any burst; the fire below speaks
 			// for all of it.
 			select {
-			case <-events:
+			case <-signals:
 			default:
 			}
 		}
 		last = time.Now()
-		a.watchPublish(ctx, req)
+		fire()
+	}
+}
+
+// watchEventActions is the server-side event filter: the lifecycle
+// transitions the sidebar renders (up/down/exit/rename), never the
+// exec_* chatter — the daemon's own agents fetch execs into every
+// running container, and reacting to those would make each fetch
+// trigger the next.
+var watchEventActions = []string{
+	"create", "start", "restart", "die", "stop", "oom", "destroy", "pause", "unpause", "rename",
+}
+
+// watchContainerEvents is the container-level half of the push channel:
+// the sentinel exec reports inner changes, but a dying container takes
+// its sentinel with it — the docker event stream is the only voice
+// left (out-of-band deaths used to ride the 30s slow tick). Each
+// managed-container lifecycle event bumps @vibe_engine_serial — the
+// same "engine truth moved" signal every state-mutating command sends
+// — so every sidebar refetches fleet+agents+detail on its next 2s
+// tick. The subscription is label-filtered fleet-wide, not
+// per-project: the fleet pane shows other projects' up/down truth too,
+// and concurrent daemons double-bumping is harmless (sidebars compare
+// serial inequality per tick). Coalesced like the fetch loop; failures
+// back off and resubscribe — an accelerator, never a dependency (a
+// daemon without event support just leaves the slow tick in charge).
+func (a *App) watchContainerEvents(ctx context.Context) {
+	signals := make(chan struct{}, 1)
+	go watchCoalesce(ctx, signals, func() {
+		bumpCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+		defer cancel()
+		nonce := fmt.Sprintf("e%d.%d", a.deps.Clock.Now().UnixNano(), a.tuiSerial.Add(1))
+		_ = a.deps.Tmux.SetGlobalOption(bumpCtx, "@vibe_engine_serial", nonce)
+	})
+
+	var streamed atomic.Bool
+	backoff := time.Second
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		streamed.Store(false)
+		err := a.deps.Docker.Events(ctx, dockerapi.EventsRequest{Actions: watchEventActions},
+			func(dockerapi.ContainerEvent) {
+				streamed.Store(true)
+				select {
+				case signals <- struct{}{}:
+				default: // a bump is already owed; one signal covers all
+				}
+			})
+		if ctx.Err() != nil {
+			return
+		}
+		if err == nil || streamed.Load() {
+			backoff = time.Second // a healthy stream resets the ladder
+		} else if backoff < watchRetryMax {
+			backoff *= 2
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
 	}
 }
 

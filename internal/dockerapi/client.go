@@ -31,6 +31,10 @@ type Client interface {
 	Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 	Attach(ctx context.Context, req AttachRequest) error
 	Logs(ctx context.Context, req LogsRequest) error
+	// Events streams managed-container daemon events into sink until
+	// ctx cancels or the stream dies. No replay: events from before the
+	// call are gone, so subscribers keep their own fallback cadence.
+	Events(ctx context.Context, req EventsRequest, sink func(ContainerEvent)) error
 
 	EnsureVolume(ctx context.Context, spec VolumeSpec) error
 	RemoveVolume(ctx context.Context, name VolumeName) error

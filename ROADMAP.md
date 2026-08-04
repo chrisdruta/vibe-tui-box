@@ -277,8 +277,9 @@ Demand-gated work, detailed in [BACKLOG.md](BACKLOG.md): the reduced-trust
 half), worktree
 productization (the review stack is fully resolved — viewing shipped
 2026-07-26, images 2026-07-27, A/R verdict capture dropped and the
-revdiff trial retired by decision), plus event-driven
-sidebar refresh, and a repo-side minimum-engine-version floor for teams
+revdiff trial retired by decision; event-driven sidebar refresh left
+this list when its container half shipped 2026-08-04), and a repo-side
+minimum-engine-version floor for teams
 if real multi-machine use asks for it. Plus the friend-gated
 distribution items recorded in R2 (bootstrap installer, README flip)
 and R3's full Sigstore verification — all triggered by the first

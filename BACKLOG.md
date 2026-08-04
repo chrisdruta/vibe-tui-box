@@ -73,18 +73,14 @@ section at the bottom — as revisable records, not fences.
   while claude's agents screen says Needs input, feed the dot (and
   maybe `▲n`) from the statusline JSON's awaiting-input count.
 
-- **Sidebar: event-driven refresh + the cold-project click call.**
-  The two bits deferred from the consume-the-renderers work: (1) a
-  docker-events watcher for out-of-band container deaths — the watch
-  channel (`vibe _watch`, prototyped 2026-07-26, tui-layout.md "The
-  watch channel") now covers INNER change classes (sessions, viewers,
-  state records) in ~1-2s, but container-level death still rides the
-  `@vibe_engine_refresh` slow tick (30s; also listed on the roadmap's
-  after-v1.0 line) — a docker-events subscription in the same daemon
-  is the natural next slice; (2) cold registered projects render
-  as dim non-clickable rows — the product call whether their click
+- **Sidebar: the cold-project click call.** The last bit deferred from
+  the consume-the-renderers work: cold registered projects render as
+  dim non-clickable rows — the product call whether their click
   dispatches `up` stays open (brushes the live-sessions-only picker
-  record).
+  record). (The other half of the original item — a docker-events
+  watcher for out-of-band container deaths — shipped 2026-08-04: the
+  watch daemon's container-level half, tui-layout.md "The watch
+  channel".)
 
 - **Watch channel follow-ups (prototyped 2026-07-26).** Upgrade
   the container sentinel from its 1s local fingerprint poll to a

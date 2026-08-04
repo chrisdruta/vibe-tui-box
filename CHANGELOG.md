@@ -40,6 +40,39 @@ The v1 line and its history remain in git up to the cutover commit.
   host gitconfig (v1's reason to wait for the opt-in), so pre-login
   push now asks for `gh auth login` instead of dying on publickey.
   See [docs/configuration.md](docs/configuration.md) "GitHub access".
+- New: **container deaths reach the sidebar in seconds** (2026-08-04,
+  docs/tui-layout.md "The watch channel", the container-level half).
+  The watch daemon (`vibe _watch`) also subscribes to the docker event
+  stream — server-filtered to managed-label containers and lifecycle
+  actions, never the `exec_*` chatter its own fetches generate — and
+  bumps `@vibe_engine_serial` on any event, so every sidebar refetches
+  fleet+agents+detail on its next 2s tick. Out-of-band deaths (docker
+  stop, OOM, a crashing sidecar) used to ride the 30s slow tick.
+  `dockerapi.Client` gains the narrow `Events` stream; same
+  accelerator-never-dependency contract as the sentinel stream
+  (coalesced bumps, capped-backoff resubscribe, slow tick as fallback).
+  The daemon also learned to retire itself when the host shim stops
+  resolving to its own binary — a resident process must die to be
+  replaced (its flock blocks any successor), so a dev sync now reaches
+  the daemon within a slow tick instead of waiting for a tui restart.
+- New: **the services tree folds** (2026-08-02, docs/tui-layout.md
+  "The tree folds"). LEFT on a block's `services` header toggles a
+  per-session fold (`@vibe_svc_fold`), collapsing the group to its
+  counted header — `services · 3 ▸`. Folded entries leave the layout
+  AND the overflow math, so a crowded block gets its agent rows back;
+  a fold hiding a signal row (dead service, stale sidecar) renders the
+  header bright — the ✗ can leave the pane but never the glance. The
+  frame's S record grew an optional trailing flag; an older sidebar.sh
+  simply never folds.
+- Fixed: **binary handoffs now land on a running tui** (2026-08-02 —
+  a dev sync landed and NOTHING in the live UI changed). Every shim
+  repoint (`dev on`/`sync`, `dev off`, `update` with a pinned project)
+  re-materializes the conf and restamps `@vibe_exe` (the symlink,
+  never a resolved digest path) and `@vibe_payload_dir` on the live
+  server before the serial bump, so engine calls and click-time script
+  resolution follow immediately and sidebar render loops self-exec the
+  new script on payload-dir drift. Fire-and-forget: a dead server
+  never fails the sync that did the real work.
 - New: **per-project egress visibility** (R6, 2026-07-31). Every
   provisioned project's plan synthesizes a dns ledger sidecar
   (`vibe-<id>-svc-dns`: digest-pinned CoreDNS, engine-authored Corefile
