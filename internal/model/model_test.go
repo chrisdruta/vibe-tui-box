@@ -49,6 +49,9 @@ func testInput(t *testing.T, manifest string) CompileInput {
 
 // testInputWithArtifact pins a deterministic artifact so compiles gain
 // the artifact-gated pieces (payload mounts, the dns ledger sidecar).
+// DNSConf is asserted true the way production computes it at load time
+// (DNSConfPresent, which Compile cannot probe): the fixture path stays
+// fixed so the goldens' mount sources stay byte-identical.
 func testInputWithArtifact(t *testing.T, manifest string) CompileInput {
 	t.Helper()
 	in := testInput(t, manifest)
@@ -60,6 +63,7 @@ func testInputWithArtifact(t *testing.T, manifest string) CompileInput {
 		},
 		Path: "/home/user/.vibe/store/artifacts/cafe",
 	}
+	in.DNSConf = true
 	return in
 }
 
@@ -306,6 +310,50 @@ func TestCompileDNSSidecar(t *testing.T) {
 	}
 	if len(plan.Services) != 1 || plan.Dev.DNSFromService != "" {
 		t.Fatalf("artifact-less compile should have no dns sidecar: %+v", plan.Services)
+	}
+
+	// An artifact whose payload lacks the Corefile (pre-egress release,
+	// or the 2026-08-04 dogfood shape: a stale self-provision with an
+	// empty payload/dns dir) compiles the same degraded plan instead of
+	// a sidecar that exits on start.
+	noConf := testInputWithArtifact(t, sidecarManifest)
+	noConf.DNSConf = false
+	plan, errs = Compile(noConf)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if len(plan.Services) != 1 || plan.Dev.DNSFromService != "" {
+		t.Fatalf("a Corefile-less artifact must compile without the dns sidecar: %+v", plan.Services)
+	}
+}
+
+// TestDNSConfPresent pins the capability probe the app layer feeds
+// CompileInput.DNSConf from: only a regular file at the payload's
+// dns/Corefile counts — a zero artifact, a missing dir, and the
+// empty-dir shape all answer false.
+func TestDNSConfPresent(t *testing.T) {
+	if DNSConfPresent(store.Artifact{}) {
+		t.Fatal("zero artifact must probe false")
+	}
+	dir := t.TempDir()
+	art := store.Artifact{
+		Record: store.ArtifactRecord{Digest: domain.SHA256([]byte("a"))},
+		Path:   dir,
+	}
+	if DNSConfPresent(art) {
+		t.Fatal("payload without dns dir must probe false")
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "payload", "dns"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if DNSConfPresent(art) {
+		t.Fatal("an empty dns dir must probe false — the dogfood shape")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "payload", "dns", "Corefile"), []byte(".:53 {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !DNSConfPresent(art) {
+		t.Fatal("a real Corefile must probe true")
 	}
 }
 

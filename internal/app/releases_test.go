@@ -14,6 +14,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
+	"github.com/chrisdruta/vibe-tui-box/internal/registry"
 )
 
 // withPayload equips a test app with an embedded payload bundle and a
@@ -21,11 +22,19 @@ import (
 func withPayload(t *testing.T, a *App) {
 	t.Helper()
 	script := "#!/bin/sh\nexec sleep infinity\n"
+	// The Corefile rides like the real embedded payload's: a provision
+	// from this bundle yields a dns-capable artifact (DNSConfPresent).
+	conf := ".:53 {}\n"
 	files := []payload.File{{
 		Path:   "container/entrypoint.sh",
 		Mode:   "0755",
 		Size:   int64(len(script)),
 		Digest: domain.SHA256([]byte(script)),
+	}, {
+		Path:   "dns/Corefile",
+		Mode:   "0644",
+		Size:   int64(len(conf)),
+		Digest: domain.SHA256([]byte(conf)),
 	}}
 	manifest, err := payload.EncodeManifest(files)
 	if err != nil {
@@ -33,6 +42,7 @@ func withPayload(t *testing.T, a *App) {
 	}
 	bundle, err := payload.New(fstest.MapFS{
 		"container/entrypoint.sh": &fstest.MapFile{Data: []byte(script)},
+		"dns/Corefile":            &fstest.MapFile{Data: []byte(conf)},
 		payload.ManifestPath:      &fstest.MapFile{Data: manifest},
 	})
 	if err != nil {
@@ -167,6 +177,50 @@ func TestUpSynthesizesDNSSidecar(t *testing.T) {
 	}
 	if len(creates) != 1 || strings.HasSuffix(string(creates[0].Request.(dockerapi.CreateRequest).Name), "-svc-dns") {
 		t.Fatalf("egress off should create only dev: %+v", creates)
+	}
+}
+
+// TestUpSkipsDNSSidecarWithoutCorefile pins the 2026-08-04 dogfood
+// fix: a pinned artifact whose payload lacks dns/Corefile (a pre-egress
+// release, or the observed stale self-provision with an empty
+// payload/dns dir) must come up WITHOUT the ledger sidecar — before
+// the capability probe, up synthesized a sidecar whose CoreDNS exited
+// on the missing conf and every reconcile failed.
+func TestUpSkipsDNSSidecarWithoutCorefile(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A release artifact with a payload but no dns/Corefile — the
+	// pre-egress shape (seedReleaseArtifact carries only the host conf).
+	rel := seedReleaseArtifact(t, a, "OLD-RELEASE")
+	if _, err := a.deps.Registry.Update(ctx, reg.Record.ID, reg.Record.Revision, func(r *registry.Record) error {
+		r.Artifact = rel.Digest
+		r.ReleaseVersion = rel.Version
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	up, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatalf("up with a Corefile-less artifact must degrade, not fail: %v", err)
+	}
+	if !up.State.Running() {
+		t.Fatalf("project not running: %+v", up.State)
+	}
+	for _, call := range docker.CallsTo("CreateContainer") {
+		if strings.HasSuffix(string(call.Request.(dockerapi.CreateRequest).Name), "-svc-dns") {
+			t.Fatal("a Corefile-less artifact must not synthesize the dns sidecar")
+		}
+	}
+	for _, call := range docker.CallsTo("ResolveImage") {
+		if call.Request.(dockerapi.ImageRef) == dockerapi.ImageRef(model.CoreDNSImageRef) {
+			t.Fatal("a Corefile-less artifact must not resolve the CoreDNS ref")
+		}
 	}
 }
 

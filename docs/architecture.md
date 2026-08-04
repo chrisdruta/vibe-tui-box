@@ -192,7 +192,15 @@ design.
 Egress visibility: every provisioned plan (unless `runtime.egress:
 off`) synthesizes a dns ledger sidecar — digest-pinned CoreDNS, an
 engine-authored Corefile bind-mounted read-only from the artifact
-payload, its query log bounded and read via the logs API. The dev
+payload, its query log bounded and read via the logs API. The
+synthesis is capability-probed: the sidecar compiles in only when the
+pinned artifact's payload actually carries `dns/Corefile`
+(`model.DNSConfPresent`, threaded to the plan compiler as
+`CompileInput.DNSConf` — Compile itself never reads the filesystem).
+A pre-egress or damaged artifact degrades to no ledger, the same
+graceful shape as artifact-less projects, instead of minting a
+sidecar whose CoreDNS exits on the missing conf and fails every `up`
+(2026-08-04 dogfood). The dev
 container's resolver points at the sidecar's runtime-resolved address
 (never in the canonical plan; stamped as the `dev.vibe.dns` label, and
 address drift across a restart escalates the journaled start to a

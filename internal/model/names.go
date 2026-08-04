@@ -133,3 +133,9 @@ const PayloadDNSDir = "dns"
 
 // DNSCorefile is the CoreDNS config path inside the dns sidecar.
 const DNSCorefile = DNSConfTarget + "/Corefile"
+
+// DNSConfRelPath is the Corefile's payload-relative path — the
+// capability-probe key (DNSConfPresent): an artifact without this file
+// predates the egress ledger (or staged without it) and compiles
+// without the sidecar.
+const DNSConfRelPath = PayloadDNSDir + "/Corefile"

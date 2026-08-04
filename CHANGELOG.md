@@ -40,6 +40,19 @@ The v1 line and its history remain in git up to the cutover commit.
   host gitconfig (v1's reason to wait for the opt-in), so pre-login
   push now asks for `gh auth login` instead of dying on publickey.
   See [docs/configuration.md](docs/configuration.md) "GitHub access".
+- Fixed: **the dns ledger sidecar is capability-probed** (2026-08-04
+  dogfood: a fresh project pinned a stale self-provision artifact whose
+  payload lacked `dns/Corefile`, and every `vibe up` failed with the
+  sidecar exiting on start — CoreDNS died on the missing conf and the
+  failure-atomic reconcile rolled the project back each time). The
+  plan now synthesizes the sidecar only when the pinned artifact's
+  payload actually carries the Corefile (`model.DNSConfPresent`,
+  threaded as `CompileInput.DNSConf` — Compile stays free of
+  filesystem reads for golden determinism; `store.Artifact` gains the
+  generic `HasPayloadFile` capability probe). Pre-egress and damaged
+  artifacts degrade to no ledger, the same shape as artifact-less
+  projects — run `vibe provision` (or a future `update`) to pin a
+  dns-capable artifact and get the ledger back.
 - New: **cold projects wake on click** (2026-08-04, docs/tui-layout.md
   frame contract; the recorded product call, resolved). A cold
   registered project's dim sidebar row now LEFT-dispatches a

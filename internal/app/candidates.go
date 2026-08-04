@@ -33,7 +33,8 @@ func (a *App) prepareCandidate(ctx context.Context, root paths.Root, rec registr
 	defer releaseArtifact()
 
 	refs := []string{frozen.Manifest.Image.Base}
-	if model.EgressDNSEnabled(frozen.Manifest, artifact) {
+	dnsConf := model.DNSConfPresent(artifact)
+	if model.EgressDNSEnabled(frozen.Manifest, dnsConf) {
 		// The engine-synthesized dns sidecar rides the same resolution
 		// loop as manifest images; the ref carries its own @sha256 pin,
 		// so resolution needs neither network nor daemon lookups.
@@ -76,6 +77,7 @@ func (a *App) prepareCandidate(ctx context.Context, root paths.Root, rec registr
 		Snapshot:         frozen.Snapshot,
 		ImageDigests:     digests,
 		BrokerResultsDir: brokerStore.ResultsDir(),
+		DNSConf:          dnsConf,
 	})
 	if len(ferrs) > 0 {
 		return runtime.Candidate{}, fieldErrs(ferrs)

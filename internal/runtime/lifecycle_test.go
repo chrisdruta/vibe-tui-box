@@ -29,6 +29,14 @@ func withArtifact(t *testing.T) func(*store.Store, *model.CompileInput) {
 		if err := os.WriteFile(filepath.Join(staging, "payload", "marker"), []byte("p"), 0o600); err != nil {
 			t.Fatal(err)
 		}
+		// The Corefile, like every real artifact since the egress
+		// ledger: the dns tests need DNSConf's probe to answer true.
+		if err := os.MkdirAll(filepath.Join(staging, "payload", "dns"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(staging, "payload", "dns", "Corefile"), []byte(".:53 {}\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 		digest, _, err := store.DigestTree(staging)
 		if err != nil {
 			t.Fatal(err)
@@ -41,6 +49,8 @@ func withArtifact(t *testing.T) func(*store.Store, *model.CompileInput) {
 			Record: store.ArtifactRecord{Digest: digest, Version: "test", PayloadDigest: digest},
 			Path:   obj.Path,
 		}
+		// Probed exactly the way the app layer feeds Compile.
+		in.DNSConf = model.DNSConfPresent(in.Artifact)
 	}
 }
 

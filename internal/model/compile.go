@@ -40,6 +40,15 @@ type CompileInput struct {
 	// BrokerResultsDir, when set, is mounted read-only at ResultsTarget
 	// so the container can read request results.
 	BrokerResultsDir string
+	// DNSConf reports that the pinned artifact's payload carries the
+	// store-owned Corefile (DNSConfPresent — computed by the caller;
+	// Compile itself must stay free of filesystem reads for golden
+	// determinism). Without it the plan drops the dns ledger sidecar:
+	// a pre-egress or damaged artifact degrades to no ledger instead
+	// of minting a sidecar that exits on start (2026-08-04 dogfood —
+	// a stale self-provision artifact with an empty payload/dns dir
+	// failed every `vibe up` on the project pinning it).
+	DNSConf bool
 }
 
 // Compile turns a validated manifest plus frozen inputs into the
@@ -182,7 +191,7 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 		dev.Environment = append(dev.Environment,
 			Env{Key: "VIBE_PAYLOAD_DIGEST", Value: in.Artifact.Record.PayloadDigest.String()})
 	}
-	if EgressDNSEnabled(*m, in.Artifact) {
+	if EgressDNSEnabled(*m, in.DNSConf) {
 		dev.DNSFromService = DNSServiceName
 	}
 	dev.Labels = commonLabels(id, "dev")
@@ -195,7 +204,7 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 	// process's already-permitted set or exec fails EPERM under the
 	// closed policy — root + the one capability satisfies that, and
 	// no-new-privileges stays on.
-	if EgressDNSEnabled(*m, in.Artifact) {
+	if EgressDNSEnabled(*m, in.DNSConf) {
 		policy := defaultPolicy()
 		policy.NetBindService = true
 		plan.Services = append(plan.Services, Container{
@@ -269,12 +278,21 @@ func Compile(in CompileInput) (Plan, []domain.FieldError) {
 }
 
 // EgressDNSEnabled reports whether the plan gets the dns ledger
-// sidecar: opt-out via runtime.egress, and no artifact means no
-// store-owned Corefile to mount (artifact-less projects already run
-// degraded). Shared with the app layer's image-resolution loop so the
-// two can't drift.
-func EgressDNSEnabled(m schema.Manifest, artifact store.Artifact) bool {
-	return m.Runtime.Egress != schema.EgressOff && !artifact.IsZero()
+// sidecar: opt-out via runtime.egress, and no probed Corefile means
+// nothing to mount (artifact-less and pre-egress-artifact projects
+// already run degraded). dnsConf is DNSConfPresent's answer, passed
+// explicitly because Compile cannot probe. Shared with the app
+// layer's image-resolution loop so the two can't drift.
+func EgressDNSEnabled(m schema.Manifest, dnsConf bool) bool {
+	return m.Runtime.Egress != schema.EgressOff && dnsConf
+}
+
+// DNSConfPresent probes the pinned artifact for the store-owned
+// Corefile. I/O — never called from Compile, whose golden determinism
+// forbids filesystem reads; callers thread the result through
+// CompileInput.DNSConf.
+func DNSConfPresent(artifact store.Artifact) bool {
+	return artifact.HasPayloadFile(DNSConfRelPath)
 }
 
 // sortedStrings canonicalizes a manifest-ordered enum list for the

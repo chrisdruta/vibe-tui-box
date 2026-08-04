@@ -70,6 +70,7 @@ func (a *App) Config(ctx context.Context, req ConfigRequest) (ConfigResult, erro
 		Manifest:         frozen.Manifest,
 		Snapshot:         frozen.Snapshot,
 		BrokerResultsDir: brokerStore.ResultsDir(),
+		DNSConf:          model.DNSConfPresent(artifact),
 		// Image references stay unresolved in the diagnostic plan; up
 		// resolves them to digests when it builds the real candidate.
 	})

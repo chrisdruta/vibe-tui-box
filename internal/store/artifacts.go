@@ -45,6 +45,21 @@ func (a Artifact) PayloadPath() string {
 	return filepath.Join(a.Path, ArtifactPayloadRelPath)
 }
 
+// HasPayloadFile reports whether the extracted payload carries the
+// given slash-relative file — the capability probe for engine features
+// whose container-side bytes ride the artifact: a pinned artifact
+// predating (or damaged around) a feature degrades that feature,
+// never fails the operation. Deterministic per artifact: the tree is
+// digest-addressed and immutable, so the probe is a pure function of
+// the pinned digest.
+func (a Artifact) HasPayloadFile(rel string) bool {
+	if a.IsZero() {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(a.PayloadPath(), filepath.FromSlash(rel)))
+	return err == nil && info.Mode().IsRegular()
+}
+
 // BinaryPath is the engine binary inside the artifact.
 func (a Artifact) BinaryPath() string {
 	return filepath.Join(a.Path, ArtifactBinaryRelPath)
