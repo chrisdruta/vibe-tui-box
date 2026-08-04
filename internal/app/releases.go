@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -78,7 +79,25 @@ func (a *App) Provision(ctx context.Context, req ProvisionRequest) (ProvisionRes
 		},
 		InstalledAt: a.deps.Clock.Now().UTC(),
 	}
-	if err := a.deps.Store.WriteArtifactRecord(record); err != nil {
+	// Content the store already records keeps its original story:
+	// records are one-per-digest and never rewritten, so a re-provision
+	// of the same binary reuses the existing record (idempotent — a
+	// fresh InstalledAt alone must not conflict) and a dev-built binary
+	// is refused by name: its content IS the dev artifact `dev sync`
+	// minted, and a dev artifact can never satisfy a release pin or
+	// another project's record (2026-08-04 dogfood: provision from the
+	// dev shim died on the raw record-content conflict).
+	existing, err := a.deps.Store.ReadArtifactRecord(digest)
+	switch {
+	case err == nil && existing.Release.Source == "dev-build":
+		return fail(fmt.Errorf("%w: this binary is already installed as dev artifact %s (`vibe dev`); dev builds cannot be provisioned as releases — build the engine outside dev mode (go build) and provision with that binary", domain.ErrConflict, digest.Hex()[:12]))
+	case err == nil:
+		record = existing
+	case errors.Is(err, domain.ErrNotFound):
+		if err := a.deps.Store.WriteArtifactRecord(record); err != nil {
+			return fail(err)
+		}
+	default:
 		return fail(err)
 	}
 

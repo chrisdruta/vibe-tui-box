@@ -40,6 +40,18 @@ The v1 line and its history remain in git up to the cutover commit.
   host gitconfig (v1's reason to wait for the opt-in), so pre-login
   push now asks for `gh auth login` instead of dying on publickey.
   See [docs/configuration.md](docs/configuration.md) "GitHub access".
+- Fixed: **provision is idempotent and refuses dev-built binaries by
+  name** (2026-08-04 dogfood, minutes after the dns find). Re-running
+  `vibe provision` used to die on the once-only record write — a fresh
+  `InstalledAt` alone made the same-digest record "different content"
+  (the frozen test clock hid it) — and on a dev-mode host it could
+  never work at all: the running shim's content IS the dev artifact
+  `dev sync` just minted, so the digests always collided. Now an
+  existing record is reused untouched (the store keeps the original
+  story), and dev-build-recorded content fails with a conflict that
+  names the cause and the way out (build the engine outside dev mode
+  and provision with that binary) — a dev artifact can never satisfy a
+  release pin.
 - Fixed: **the dns ledger sidecar is capability-probed** (2026-08-04
   dogfood: a fresh project pinned a stale self-provision artifact whose
   payload lacked `dns/Corefile`, and every `vibe up` failed with the

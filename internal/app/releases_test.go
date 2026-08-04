@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,10 +77,18 @@ func TestProvisionPinsAndUpUsesPayload(t *testing.T) {
 		t.Fatalf("project not pinned: %+v", res.Pinned)
 	}
 
-	// Provision is idempotent for the same binary+payload.
+	// Provision is idempotent for the same binary+payload — including
+	// under a moving clock (2026-08-04: a fresh InstalledAt alone used
+	// to conflict the once-only record write; the frozen test clock hid
+	// it). The record keeps its original story.
+	a.deps.Clock = &advancingClock{}
 	res2, err := a.Provision(ctx, ProvisionRequest{Dir: dir})
 	if err != nil || res2.Artifact.Digest != res.Artifact.Digest {
 		t.Fatalf("re-provision: %+v, %v", res2.Artifact, err)
+	}
+	if !res2.Artifact.InstalledAt.Equal(res.Artifact.InstalledAt) {
+		t.Fatalf("re-provision must keep the original record: %s vs %s",
+			res2.Artifact.InstalledAt, res.Artifact.InstalledAt)
 	}
 
 	// Up now mounts the payload and runs its entrypoint.
@@ -221,6 +230,41 @@ func TestUpSkipsDNSSidecarWithoutCorefile(t *testing.T) {
 		if call.Request.(dockerapi.ImageRef) == dockerapi.ImageRef(model.CoreDNSImageRef) {
 			t.Fatal("a Corefile-less artifact must not resolve the CoreDNS ref")
 		}
+	}
+}
+
+// TestProvisionRefusesDevBuiltBinary pins the other half of the
+// 2026-08-04 provision fix: on a dev-mode host the running shim's
+// content IS the dev artifact `dev sync` minted, and provisioning it
+// must fail with the named conflict — a dev artifact can never satisfy
+// a release pin — instead of the raw record-content error.
+func TestProvisionRefusesDevBuiltBinary(t *testing.T) {
+	a, _ := newTestApp(t)
+	withPayload(t, a)
+	ctx := context.Background()
+
+	// Learn the content digest, then rewrite its record as the
+	// dev-build `dev sync` would have minted first.
+	res, err := a.Provision(ctx, ProvisionRequest{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recPath := filepath.Join(a.deps.Layout.Artifacts, res.Artifact.Digest.Hex()+".record.json")
+	if err := os.Remove(recPath); err != nil {
+		t.Fatal(err)
+	}
+	dev := res.Artifact
+	dev.Release = domain.ReleaseProvenance{Source: "dev-build", Version: dev.Version}
+	if err := a.deps.Store.WriteArtifactRecord(dev); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = a.Provision(ctx, ProvisionRequest{Dir: t.TempDir()})
+	if !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("provision over a dev-build record must conflict, got %v", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "dev artifact") {
+		t.Fatalf("the conflict must name the dev-build cause: %v", err)
 	}
 }
 
