@@ -45,14 +45,16 @@ addr=""
 wid=""
 dead=""
 svc=""
-# Location-aware anchoring (2026-08-04 dogfood: a right-click on a
-# sidebar row opened its menu bottom-centre): `M` positions at the
-# client's LAST mouse event — always the triggering right-click here.
-# Sidebar rows anchor fully at the pointer; the tray doors (ghost,
-# tab) keep `S` for y — above the bar, at the pointer's column — since
-# their rows ARE the bottom edge.
-pos=(-x M -y S)
-[ "$mode" = row ] && pos=(-x M -y M)
+# Location-aware anchoring (2026-08-04 dogfood, second round: `M`
+# reads the mouse from the command's OWN context, and a script-opened
+# menu has none — same trap the -M -O matrix records — so the first
+# fix put every menu in a corner). The ROW binding expands the
+# client-absolute pointer (pane_left+mouse_x / pane_top+mouse_y) while
+# the event is live and passes NUMBERS; row mode validates and anchors
+# there, falling back to the old above-the-tray pin. Tray doors
+# (ghost, tab) keep the plain -y S status quo — their rows ARE the
+# bottom edge.
+pos=(-y S)
 case "$mode" in
 ghost)
   sess="${3:-}"
@@ -80,6 +82,11 @@ row)
   y="${4:-}"
   { [ -n "$pane" ] && [ -n "$y" ]; } || exit 0
   case "$y" in '' | *[!0-9]*) exit 0 ;; esac
+  mx="${5:-}"
+  my="${6:-}"
+  if [ -n "$mx" ] && [ -n "$my" ]; then
+    case "$mx$my" in *[!0-9]*) ;; *) pos=(-x "$mx" -y "$my") ;; esac
+  fi
   target=""
   for entry in $(tmux show-options -pqv -t "$pane" @vibe_sidebar_map 2>/dev/null); do
     case "$entry" in

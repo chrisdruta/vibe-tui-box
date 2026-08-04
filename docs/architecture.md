@@ -348,9 +348,11 @@ state, exposed through the read-only results mount.
 One host tmux server on the `vibe-engine` socket owns one session per
 project (session IDs derive from project IDs, so display renames never
 strand a session; the full ID is stamped as `@vibe_project` for host
-scripts). The Go engine implements the render endpoints — `_sidebar`,
-`_state`, `_fleet`, and `_frame`, which owns all sidebar layout
-arithmetic; tmux configuration and the glue around them is static
+scripts). The Go engine implements the render and cache endpoints — `_fetch`
+(the single-pass producer of the fleet/agents/detail caches), `_state`
+(the status-line splice), and `_frame`, which owns all sidebar layout
+arithmetic (`_sidebar`/`_fleet`/`_agents` are legacy-one-generation,
+retiring once no previous-artifact script can call them); tmux configuration and the glue around them is static
 trusted payload shell — host-side scripts execute only store-owned
 bytes, never workspace files, and never do layout math of their own.
 Colors and glyphs single-source from
@@ -358,20 +360,31 @@ Colors and glyphs single-source from
 `theme.sh` and the conf's `@thm` block; layout decisions and the knob
 surface live in [tui-layout.md](tui-layout.md), and a user conf
 (`~/.config/vibe/tui.conf`) is sourced last for everything a knob
-doesn't cover.
+doesn't cover. One tab runs the fleet (2026-08-04): a sessionless
+project's sidebar row click makes it live (`_open`: containers
+ensured, session minted detached, client switched on the approved
+path), quit (`prefix+Q`, kill-session under `detach-on-destroy
+no-detached`) hops the client to a surviving session, and the conf's
+session-closed hook dispatches `_reap` to clear the dead session's
+container-side ghost viewers.
 
 Two serials drive refresh, deliberately separate. `@vibe_state_serial`
 means "agent dots moved — redraw cheaply from tmux-local data";
 `@vibe_engine_serial`, bumped by state-mutating engine commands
 (`up`/`down`, request adoption and decisions, `dev on/off`,
-register/forget, update), means "engine truth moved — a refetch is
-worth its Docker round trips". On a bump (or a slow tick,
-`@vibe_engine_refresh`) the sidebar double-forks a background fetch of
-the `_fleet` porcelain (US-separated, project ID as the join key
-against `@vibe_project`) and the own-project `_sidebar` detail block
-into a cache beside the socket; frames only ever read the cache, a
-failed fetch keeps last-good, and a missing engine degrades to the
-shell-only sidebar. Docker never runs on the 2s frame path — each
+register/forget, update) and by the watch daemon's docker-events
+subscription (managed-container lifecycle events — an out-of-band
+container death reaches the sidebar in seconds), means "engine truth
+moved — a refetch is worth its Docker round trips". On a bump (or a
+slow tick, `@vibe_engine_refresh`) the sidebar double-forks ONE
+background `vibe _fetch`: a single engine pass (one status listing
+per project, engine-flock guarded) writes the fleet porcelain
+(US-separated, project ID as the join key against `@vibe_project`),
+the agents porcelain, and every project's detail lines into the cache
+beside the socket, then bumps the repaint serial; frames only ever
+read the cache, a failed fetch keeps last-good, and a missing engine
+degrades to the shell-only sidebar. The same pass is the watch
+daemon's publish path — one writer, no cache races. Docker never runs on the 2s frame path — each
 frame pipes tmux porcelain through `vibe _frame`, which renders purely
 from that cache; the one `#(vibe _state)` status-line splice at
 interval 5 is the whole format-string budget.

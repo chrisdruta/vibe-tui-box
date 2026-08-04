@@ -69,8 +69,10 @@ vibe request approve add-port   # applies exactly the frozen candidate you saw
 
 ## The cockpit
 
-`vibe tui` is a host tmux session per project: a sidebar that keeps every
-project's agents, workspace services, and engine sidecars in view, live
+`vibe tui` is a host tmux session per project — and one tab runs the
+whole fleet: a sidebar that keeps every project's agents, workspace
+services, and engine sidecars in view (a parked project's row is one
+click from live — containers up, session open, you switched in), live
 state dots the agent's own hooks push out (nothing polls), a full-width
 host dock (`prefix+t`, VS Code ctrl+` feel), and a chooser for launching
 whatever the image installed. Agents run in tmux *inside* the container,

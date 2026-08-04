@@ -638,7 +638,7 @@ inline treatment won — one line per entry stays law. Target block:
   (`42m`/`3h`/`2d`), meaning time IN STATE, not session uptime.
   Agent cache rows already shipped an epoch in agent-ps.sh's rows and
   the porcelain dropped it (now threaded through, `_agents` grammar
-  v2); window rows get theirs from state-render.sh stamping
+  v2; v3 since 2026-08-04 — the detail field left unread); window rows get theirs from state-render.sh stamping
   `@vibe_state_epoch` beside `@vibe_state` only when the value
   CHANGES. (The design's "services already ship an epoch" premise was
   false against the code — the second pass emitted an empty field; it
@@ -670,7 +670,7 @@ inline treatment won — one line per entry stays law. Target block:
   host-side `git diff --shortstat HEAD` (staged and unstaged both
   count: the question is "has the agent changed anything", not "what
   isn't staged yet") per in-use project, riding the cached engine
-  layer (`_fleet` grammar v2, the churn field before the name) on the
+  layer (`_fleet` grammar v2 (v3 since 2026-08-04 — engine-version dropped unread), the churn field before the name) on the
   `@vibe_engine_refresh` cadence — never the frame path, so
   `#(vibe _state)` stays the conf's whole splice budget. Answers "has
   the agent actually changed anything" without opening lazygit.
@@ -683,6 +683,8 @@ inline treatment won — one line per entry stays law. Target block:
 Budgets: per-row drop order under the text budget is dot+name never,
 age second-to-last, model/detail first — extending agentLabel's
 model-drops-first precedent. Porcelain: `AgentEntry` grows `Epoch`
+(and, then, `Detail` — which never found a reader and left with the
+2026-08-04 v3 cleanup)
 and `Detail`, and the `_agents` grammar gains the two fields (the
 leading version field exists for exactly this).
 
@@ -710,7 +712,7 @@ Three intents, one owner each:
 
 | Intent | Owner |
 | --- | --- |
-| open an agent that exists | tray tab / ghost cell / sidebar row (shipped, attach-only) |
+| open an agent that exists | tray tab / ghost cell / sidebar row (shipped, attach-only for agents; the cold PROJECT row is the 2026-08-04 exception — it mints the project's session via `_open`) |
 | start a new agent | the `+` agents chooser |
 | manage a running agent | palette stop/restart (default session; addressing is an open call) |
 

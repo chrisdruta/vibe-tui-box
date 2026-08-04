@@ -81,7 +81,11 @@ row — dim while running, a bright ✗ when the process dies (the window
 is kept, so the crash log stays in its scrollback) — left-click
 reaches the services viewer, right-click stops a live one or
 dismisses a corpse. They are distinct from the manifest's `services:`
-**sidecars**, which are separate planned containers.
+**sidecars**, which are separate planned containers — those close the
+same sidebar group with a dim `sidecar` qualifier (Docker truth, so a
+stopped one stays visible with the dev container down), and the
+engine's own dns row reads `dns ledger` and left-clicks straight to
+the network-egress popup.
 
 ### Agent sessions persist
 
@@ -130,8 +134,10 @@ clickable start button (opens the palette, as does the `+` cell), the
 actually running, and the right side carries the engine state (click
 it for the request list) and a clock. Holding the
 prefix swaps the tabs for a keybind cheatsheet — hints on demand, no
-extra row. Project identity lives in the sidebar and the OS window
-title, never the bar.
+extra row. The `🥡` cell carries the CURRENT project's name (it
+follows every switch), so the tabs beside it always read as that
+project's windows; the sidebar and OS window title carry identity
+too.
 
 The mouse speaks two verbs beyond plain clicks (2026-07-28).
 **Ctrl+click any file path** — in a transcript, a shell, anywhere —
@@ -151,7 +157,10 @@ and panes keep a stock-style tmux menu.
 The daily cycle is symmetric: evening `prefix+Space → park THIS
 project` (or `vibe down` from any terminal) stops the containers and
 closes the project's UI session — agent logins and conversations live
-on the agent-state volume and survive. Morning is `vibe tui`, alone.
+on the agent-state volume and survive. Morning is `vibe tui` — or,
+with any project's tui already open, one click on the parked
+project's sidebar row (containers up, session minted, client
+switched).
 Leaving everything running overnight also works (reattach is instant);
 it just keeps the container — and on WSL2 the VM — warm.
 
@@ -161,8 +170,8 @@ and what layer (UI chrome vs the workload):
 | Leaving | Scope | Agents & containers | You land |
 | --- | --- | --- | --- |
 | detach (palette `d`) | disconnects your client; every session stays alive | keep running | your shell; `vibe tui` re-attaches instantly, everything as left |
-| quit ui (`prefix+Q`) | kills THIS project's UI session | keep running | the previous project's session; one sidebar click re-opens |
-| park (palette `z`) | kills this project's UI session | **containers stop** (`vibe down`) | the previous project; the cold row's click revives |
+| quit ui (`prefix+Q`) | kills THIS project's UI session | keep running | the most recently active surviving session; one sidebar click re-opens |
+| park (palette `z`) | kills this project's UI session | **containers stop** (`vibe down`) | the most recently active surviving session; the cold row's click revives |
 | kill server (`prefix+K`) | every project's UI session ends | keep running | your shell; the next `vibe tui` starts fresh chrome |
 
 Detach vs kill server — both leave workloads running and end at your
@@ -176,15 +185,17 @@ The prefix is `C-Space` (`C-a` also works). The keys that matter:
 
 | Key | Action |
 | --- | --- |
-| `prefix+Space` | palette: agent/shell windows, files, git, requests, ps, doctor |
+| `prefix+Space` | palette (complete surface): agents chooser, shells, sidebar/dock/clip toggles, projects, files, git, requests, ps, egress, doctor, and the exit block |
 | `prefix+f` | files popup: nvim + oil in the container — browse, read, light edits |
 | `prefix+g` | git popup: lazygit in the container — diffs, staging, commits |
 | `prefix+b` | toggle the project sidebar |
 | `prefix+t` | toggle the bottom host dock |
 | `prefix+v` | host clipboard image → agent prompt |
-| `prefix+o` | switch project (live sessions tree) |
+| `prefix+o` | projects (live sessions tree) |
+| `prefix+E` | network egress popup (the dns ledger + live sockets; the sidebar's `dns ledger` row is the same view) |
+| `prefix+R` | reload the tui conf |
 | `prefix+r` | respawn a dead pane (reattaches the agent session); `prefix+x` closes it |
-| `prefix+Q` / `prefix+K` | quit this project's UI (the client hops back) / kill every project's UI (both confirm; agents and containers keep running) |
+| `prefix+Q` / `prefix+K` | quit this project's UI (the client hops to the most recently active surviving session) / kill every project's UI (both confirm; agents and containers keep running) |
 
 `prefix+f` and `prefix+g` are the **review stack**: nvim and lazygit
 baked into the tools image at pinned versions with an opinionated,

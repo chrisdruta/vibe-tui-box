@@ -51,6 +51,15 @@ with `%w` and the CLI maps error classes to the stable exit codes
 Anything feeding a digest is a compatibility surface; bump the relevant
 format number when its serialized meaning changes.
 
+- **TUI porcelains** (`internal/tmuxui` `Fleet()`/`Agents()` and the
+  `_frame` records): version-prefixed, US-separated; currently v3
+  (2026-08-04 — fleet dropped the unread engine-version field, agents
+  the unread detail). Read tolerance is exactly ONE generation (v2
+  parses, v1 pruned) — the window is a previous-artifact `sidebar.sh`
+  or `_watch` daemon driving the new binary until its slow-tick
+  self-exec / shim-drift retire; the `_frame` W record requires all 12
+  fields, the S record's trailing svc_fold stays optional one
+  generation.
 - **Merkle tree digest** (`store.DigestTree`): one line per entry,
   `type NUL mode NUL size NUL relative-path NUL content-digest LF`,
   slash-separated paths on every platform, sorted — deterministic across

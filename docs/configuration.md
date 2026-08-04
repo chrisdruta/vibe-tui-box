@@ -88,12 +88,15 @@ bootstrap:
   mounted; editing the source on the host does nothing until the next
   candidate. The workspace itself is the only live bind.
 - **`runtime.egress`** — the per-project DNS ledger, on when absent.
-  Every provisioned project's plan gains an engine-generated CoreDNS
+  A provisioned project's plan gains an engine-generated CoreDNS
   sidecar (`vibe-<id>-svc-dns`, digest-pinned in engine code) that the
-  dev container's resolver rides; its query log IS the project's domain
-  ledger — read raw with `vibe logs dns [-f]`, or joined with a
-  live-socket sample via the tui palette's "network egress" popup
-  (prefix+E). Resolution behavior is unchanged (the sidecar forwards to
+  dev container's resolver rides — capability-probed since 2026-08-04:
+  the sidecar compiles in only when the pinned artifact's payload
+  actually carries the Corefile, so a pre-egress artifact runs without
+  the ledger instead of failing `up`. Its query log IS the project's
+  domain ledger — read raw with `vibe logs dns [-f]`, or joined with a
+  live-socket sample via the "network egress" popup (prefix+E, the
+  palette, or one left-click on the sidebar's `dns ledger` row). Resolution behavior is unchanged (the sidecar forwards to
   the same resolvers Docker uses today); in-network alias lookups
   (`db`, `dns`) are answered by Docker's embedded DNS and never appear
   in the ledger, and direct-to-IP or DoH traffic bypasses it
