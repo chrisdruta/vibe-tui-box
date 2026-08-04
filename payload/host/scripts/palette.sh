@@ -56,7 +56,7 @@ exec tmux display-menu "$@" -M -O -T " vibe " \
   "network egress" E "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' _egress\"" \
   "doctor" D "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' doctor\"" \
   "" \
-  "detach (keep running)" d "detach-client" \
-  "park project (down + quit)" z "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 45% '#{client_name}' '#{@vibe_exe}' down\"" \
-  "quit ui" Q "vibe-quit-ui" \
-  "kill ui server (ALL)" K "vibe-kill-server"
+  "detach · all keeps running" d "detach-client" \
+  "quit THIS project's ui" Q "vibe-quit-ui" \
+  "park THIS project (containers down)" z "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 45% '#{client_name}' '#{@vibe_exe}' down\"" \
+  "kill ALL projects' ui" K "vibe-kill-server"

@@ -148,12 +148,27 @@ viewer buries itself), open a viewer, close just the viewer, and on a
 dead ✗ row, dismiss the record once you've seen it. Non-agent tabs
 and panes keep a stock-style tmux menu.
 
-The daily cycle is symmetric: evening `prefix+Space → park project`
-(or `vibe down` from any terminal) stops the containers and closes the
-project's UI session — agent logins and conversations live on the
-agent-state volume and survive. Morning is `vibe tui`, alone. Leaving
-everything running overnight also works (reattach is instant); it just
-keeps the container — and on WSL2 the VM — warm. Agent state (working / attention / idle / exited) is
+The daily cycle is symmetric: evening `prefix+Space → park THIS
+project` (or `vibe down` from any terminal) stops the containers and
+closes the project's UI session — agent logins and conversations live
+on the agent-state volume and survive. Morning is `vibe tui`, alone.
+Leaving everything running overnight also works (reattach is instant);
+it just keeps the container — and on WSL2 the VM — warm.
+
+Four ways out, two questions — how much (this project vs everything)
+and what layer (UI chrome vs the workload):
+
+| Leaving | Scope | Agents & containers | You land |
+| --- | --- | --- | --- |
+| detach (palette `d`) | disconnects your client; every session stays alive | keep running | your shell; `vibe tui` re-attaches instantly, everything as left |
+| quit ui (`prefix+Q`) | kills THIS project's UI session | keep running | the previous project's session; one sidebar click re-opens |
+| park (palette `z`) | kills this project's UI session | **containers stop** (`vibe down`) | the previous project; the cold row's click revives |
+| kill server (`prefix+K`) | every project's UI session ends | keep running | your shell; the next `vibe tui` starts fresh chrome |
+
+Detach vs kill server — both leave workloads running and end at your
+shell: detach keeps the server and per-session state (folds, layouts)
+alive for an instant re-attach; kill server actually ends the UI
+processes, so the next join is fresh. Agent state (working / attention / idle / exited) is
 pushed by the agent's own hooks into tab, border, and sidebar dots — a
 permission prompt flashes the tab even from another window.
 
@@ -169,7 +184,7 @@ The prefix is `C-Space` (`C-a` also works). The keys that matter:
 | `prefix+v` | host clipboard image → agent prompt |
 | `prefix+o` | switch project (live sessions tree) |
 | `prefix+r` | respawn a dead pane (reattaches the agent session); `prefix+x` closes it |
-| `prefix+Q` / `prefix+K` | quit this project's UI / kill every project's UI (both confirm; agents and containers keep running) |
+| `prefix+Q` / `prefix+K` | quit this project's UI (the client hops back) / kill every project's UI (both confirm; agents and containers keep running) |
 
 `prefix+f` and `prefix+g` are the **review stack**: nvim and lazygit
 baked into the tools image at pinned versions with an opinionated,
