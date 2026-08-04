@@ -968,6 +968,14 @@ func TestFrameSidecarRows(t *testing.T) {
 	if clicks[5] != "$1:egress" {
 		t.Fatalf("the dns ledger clicks through to the egress popup: %q", clicks[5])
 	}
+	// The running ledger wears its looking glass (budgeted at the
+	// glyph's true two cells); signal states drop the cosmetics.
+	if !strings.Contains(rows[5], "🔭") {
+		t.Fatalf("the running ledger wears the telescope: %q", rows[5])
+	}
+	if strings.Contains(rows[4], "🔭") {
+		t.Fatalf("only the dns ledger wears it: %q", rows[4])
+	}
 	dim := fg(PaletteHex("dim"))
 	if !strings.Contains(out.Body, dim+"dns") {
 		t.Fatal("a running sidecar whispers (dim name)")
@@ -983,6 +991,9 @@ func TestFrameSidecarRows(t *testing.T) {
 	rows = frameRows(t, out.Body)
 	if !strings.Contains(rows[5], "◐") || !strings.Contains(rows[5], "stale") {
 		t.Fatalf("stale sidecar row: %q", rows[5])
+	}
+	if strings.Contains(rows[5], "🔭") {
+		t.Fatalf("a signal-state ledger drops the telescope: %q", rows[5])
 	}
 	if !strings.Contains(out.Body, fg(PaletteHex("fg"))+"dns") {
 		t.Fatal("a stale sidecar speaks (fg name)")

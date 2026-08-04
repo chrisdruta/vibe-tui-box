@@ -585,8 +585,11 @@ the sidebar cannot see them at all.
   one from inspect is not worth the field until dogfood asks.
   ONE carve-out (2026-08-04, Chris — "dns sidecar" said neither what
   it does nor where to look): the engine's own dns ledger wears
-  `ledger` in the qualifier slot and LEFT clicks through to the
-  network-egress popup (`:egress` target → switch to the row's
+  `ledger` in the qualifier slot plus a trailing 🔭 while running
+  (budgeted at the emoji's true TWO cells — every other width in the
+  frame counts runes, and a smuggled wide glyph is the 1-cell overflow
+  that wraps a pane line; signal states drop the cosmetics), and LEFT
+  clicks through to the network-egress popup (`:egress` target → switch to the row's
   project, then the same view as prefix+E) — the row is the ledger's
   health signal, so it should also be its door. A bar ticker of
   recent domains was considered and declined: it would churn beside

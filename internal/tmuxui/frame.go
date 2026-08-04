@@ -294,6 +294,13 @@ type agentRow struct {
 	conn   string
 	folded bool // a collapsed group's header: wears the ▸ tell
 	hide   bool // folded into the `… +n` overflow slot (rosterBlock)
+	// badge is a trailing DOUBLE-WIDTH glyph (the ledger's 🔭): its own
+	// field because every width in this file counts runes, and an
+	// emoji smuggled through name/model would render one cell wider
+	// than budgeted — the 1-cell overflow that wraps a pane line and
+	// corrupts the absolutely-positioned frame. agentLabel budgets it
+	// at its true 2 cells and drops it first under pressure.
+	badge string
 	// spin marks a working row's dot for the sub-tick overlay: the
 	// frame reports its drawn coordinates so the sidebar can animate
 	// exactly that cell without re-rendering (the frame's own glyph
@@ -723,10 +730,15 @@ func Frame(in FrameInput) FrameOutput {
 			if dns {
 				target = s.ID + ":egress"
 			}
+			badge := ""
+			if dns && sc.State == "running" {
+				badge = "🔭" // the looking glass — cosmetic, dropped under pressure
+			}
 			services = append(services, agentRow{
 				dot:    fg(hex) + glyph,
 				name:   sc.Session,
 				model:  slot,
+				badge:  badge,
 				target: target,
 				dim:    sc.State == "running",
 			})
@@ -913,6 +925,18 @@ func agentLabel(a agentRow, budget int, cFG, cDim string) string {
 	if slot != "" {
 		out += "  " + cDim + slot + ansiReset
 		used += 2 + len([]rune(slot))
+	}
+	if a.badge != "" && used+3 <= budget {
+		// One space + the glyph's TWO cells; cosmetic, so it yields to
+		// the age column when both cannot fit.
+		ageNeed := 0
+		if age != "" {
+			ageNeed = 2 + len([]rune(age))
+		}
+		if used+3+ageNeed <= budget {
+			out += " " + a.badge
+			used += 3
+		}
 	}
 	if age != "" {
 		pad := budget - used - len([]rune(age))
