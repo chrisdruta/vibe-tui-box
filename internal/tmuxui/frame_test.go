@@ -961,9 +961,9 @@ func TestFrameSidecarRows(t *testing.T) {
 	if clicks[4] != "$1" {
 		t.Fatalf("a manifest sidecar's click is the project switch: %q", clicks[4])
 	}
-	if !strings.Contains(rows[5], "└ ") || !strings.Contains(rows[5], "dns") ||
-		!strings.Contains(rows[5], "ledger") || strings.Contains(rows[5], "sidecar") {
-		t.Fatalf("the dns ledger says what it is: %q", rows[5])
+	if !strings.Contains(rows[5], "└ ") || !strings.Contains(rows[5], "dns ledger") ||
+		strings.Contains(rows[5], "dns  ledger") || strings.Contains(rows[5], "sidecar") {
+		t.Fatalf("the dns ledger is ONE phrase, single-spaced: %q", rows[5])
 	}
 	if clicks[5] != "$1:egress" {
 		t.Fatalf("the dns ledger clicks through to the egress popup: %q", clicks[5])

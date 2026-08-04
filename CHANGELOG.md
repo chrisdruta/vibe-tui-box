@@ -55,8 +55,9 @@ The v1 line and its history remain in git up to the cutover commit.
 - Changed: **the dns row says what it is and opens what it watches**
   (2026-08-04 dogfood: "dns sidecar" read as neither; the row was the
   one services entry with nowhere to go). The engine's dns ledger row
-  wears `ledger` in the qualifier slot (plus a 🔭 while running,
-  budgeted at its true two cells), and LEFT clicks through to the
+  is named `dns ledger` — one single-spaced phrase, the qualifier slot
+  left free for the state word (plus a 🔭 while running, budgeted at
+  its true two cells) — and LEFT clicks through to the
   network-egress popup — switch to the row's project, then the same
   view as prefix+E. Manifest sidecars keep the generic `sidecar`
   qualifier and the project-switch click. (A recent-domains bar ticker

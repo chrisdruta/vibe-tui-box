@@ -84,7 +84,7 @@ dismisses a corpse. They are distinct from the manifest's `services:`
 **sidecars**, which are separate planned containers — those close the
 same sidebar group with a dim `sidecar` qualifier (Docker truth, so a
 stopped one stays visible with the dev container down), and the
-engine's own dns row reads `dns ledger` and left-clicks straight to
+engine's own dns row reads `dns ledger 🔭` and left-clicks straight to
 the network-egress popup.
 
 ### Agent sessions persist

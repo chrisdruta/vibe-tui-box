@@ -719,9 +719,16 @@ func Frame(in FrameInput) FrameOutput {
 				continue
 			}
 			dns := sc.Session == "dns"
+			name := sc.Session
 			slot := "sidecar"
 			if dns {
-				slot = "ledger"
+				// One phrase, not name+qualifier columns (2026-08-04,
+				// Chris: the roster's two-space column gap reads right
+				// between a CLI and its model, wrong inside a label) —
+				// `dns ledger` IS the row's name; the slot stays free
+				// for the state word.
+				name = "dns ledger"
+				slot = ""
 			}
 			if sc.State != "running" {
 				slot = sc.State
@@ -736,7 +743,7 @@ func Frame(in FrameInput) FrameOutput {
 			}
 			services = append(services, agentRow{
 				dot:    fg(hex) + glyph,
-				name:   sc.Session,
+				name:   name,
 				model:  slot,
 				badge:  badge,
 				target: target,

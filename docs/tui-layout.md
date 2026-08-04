@@ -584,8 +584,10 @@ the sidebar cannot see them at all.
   have no age: `runtime.Status` carries no start time, and inventing
   one from inspect is not worth the field until dogfood asks.
   ONE carve-out (2026-08-04, Chris — "dns sidecar" said neither what
-  it does nor where to look): the engine's own dns ledger wears
-  `ledger` in the qualifier slot plus a trailing 🔭 while running
+  it does nor where to look): the engine's own dns ledger row is
+  NAMED `dns ledger` — one single-spaced phrase, not name+qualifier
+  columns (the two-space gap reads right between a CLI and its model,
+  wrong inside a label) — plus a trailing 🔭 while running
   (budgeted at the emoji's true TWO cells — every other width in the
   frame counts runes, and a smuggled wide glyph is the 1-cell overflow
   that wraps a pane line; signal states drop the cosmetics), and LEFT
