@@ -171,6 +171,14 @@ func (b *Binary) EnsureSession(ctx context.Context, spec SessionSpec) error {
 		return err
 	}
 	if out.ExitCode != 0 {
+		// The has-then-create pair races: two minters (a `vibe tui`
+		// join and a sidebar `_open`, or two sidebars) can both see
+		// absent, and the loser's new-session fails "duplicate
+		// session". Exists-now is this call's postcondition met by the
+		// winner — converge instead of erroring.
+		if exists, herr := b.HasSession(ctx, spec.ID); herr == nil && exists {
+			return nil
+		}
 		return fmt.Errorf("%w: tmux new-session: %s", domain.ErrUnavailable, strings.TrimSpace(string(out.Stderr)))
 	}
 	return nil

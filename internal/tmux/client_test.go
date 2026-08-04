@@ -89,6 +89,56 @@ func TestEnsureSessionArgv(t *testing.T) {
 	}
 }
 
+// raceRunner models the duplicate-session race: absent until a
+// new-session was attempted (the concurrent winner's), then exists —
+// and the loser's own new-session fails.
+type raceRunner struct {
+	calls  []runner.Invocation
+	minted bool
+}
+
+func (r *raceRunner) Run(_ context.Context, inv runner.Invocation) (runner.Output, error) {
+	r.calls = append(r.calls, inv)
+	sub := ""
+	for i := 0; i < len(inv.Args); i++ {
+		if inv.Args[i] == "-L" || inv.Args[i] == "-f" {
+			i++
+			continue
+		}
+		sub = inv.Args[i]
+		break
+	}
+	switch sub {
+	case "has-session":
+		if r.minted {
+			return runner.Output{ExitCode: 0}, nil
+		}
+		return runner.Output{ExitCode: 1}, nil
+	case "new-session":
+		r.minted = true
+		return runner.Output{ExitCode: 1, Stderr: []byte("duplicate session: vibe-abc")}, nil
+	}
+	return runner.Output{}, nil
+}
+
+// TestEnsureSessionConvergesOnRace pins the TOCTOU fix: the loser of a
+// concurrent mint (a `vibe tui` join vs a sidebar `_open`) whose
+// new-session fails must re-check and treat exists-now as its own
+// postcondition met.
+func TestEnsureSessionConvergesOnRace(t *testing.T) {
+	rr := &raceRunner{}
+	b, err := NewBinary("/usr/bin/tmux", rr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.EnsureSession(context.Background(), SessionSpec{ID: "vibe-abc"}); err != nil {
+		t.Fatalf("racing EnsureSession must converge, got %v", err)
+	}
+	if len(rr.calls) != 3 {
+		t.Fatalf("want has-session + new-session + has-session, got %d calls", len(rr.calls))
+	}
+}
+
 func TestListSessionsFiltersVibe(t *testing.T) {
 	fr := &fakeRunner{
 		exit: map[string]int{},

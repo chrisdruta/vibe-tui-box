@@ -40,6 +40,24 @@ The v1 line and its history remain in git up to the cutover commit.
   host gitconfig (v1's reason to wait for the opt-in), so pre-login
   push now asks for `gh auth login` instead of dying on publickey.
   See [docs/configuration.md](docs/configuration.md) "GitHub access".
+- New: **one tui tab runs the fleet** (2026-08-04, the step-back's
+  first slice; docs/tui-layout.md frame contract + BACKLOG record
+  revision). The cold-row click graduates from up-only to MAKE IT
+  LIVE: `vibe _open` ensures containers, mints the project's UI
+  session without attaching (`app.OpenProject` sharing `mintSession`
+  with `vibe tui`), and the sidebar switches the clicking client in on
+  the approved fast path — on a first-ever approval it toasts instead
+  (no focus steal mid-build; the second click enters). Quit becomes a
+  round trip: `detach-on-destroy previous` hops the client back to the
+  surviving session, the re-worded prefix+Q keeps `kill-session`, and
+  a new session-closed hook dispatches `vibe _reap` (the engine
+  resolves the dead session's name through the registry) so
+  container-side ghost viewers reap on every kill path — with hopping,
+  no `vibe tui` process observes a quit anymore. `EnsureSession` also
+  converges on the duplicate-session race instead of erroring, and the
+  chrome status-right now resolves the engine through `@vibe_exe`
+  inside the `#()` splice, so the state cell follows shim handoffs
+  without a restamp.
 - Fixed: **provision is idempotent and refuses dev-built binaries by
   name** (2026-08-04 dogfood, minutes after the dns find). Re-running
   `vibe provision` used to die on the once-only record write — a fresh

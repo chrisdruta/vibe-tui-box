@@ -916,20 +916,32 @@ never does layout math. The contract the renderer implements:
   safety net, not the design. Non-agent rows claim the session as
   click target. Cold registered projects (fleet entries with no live
   session) render dim and barless behind their fleet state token —
-  cold only encodes SESSIONLESS, so a running project's row says `●`
-  and a click-dispatched up visibly flips `·`/`○` to `●` when the
-  refetch lands (same-day dogfood: the first click-up changed nothing
-  the eye could find). The row claims `cold-<id>` — LEFT
-  dispatches a background `up` by registry ID (the product call,
-  resolved 2026-08-04, Chris: the hidden `vibe _up`, since the row
-  has no session to switch to and the click handler no workspace
-  cwd). Feedback is display-message (the agent-menu convention): an
-  immediate cue, then the engine's one-line verdict; the serial bump
-  `up` already sends repaints the fleet facts. The target carries no
-  colon, so the right-click menu's session-scoped grammar never
-  matches it — no verbs on a cold row. A failed background up (say,
-  one needing an interactive approval) reports and leaves the row
-  cold; the terminal path remains `vibe up` in the project.
+  cold only encodes SESSIONLESS, so a running project's row says `●`.
+  The row claims `cold-<id>` — LEFT makes the project LIVE (the
+  2026-08-04 product call, revised same day from up-only when the
+  one-tab dogfood hit the wall: quit was a one-way door, and re-entry
+  needed a terminal): a background `vibe _open` by registry ID
+  ensures containers, mints the session WITHOUT attaching
+  (app.OpenProject → mintSession, the session-scoped half `vibe tui`
+  also uses), and answers one machine line — `open <session>` on the
+  approved fast path, on which the handler switch-clients straight
+  in; `up <session>` when the FIRST approval just ran (possibly
+  minutes of build), on which it only toasts — no focus steal — and
+  the second click enters the now-live block. The handler validates
+  the session token against the engine's naming before it becomes a
+  tmux target. The target carries no colon, so the right-click menu's
+  session-scoped grammar never matches it — no verbs on a cold row.
+  A failed background open (say, an up needing an interactive
+  approval) reports and leaves the row cold; the terminal path
+  remains `vibe up` in the project. Quit stays `kill-session`
+  (prefix+Q, re-worded), now cheap: `detach-on-destroy previous` hops
+  the client back to the surviving session, and the conf's
+  session-closed hook dispatches `vibe _reap` (reap.sh → engine
+  resolves the dead session's NAME through the registry) — with
+  hopping, no `vibe tui` process observes a quit, so the hook owns
+  the container-side ghost-viewer reap for every kill path; the
+  attach-tail reap stays as the kill-server backstop, and
+  OpenProject reaps again before minting.
 - The **nested agent rows** close each project block (agent-surfaces
   decision above; supersedes the flowing aggregate roster, itself the
   2026-07-26 successor of the midpoint rule): one line per LIVE OR

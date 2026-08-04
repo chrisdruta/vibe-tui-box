@@ -348,6 +348,70 @@ var uiCommands = map[string]Command{
 			return &renderResult{Lines: []string{"dismissed " + res.Session}}, nil
 		},
 	},
+	"_open": {
+		Name:    "_open",
+		Summary: "internal make-it-live project open",
+		Usage:   "vibe _open --project ID",
+		Hidden:  true,
+		// The sidebar's cold-row click: ensure containers, mint the
+		// project's UI session without attaching, and answer ONE
+		// machine line the click handler dispatches on — `open <sess>`
+		// (approved path: switch the client over) or `up <sess>` (the
+		// FIRST approval just ran: toast only, the second click
+		// enters). No timeout: a wedged build holds the project lock
+		// like any other Up (parity with `_up`).
+		NoCwd: true,
+		Parse: func(args []string) (Request, error) {
+			var req OpenCmdRequest
+			return parseInto(args, "_open", &req.Options, func(fs *flag.FlagSet) any {
+				fs.StringVar(&req.Project, "project", "", "project ID")
+				return &req
+			})
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*OpenCmdRequest)
+			id, err := domain.ParseProjectID(r.Project)
+			if err != nil {
+				return nil, err
+			}
+			res, err := a.OpenProject(ctx, app.OpenProjectRequest{Project: id})
+			if err != nil {
+				return nil, err
+			}
+			verdict := "open"
+			if !res.Approved {
+				verdict = "up"
+			}
+			return &renderResult{Lines: []string{verdict + " " + string(res.Session)}}, nil
+		},
+	},
+	"_reap": {
+		Name:    "_reap",
+		Summary: "internal post-kill ghost-viewer reap",
+		Usage:   "vibe _reap --session NAME",
+		Hidden:  true,
+		// The conf's session-closed hook (reap.sh): with
+		// detach-on-destroy hopping the client instead of ending the
+		// attach, no `vibe tui` process observes a quit — the hook
+		// that saw the session die dispatches the reap, and only the
+		// session NAME survives the death (#{hook_session_name}).
+		// Best-effort like the reap itself.
+		NoCwd: true,
+		Parse: func(args []string) (Request, error) {
+			var req ReapCmdRequest
+			return parseInto(args, "_reap", &req.Options, func(fs *flag.FlagSet) any {
+				fs.StringVar(&req.Session, "session", "", "host session name (vibe-…)")
+				return &req
+			})
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*ReapCmdRequest)
+			if err := a.ReapSession(ctx, r.Session); err != nil {
+				return nil, err
+			}
+			return &renderResult{}, nil
+		},
+	},
 	"_up": {
 		Name:    "_up",
 		Summary: "internal cold-project up dispatch",
@@ -456,11 +520,25 @@ type FrameCmdRequest struct {
 	Spin  bool
 }
 
-// UpCmdRequest drives the hidden by-ID up dispatch — the sidebar's
-// cold-project click (sidebar.sh).
+// UpCmdRequest drives the hidden by-ID up dispatch — kept one
+// generation for a pre-`_open` sidebar.sh driving this binary.
 type UpCmdRequest struct {
 	Options
 	Project string
+}
+
+// OpenCmdRequest drives the hidden by-ID open dispatch — the sidebar's
+// make-it-live click.
+type OpenCmdRequest struct {
+	Options
+	Project string
+}
+
+// ReapCmdRequest drives the hidden post-kill reap — the conf's
+// session-closed hook.
+type ReapCmdRequest struct {
+	Options
+	Session string
 }
 
 // WatchCmdRequest drives the hidden engine-truth push daemon.

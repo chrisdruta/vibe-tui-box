@@ -231,22 +231,15 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 	// before EnsureSession mints our session.
 	preexisting, lsErr := a.deps.Tmux.ListSessions(ctx)
 	heal := conf != "" && lsErr == nil && len(preexisting) > 0
-	if err := a.deps.Tmux.EnsureSession(ctx, tmux.SessionSpec{
-		ID:      session,
-		Workdir: root.Path,
-		Window:  "agent",
-		Command: []string{a.deps.Executable, "agent"},
-	}); err != nil {
+	if err := a.mintSession(ctx, rec, root.Path, conf != ""); err != nil {
 		return fail(err)
 	}
-	// The display name is operator input landing in a format string
-	// where #() executes commands; escape it like any other data. No
-	// space between the splice and the name: a non-empty state cell
-	// brings its own trailing separator, and nominal renders nothing.
-	status := fmt.Sprintf("#(%s _state --project %s)%s", a.deps.Executable, rec.ID, tmux.EscapeFormat(rec.DisplayName))
 	if conf != "" {
 		// A server that predates this conf (conf applies at server start
-		// only) still gets current paths stamped onto it.
+		// only) still gets current paths stamped onto it. These global
+		// stamps come AFTER the mint: a set-option against a serverless
+		// tmux would start a session-less server that exits immediately,
+		// losing everything stamped on it.
 		if err := a.deps.Tmux.SetEnvironment(ctx, "VIBE_TUI_CONF", conf); err != nil {
 			return fail(err)
 		}
@@ -270,34 +263,6 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 				return fail(err)
 			}
 		}
-		// The sidebar shows display names; session names stay ID-derived.
-		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_name", rec.DisplayName); err != nil {
-			return fail(err)
-		}
-		// The FULL project ID (session names carry a truncated one), so
-		// host scripts can address the engine renderers per session
-		// (`vibe _sidebar --project …`) without a reverse lookup.
-		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_project", string(rec.ID)); err != nil {
-			return fail(err)
-		}
-		// The tray's right cluster: the v1 prefix/copy flashes, the
-		// clickable engine-state cell (range "req" → request list in the
-		// conf's mouse dispatch), and the 12-hour clock (2026-07-31; %l
-		// space-pads the hour — stable width — and unlike glibc-only
-		// %-I it exists in darwin's strftime too). The state cell owns
-		// the dim ` · ` toward the clock (views.go State: nominal is
-		// EMPTY, so a static separator would dangle — this supersedes
-		// the 2026-07-26 always-on separator, whose dim `·` beside the
-		// always-on ● read as two dots). The display name stays
-		// out — the sidebar and the OS title carry identity; the bar
-		// never repeats it.
-		status = fmt.Sprintf("#{?client_prefix,#[fg=#{@thm_coral}#,bold]⌨#[default]#[fg=#{@thm_dim}] · #[default],}"+
-			"#{?pane_in_mode,#[fg=#{@thm_yellow}#,bold]copy#[default]#[fg=#{@thm_dim}] · #[default],}"+
-			"#[range=user|req]#(%s _state --project %s)#[norange]#[fg=#{@thm_dim}]%%l:%%M %%p#[default] ",
-			a.deps.Executable, rec.ID)
-	}
-	if err := a.deps.Tmux.SetOption(ctx, session, "status-right", status); err != nil {
-		return fail(err)
 	}
 	if err := a.deps.Tmux.Attach(ctx, session); err != nil {
 		return fail(err)
@@ -310,6 +275,124 @@ func (a *App) Tui(ctx context.Context, req TuiRequest) error {
 		a.reapAgentClients(ctx, rec)
 	}
 	return nil
+}
+
+// mintSession is the session-scoped half of opening a project's UI:
+// ensure the detached session exists (EnsureSession converges when a
+// concurrent minter wins the race) and stamp everything session-owned —
+// identity options and the status-right. Shared by `vibe tui` (which
+// then attaches) and OpenProject (which does not). Deliberately NOT the
+// global half — conf materialization, @vibe_exe/@vibe_payload_dir, the
+// attach heal — which belongs to joins (Tui) and shim handoffs
+// (restampTui): OpenProject is only reachable from a live, configured
+// server. chrome is false for the bare no-artifact tui.
+func (a *App) mintSession(ctx context.Context, rec registry.Record, rootPath string, chrome bool) error {
+	session := tmux.SessionFor(rec.ID)
+	if err := a.deps.Tmux.EnsureSession(ctx, tmux.SessionSpec{
+		ID:      session,
+		Workdir: rootPath,
+		Window:  "agent",
+		Command: []string{a.deps.Executable, "agent"},
+	}); err != nil {
+		return err
+	}
+	// The display name is operator input landing in a format string
+	// where #() executes commands; escape it like any other data. No
+	// space between the splice and the name: a non-empty state cell
+	// brings its own trailing separator, and nominal renders nothing.
+	// The bare form splices this process's executable directly (no conf
+	// means no @vibe_exe stamped to resolve through).
+	status := fmt.Sprintf("#(%s _state --project %s)%s", a.deps.Executable, rec.ID, tmux.EscapeFormat(rec.DisplayName))
+	if chrome {
+		// The sidebar shows display names; session names stay ID-derived.
+		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_name", rec.DisplayName); err != nil {
+			return err
+		}
+		// The FULL project ID (session names carry a truncated one), so
+		// host scripts can address the engine renderers per session
+		// (`vibe _sidebar --project …`) without a reverse lookup.
+		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_project", string(rec.ID)); err != nil {
+			return err
+		}
+		// The tray's right cluster: the v1 prefix/copy flashes, the
+		// clickable engine-state cell (range "req" → request list in the
+		// conf's mouse dispatch), and the 12-hour clock (2026-07-31; %l
+		// space-pads the hour — stable width — and unlike glibc-only
+		// %-I it exists in darwin's strftime too). The state cell owns
+		// the dim ` · ` toward the clock (views.go State: nominal is
+		// EMPTY, so a static separator would dangle — this supersedes
+		// the 2026-07-26 always-on separator, whose dim `·` beside the
+		// always-on ● read as two dots). The display name stays
+		// out — the sidebar and the OS title carry identity; the bar
+		// never repeats it. The splice resolves the engine THROUGH
+		// @vibe_exe (formats expand inside #() before the job runs, and
+		// the job re-keys on the expanded command), so the cell follows
+		// every shim handoff without a per-session restamp — and both
+		// minting paths (tui join, sidebar _open) stamp the identical
+		// string, so re-minting never flip-flops the option.
+		status = fmt.Sprintf("#{?client_prefix,#[fg=#{@thm_coral}#,bold]⌨#[default]#[fg=#{@thm_dim}] · #[default],}"+
+			"#{?pane_in_mode,#[fg=#{@thm_yellow}#,bold]copy#[default]#[fg=#{@thm_dim}] · #[default],}"+
+			"#[range=user|req]#(#{@vibe_exe} _state --project %s)#[norange]#[fg=#{@thm_dim}]%%l:%%M %%p#[default] ",
+			rec.ID)
+	}
+	return a.deps.Tmux.SetOption(ctx, session, "status-right", status)
+}
+
+// OpenProjectRequest opens a project's UI session by registry ID — the
+// sidebar's make-it-live click (`vibe _open`), which has no workspace
+// cwd to offer and no client to attach.
+type OpenProjectRequest struct {
+	Project domain.ProjectID
+}
+
+type OpenProjectResult struct {
+	Session tmux.SessionID
+	// Approved reports the fast path: the project already had an
+	// approved candidate and startApproved brought it up (or it was
+	// already running). False means this call ran the FULL first
+	// `up` — the caller should not auto-switch a client to a session
+	// whose approval just landed minutes after the click.
+	Approved bool
+}
+
+// OpenProject makes a registered project live from inside the tui: reap
+// stale ghost viewers, ensure containers (the approved candidate when
+// one exists, the full first `up` otherwise — delegated, so the
+// approved-pointer ordering and the fail-closed interactive-approval
+// path stay Up's), then mint the session without attaching. The
+// sidebar's click handler switches the clicking client over on the
+// approved path only.
+func (a *App) OpenProject(ctx context.Context, req OpenProjectRequest) (OpenProjectResult, error) {
+	fail := opFail[OpenProjectResult]("open", req.Project)
+	if a.deps.Tmux == nil {
+		return fail(fmt.Errorf("%w: tmux not found on PATH", domain.ErrUnavailable))
+	}
+	rec, err := a.deps.Registry.Get(ctx, req.Project)
+	if err != nil {
+		return fail(err)
+	}
+	// A quit that happened while another project's client was visiting
+	// left this project's container-side ghost viewers unreaped (no
+	// `vibe tui` process was watching); reopening is the natural heal
+	// point.
+	a.reapAgentClients(ctx, rec)
+	approved := rec.Approved != nil
+	if approved {
+		if err := a.startApproved(ctx, rec); err != nil {
+			return fail(err)
+		}
+	} else {
+		up, err := a.Up(ctx, UpRequest{Project: rec.ID})
+		if err != nil {
+			return fail(err)
+		}
+		rec = up.Record
+	}
+	if err := a.mintSession(ctx, rec, rec.Root, true); err != nil {
+		return fail(err)
+	}
+	a.bumpTuiSerial(ctx)
+	return OpenProjectResult{Session: tmux.SessionFor(rec.ID), Approved: approved}, nil
 }
 
 // startApproved reconciles the project to its already-approved
@@ -371,6 +454,31 @@ func plannedRunning(plan model.Plan, state runtime.State) bool {
 		}
 	}
 	return true
+}
+
+// ReapSession resolves a host session name back to its registered
+// project and reaps that project's ghost viewers — the conf's
+// session-closed hook (`vibe _reap` via reap.sh). With
+// detach-on-destroy hopping the quitting client to a sibling session,
+// no `vibe tui` process observes a quit anymore, so the hook that saw
+// the session die owns triggering the reap — and it covers every kill
+// path (prefix+Q, choose-tree x, `vibe down`'s killUI) in one place.
+// Only the truncated ID-derived name survives the session's death
+// (#{hook_session_name}); resolving it through SessionFor keeps the
+// truncation rule engine-owned. A name no registered project maps to
+// is a quiet no-op.
+func (a *App) ReapSession(ctx context.Context, session string) error {
+	records, err := a.deps.Registry.List(ctx)
+	if err != nil {
+		return opError("reap", "", err)
+	}
+	for _, rec := range records {
+		if tmux.SessionFor(rec.ID) == tmux.SessionID(session) {
+			a.reapAgentClients(ctx, rec)
+			return nil
+		}
+	}
+	return nil
 }
 
 // reapAgentClients detaches VIBE_NESTED ghost tmux clients inside the

@@ -148,14 +148,18 @@ history). Read the mechanisms as historical; the calls stand.
 - **Container user stays `vscode`.** It comes from the devcontainers base
   images and is load-bearing ABI (`USER vscode` contract,
   `/home/vscode/.agents` paths).
-- **Spaces machinery stays minimal (2026-07-21).** Project picker =
-  live-sessions-only `choose-tree`; tui conf ownership =
-  first-owner-authoritative with a skew warning. (v2 note: the engine
-  registry now exists for trust records — the picker staying
-  live-sessions-only is a UI call, not a registry ban. 2026-08-04:
-  the sidebar's cold-project row now click-dispatches `up` — that
-  starts CONTAINERS, not a session, so this record stands: no surface
-  mints host sessions for cold projects.)
+- **Spaces machinery stays minimal (2026-07-21; session-minting half
+  REVISED 2026-08-04).** Project picker = live-sessions-only
+  `choose-tree`; tui conf ownership = first-owner-authoritative with a
+  skew warning. (v2 note: the engine registry now exists for trust
+  records — the picker staying live-sessions-only is a UI call, not a
+  registry ban.) The same-day "no surface mints host sessions" note
+  lasted hours: one-tab dogfood showed quit was a one-way door
+  (re-entry needed a terminal cd + `vibe tui`), so the sidebar's
+  cold-row click now runs `vibe _open` — containers ensured, session
+  minted detached, client switched on the approved path. The PICKER
+  record stands: `choose-tree` still lists live sessions only; the
+  sidebar is the one minting door.
 - **The manifest/repo author is trusted (2026-07-22).** The security
   boundary defends against a compromised container process, not a hostile
   project author: hardening invariants stay enforced as

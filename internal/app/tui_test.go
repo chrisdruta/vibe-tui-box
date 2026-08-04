@@ -397,6 +397,116 @@ func TestTuiHappyPathWithConf(t *testing.T) {
 	}
 }
 
+// TestOpenProjectMintsWithoutAttach pins the sidebar's make-it-live
+// click (`vibe _open`): by registry ID with no cwd, the approved path
+// starts what was approved and mints the session — stamps and all —
+// WITHOUT attaching (the click handler switches the client itself),
+// and the never-approved path runs the full first Up and reports
+// Approved=false so the handler skips the auto-switch.
+func TestOpenProjectMintsWithoutAttach(t *testing.T) {
+	a, _ := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	up, err := a.Up(ctx, UpRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := &recordingTmux{}
+	a.deps.Tmux = rt
+
+	res, err := a.OpenProject(ctx, OpenProjectRequest{Project: reg.Record.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := tmux.SessionFor(reg.Record.ID)
+	if res.Session != session || !res.Approved {
+		t.Fatalf("result = %+v, want approved session %s", res, session)
+	}
+	if len(rt.ensured) != 1 || rt.ensured[0].ID != session || rt.ensured[0].Workdir != up.Record.Root {
+		t.Fatalf("EnsureSession = %+v", rt.ensured)
+	}
+	if len(rt.attached) != 0 {
+		t.Fatalf("open must never attach: %v", rt.attached)
+	}
+	if v, ok := rt.optionValue(session, "@vibe_project"); !ok || v != string(reg.Record.ID) {
+		t.Fatalf("@vibe_project = %q (%v)", v, ok)
+	}
+	// The chrome status-right resolves the engine THROUGH @vibe_exe so
+	// the cell follows shim handoffs; both minting paths must stamp the
+	// identical string.
+	status, ok := rt.optionValue(session, "status-right")
+	if !ok || !strings.Contains(status, "#(#{@vibe_exe} _state --project "+string(reg.Record.ID)+")") {
+		t.Fatalf("status-right = %q (%v)", status, ok)
+	}
+	if _, ok := rt.globalValue("@vibe_engine_serial"); !ok {
+		t.Fatal("open must bump the engine serial (fleet facts changed)")
+	}
+
+	// Never-approved: the full first Up runs, and the caller is told
+	// not to auto-switch.
+	dir2 := newProject(t)
+	reg2, err := a.Register(ctx, RegisterRequest{Dir: dir2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res2, err := a.OpenProject(ctx, OpenProjectRequest{Project: reg2.Record.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.Approved {
+		t.Fatal("first-approval open must report Approved=false")
+	}
+	status2, err := a.Status(ctx, StatusRequest{Dir: dir2})
+	if err != nil || !status2.State.Running() {
+		t.Fatalf("open must have brought the project up: %+v, %v", status2, err)
+	}
+
+	// Unknown project: not found, nothing minted.
+	if _, err := a.OpenProject(ctx, OpenProjectRequest{Project: domain.ProjectID("aaaaaaaaaaaaaaaaaaaaaaaaaa")}); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown project must be not found, got %v", err)
+	}
+}
+
+// TestReapSessionResolvesByName pins the session-closed hook's door
+// (`vibe _reap`): only the truncated ID-derived session name survives a
+// kill, so the engine resolves it through SessionFor and reaps that
+// project's container-side ghost viewers; an unmapped name is a quiet
+// no-op.
+func TestReapSessionResolvesByName(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	before := len(docker.CallsTo("Exec"))
+	if err := a.ReapSession(ctx, string(tmux.SessionFor(reg.Record.ID))); err != nil {
+		t.Fatal(err)
+	}
+	execs := docker.CallsTo("Exec")
+	if len(execs) != before+1 {
+		t.Fatalf("want one reap exec, got %d new", len(execs)-before)
+	}
+	argv := execs[len(execs)-1].Request.(dockerapi.ExecRequest).Argv
+	if len(argv) != 3 || argv[2] != "reap" {
+		t.Fatalf("reap argv = %v", argv)
+	}
+	if err := a.ReapSession(ctx, "vibe-zzzzzzzzzzzz"); err != nil {
+		t.Fatalf("unmapped name must no-op, got %v", err)
+	}
+	if got := len(docker.CallsTo("Exec")); got != before+1 {
+		t.Fatalf("unmapped name must not exec, got %d new", got-before)
+	}
+}
+
 // TestTuiAttachHealsExistingServer covers the attach-time heal: a
 // server that predates this engine keeps its birth conf (-f applies at
 // server start only), so joining it must re-source the freshly

@@ -226,29 +226,36 @@ click)
       sid="${sid%%:*}"
       ;;
     cold-*)
-      # cold-project row: LEFT brings the project up (the recorded
-      # product call, resolved 2026-08-04) — a background `vibe _up`
-      # by registry ID, since the row has no session to switch to and
-      # this handler no workspace cwd. Feedback rides display-message
-      # (the agent-menu convention): an immediate cue, then the
-      # engine's own one-line verdict; the engine serial bump `up`
-      # already sends repaints the fleet facts the ordinary way. The
-      # ID is engine-minted base32; the verdict line is bounded and
-      # charset-gated before it touches display-message.
+      # cold-project row: LEFT makes the project LIVE (the 2026-08-04
+      # product call, revised same day from up-only) — a background
+      # `vibe _open` by registry ID: containers ensured, the UI
+      # session minted without attaching, ONE machine verdict line
+      # back. `open <session>` is the approved fast path — switch the
+      # clicking client straight in; `up <session>` means the FIRST
+      # approval just ran (possibly minutes of build) — toast only, no
+      # focus steal, and the SECOND click enters the now-warm project.
+      # The ID is engine-minted base32; the session token is validated
+      # against the engine's own naming before it becomes a tmux
+      # target, the same gate every engine-authored line gets here.
       proj="${sid#cold-}"
       case "$proj" in '' | *[!a-z2-7]*) exit 0 ;; esac
       exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null)"
       { [ -n "$exe" ] && [ -x "$exe" ]; } || exit 0
-      [ -n "$client" ] && tmux display-message -c "$client" "vibe: bringing project up…" 2>/dev/null
+      [ -n "$client" ] && tmux display-message -c "$client" "vibe: opening project…" 2>/dev/null
       (
         (
-          out="$("$exe" _up --project "$proj" 2>/dev/null)" && ok=1 || ok=""
+          out="$("$exe" _open --project "$proj" 2>/dev/null)" && ok=1 || ok=""
           out="${out%%$'\n'*}"
-          case "$out" in '' | *[!A-Za-z0-9\ ._:-]*) out="project up" ;; esac
-          if [ -n "$ok" ]; then
-            [ -n "$client" ] && tmux display-message -c "$client" "vibe: $out" 2>/dev/null
+          verdict="${out%% *}"
+          sess="${out#* }"
+          case "$sess" in vibe-[a-z2-7]*) ;; *) sess="" ;; esac
+          case "${sess#vibe-}" in *[!a-z2-7]*) sess="" ;; esac
+          if [ -n "$ok" ] && [ "$verdict" = "open" ] && [ -n "$sess" ] && [ -n "$client" ]; then
+            tmux switch-client -c "$client" -t "=$sess" 2>/dev/null
+          elif [ -n "$ok" ] && [ "$verdict" = "up" ]; then
+            [ -n "$client" ] && tmux display-message -c "$client" "vibe: project up — click again to enter" 2>/dev/null
           else
-            [ -n "$client" ] && tmux display-message -c "$client" "vibe: up failed — run vibe up in the project" 2>/dev/null
+            [ -n "$client" ] && tmux display-message -c "$client" "vibe: open failed — run vibe up in the project" 2>/dev/null
           fi
         ) &
       )
