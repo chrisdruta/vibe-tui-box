@@ -73,7 +73,10 @@ The v1 line and its history remain in git up to the cutover commit.
   feedback rides display-message, and the serial bump `up` already
   sends repaints the fleet facts. No colon in the target keeps the
   right-click menu blind to it, and no host session is minted — the
-  live-sessions-only picker record stands.
+  live-sessions-only picker record stands. Same-day dogfood polish:
+  the row's glyph is the fleet state token (`·`/`○`/`◐`/`●`), not a
+  fixed `·` — cold only encodes sessionless, and the first click-up
+  visibly changed nothing until the row could say ●.
 - New: **container deaths reach the sidebar in seconds** (2026-08-04,
   docs/tui-layout.md "The watch channel", the container-level half).
   The watch daemon (`vibe _watch`) also subscribes to the docker event

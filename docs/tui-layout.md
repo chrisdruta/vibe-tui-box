@@ -915,7 +915,11 @@ never does layout math. The contract the renderer implements:
   A single segment wider than the budget still character-clips — the
   safety net, not the design. Non-agent rows claim the session as
   click target. Cold registered projects (fleet entries with no live
-  session) render dim and barless, claiming `cold-<id>` — LEFT
+  session) render dim and barless behind their fleet state token —
+  cold only encodes SESSIONLESS, so a running project's row says `●`
+  and a click-dispatched up visibly flips `·`/`○` to `●` when the
+  refetch lands (same-day dogfood: the first click-up changed nothing
+  the eye could find). The row claims `cold-<id>` — LEFT
   dispatches a background `up` by registry ID (the product call,
   resolved 2026-08-04, Chris: the hidden `vibe _up`, since the row
   has no session to switch to and the click handler no workspace

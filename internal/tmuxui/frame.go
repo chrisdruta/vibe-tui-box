@@ -826,12 +826,20 @@ func Frame(in FrameInput) FrameOutput {
 	// click target is `cold-<id>` (the product call, resolved
 	// 2026-08-04: LEFT dispatches a background `up` through sidebar.sh
 	// → `vibe _up`); no colon keeps it invisible to the right-click
-	// menu's session-scoped grammar.
+	// menu's session-scoped grammar. The glyph is the fleet state
+	// token, not a fixed `·` (same-day dogfood: the first click-up
+	// visibly changed NOTHING — cold only encodes sessionless, so a
+	// running project's row must say ● for the dispatched up to have
+	// an effect the eye can find).
 	for _, f := range in.Fleet {
 		if seen[f.ID] {
 			continue
 		}
-		c.putAt(row, "  "+cDim+"· "+terminal.Line(f.Name, max-2)+ansiReset, "cold-"+f.ID)
+		glyph := f.Token
+		if glyph == "" {
+			glyph = string(StateNone)
+		}
+		c.putAt(row, "  "+cDim+glyph+" "+terminal.Line(f.Name, max-2)+ansiReset, "cold-"+f.ID)
 		row++
 	}
 	// Clear everything below the fleet section: rows a shrinking frame

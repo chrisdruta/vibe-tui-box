@@ -178,7 +178,10 @@ func TestFrameNestedAgentRows(t *testing.T) {
 
 func TestFrameGutterBars(t *testing.T) {
 	in := twoSessionInput()
-	in.Fleet = []FleetEntry{{ID: "cold-project", Token: string(StateNone), Name: "coldname"}}
+	in.Fleet = []FleetEntry{
+		{ID: "cold-project", Token: string(StateNone), Name: "coldname"},
+		{ID: "warm-project", Token: string(StateRunning), Name: "warmname"},
+	}
 	out := Frame(in)
 	rows := frameRows(t, out.Body)
 
@@ -201,14 +204,23 @@ func TestFrameGutterBars(t *testing.T) {
 	if !strings.Contains(out.Body, fg(PaletteHex("border"))+"▏") {
 		t.Fatal("another in-use project's bar must render border-hex")
 	}
-	cold, coldRow := "", -1
+	cold, coldRow, warm := "", -1, ""
 	for i, content := range rows {
 		if strings.Contains(content, "coldname") {
 			cold, coldRow = content, i
 		}
+		if strings.Contains(content, "warmname") {
+			warm = content
+		}
 	}
 	if !strings.HasPrefix(cold, "  · ") {
 		t.Fatalf("a cold project renders barless in the gutter: %q", cold)
+	}
+	// The glyph is the fleet state token: a running-but-sessionless
+	// project reads ●, so a click-dispatched up visibly changes the
+	// row when the refetch lands.
+	if !strings.HasPrefix(warm, "  ● ") {
+		t.Fatalf("a running cold project must wear the state token: %q", warm)
 	}
 	// The cold row claims `cold-<id>` — the up-dispatching click
 	// (sidebar.sh). No colon: the right-click menu's session-scoped
