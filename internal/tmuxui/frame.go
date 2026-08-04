@@ -695,25 +695,39 @@ func Frame(in FrameInput) FrameOutput {
 		// Engine sidecars close the services group (2026-07-31, Chris —
 		// they left the meta line, whose ragged clip kept hiding exactly
 		// which sidecar exists): one row per sidecar container, dim
-		// `sidecar` in the model slot while running, the state word
+		// qualifier in the model slot while running, the state word
 		// (stale/stopped) taking the slot otherwise — the same
-		// color-blindness rule the agent rows follow. There is nothing
-		// to attach to, so the click is the project switch the name row
-		// already carries.
+		// color-blindness rule the agent rows follow. Most sidecars
+		// have nothing to open, so their click is the project switch
+		// the name row already carries — but the engine's own dns
+		// ledger (2026-08-04 dogfood: "dns sidecar" said neither what
+		// it does nor where to look) wears `ledger` and clicks through
+		// to the network-egress popup (`:egress`, sidebar.sh — the
+		// second door to prefix+E). The "dns" literal is the schema's
+		// reserved engine-sidecar name; tmuxui depends only on
+		// terminal, so the constant cannot be imported here.
 		for _, sc := range sidecarsByProject[s.Project] {
 			glyph, hex, ok := SidecarStyle(sc.State)
 			if !ok {
 				continue
 			}
+			dns := sc.Session == "dns"
 			slot := "sidecar"
+			if dns {
+				slot = "ledger"
+			}
 			if sc.State != "running" {
 				slot = sc.State
+			}
+			target := s.ID
+			if dns {
+				target = s.ID + ":egress"
 			}
 			services = append(services, agentRow{
 				dot:    fg(hex) + glyph,
 				name:   sc.Session,
 				model:  slot,
-				target: s.ID,
+				target: target,
 				dim:    sc.State == "running",
 			})
 		}

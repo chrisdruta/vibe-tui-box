@@ -205,6 +205,21 @@ click)
       here="$(cd "$(dirname "$0")" && pwd)"
       exec bash "$here/agent-open.sh" "$client" "${sid%%:*}" -s "${sid#*:svcx-}"
       ;;
+    *:egress)
+      # dns-ledger row (the engine's egress sidecar): the row's reach
+      # is the network-egress popup — the same view as prefix+E, one
+      # click instead of a chord (2026-08-04 dogfood: the row was the
+      # one services entry with nowhere to go). Switch first: the
+      # popup resolves its project from the client's session context,
+      # and clicking another project's ledger should read as "go look
+      # at that project's egress" — the row semantic everywhere else.
+      [ -n "$client" ] || exit 0
+      exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null)"
+      { [ -n "$exe" ] && [ -x "$exe" ]; } || exit 0
+      tmux switch-client -c "$client" -t "${sid%%:*}" 2>/dev/null
+      here="$(cd "$(dirname "$0")" && pwd)"
+      exec bash "$here/popup.sh" "$client" "$exe" _egress
+      ;;
     *:svcfold)
       # services-HEADER click: fold/unfold that block's services tree
       # (frame.go rosterBlock renders the collapsed header from the S

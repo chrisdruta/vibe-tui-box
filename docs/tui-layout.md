@@ -561,7 +561,7 @@ the sidebar cannot see them at all.
 - **Engine sidecars join the tree (2026-07-31, Chris).** The manifest
   sidecars — the OTHER thing this section's terminology note names —
   now render as rows closing the services group, after the svc
-  windows: `├ ● dns  sidecar` with the dim `sidecar` qualifier in the
+  windows: `├ ● db  sidecar` with the dim `sidecar` qualifier in the
   model slot while running, the state word (`stale`/`stopped`) taking
   the slot otherwise, engine glyphs on the dot (● blue nominal like a
   running svc sibling, ◐ yellow stale, ○ red stopped — SidecarStyle
@@ -580,6 +580,16 @@ the sidebar cannot see them at all.
   chooser and tray ignore the kind (agent surfaces only), and rows
   have no age: `runtime.Status` carries no start time, and inventing
   one from inspect is not worth the field until dogfood asks.
+  ONE carve-out (2026-08-04, Chris — "dns sidecar" said neither what
+  it does nor where to look): the engine's own dns ledger wears
+  `ledger` in the qualifier slot and LEFT clicks through to the
+  network-egress popup (`:egress` target → switch to the row's
+  project, then the same view as prefix+E) — the row is the ledger's
+  health signal, so it should also be its door. A bar ticker of
+  recent domains was considered and declined: it would churn beside
+  the clock, cost the splice budget's second `#()`, and violate
+  nominal-renders-empty; the popup one click away is the recent-dns
+  view.
 - **The tree folds (2026-08-01, Chris).** The `services` header is
   the one header that clicks: LEFT toggles `@vibe_svc_fold` on the
   block's session, collapsing the group to its counted header —

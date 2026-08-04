@@ -929,10 +929,11 @@ func TestAgentsPorcelainServiceKind(t *testing.T) {
 }
 
 // Engine sidecars ride the services group (2026-07-31): one row per
-// sidecar container after the workspace services, dim `sidecar` slot
+// sidecar container after the workspace services, dim qualifier slot
 // while running, the state word taking the slot on ◐ stale / ○
-// stopped, the click degrading to the project switch (nothing to
-// attach to).
+// stopped. A manifest sidecar's click degrades to the project switch
+// (nothing to attach to); the engine's own dns ledger wears `ledger`
+// and clicks through to the egress popup (2026-08-04).
 func TestFrameSidecarRows(t *testing.T) {
 	in := FrameInput{
 		Width: 34, Height: 24, SelfSession: "$1",
@@ -941,24 +942,31 @@ func TestFrameSidecarRows(t *testing.T) {
 		},
 		Agents: []AgentEntry{
 			{Project: "projalpha", Session: "web", State: "running", Kind: AgentEntryKindService},
+			{Project: "projalpha", Session: "db", State: "running", Kind: AgentEntryKindSidecar},
 			{Project: "projalpha", Session: "dns", State: "running", Kind: AgentEntryKindSidecar},
 		},
 	}
 	out := Frame(in)
 	rows := frameRows(t, out.Body)
 	clicks := mapRows(t, out.Map)
-	if !strings.Contains(rows[2], "services · 2") {
+	if !strings.Contains(rows[2], "services · 3") {
 		t.Fatalf("header counts svc + sidecar rows: %q", rows[2])
 	}
 	if !strings.Contains(rows[3], "├ ") || !strings.Contains(rows[3], "web") {
 		t.Fatalf("workspace service leads the group: %q", rows[3])
 	}
-	if !strings.Contains(rows[4], "└ ") || !strings.Contains(rows[4], "dns") ||
-		!strings.Contains(rows[4], "sidecar") {
-		t.Fatalf("sidecar closes the tree with its qualifier: %q", rows[4])
+	if !strings.Contains(rows[4], "db") || !strings.Contains(rows[4], "sidecar") {
+		t.Fatalf("a manifest sidecar wears the generic qualifier: %q", rows[4])
 	}
 	if clicks[4] != "$1" {
-		t.Fatalf("sidecar click is the project switch: %q", clicks[4])
+		t.Fatalf("a manifest sidecar's click is the project switch: %q", clicks[4])
+	}
+	if !strings.Contains(rows[5], "└ ") || !strings.Contains(rows[5], "dns") ||
+		!strings.Contains(rows[5], "ledger") || strings.Contains(rows[5], "sidecar") {
+		t.Fatalf("the dns ledger says what it is: %q", rows[5])
+	}
+	if clicks[5] != "$1:egress" {
+		t.Fatalf("the dns ledger clicks through to the egress popup: %q", clicks[5])
 	}
 	dim := fg(PaletteHex("dim"))
 	if !strings.Contains(out.Body, dim+"dns") {
@@ -970,23 +978,23 @@ func TestFrameSidecarRows(t *testing.T) {
 
 	// Stale and stopped are the glances that need eyes: fg name, the
 	// state word in the model slot, engine glyphs on the dot.
-	in.Agents[1].State = "stale"
+	in.Agents[2].State = "stale"
 	out = Frame(in)
 	rows = frameRows(t, out.Body)
-	if !strings.Contains(rows[4], "◐") || !strings.Contains(rows[4], "stale") {
-		t.Fatalf("stale sidecar row: %q", rows[4])
+	if !strings.Contains(rows[5], "◐") || !strings.Contains(rows[5], "stale") {
+		t.Fatalf("stale sidecar row: %q", rows[5])
 	}
 	if !strings.Contains(out.Body, fg(PaletteHex("fg"))+"dns") {
 		t.Fatal("a stale sidecar speaks (fg name)")
 	}
-	in.Agents[1].State = "stopped"
+	in.Agents[2].State = "stopped"
 	out = Frame(in)
 	rows = frameRows(t, out.Body)
-	if !strings.Contains(rows[4], "○") || !strings.Contains(rows[4], "stopped") {
-		t.Fatalf("stopped sidecar row: %q", rows[4])
+	if !strings.Contains(rows[5], "○") || !strings.Contains(rows[5], "stopped") {
+		t.Fatalf("stopped sidecar row: %q", rows[5])
 	}
 	// An unknown state draws nothing rather than guessing.
-	in.Agents[1].State = "meltdown"
+	in.Agents[2].State = "meltdown"
 	out = Frame(in)
 	rows = frameRows(t, out.Body)
 	for _, r := range rows {

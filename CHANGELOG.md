@@ -40,6 +40,16 @@ The v1 line and its history remain in git up to the cutover commit.
   host gitconfig (v1's reason to wait for the opt-in), so pre-login
   push now asks for `gh auth login` instead of dying on publickey.
   See [docs/configuration.md](docs/configuration.md) "GitHub access".
+- Changed: **the dns row says what it is and opens what it watches**
+  (2026-08-04 dogfood: "dns sidecar" read as neither; the row was the
+  one services entry with nowhere to go). The engine's dns ledger row
+  wears `ledger` in the qualifier slot, and LEFT clicks through to the
+  network-egress popup — switch to the row's project, then the same
+  view as prefix+E. Manifest sidecars keep the generic `sidecar`
+  qualifier and the project-switch click. (A recent-domains bar ticker
+  was considered and declined: churn beside the clock, a second splice
+  against the budget, and a nominal-renders-empty violation — the
+  popup IS the recent-dns view, now one click away.)
 - Changed: **the UX gunk sweep** (2026-08-04, the step-back's third
   slice — the audit's stale-comment, naming, and feedback-convention
   findings). The brand cell says `vibe`, never the project (the old
