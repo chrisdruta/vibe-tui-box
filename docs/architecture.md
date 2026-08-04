@@ -416,7 +416,7 @@ drift. The architectural shape: every verb is a typed request parsed in
 deriving human and `--json` output from the same model; hidden
 `_`-prefixed verbs (`_sidebar`, `_state`, `_fleet`, `_frame`,
 `_agents`, `_chooser`, `_watch`, `_stop`, `_svcstop`, `_svcselect`,
-`_dismiss`) are the TUI's render and menu endpoints.
+`_dismiss`, `_up`) are the TUI's render and menu endpoints.
 
 ## Explicit non-goals and residual risks
 

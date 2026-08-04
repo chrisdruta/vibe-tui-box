@@ -225,6 +225,35 @@ click)
       # (agent-menu.sh row mode → dismiss).
       sid="${sid%%:*}"
       ;;
+    cold-*)
+      # cold-project row: LEFT brings the project up (the recorded
+      # product call, resolved 2026-08-04) — a background `vibe _up`
+      # by registry ID, since the row has no session to switch to and
+      # this handler no workspace cwd. Feedback rides display-message
+      # (the agent-menu convention): an immediate cue, then the
+      # engine's own one-line verdict; the engine serial bump `up`
+      # already sends repaints the fleet facts the ordinary way. The
+      # ID is engine-minted base32; the verdict line is bounded and
+      # charset-gated before it touches display-message.
+      proj="${sid#cold-}"
+      case "$proj" in '' | *[!a-z2-7]*) exit 0 ;; esac
+      exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null)"
+      { [ -n "$exe" ] && [ -x "$exe" ]; } || exit 0
+      [ -n "$client" ] && tmux display-message -c "$client" "vibe: bringing project up…" 2>/dev/null
+      (
+        (
+          out="$("$exe" _up --project "$proj" 2>/dev/null)" && ok=1 || ok=""
+          out="${out%%$'\n'*}"
+          case "$out" in '' | *[!A-Za-z0-9\ ._:-]*) out="project up" ;; esac
+          if [ -n "$ok" ]; then
+            [ -n "$client" ] && tmux display-message -c "$client" "vibe: $out" 2>/dev/null
+          else
+            [ -n "$client" ] && tmux display-message -c "$client" "vibe: up failed — run vibe up in the project" 2>/dev/null
+          fi
+        ) &
+      )
+      exit 0
+      ;;
   esac
   if [ -n "$client" ]; then
     tmux switch-client -c "$client" -t "$sid" 2>/dev/null

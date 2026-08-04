@@ -208,8 +208,8 @@
     {
       "path": "host/scripts/sidebar.sh",
       "mode": "0755",
-      "size": 23218,
-      "digest": "sha256:a6140797629f99abf21e631af354ad422087f9c87da99dc3105f80652f1c4252"
+      "size": 24652,
+      "digest": "sha256:9c2c06b2a785b4dd842693e085d32c9831207a7eabebfe25fdabedc62aedab83"
     },
     {
       "path": "host/scripts/spin.sh",
@@ -296,5 +296,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:199f1493fdd987d9d51ca2a742f3d0034d628371d2026dc4c9cd36b121dca87f"
+  "digest": "sha256:7a33f6c901f6354b6821fe30673c2f3d95ceceeb0060297396d0eda2e97d5a64"
 }

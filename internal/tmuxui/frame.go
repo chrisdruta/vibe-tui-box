@@ -503,8 +503,8 @@ func windowSignal(w FrameWindow) bool {
 // detail block, the nested agent rows (the full roster — idle rows
 // dim), and a blank slop row, all claiming the session as click
 // target. Cold registered
-// projects (fleet entries with no live session) render dim, barless,
-// and unclickable. The footer hints own the last rows (render-only)
+// projects (fleet entries with no live session) render dim and
+// barless, claiming `cold-<id>` — the click that brings them up. The footer hints own the last rows (render-only)
 // and content clips above them. The same pass renders the tray's ghost cells
 // for the own project, so presence (tray) and signal (sidebar) are
 // computed from one join.
@@ -822,14 +822,16 @@ func Frame(in FrameInput) FrameOutput {
 		row++
 	}
 	// Cold registered projects — fleet entries with no live session.
-	// Render-only dim rows, and barless: the gutter marks projects in
-	// use. (Click dispatching `up` is a recorded product call, not
-	// half-shipped here.)
+	// Dim rows, and barless: the gutter marks projects in use. The
+	// click target is `cold-<id>` (the product call, resolved
+	// 2026-08-04: LEFT dispatches a background `up` through sidebar.sh
+	// → `vibe _up`); no colon keeps it invisible to the right-click
+	// menu's session-scoped grammar.
 	for _, f := range in.Fleet {
 		if seen[f.ID] {
 			continue
 		}
-		c.putAt(row, "  "+cDim+"· "+terminal.Line(f.Name, max-2)+ansiReset, "")
+		c.putAt(row, "  "+cDim+"· "+terminal.Line(f.Name, max-2)+ansiReset, "cold-"+f.ID)
 		row++
 	}
 	// Clear everything below the fleet section: rows a shrinking frame

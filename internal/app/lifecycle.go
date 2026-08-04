@@ -189,6 +189,11 @@ func loadManifestFile(path string) (*schema.Document, error) {
 type UpRequest struct {
 	Dir   string
 	Force bool // replace containers even when already in sync (rebuild)
+	// Project, when set, resolves the directory from the registry
+	// record instead of Dir — the tui's cold-project click dispatches
+	// by ID (`vibe _up`), with no workspace cwd to offer. The resolved
+	// root still passes the ordinary resolveProject checks.
+	Project domain.ProjectID
 }
 
 type UpResult struct {
@@ -203,7 +208,15 @@ func (a *App) Up(ctx context.Context, req UpRequest) (UpResult, error) {
 		op = "rebuild"
 	}
 	fail := opFail[UpResult](op, "")
-	root, rec, err := a.resolveProject(ctx, req.Dir)
+	dir := req.Dir
+	if req.Project != "" {
+		byID, err := a.deps.Registry.Get(ctx, req.Project)
+		if err != nil {
+			return fail(err)
+		}
+		dir = byID.Root
+	}
+	root, rec, err := a.resolveProject(ctx, dir)
 	if err != nil {
 		return fail(err)
 	}

@@ -73,15 +73,6 @@ section at the bottom — as revisable records, not fences.
   while claude's agents screen says Needs input, feed the dot (and
   maybe `▲n`) from the statusline JSON's awaiting-input count.
 
-- **Sidebar: the cold-project click call.** The last bit deferred from
-  the consume-the-renderers work: cold registered projects render as
-  dim non-clickable rows — the product call whether their click
-  dispatches `up` stays open (brushes the live-sessions-only picker
-  record). (The other half of the original item — a docker-events
-  watcher for out-of-band container deaths — shipped 2026-08-04: the
-  watch daemon's container-level half, tui-layout.md "The watch
-  channel".)
-
 - **Watch channel follow-ups (prototyped 2026-07-26).** Upgrade
   the container sentinel from its 1s local fingerprint poll to a
   control-mode tmux client on the inner server — true push, plus
@@ -161,7 +152,10 @@ history). Read the mechanisms as historical; the calls stand.
   live-sessions-only `choose-tree`; tui conf ownership =
   first-owner-authoritative with a skew warning. (v2 note: the engine
   registry now exists for trust records — the picker staying
-  live-sessions-only is a UI call, not a registry ban.)
+  live-sessions-only is a UI call, not a registry ban. 2026-08-04:
+  the sidebar's cold-project row now click-dispatches `up` — that
+  starts CONTAINERS, not a session, so this record stands: no surface
+  mints host sessions for cold projects.)
 - **The manifest/repo author is trusted (2026-07-22).** The security
   boundary defends against a compromised container process, not a hostile
   project author: hardening invariants stay enforced as

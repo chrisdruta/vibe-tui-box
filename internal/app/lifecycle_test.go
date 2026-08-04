@@ -14,6 +14,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/builder"
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
+	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/paths"
 	"github.com/chrisdruta/vibe-tui-box/internal/schema"
@@ -635,6 +636,32 @@ func TestReapAgentClients(t *testing.T) {
 	want := []string{"bash", model.PayloadAgentSession, "reap"}
 	if fmt.Sprint(last.Argv) != fmt.Sprint(want) {
 		t.Fatalf("reap argv wrong: %v", last.Argv)
+	}
+}
+
+// TestUpByProjectID pins the cold-project click's engine half
+// (`vibe _up --project ID`): with Project set, up resolves the
+// directory from the registry record — no workspace cwd offered — and
+// behaves exactly like the by-dir up; an unregistered ID is not found.
+func TestUpByProjectID(t *testing.T) {
+	a, _ := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+
+	reg, err := a.Register(ctx, RegisterRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	up, err := a.Up(ctx, UpRequest{Project: reg.Record.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up.Record.ID != reg.Record.ID || !up.State.Running() {
+		t.Fatalf("up by ID resolved wrong: %+v", up)
+	}
+
+	if _, err := a.Up(ctx, UpRequest{Project: domain.ProjectID("aaaaaaaaaaaaaaaaaaaaaaaaaa")}); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown project must be not found, got %v", err)
 	}
 }
 

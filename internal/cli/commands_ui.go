@@ -348,6 +348,38 @@ var uiCommands = map[string]Command{
 			return &renderResult{Lines: []string{"dismissed " + res.Session}}, nil
 		},
 	},
+	"_up": {
+		Name:    "_up",
+		Summary: "internal cold-project up dispatch",
+		Usage:   "vibe _up --project ID",
+		Hidden:  true,
+		// The sidebar's cold-project click (docs/tui-layout.md): the
+		// clicked row has no session and the handler no workspace cwd,
+		// so the project resolves by registry ID. Everything after the
+		// resolution is the ordinary `up`.
+		NoCwd: true,
+		Parse: func(args []string) (Request, error) {
+			var req UpCmdRequest
+			return parseInto(args, "_up", &req.Options, func(fs *flag.FlagSet) any {
+				fs.StringVar(&req.Project, "project", "", "project ID")
+				return &req
+			})
+		},
+		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
+			r := req.(*UpCmdRequest)
+			id, err := domain.ParseProjectID(r.Project)
+			if err != nil {
+				return nil, err
+			}
+			res, err := a.Up(ctx, app.UpRequest{Project: id})
+			if err != nil {
+				return nil, err
+			}
+			// One line, engine-authored: the click handler echoes it
+			// through display-message as the completion cue.
+			return &renderResult{Lines: []string{"up " + res.Record.DisplayName}}, nil
+		},
+	},
 	"_watch": {
 		Name:    "_watch",
 		Summary: "internal engine-truth push daemon",
@@ -422,6 +454,13 @@ type FrameCmdRequest struct {
 	Options
 	Cache string
 	Spin  bool
+}
+
+// UpCmdRequest drives the hidden by-ID up dispatch — the sidebar's
+// cold-project click (sidebar.sh).
+type UpCmdRequest struct {
+	Options
+	Project string
 }
 
 // WatchCmdRequest drives the hidden engine-truth push daemon.

@@ -915,8 +915,17 @@ never does layout math. The contract the renderer implements:
   A single segment wider than the budget still character-clips — the
   safety net, not the design. Non-agent rows claim the session as
   click target. Cold registered projects (fleet entries with no live
-  session) render dim, barless, and unclickable — click-dispatching
-  `up` is a recorded open product call, not half-shipped here.
+  session) render dim and barless, claiming `cold-<id>` — LEFT
+  dispatches a background `up` by registry ID (the product call,
+  resolved 2026-08-04, Chris: the hidden `vibe _up`, since the row
+  has no session to switch to and the click handler no workspace
+  cwd). Feedback is display-message (the agent-menu convention): an
+  immediate cue, then the engine's one-line verdict; the serial bump
+  `up` already sends repaints the fleet facts. The target carries no
+  colon, so the right-click menu's session-scoped grammar never
+  matches it — no verbs on a cold row. A failed background up (say,
+  one needing an interactive approval) reports and leaves the row
+  cold; the terminal path remains `vibe up` in the project.
 - The **nested agent rows** close each project block (agent-surfaces
   decision above; supersedes the flowing aggregate roster, itself the
   2026-07-26 successor of the midpoint rule): one line per LIVE OR

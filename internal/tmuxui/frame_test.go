@@ -201,14 +201,21 @@ func TestFrameGutterBars(t *testing.T) {
 	if !strings.Contains(out.Body, fg(PaletteHex("border"))+"▏") {
 		t.Fatal("another in-use project's bar must render border-hex")
 	}
-	var cold string
-	for _, content := range rows {
+	cold, coldRow := "", -1
+	for i, content := range rows {
 		if strings.Contains(content, "coldname") {
-			cold = content
+			cold, coldRow = content, i
 		}
 	}
 	if !strings.HasPrefix(cold, "  · ") {
 		t.Fatalf("a cold project renders barless in the gutter: %q", cold)
+	}
+	// The cold row claims `cold-<id>` — the up-dispatching click
+	// (sidebar.sh). No colon: the right-click menu's session-scoped
+	// grammar must never match it.
+	clicks := mapRows(t, out.Map)
+	if clicks[coldRow] != "cold-cold-project" {
+		t.Fatalf("cold row click target = %q, want cold-cold-project", clicks[coldRow])
 	}
 }
 
@@ -480,7 +487,8 @@ func TestFrameAttentionAndFacts(t *testing.T) {
 	if !strings.Contains(facts, "◐ stale · ▲2 · dev") {
 		t.Fatalf("facts line wrong: %q", facts)
 	}
-	// The cold registered project renders but is not clickable.
+	// The cold registered project renders and claims the up-dispatching
+	// target (2026-08-04, supersedes render-only).
 	coldRow := -1
 	for row, content := range rows {
 		if strings.Contains(content, "coldname") {
@@ -490,8 +498,8 @@ func TestFrameAttentionAndFacts(t *testing.T) {
 	if coldRow == -1 {
 		t.Fatal("cold project row missing")
 	}
-	if _, ok := clicks[coldRow]; ok {
-		t.Fatal("cold project rows must not be clickable")
+	if clicks[coldRow] != "cold-cold-project" {
+		t.Fatalf("cold row click target = %q, want cold-cold-project", clicks[coldRow])
 	}
 }
 
