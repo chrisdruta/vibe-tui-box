@@ -40,6 +40,18 @@ The v1 line and its history remain in git up to the cutover commit.
   host gitconfig (v1's reason to wait for the opt-in), so pre-login
   push now asks for `gh auth login` instead of dying on publickey.
   See [docs/configuration.md](docs/configuration.md) "GitHub access".
+- Changed: **the tray names its project, context menus follow the
+  pointer** (2026-08-04, last dogfood nits). The brand cell shows the
+  CURRENT project's display name (`@vibe_name` through the client's
+  session — follows every switch for free; `vibe` before any session
+  exists), revising "the bar never carries project identity" on
+  exactly the trigger its 2026-07-26 reaffirmation pre-authorized: the
+  one-tab fleet made switch-client the daily gesture and an unlabeled
+  tab cluster ambiguous. Hours earlier the same line had been changed
+  to the literal `vibe` for the same rule — both moves are recorded.
+  And right-click context menus anchor at the pointer (`-x M`, `-y M`
+  for sidebar rows, `-y S` for the tray doors whose rows ARE the
+  bottom edge) instead of opening bottom-centre.
 - Changed: **the dns row says what it is and opens what it watches**
   (2026-08-04 dogfood: "dns sidecar" read as neither; the row was the
   one services entry with nowhere to go). The engine's dns ledger row

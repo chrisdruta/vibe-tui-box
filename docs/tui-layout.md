@@ -108,7 +108,7 @@ Top-preferrers set `status-position top` in the user conf.
 
 | Segment | Content |
 | --- | --- |
-| branding | `🥡 vibe-tui-box` start button — click opens the palette |
+| branding | `🥡 <current project>` start button (2026-08-04: the client's session `@vibe_name`, `vibe` before any session exists) — click opens the palette |
 | `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it. Sits in the LEFT cluster beside the brand (2026-07-29 polish pass — spliced into the absolute-centred winlist it floated with the tabs, a global chrome control reading as part of the window list; this table and the frame mockup always drew it at left). Outside the `#{client_prefix}` swap, it stays put while the cheatsheet replaces the middle |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
 | ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`ghost-N` index range resolved through `@vibe_ghost_map` → attach-only viewer spawn — range names clip at 15 bytes, "Launch surfaces"), rendered into `@vibe_ghosts` by `vibe _frame` |
@@ -133,12 +133,15 @@ inventory includes the stock affordances people forget (`z` zoom, `[`
 scroll/copy, `x` close) alongside the vibe binds — it is the only
 discoverability surface once the prefix is down.
 
-The bar never carries project identity: the sidebar and the OS window
-title (`@vibe_name`) own it, and the ID-derived session name appears in
-no chrome. (Reaffirmed 2026-07-26 against a `🥡 brand: project` cell —
-the coral gutter bar and per-project session already tie the tray to
-its project; revisit only on real multi-project dogfood confusion about
-which project a tray belongs to, e.g. fullscreen with no OS title.) The palette lives in `scripts/palette.sh` — one definition
+The brand cell carries the CURRENT project's display name (REVISED
+2026-08-04, Chris — on exactly the trigger the 2026-07-26 reaffirmation
+pre-authorized: real multi-project dogfood confusion about which
+project the tray's tabs belong to, once the one-tab fleet made
+switch-client the daily gesture). `🥡 #{?#{@vibe_name},#{@vibe_name},vibe}`
+— the session option follows every switch for free, spliced without
+re-expansion (never `E:`), falling back to the product name on a bare
+server. The ID-derived session name still appears in no chrome, and
+the OS title keeps its copy. The palette lives in `scripts/palette.sh` — one definition
 serving `prefix+Space` and the 🥡 cell; the `+` cell graduates to the
 agents chooser ("Launch surfaces" below). The title channel the
 tabs and roster consume is
@@ -770,7 +773,13 @@ Three intents, one owner each:
   on `MouseUp1Status` — the opening click's release is already spent
   before the menu exists. Immediate actions (tabs, dock, req, ghost
   cells) stay on MouseDown: press-act is tmux-native there and no menu
-  is involved. Position: the chooser pins above the tray (`-y S` — it
+  is involved. Position: right-click CONTEXT menus (agent-menu.sh: sidebar rows,
+  tabs, ghosts) anchor at the pointer — `-x M`, with `-y M` for rows
+  and `-y S` for the tray doors whose rows are the bottom edge
+  (2026-08-04 dogfood: a row's menu opening bottom-centre read as
+  unrelated to the click); `M` reads the client's last mouse event,
+  which for these menus is always the triggering right-click. The
+  chooser pins above the tray (`-y S` — it
   is the `+` button's menu); the palette takes display-menu's default,
   centered both axes — the look it always had (a `-y S` on the palette
   bottom-anchored the tall menu and read as broken centering,

@@ -45,6 +45,14 @@ addr=""
 wid=""
 dead=""
 svc=""
+# Location-aware anchoring (2026-08-04 dogfood: a right-click on a
+# sidebar row opened its menu bottom-centre): `M` positions at the
+# client's LAST mouse event — always the triggering right-click here.
+# Sidebar rows anchor fully at the pointer; the tray doors (ghost,
+# tab) keep `S` for y — above the bar, at the pointer's column — since
+# their rows ARE the bottom edge.
+pos=(-x M -y S)
+[ "$mode" = row ] && pos=(-x M -y M)
 case "$mode" in
 ghost)
   sess="${3:-}"
@@ -121,7 +129,7 @@ if [ -n "${svc:-}" ]; then
   svcstop_cmd="run-shell -b \"cd $qp && '#{@vibe_exe}' _svcstop '$svc' >/dev/null 2>&1 && tmux display-message -c '#{client_name}' 'vibe: stopped service $svc' || tmux display-message -c '#{client_name}' 'vibe: stop failed — $svc (container down?)'\""
   args=()
   [ -n "$client" ] && args+=(-c "$client")
-  args+=(-M -O -y S -T " $svc ")
+  args+=(-M -O "${pos[@]}" -T " $svc ")
   if [ -n "$dead" ]; then
     args+=("dismiss (clear ✗)" x "$svcstop_cmd")
   else
@@ -155,7 +163,7 @@ dismiss_cmd="run-shell -b \"cd $qp && '#{@vibe_exe}' _dismiss '$addr' >/dev/null
 
 args=()
 [ -n "$client" ] && args+=(-c "$client")
-args+=(-M -O -y S -T " $addr ")
+args+=(-M -O "${pos[@]}" -T " $addr ")
 if [ -n "$dead" ]; then
   # Launch-again stays the chooser's door (address→flags needs the
   # manifest's kind list); the menu owns the roster's "seen it".
