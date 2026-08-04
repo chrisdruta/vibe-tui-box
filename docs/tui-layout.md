@@ -942,8 +942,11 @@ never does layout math. The contract the renderer implements:
   A failed background open (say, an up needing an interactive
   approval) reports and leaves the row cold; the terminal path
   remains `vibe up` in the project. Quit stays `kill-session`
-  (prefix+Q, re-worded), now cheap: `detach-on-destroy previous` hops
-  the client back to the surviving session, and the conf's
+  (prefix+Q, re-worded), now cheap: `detach-on-destroy no-detached`
+  hops the client to a surviving session (`previous` was the first
+  pick and SEGFAULTS the pinned 3.7b server when the killed session
+  is the client's current one — same-day dogfood, reproduced in
+  isolation), and the conf's
   session-closed hook dispatches `vibe _reap` (reap.sh → engine
   resolves the dead session's NAME through the registry) — with
   hopping, no `vibe tui` process observes a quit, so the hook owns

@@ -85,8 +85,10 @@ The v1 line and its history remain in git up to the cutover commit.
   with `vibe tui`), and the sidebar switches the clicking client in on
   the approved fast path — on a first-ever approval it toasts instead
   (no focus steal mid-build; the second click enters). Quit becomes a
-  round trip: `detach-on-destroy previous` hops the client back to the
-  surviving session, the re-worded prefix+Q keeps `kill-session`, and
+  round trip: `detach-on-destroy no-detached` hops the client to a
+  surviving session (`previous` shipped for a few hours and SEGFAULTED
+  the 3.7b server on quitting the visited session — reproduced,
+  reverted same day), the re-worded prefix+Q keeps `kill-session`, and
   a new session-closed hook dispatches `vibe _reap` (the engine
   resolves the dead session's name through the registry) so
   container-side ghost viewers reap on every kill path — with hopping,
