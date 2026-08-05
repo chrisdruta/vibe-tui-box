@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -61,14 +60,10 @@ func (s *Service) LoadCandidate(ctx context.Context, digest domain.Digest) (Cand
 		lease.Close()
 		return Candidate{}, nil, fmt.Errorf("%w: candidate %s plan digest mismatch", domain.ErrConflict, digest)
 	}
-	var plan model.Plan
-	if err := json.Unmarshal(data, &plan); err != nil {
+	plan, err := model.DecodePlan(data)
+	if err != nil {
 		lease.Close()
-		return Candidate{}, nil, fmt.Errorf("%w: candidate %s plan: %v", domain.ErrInvalid, digest, err)
-	}
-	if ferrs := model.Validate(plan); len(ferrs) > 0 {
-		lease.Close()
-		return Candidate{}, nil, fmt.Errorf("%w: candidate %s plan invalid: %v", domain.ErrInvalid, digest, ferrs[0])
+		return Candidate{}, nil, fmt.Errorf("candidate %s: %w", digest, err)
 	}
 	return Candidate{Record: rec, Plan: plan}, lease, nil
 }

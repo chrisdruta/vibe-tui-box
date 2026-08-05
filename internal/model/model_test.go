@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"flag"
 	"os"
 	"path/filepath"
@@ -437,6 +438,30 @@ func TestValidateMountOverlap(t *testing.T) {
 	})
 	if verrs := Validate(plan); len(verrs) == 0 {
 		t.Fatal("nested mount target should be rejected")
+	}
+}
+
+// The plan is a persistent record: unknown fields and foreign formats
+// must refuse to decode, like every other record in the tree.
+func TestDecodePlanIsStrict(t *testing.T) {
+	plan, errs := Compile(testInput(t, minimalManifest))
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	data, err := CanonicalJSON(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecodePlan(data); err != nil {
+		t.Fatalf("canonical plan should round-trip: %v", err)
+	}
+	unknown := append([]byte(`{"surprise_policy":true,`), data[1:]...)
+	if _, err := DecodePlan(unknown); err == nil {
+		t.Fatal("unknown field should refuse to decode")
+	}
+	future := bytes.Replace(data, []byte(`"format": 1`), []byte(`"format": 99`), 1)
+	if _, err := DecodePlan(future); err == nil {
+		t.Fatal("foreign format should refuse to decode")
 	}
 }
 

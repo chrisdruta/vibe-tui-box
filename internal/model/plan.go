@@ -5,7 +5,9 @@
 package model
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 )
@@ -167,6 +169,27 @@ func CanonicalJSON(p Plan) ([]byte, error) {
 		return nil, err
 	}
 	return append(data, '\n'), nil
+}
+
+// DecodePlan is the strict decoder every plan reader must use: the
+// plan is a persistent record (container policy, mounts, users), so it
+// follows the record discipline — DisallowUnknownFields, format
+// dispatch, then Validate. A lenient decode would let an older binary
+// silently drop an additive policy field.
+func DecodePlan(data []byte) (Plan, error) {
+	var plan Plan
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&plan); err != nil {
+		return Plan{}, fmt.Errorf("%w: plan: %v", domain.ErrInvalid, err)
+	}
+	if plan.Format != PlanFormat {
+		return Plan{}, fmt.Errorf("%w: plan format %d, this engine speaks %d", domain.ErrInvalid, plan.Format, PlanFormat)
+	}
+	if ferrs := Validate(plan); len(ferrs) > 0 {
+		return Plan{}, fmt.Errorf("%w: plan invalid: %v", domain.ErrInvalid, ferrs[0])
+	}
+	return plan, nil
 }
 
 // Hash computes the canonical digest of the plan with CanonicalHash
