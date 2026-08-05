@@ -23,6 +23,10 @@ jobs:
           go-version-file: go.mod
       - name: gofmt (no diffs)
         run: test -z "$(gofmt -l .)"
+      - name: go.mod tidy drift
+        # AGENTS.md's direct-deps list (and any future depguard rule)
+        # is written against a tidy module graph.
+        run: go mod tidy -diff
       - run: go vet ./...
       - name: payload manifest drift
         # payload/manifest.json is generated but tracked (it carries the

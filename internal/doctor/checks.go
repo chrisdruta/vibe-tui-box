@@ -9,6 +9,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/model"
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
+	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
 )
 
@@ -112,7 +113,7 @@ func checkContainers(ctx context.Context, in *Input) Result {
 			state = "stopped"
 			status = Warn
 		}
-		if in.Record.Approved != nil && c.Labels["dev.vibe.candidate"] != in.Record.Approved.String() {
+		if in.Record.Approved != nil && c.Labels[runtime.CandidateLabel] != in.Record.Approved.String() {
 			state += ", stale candidate"
 			status = Warn
 		}

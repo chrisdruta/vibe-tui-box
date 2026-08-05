@@ -110,6 +110,11 @@ func (s *SDK) CreateContainer(ctx context.Context, req CreateRequest) (Container
 	if len(req.DNS) > 0 && req.Network == "" {
 		return "", fmt.Errorf("%w: dns servers require a network", domain.ErrInvalid)
 	}
+	// Init: the dev entrypoint parks on `sleep infinity`, which never
+	// reaps — orphans (detached hooks, dead inner tmux servers) would
+	// re-parent to it and zombify for the container's lifetime. tini as
+	// PID 1 reaps them for every managed container.
+	initProc := true
 	hostConfig := &container.HostConfig{
 		Mounts:         mounts,
 		Tmpfs:          tmpfsMounts,
@@ -118,6 +123,7 @@ func (s *SDK) CreateContainer(ctx context.Context, req CreateRequest) (Container
 		CapDrop:        strslice.StrSlice{"ALL"},
 		SecurityOpt:    []string{"no-new-privileges:true"},
 		ReadonlyRootfs: req.Policy.ReadonlyRootFS,
+		Init:           &initProc,
 	}
 	if req.Policy.NetBindService {
 		hostConfig.CapAdd = strslice.StrSlice{"NET_BIND_SERVICE"}

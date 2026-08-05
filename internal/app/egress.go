@@ -113,6 +113,12 @@ func (a *App) Egress(ctx context.Context, req EgressRequest) (EgressResult, erro
 	}
 
 	if devName, derr := a.requireDevContainer(ctx, rec); derr != nil {
+		// Ctrl-C must surface as an interrupt (exit 130), never be
+		// absorbed into a note that lets the command exit 0.
+		if ctx.Err() != nil {
+			return EgressResult{}, opError("egress", rec.ID,
+				fmt.Errorf("%w: egress: %v", domain.ErrCanceled, context.Cause(ctx)))
+		}
 		res.SamplerNote = "dev container is not running (run `vibe up`)"
 	} else {
 		out := &cappedWriter{max: egressMaxBytes}
@@ -123,19 +129,24 @@ func (a *App) Egress(ctx context.Context, req EgressRequest) (EgressResult, erro
 		})
 		cancel()
 		switch {
+		case xerr != nil && ctx.Err() != nil:
+			// The parent context (not the sampler's own timeout) died:
+			// this is an interrupt, not a degraded view.
+			return EgressResult{}, opError("egress", rec.ID,
+				fmt.Errorf("%w: egress: %v", domain.ErrCanceled, context.Cause(ctx)))
 		case xerr != nil:
 			res.SamplerNote = fmt.Sprintf("sampler failed: %v", xerr)
 		case eres.ExitCode != 0:
 			res.SamplerNote = fmt.Sprintf("sampler exited with code %d", eres.ExitCode)
 		default:
-			conns, malformed, ok := parseEgressSample(out.buf.String())
+			conns, malformed, truncated, ok := parseEgressSample(out.buf.String())
 			if !ok {
 				res.SamplerNote = "sampler output not understood (payload and container out of sync? vibe rebuild)"
 			} else {
 				res.SamplerAvailable = true
 				res.Conns = conns
 				res.MalformedRows = malformed
-				res.ConnsTruncated = len(conns) == egressMaxConns
+				res.ConnsTruncated = truncated
 			}
 		}
 	}
@@ -256,10 +267,10 @@ var egressProtos = map[string]bool{"tcp": true, "tcp6": true, "udp": true, "udp6
 // missing version line fails the whole sample (ok=false — the payload
 // and the running container disagree); malformed rows are counted and
 // dropped, never fatal.
-func parseEgressSample(raw string) (conns []EgressConn, malformed int, ok bool) {
+func parseEgressSample(raw string) (conns []EgressConn, malformed int, truncated, ok bool) {
 	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
 	if len(lines) == 0 || lines[0] != egressSampleFormat {
-		return nil, 0, false
+		return nil, 0, false, false
 	}
 	for _, line := range lines[1:] {
 		if line == "" {
@@ -284,9 +295,13 @@ func parseEgressSample(raw string) (conns []EgressConn, malformed int, ok bool) 
 			comm = terminal.Line(f[4], 32)
 		}
 		if len(conns) >= egressMaxConns {
+			// Truncation means a row was actually dropped — an exactly
+			// full undropped sample is not truncated (mirrors
+			// parseCoreDNSLogs).
+			truncated = true
 			break
 		}
 		conns = append(conns, EgressConn{Proto: f[0], Local: f[1], Remote: f[2], PID: pid, Comm: comm})
 	}
-	return conns, malformed, true
+	return conns, malformed, truncated, true
 }

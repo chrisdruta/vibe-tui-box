@@ -220,6 +220,30 @@ func TestValidateDiagnostics(t *testing.T) {
 	}
 }
 
+// Image references with a registry host port are the canonical
+// private-registry workflow; uppercase hostnames are legal too
+// (review 2026-08-05 §2.5).
+func TestImageRefShapes(t *testing.T) {
+	valid := []string{
+		"postgres:16", "ghcr.io/owner/app:v1",
+		"localhost:5000/app:1.0", "registry.example.com:8443/team/app",
+		"Registry.Example.com/team/app",
+	}
+	for _, ref := range valid {
+		doc := mustLoad(t, "schema: 1\nimage: {base: \""+ref+"\", agents: [claude]}\nagent: {cmd: claude}\n")
+		if errs := doc.Validate(); len(errs) != 0 {
+			t.Errorf("%q should be a valid image reference: %v", ref, errs)
+		}
+	}
+	invalid := []string{"UPPER/case-path", "spaces bad", "-leading/app"}
+	for _, ref := range invalid {
+		doc := mustLoad(t, "schema: 1\nimage: {base: \""+ref+"\", agents: [claude]}\nagent: {cmd: claude}\n")
+		if errs := doc.Validate(); len(errs) == 0 {
+			t.Errorf("%q should be rejected", ref)
+		}
+	}
+}
+
 func TestValidatePositions(t *testing.T) {
 	doc := mustLoad(t, "schema: 9\nimage: {base: x, agents: [claude]}\nagent: {cmd: claude}\n")
 	errs := doc.Validate()

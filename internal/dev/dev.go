@@ -20,6 +20,7 @@ import (
 	"github.com/chrisdruta/vibe-tui-box/internal/payload"
 	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
 	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
 
 // BuilderImage is the pinned-by-resolution build environment.
@@ -271,8 +272,12 @@ func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage,
 	}
 	if code != 0 {
 		if log, rerr := os.ReadFile(filepath.Join(outDir, "build.log")); rerr == nil && len(log) > 0 {
+			// Compiler output is container-produced: encode before it
+			// can reach a terminal (same rule as the dns crash detail).
+			enc := terminal.Encode(strings.TrimSpace(tailLines(string(log), 30)),
+				terminal.Limits{MaxWidth: 200, MaxLines: 30})
 			return fmt.Errorf("%w: dev build failed with exit code %d:\n%s",
-				domain.ErrInvalid, code, strings.TrimSpace(tailLines(string(log), 30)))
+				domain.ErrInvalid, code, strings.Join(enc.Lines, "\n"))
 		}
 		return fmt.Errorf("%w: dev build failed with exit code %d", domain.ErrInvalid, code)
 	}

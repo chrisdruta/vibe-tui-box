@@ -109,8 +109,8 @@ func (a *App) Watch(ctx context.Context, req WatchRequest) error {
 		}
 		if err == nil && streamed {
 			backoff = time.Second // a healthy run resets the ladder
-		} else if backoff < watchRetryMax {
-			backoff *= 2
+		} else {
+			backoff = min(backoff*2, watchRetryMax)
 		}
 		select {
 		case <-ctx.Done():
@@ -323,8 +323,8 @@ func (a *App) watchContainerEvents(ctx context.Context) {
 		}
 		if err == nil || streamed.Load() {
 			backoff = time.Second // a healthy stream resets the ladder
-		} else if backoff < watchRetryMax {
-			backoff *= 2
+		} else {
+			backoff = min(backoff*2, watchRetryMax)
 		}
 		select {
 		case <-ctx.Done():

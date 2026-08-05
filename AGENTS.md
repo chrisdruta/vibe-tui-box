@@ -190,8 +190,9 @@ fake-backed tests asserting full request equality, not selected fields.
   `app.App` method returning a typed result, and a renderer in
   `output.go` deriving human and `--json` output from the same model.
 - Standard library first. Current direct deps (yaml.v3, the docker SDK
-  plus go-connections, x/term) are pinned; adding one needs a reason
-  the stdlib can't answer. `gopkg.in/yaml.v3` is archived upstream — a swap candidate,
+  plus go-connections and containerd/errdefs — daemon error
+  classification, confined to `dockerapi` — and x/term) are pinned;
+  adding one needs a reason the stdlib can't answer. `gopkg.in/yaml.v3` is archived upstream — a swap candidate,
   not a pattern to extend.
 - Comments state constraints the code can't show; match existing
   density.

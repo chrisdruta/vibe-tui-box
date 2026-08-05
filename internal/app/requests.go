@@ -316,7 +316,13 @@ func (a *App) RequestDecide(ctx context.Context, req RequestDecideRequest) (Requ
 		return RequestDecideResult{Result: result}, nil
 	}
 
-	if !req.Yes && a.deps.Prompt != nil {
+	if !req.Yes {
+		// No prompt is non-interactive: approval then requires the
+		// explicit flag, like buildExtension and DevOn — never a
+		// silent yes.
+		if a.deps.Prompt == nil {
+			return fail(fmt.Errorf("%w: approving %s requires confirmation (re-run with --yes)", domain.ErrConflict, match.RequestID))
+		}
 		diffLabel, diff := a.planDiff(ctx, rec, match.Candidate, terminal.DiffLimits{MaxLines: 40})
 		ok, err := a.deps.Prompt.Confirm(ctx, terminal.Confirmation{
 			Title:     fmt.Sprintf("Apply rebuild request %s?", match.RequestID),

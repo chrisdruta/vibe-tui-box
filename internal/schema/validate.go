@@ -64,10 +64,15 @@ var (
 	serviceNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	volumeNameRe  = serviceNameRe // same closed shape, distinct diagnostics
 	commandRe     = regexp.MustCompile(`^[a-z0-9][A-Za-z0-9._-]{0,63}$`)
-	// imageRefRe accepts name[:tag][@sha256:hex] with optional registry
-	// host. It is a shape check; digest pinning is enforced at candidate
-	// resolution, not here.
-	imageRefRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)*(:[A-Za-z0-9._-]{1,128})?(@sha256:[a-f0-9]{64})?$`)
+	// imageRefRe accepts name[:tag][@sha256:hex] with an optional
+	// registry host — including a host port (`localhost:5000/app`, THE
+	// local-registry workflow) and case-insensitive hostnames, both of
+	// which the Docker grammar permits. It is a shape check; digest
+	// pinning is enforced at candidate resolution, not here.
+	// A leading component is a host only the way Docker decides it: it
+	// carries a dot, a port, or is literally localhost — a bare label
+	// stays a (lowercase-only) path component.
+	imageRefRe = regexp.MustCompile(`^((?i:[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+|[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*:[0-9]{1,5}|localhost)/)?[a-z0-9]([a-z0-9._-]*[a-z0-9])?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)*(:[A-Za-z0-9._-]{1,128})?(@sha256:[a-f0-9]{64})?$`)
 	envKeyRe   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,127}$`)
 )
 
