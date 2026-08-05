@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Nothing here publishes; every job only reads the checkout, so the
+# default write-capable GITHUB_TOKEN scope would just be pinned-action
+# blast radius.
+permissions:
+  contents: read
+
 jobs:
   go:
     runs-on: ubuntu-latest
@@ -21,19 +27,28 @@ jobs:
       - name: payload manifest drift
         # payload/manifest.json is generated but tracked (it carries the
         # file modes go:embed drops); editing payload/** without
-        # regenerating it must fail here.
+        # regenerating it must fail here. Porcelain, not diff: the
+        # generator writes whole standalone files, and an untracked one
+        # is invisible to `git diff` — a binary built from that tree
+        # would fail payload verification at runtime.
         run: |
           go generate ./internal/payload
-          git diff --exit-code payload/
+          test -z "$(git status --porcelain payload/)"
       - name: ShellCheck (payload, both sides)
         # Host scripts must additionally stay bash-3.2-clean (stock
         # macOS) — ShellCheck can't version-gate that, so bashisms past
         # 3.2 are a review concern; this still catches the usual classes.
-        run: shellcheck payload/container/*.sh payload/host/scripts/*.sh
+        # The preset hook .sample files ship into every new project via
+        # `vibe init`, so they are linted too (bash shebangs pick the
+        # dialect despite the extension).
+        run: shellcheck payload/container/*.sh payload/host/scripts/*.sh payload/presets/*/hooks/*.sample
       # Default output collides with the gitignored dev-build name at the
       # repo root — always build with -o (see AGENTS.md).
       - run: go build -o bin/vibe ./cmd/vibe && bin/vibe version
-      - run: go test ./...
+      # -race: watchStream's goroutines, the tmuxui tick loops, and the
+      # lock/lease machinery deserve the detector, and the suite is
+      # fast enough to afford it.
+      - run: go test -race ./...
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
@@ -77,7 +92,7 @@ jobs:
   fuzz:
     # Short bursts over every hostile-input surface. Found crashers land
     # in testdata/fuzz/ and become permanent regression seeds — commit
-    # them.
+    # them (the artifact upload below preserves them past the runner).
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: github.event_name != 'pull_request'
@@ -98,5 +113,15 @@ jobs:
           FuzzParsers ./internal/domain/
           FuzzParseRequest ./internal/broker/
           FuzzEncode ./internal/terminal/
+          FuzzLine ./internal/terminal/
           FuzzDiff ./internal/terminal/
           EOF
+      - name: preserve found crashers
+        # A crasher on an ephemeral runner is otherwise lost with it —
+        # the failure log doesn't reliably contain the input bytes.
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fuzz-crashers
+          path: internal/*/testdata/fuzz/
+          if-no-files-found: ignore
