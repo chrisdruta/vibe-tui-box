@@ -250,8 +250,8 @@
     {
       "path": "presets/common/AGENTS.md",
       "mode": "0644",
-      "size": 2507,
-      "digest": "sha256:60611cf795fff2fca347113b1aa8491ee66e8acf350bea519ee6848c4f5f01c4"
+      "size": 2871,
+      "digest": "sha256:4108332e2d7944ee8518d58c126ec90c4174ddfe3c082faabe03ba447a676d8c"
     },
     {
       "path": "presets/common/hooks/post-create.sh.sample",
@@ -302,5 +302,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:0d64790a35692c5d6737d15d32511b3d9c697da5c646a352a1d415a56d0c6062"
+  "digest": "sha256:6baac8bd30efa2ebb487e3a70ae7edbfe16030a92c6be23f0ceeb14b40868487"
 }

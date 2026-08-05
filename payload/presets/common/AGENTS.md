@@ -36,9 +36,14 @@ need a human to copy your changes — you request them:
    `vibe request show <id>` gives them your reason/summary plus a
    trusted diff of what will actually change, and they approve or
    reject by candidate digest.
-4. The decision appears at `/vibe/results/<id>.json` (read-only). Poll
-   it if you need to wait. A rejected or decided id is spent — use a
-   new id for another attempt.
+4. The decision appears at `/vibe/results/<id>.json` (read-only).
+   Outcomes differ: a rejection writes the result immediately and your
+   container is untouched, so polling works. An **approval replaces
+   this container** — every process in it (including you) is killed
+   before the result file is written, and the result is only readable
+   from the replacement container. Don't wait on an approval; tell the
+   operator what to resume after the rebuild. A rejected or decided id
+   is spent — use a new id for another attempt.
 
 The engine freezes your files at poll time: editing them after the
 operator looked changes nothing they approved. Never write anything
