@@ -203,7 +203,11 @@ func (a *App) installBinary(artifact store.Artifact) (string, error) {
 }
 
 // copyBinary streams an executable file to dst, returning its content
-// digest; the binary never buffers in memory whole.
+// digest; the binary never buffers in memory whole. dst is
+// digest-named, so whatever sits there is either this exact content or
+// the partial leftover of an interrupted install — the temp-fsync-
+// rename replaces both atomically instead of wedging the artifact
+// behind an O_EXCL that can never succeed again.
 func copyBinary(src, dst string) (domain.Digest, error) {
 	in, err := os.Open(src)
 	if err != nil {
@@ -213,27 +217,18 @@ func copyBinary(src, dst string) (domain.Digest, error) {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return domain.Digest{}, err
 	}
-	f, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o755)
+	f, err := os.CreateTemp(filepath.Dir(dst), filepath.Base(dst)+".tmp.*")
 	if err != nil {
-		if os.IsExist(err) {
-			// Same digest-addressed target: verify instead of clobbering.
-			srcDigest, err := domain.SHA256Reader(in)
-			if err != nil {
-				return domain.Digest{}, fmt.Errorf("read binary: %w", err)
-			}
-			if existing, err := os.Open(dst); err == nil {
-				dstDigest, err := domain.SHA256Reader(existing)
-				existing.Close()
-				if err == nil && dstDigest == srcDigest {
-					return srcDigest, nil
-				}
-			}
-			return domain.Digest{}, fmt.Errorf("%w: %s exists with different content", domain.ErrConflict, dst)
-		}
 		return domain.Digest{}, fmt.Errorf("write binary: %w", err)
 	}
+	tmp := f.Name()
+	defer os.Remove(tmp) // no-op once the rename lands
 	digest, err := domain.SHA256Reader(io.TeeReader(in, f))
 	if err != nil {
+		f.Close()
+		return domain.Digest{}, err
+	}
+	if err := f.Chmod(0o755); err != nil {
 		f.Close()
 		return domain.Digest{}, err
 	}
@@ -243,6 +238,9 @@ func copyBinary(src, dst string) (domain.Digest, error) {
 	}
 	if err := f.Close(); err != nil {
 		return domain.Digest{}, err
+	}
+	if err := os.Rename(tmp, dst); err != nil {
+		return domain.Digest{}, fmt.Errorf("write binary: %w", err)
 	}
 	return digest, nil
 }

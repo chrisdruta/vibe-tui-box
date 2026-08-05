@@ -692,20 +692,31 @@ func TestDevOffHandoffFailureKeepsDevMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A release exists to revert to, but a colliding non-symlink file with
-	// different content sits at its install target: installBinary reports
-	// a conflict rather than clobbering it, so the handoff fails.
+	// A release exists to revert to, but a partial leftover of an
+	// interrupted install sits at its digest-named target. That must
+	// NOT wedge the handoff (review 2026-08-05 §2.4): the name is
+	// content-addressed, so the copy replaces it atomically…
 	release := seedReleaseArtifact(t, a, "RELEASE-BINARY")
 	target := filepath.Join(a.deps.Layout.Bin, "vibe-"+release.Digest.Hex()[:12])
 	if err := os.MkdirAll(a.deps.Layout.Bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(target, []byte("STALE-COLLISION"), 0o755); err != nil {
+	if err := os.WriteFile(target, []byte("STALE-PARTIAL"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// …but a directory squatting on the `vibe` symlink path still
+	// fails the handoff, which is the ordering case this test pins.
+	link := filepath.Join(a.deps.Layout.Bin, "vibe")
+	os.Remove(link)
+	if err := os.Mkdir(link, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := a.DevOff(ctx, DevOffRequest{Dir: dir}); !errors.Is(err, domain.ErrConflict) {
-		t.Fatalf("dev off handoff should fail with conflict, got %v", err)
+	if _, err := a.DevOff(ctx, DevOffRequest{Dir: dir}); err == nil {
+		t.Fatal("dev off handoff should fail when the link cannot be placed")
+	}
+	if got, err := os.ReadFile(target); err != nil || string(got) != "RELEASE-BINARY" {
+		t.Fatalf("partial binary should have been replaced atomically: %q, %v", got, err)
 	}
 	// The flip did not happen: the project is still in dev mode, still
 	// pinned to the dev artifact.
