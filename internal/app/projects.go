@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"path/filepath"
 	"strconv"
@@ -104,6 +103,10 @@ func (a *App) PS(ctx context.Context, req PSRequest) (PSResult, error) {
 	return result, nil
 }
 
+// maxAgentPSBytes bounds the agent-ps.sh ingest: a roster is a few KB,
+// so anything near this is a hostile or runaway feeder.
+const maxAgentPSBytes = 64 << 10
+
 // agentRows runs the container-side `vibe ps` feeder for one project,
 // returning agent rows and workspace-service rows. Best-effort by
 // contract — no running dev container, no payload, a nonzero feeder:
@@ -113,17 +116,21 @@ func (a *App) agentRows(ctx context.Context, rec registry.Record) (agents, servi
 	if err != nil {
 		return nil, nil
 	}
-	var out bytes.Buffer
+	// A roster is a few KB; the bytes are container-controlled and this
+	// exec rides the fetch cadence, so the ingest is bounded like every
+	// sibling (frame stdin, egress logs) and an overflowing feeder is
+	// treated as a failed one rather than parsed truncated.
+	out := &cappedWriter{max: maxAgentPSBytes}
 	res, err := a.deps.Docker.Exec(ctx, dockerapi.ExecRequest{
 		Container: name,
 		User:      devContainerUser,
 		Argv:      []string{"bash", model.PayloadAgentPS},
-		Streams:   dockerapi.Streams{Out: &out},
+		Streams:   dockerapi.Streams{Out: out},
 	})
-	if err != nil || res.ExitCode != 0 {
+	if err != nil || res.ExitCode != 0 || out.truncated {
 		return nil, nil
 	}
-	return parseAgentPS(out.String(), a.deps.Clock.Now())
+	return parseAgentPS(out.buf.String(), a.deps.Clock.Now())
 }
 
 // parseAgentPS decodes agent-ps.sh's
