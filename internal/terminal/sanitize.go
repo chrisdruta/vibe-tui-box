@@ -58,6 +58,12 @@ func Encode(s string, limits Limits) Encoded {
 // Line sanitizes one line to a single bounded row — the form used for
 // statuslines and sidebar cells.
 func Line(s string, maxWidth int) string {
+	// Clamp like DiffLimits does: withDefaults turns a non-positive
+	// width into 120 for Encode, and the truncation slice below would
+	// then cut at maxWidth-1 — negative — and panic.
+	if maxWidth < 8 {
+		maxWidth = 8
+	}
 	enc := Encode(s, Limits{MaxWidth: maxWidth, MaxLines: 1})
 	if len(enc.Lines) == 0 {
 		return ""

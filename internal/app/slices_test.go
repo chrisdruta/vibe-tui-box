@@ -63,6 +63,33 @@ func seedReleaseArtifact(t *testing.T, a *App, binary string) store.ArtifactReco
 	return rec
 }
 
+// A malformed request whose FILENAME carries a control byte: the name
+// is container-chosen, so the problem line must reach the terminal
+// encoded, never raw (review 2026-08-05 §1.3).
+func TestRequestListEncodesProblemFilenames(t *testing.T) {
+	a, _ := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	writeRequestFile(t, dir, "evil\x1b[2Jname", `not json`)
+	list, err := a.RequestList(ctx, RequestListRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Problems) == 0 {
+		t.Fatal("malformed request should be reported as a problem")
+	}
+	for _, p := range list.Problems {
+		for _, r := range p {
+			if r < 0x20 || r == 0x7f {
+				t.Fatalf("control rune %U reached the problem string: %q", r, p)
+			}
+		}
+	}
+}
+
 func writeRequestFile(t *testing.T, dir, id, content string) {
 	t.Helper()
 	reqDir := filepath.Join(dir, broker.RequestsRelDir)

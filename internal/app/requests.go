@@ -56,7 +56,10 @@ func (a *App) RequestList(ctx context.Context, req RequestListRequest) (RequestL
 	var result RequestListResult
 	adopted := false
 	for _, p := range problems {
-		result.Problems = append(result.Problems, p.Error())
+		// Problem strings embed on-disk names from the container-writable
+		// requests dir; a filename may carry any byte, so they cross to
+		// the terminal only encoded (AGENTS.md untrusted-text rule).
+		result.Problems = append(result.Problems, terminal.Line(p.Error(), 200))
 	}
 
 	pending, err := bs.ListPending()

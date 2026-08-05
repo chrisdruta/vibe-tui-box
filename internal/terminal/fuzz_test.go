@@ -38,6 +38,20 @@ func FuzzEncode(f *testing.F) {
 	})
 }
 
+func FuzzLine(f *testing.F) {
+	f.Add("plain text", 80)
+	f.Add("two\nlines", 0)
+	f.Add("evil\x1b[2Jclear", -3)
+	f.Add("wide-enough-to-truncate", 8)
+
+	f.Fuzz(func(t *testing.T, s string, width int) {
+		if width > 1<<12 || width < -1<<12 {
+			return // keep the harness itself bounded
+		}
+		controlFree(t, []string{Line(s, width)})
+	})
+}
+
 func FuzzDiff(f *testing.F) {
 	f.Add("a\nb\nc\n", "a\nX\nc\n", 40, 80)
 	f.Add("", "evil\x1b[2J\n", 0, 0)
