@@ -10,14 +10,14 @@
     {
       "path": "container/agent-ps.sh",
       "mode": "0755",
-      "size": 8179,
-      "digest": "sha256:625a00bf31d68cb418a037695697d8488f322477303f8fcca417f90fd37d7dac"
+      "size": 8474,
+      "digest": "sha256:284ec2857b318f49e3697a33b9b69d899634cd15010290f6319963cdc54597a7"
     },
     {
       "path": "container/agent-session.sh",
       "mode": "0755",
-      "size": 16977,
-      "digest": "sha256:341fe2ff9572e6c824b1e4782d1d7056de1bcb04e1bdadd385361ff27a8abb25"
+      "size": 17137,
+      "digest": "sha256:fdd8e995fb73615e55829cd7ca81e3c1d9d39eaa56c4cc1334b69f293d04a2b1"
     },
     {
       "path": "container/agent-state-hook.sh",
@@ -64,8 +64,8 @@
     {
       "path": "container/edit.sh",
       "mode": "0755",
-      "size": 1383,
-      "digest": "sha256:e445316b2ba5b8378eca812b8eb3ce4d7ab16bb788755c6c57bc7d59bc3dd86e"
+      "size": 1551,
+      "digest": "sha256:4330e2155bcd8dac94e2ef73ed08c6b8cd7eda0cc99d235c31339d9118772b53"
     },
     {
       "path": "container/egress-sample.sh",
@@ -302,5 +302,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:6baac8bd30efa2ebb487e3a70ae7edbfe16030a92c6be23f0ceeb14b40868487"
+  "digest": "sha256:4234751caab56bbd6e21d9eba2d48e3bd7f02d7f737ef34c6348f3b24ab979c3"
 }

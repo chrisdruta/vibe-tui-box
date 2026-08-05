@@ -666,6 +666,34 @@ func TestBinaryHandoffRestampsTui(t *testing.T) {
 	}
 }
 
+// The dev build's failure path is the COMMON outcome when source does
+// not compile; pin that it surfaces the exit code and cleans up the
+// throwaway builder (review 2026-08-05 §6).
+func TestDevOnBuildFailure(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newEngineRepo(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	docker.CreateHook = func(req dockerapi.CreateRequest) {
+		if req.Labels["dev.vibe.role"] != "dev-builder" {
+			return
+		}
+		docker.WaitCodes[docker.Containers[req.Name].ID] = 2
+	}
+	a.deps.Prompt = terminal.AutoApprove{Approve: true}
+	if _, err := a.DevOn(ctx, DevOnRequest{Dir: dir}); err == nil ||
+		!strings.Contains(err.Error(), "dev build failed with exit code 2") {
+		t.Fatalf("build failure should surface the exit code, got %v", err)
+	}
+	for name := range docker.Containers {
+		if strings.Contains(string(name), "devbuild") {
+			t.Fatalf("builder container left behind: %s", name)
+		}
+	}
+}
+
 // TestDevOffHandoffFailureKeepsDevMode pins the ordering fix: when the
 // binary handoff fails, dev off must not have moved the registry record
 // — the pointer moves only after the durable binary is in place.

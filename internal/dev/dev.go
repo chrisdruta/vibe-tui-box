@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,6 +56,22 @@ type Record struct {
 }
 
 const recordFormat = 1
+
+// DecodeRecord strictly decodes a persistent dev provenance record —
+// the record discipline (DisallowUnknownFields, format dispatch)
+// applied where a bare Unmarshal used to silently accept anything.
+func DecodeRecord(data []byte) (Record, error) {
+	var rec Record
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&rec); err != nil {
+		return Record{}, fmt.Errorf("%w: dev record: %v", domain.ErrInvalid, err)
+	}
+	if rec.Format != recordFormat {
+		return Record{}, fmt.Errorf("%w: dev record format %d, this engine speaks %d", domain.ErrInvalid, rec.Format, recordFormat)
+	}
+	return rec, nil
+}
 
 // Service performs dev builds.
 type Service struct {
@@ -235,10 +252,15 @@ func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage,
 		// all capabilities dropped root has no CAP_DAC_OVERRIDE, so the
 		// build must run as the invoking user to reach them.
 		User: fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
-		// Compiler output lands in the staging mount so a failed build
-		// can be reported; the engine has no container-log surface.
-		Command: []string{"sh", "-c",
-			"go build -trimpath -ldflags \"-X '" + versionPkg + ".release=" + version + "'\" -o /out/vibe ./cmd/vibe >/out/build.log 2>&1"},
+		// Argv only — the invariant names builders explicitly, and the
+		// sh -c wrapper (a 2026 regression for log redirection) is
+		// replaced by reading the container log on failure.
+		Command: []string{"go", "build", "-trimpath",
+			"-ldflags", "-X " + versionPkg + ".release=" + version,
+			"-o", "/out/vibe", "./cmd/vibe"},
+		// Compiler output is bounded at the daemon so a pathological
+		// build can't grow the host's log unbounded.
+		Log:     dockerapi.LogPolicy{MaxSize: "10m", MaxFiles: 1},
 		Workdir: "/src",
 		Env: []string{
 			"CGO_ENABLED=0",
@@ -271,10 +293,18 @@ func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage,
 		return err
 	}
 	if code != 0 {
-		if log, rerr := os.ReadFile(filepath.Join(outDir, "build.log")); rerr == nil && len(log) > 0 {
-			// Compiler output is container-produced: encode before it
-			// can reach a terminal (same rule as the dns crash detail).
-			enc := terminal.Encode(strings.TrimSpace(tailLines(string(log), 30)),
+		// Compiler output lives in the (daemon-bounded) container log;
+		// it is container-produced, so it is bounded again here and
+		// encoded before it can reach a terminal (same rule as the dns
+		// crash detail).
+		tail := &boundedBuffer{max: 64 << 10}
+		lerr := s.docker.Logs(context.WithoutCancel(ctx), dockerapi.LogsRequest{
+			Container: name,
+			Tail:      30,
+			Streams:   dockerapi.Streams{Out: tail, Err: tail},
+		})
+		if lerr == nil && tail.buf.Len() > 0 {
+			enc := terminal.Encode(strings.TrimSpace(tailLines(tail.buf.String(), 30)),
 				terminal.Limits{MaxWidth: 200, MaxLines: 30})
 			return fmt.Errorf("%w: dev build failed with exit code %d:\n%s",
 				domain.ErrInvalid, code, strings.Join(enc.Lines, "\n"))
@@ -282,6 +312,24 @@ func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage,
 		return fmt.Errorf("%w: dev build failed with exit code %d", domain.ErrInvalid, code)
 	}
 	return nil
+}
+
+// boundedBuffer keeps the first max bytes and drops the rest; the log
+// drain must never grow or fail an error path.
+type boundedBuffer struct {
+	buf bytes.Buffer
+	max int
+}
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	n := len(p)
+	if room := b.max - b.buf.Len(); room > 0 {
+		if len(p) > room {
+			p = p[:room]
+		}
+		b.buf.Write(p)
+	}
+	return n, nil
 }
 
 // tailLines returns at most the last n lines of s.

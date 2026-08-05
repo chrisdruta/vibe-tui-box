@@ -222,10 +222,14 @@ func (a *App) DevStatus(ctx context.Context, req DevStatusRequest) (DevStatusRes
 	}
 	result := DevStatusResult{Project: rec}
 	if data, err := os.ReadFile(a.devRecordPath(rec.ID)); err == nil {
-		var devRec dev.Record
-		if json.Unmarshal(data, &devRec) == nil {
-			result.Record = &devRec
+		// A corrupt record must not report as "no dev record" — the
+		// provenance file is host-owned state, and silence here hides
+		// real damage.
+		devRec, derr := dev.DecodeRecord(data)
+		if derr != nil {
+			return fail(fmt.Errorf("dev record %s: %w", a.devRecordPath(rec.ID), derr))
 		}
+		result.Record = &devRec
 	}
 	return result, nil
 }

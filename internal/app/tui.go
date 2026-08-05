@@ -302,7 +302,7 @@ func (a *App) mintSession(ctx context.Context, rec registry.Record, rootPath str
 	// brings its own trailing separator, and nominal renders nothing.
 	// The bare form splices this process's executable directly (no conf
 	// means no @vibe_exe stamped to resolve through).
-	status := fmt.Sprintf("#(%s _state --project %s)%s", a.deps.Executable, rec.ID, tmux.EscapeFormat(rec.DisplayName))
+	status := fmt.Sprintf("#('%s' _state --project %s)%s", a.deps.Executable, rec.ID, tmux.EscapeFormat(rec.DisplayName))
 	if chrome {
 		// The sidebar shows display names; session names stay ID-derived.
 		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_name", rec.DisplayName); err != nil {
@@ -332,7 +332,7 @@ func (a *App) mintSession(ctx context.Context, rec registry.Record, rootPath str
 		// string, so re-minting never flip-flops the option.
 		status = fmt.Sprintf("#{?client_prefix,#[fg=#{@thm_coral}#,bold]⌨#[default]#[fg=#{@thm_dim}] · #[default],}"+
 			"#{?pane_in_mode,#[fg=#{@thm_yellow}#,bold]copy#[default]#[fg=#{@thm_dim}] · #[default],}"+
-			"#[range=user|req]#(#{@vibe_exe} _state --project %s)#[norange]#[fg=#{@thm_dim}]%%l:%%M %%p#[default] ",
+			"#[range=user|req]#('#{@vibe_exe}' _state --project %s)#[norange]#[fg=#{@thm_dim}]%%l:%%M %%p#[default] ",
 			rec.ID)
 	}
 	return a.deps.Tmux.SetOption(ctx, session, "status-right", status)

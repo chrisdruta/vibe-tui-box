@@ -58,8 +58,10 @@ for name in "${!s_attached[@]}"; do
 done
 if [ -d "$state_dir" ]; then
   for f in "$state_dir"/*; do
-    # Statusline sidecars and their write-temps, not sessions.
-    case "$f" in *.model | *.model.tmp.*) continue ;; esac
+    # Statusline sidecars and ANY write-temp, not sessions —
+    # agent-state-hook writes record temps as $session.tmp.$$, which
+    # must not render as a ghost agent row.
+    case "$f" in *.model | *.tmp.*) continue ;; esac
     [ -f "$f" ] && candidates[$(basename "$f")]=1
   done
 fi
@@ -130,6 +132,10 @@ while IFS= read -r name; do
   who="$cli"
   [ -n "$model" ] && who="${who:+$who - }$model"
   [ -n "$who" ] && detail="${who}${detail:+ - $detail}"
+  # The name came from a filename: re-strip it like every other field
+  # so a stray delimiter can't shift the row protocol.
+  name="${name//[^a-zA-Z0-9_-]/}"
+  [ -n "$name" ] || continue
   printf '%s|%s|%s|%s|%s|%s\n' "$name" "$state" "$ts" "$detail" "$cli" "$model"
 done < <(printf '%s\n' "${!candidates[@]}" | sort)
 

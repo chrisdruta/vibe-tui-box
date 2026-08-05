@@ -439,7 +439,7 @@ func TestOpenProjectMintsWithoutAttach(t *testing.T) {
 	// the cell follows shim handoffs; both minting paths must stamp the
 	// identical string.
 	status, ok := rt.optionValue(session, "status-right")
-	if !ok || !strings.Contains(status, "#(#{@vibe_exe} _state --project "+string(reg.Record.ID)+")") {
+	if !ok || !strings.Contains(status, "#('#{@vibe_exe}' _state --project "+string(reg.Record.ID)+")") {
 		t.Fatalf("status-right = %q (%v)", status, ok)
 	}
 	if _, ok := rt.globalValue("@vibe_engine_serial"); !ok {
@@ -590,7 +590,7 @@ func TestTuiBarePathEscapesDisplayName(t *testing.T) {
 	// directive. Strip it and confirm the name portion is exactly the
 	// escaped form — and that collapsing the escaped ## pairs leaves no
 	// lone #( that tmux would execute.
-	prefix := fmt.Sprintf("#(%s _state --project %s)", a.deps.Executable, reg.Record.ID)
+	prefix := fmt.Sprintf("#('%s' _state --project %s)", a.deps.Executable, reg.Record.ID)
 	name := strings.TrimPrefix(status, prefix)
 	if name != tmux.EscapeFormat(evil) {
 		t.Fatalf("display-name portion = %q, want %q", name, tmux.EscapeFormat(evil))

@@ -11,9 +11,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/app"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
 )
 
 // Stable exit codes.
@@ -111,7 +113,12 @@ func run(ctx context.Context, a *app.App, args []string, stdout, stderr io.Write
 	}
 	res, err := cmd.Run(ctx, a, req, dir)
 	if err != nil {
-		fmt.Fprintf(stderr, "vibe %s: %v\n", cmd.Name, err)
+		// Error text can carry container- or registry-produced bytes
+		// (daemon build messages echo agent Dockerfile lines), so it is
+		// encoded and bounded like any other untrusted text before the
+		// terminal sees it.
+		enc := terminal.Encode(err.Error(), terminal.Limits{MaxWidth: 400, MaxLines: 60})
+		fmt.Fprintf(stderr, "vibe %s: %s\n", cmd.Name, strings.Join(enc.Lines, "\n"))
 		return exitCode(err)
 	}
 	opts := optionsOf(req)

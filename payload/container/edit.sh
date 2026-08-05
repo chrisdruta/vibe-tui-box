@@ -14,7 +14,10 @@ set -euo pipefail
 
 mode="${1:-files}"
 
-export XDG_CONFIG_HOME=/vibe/payload/container
+# Location-independent like every sibling: the payload root is where
+# this script lives, not a hardcoded mount point.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export XDG_CONFIG_HOME="$script_dir"
 scratch="${TMPDIR:-/tmp}/vibe-edit"
 export XDG_DATA_HOME="$scratch/data" XDG_STATE_HOME="$scratch/state" XDG_CACHE_HOME="$scratch/cache"
 mkdir -p "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"

@@ -203,7 +203,9 @@ if [ "$mode" = "dismiss" ]; then
   fi
   # shellcheck source=state-dir.sh disable=SC1091
   . "$script_dir/state-dir.sh"
-  rm -f "$VIBE_STATE_DIR/$session" 2>/dev/null || true
+  # The .model sidecar goes with the record, or the NEXT run at this
+  # address briefly wears the previous run's model label.
+  rm -f "$VIBE_STATE_DIR/$session" "$VIBE_STATE_DIR/$session.model" 2>/dev/null || true
   echo "dismissed '$session'"
   exit 0
 fi
