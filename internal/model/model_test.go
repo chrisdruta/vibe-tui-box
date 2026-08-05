@@ -440,6 +440,22 @@ func TestValidateMountOverlap(t *testing.T) {
 	}
 }
 
+func TestValidateWritableBindOutsideWorkspace(t *testing.T) {
+	plan, errs := Compile(testInput(t, minimalManifest))
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if verrs := Validate(plan); len(verrs) != 0 {
+		t.Fatalf("compiled plan should validate: %v", verrs)
+	}
+	plan.Dev.Mounts = append(plan.Dev.Mounts, Mount{
+		Kind: BindMount, Source: "/host/store/thing", Target: "/imported",
+	})
+	if verrs := Validate(plan); len(verrs) == 0 {
+		t.Fatal("writable bind outside /workspace should be rejected")
+	}
+}
+
 func TestValidateTmpfsSource(t *testing.T) {
 	plan, errs := Compile(testInput(t, minimalManifest))
 	if len(errs) > 0 {

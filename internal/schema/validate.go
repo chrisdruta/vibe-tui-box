@@ -148,6 +148,13 @@ func (v *validator) runtime(m *Manifest) {
 	for i, imp := range m.Runtime.Imports {
 		base := fmt.Sprintf("runtime.imports[%d]", i)
 		v.relPath(base+".source", imp.Source)
+		// Imports mount the digest-addressed snapshot copy; a writable
+		// bind there lets the container mutate an immutable store
+		// object in place. Rejected until read-write imports have a
+		// design that mounts a seeded volume instead of the store path.
+		if !imp.Readonly {
+			v.add(base+".readonly", "read-write imports are not supported: set readonly: true")
+		}
 		if tgt, ok := v.containerTarget(base+".target", imp.Target); ok {
 			if prev, dup := targets[tgt]; dup {
 				v.add(base+".target", fmt.Sprintf("target %q duplicates %s", tgt, prev))

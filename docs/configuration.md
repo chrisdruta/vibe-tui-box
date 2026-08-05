@@ -86,7 +86,11 @@ bootstrap:
 - **`runtime.imports`** — bounded *data* inputs, not live code. Each
   source is copied into the immutable input snapshot and that copy is
   mounted; editing the source on the host does nothing until the next
-  candidate. The workspace itself is the only live bind.
+  candidate. The workspace itself is the only live bind. Every import
+  must declare `readonly: true` — the mount source is a digest-addressed
+  store object, and a writable bind there would let the container mutate
+  it in place, so `readonly: false` (or omitting the key) is rejected at
+  validation.
 - **`runtime.egress`** — the per-project DNS ledger, on when absent.
   A provisioned project's plan gains an engine-generated CoreDNS
   sidecar (`vibe-<id>-svc-dns`, digest-pinned in engine code) that the

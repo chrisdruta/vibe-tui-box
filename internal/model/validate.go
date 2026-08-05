@@ -105,6 +105,13 @@ func validateMounts(base string, mounts []Mount, add func(string, string)) {
 			if m.Source == "" {
 				add(field, "mount source is required")
 			}
+			// Every bind the engine compiles points at store-owned or
+			// engine-owned host paths except the workspace; a writable
+			// bind anywhere else would let a container mutate
+			// digest-addressed (immutable) host state.
+			if m.Kind == BindMount && !m.ReadOnly && t != WorkspaceTarget {
+				add(field, fmt.Sprintf("writable bind at %q: writable binds are reserved for %s", t, WorkspaceTarget))
+			}
 		case TmpfsMount:
 			if m.Source != "" {
 				add(field, fmt.Sprintf("tmpfs mount must not have a source, got %q", m.Source))

@@ -198,6 +198,8 @@ func TestValidateDiagnostics(t *testing.T) {
 		{"absolute import source", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: /etc, target: /d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].source"},
 		{"escaping import source", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: ../up, target: /d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].source"},
 		{"relative import target", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: m, target: d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].target"},
+		{"writable import", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: m, target: /d, readonly: false}]}\nagent: {cmd: claude}\n", "runtime.imports[0].readonly"},
+		{"default-writable import", "schema: 1\nimage: {base: x, agents: [claude]}\nruntime: {imports: [{source: m, target: /d}]}\nagent: {cmd: claude}\n", "runtime.imports[0].readonly"},
 		{"reserved service", "schema: 1\nimage: {base: x, agents: [claude]}\nservices: {dev: {image: y}}\nagent: {cmd: claude}\n", "services.dev"},
 		{"reserved dns service", "schema: 1\nimage: {base: x, agents: [claude]}\nservices: {dns: {image: y}}\nagent: {cmd: claude}\n", "services.dns"},
 		{"agent not installed", "schema: 1\nimage: {base: x, agents: [claude]}\nagent: {cmd: codex}\n", "agent.cmd"},
