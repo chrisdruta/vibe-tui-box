@@ -171,7 +171,9 @@ them.
 | `/vibe/payload` | the pinned artifact's container payload | ro |
 | `/vibe/agent-state` | per-project volume for agent logins/state | rw |
 | `/vibe/results` | broker decision records | ro |
-| custom | `runtime.imports` snapshot copies | per entry |
+| `/run/user/1000` | tmpfs runtime dir (`XDG_RUNTIME_DIR`; clears on boot) | rw |
+| `/vibe/dns` | reserved for the dns ledger sidecar's Corefile | — |
+| custom | `runtime.imports` snapshot copies | ro (readonly is required) |
 
 Custom import targets may not equal, contain, or be contained by any of
 the engine-owned targets.

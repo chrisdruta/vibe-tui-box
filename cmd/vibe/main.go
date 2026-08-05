@@ -3,9 +3,8 @@
 // context, host layout, dependency construction, and dispatch through
 // the CLI. Business logic lives under internal/.
 //
-// The default output name collides with the bash launcher at the repo
-// root, so build with an explicit output path while the launcher still
-// exists:
+// The default output name at the repo root is gitignored dev clutter,
+// so build with an explicit output path:
 //
 //	go build -o bin/vibe ./cmd/vibe
 package main

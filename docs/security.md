@@ -60,7 +60,8 @@ host process environment, never logged, and never part of the canonical
 plan or its digest. Manifest `runtime.env` values are planned
 configuration — they *are* container-ambient and in the plan digest;
 put secrets in the env file, not the manifest. `vibe exec` passes only
-what you give it with `-e`.
+what you give it with `-e`, plus your `TERM` on TTY execs so
+full-screen tools render (docs/usage.md).
 
 ## Agent-initiated changes
 

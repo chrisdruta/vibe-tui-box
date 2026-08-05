@@ -206,8 +206,9 @@ no lock, no lease; lifecycle mutations serialize per project.
   under `testdata/fuzz/` and committed as permanent regression seeds.
 - **CI** (`.github/workflows/ci.yml`): gofmt, vet, build, test,
   golangci-lint, payload-manifest drift (`go generate
-  ./internal/payload` must be clean), ShellCheck on the container
-  payload, the three-platform cross-compile matrix with
+  ./internal/payload` must be clean), ShellCheck over both payload
+  sides (container and host, plus the preset hook samples), the
+  three-platform cross-compile matrix with
   `CGO_ENABLED=0`, and the fuzz-burst job.
 - **Owed** (tracked in [../ROADMAP.md](../ROADMAP.md)): real-daemon CI
   for the tools/extension/dev build paths.

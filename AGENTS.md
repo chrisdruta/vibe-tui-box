@@ -79,7 +79,8 @@ cli → app → { runtime → model → schema
               dockerapi (only package importing Docker SDK types)
               builder, broker, dev, initproject, doctor, release,
               payload, registry, store, snapshot, tmux, tmuxui }
-shared leaves: domain, envfile, lock, paths, runner, terminal, version
+shared leaves: domain, envfile, lock, paths, progressui, runner,
+               terminal, version
 ```
 
 Per-package responsibilities live in the package doc comments and
@@ -128,7 +129,8 @@ surface can express it and `model.Validate` rejects it on any other
 container. Published
 ports bind loopback only; mount targets are absolute, normalized,
 unique, non-nesting, and never collide with the engine-owned targets
-(`/workspace`, `/vibe/payload`, `/vibe/agent-state`, `/vibe/results`).
+(`/workspace`, `/vibe/payload`, `/vibe/agent-state`, `/vibe/results`,
+the `/run/user/1000` tmpfs, and `/vibe/dns`).
 The workspace bind is the exact registered root — never a subpath, never
 another live host path. There is no raw Docker/Compose/shell
 passthrough anywhere in the schema, and no command accepts a shell

@@ -242,6 +242,8 @@ never a tag, version string, path, or source hash.
     │                                 #   approved candidate (CAS revisions)
     ├── candidates/<digest>/          # immutable plans + metadata
     ├── snapshots/<digest>/           # immutable frozen inputs
+    ├── replace/<project-id>.json     # container-replacement journals
+    │                                 #   (failure-atomic up; see engine-internals)
     ├── broker/<project-id>/          # request decisions (host-owned)
     ├── approvals/                    # extension-build approval markers
     ├── dev/                          # dev-mode provenance records
@@ -278,7 +280,7 @@ participate in trust lookup.
 
 Host subprocesses are rare — the Docker API replaces the docker/compose
 CLIs — but tmux runs by absolute prevalidated path with a minimal
-allowlisted environment (only PATH, HOME, and locale pass through; no
+allowlisted environment (only TERM, PATH, HOME, and locale pass through; no
 `LD_*`, `GIT_*`, `DOCKER_*`, `TMUX_TMPDIR`, or project values), argv
 only, never a shell string.
 
@@ -437,7 +439,7 @@ drift. The architectural shape: every verb is a typed request parsed in
 deriving human and `--json` output from the same model; hidden
 `_`-prefixed verbs (`_sidebar`, `_state`, `_fleet`, `_frame`,
 `_agents`, `_chooser`, `_watch`, `_fetch`, `_stop`, `_svcstop`,
-`_svcselect`, `_dismiss`, `_up`, `_open`, `_reap`) are the TUI's
+`_svcselect`, `_dismiss`, `_up`, `_open`, `_reap`, `_egress`) are the TUI's
 render, menu, and lifecycle endpoints.
 
 ## Explicit non-goals and residual risks
