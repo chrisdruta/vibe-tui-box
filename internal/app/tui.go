@@ -725,7 +725,7 @@ func (a *App) RenderFleet(ctx context.Context, req RenderRequest) (RenderResult,
 		// path, which must never grow a subprocess.
 		for _, c := range view.Containers {
 			if c.Running {
-				view.Churn = gitChurn(ctx, rec.Root)
+				view.Churn = a.gitChurn(ctx, rec.Root)
 				break
 			}
 		}

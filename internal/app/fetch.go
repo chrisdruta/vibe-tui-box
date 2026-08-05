@@ -84,7 +84,7 @@ func (a *App) FetchCaches(ctx context.Context, req FetchRequest) (FetchResult, e
 		// the pass, and the reason `_fetch` (like the renderers it
 		// replaces) rides the fetch cadence, never a frame.
 		if running {
-			view.Churn = gitChurn(ctx, rec.Root)
+			view.Churn = a.gitChurn(ctx, rec.Root)
 		}
 		views = append(views, view)
 		entries = append(entries, a.agentEntriesFor(ctx, rec, state, statusOK)...)

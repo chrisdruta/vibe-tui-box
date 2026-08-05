@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"github.com/chrisdruta/vibe-tui-box/internal/runner"
 	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
 )
 
@@ -83,23 +83,54 @@ func (a *App) RenderFrame(ctx context.Context, req FrameRequest) (FrameResult, e
 		Spin: out.Spin, Body: out.Body}, nil
 }
 
+// maxGitFileRead bounds the .git/HEAD reads: both files are one short
+// line, and their bytes are container-writable, so a huge file is a
+// hostile feeder, not a repository.
+const maxGitFileRead = 512
+
+// readGitLine reads the first line of a small regular file. The
+// regular-file gate matters: the workspace is container-writable, so
+// a FIFO planted at .git/HEAD must not block the render child.
+func readGitLine(path string) (string, bool) {
+	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
+		return "", false
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", false
+	}
+	defer f.Close()
+	buf := make([]byte, maxGitFileRead)
+	n, err := f.Read(buf)
+	if n == 0 && err != nil {
+		return "", false
+	}
+	line, _, _ := strings.Cut(string(buf[:n]), "\n")
+	return line, true
+}
+
 // gitBranch reads .git/HEAD directly — no git subprocess on the frame
 // path. It follows the .git-file indirection (worktrees, submodule
 // checkouts); a detached HEAD shows the short sha; anything unreadable
-// is simply no branch.
+// is simply no branch. The gitdir pointer is container-writable and is
+// deliberately still followed (worktrees and submodules legitimately
+// point outside the session dir): reads are bounded, regular-file
+// gated, and used only when the line looks like a ref, so the follow
+// is read-as-data with no meaningful disclosure.
 func gitBranch(dir string) string {
 	if dir == "" {
 		return ""
 	}
 	g := filepath.Join(dir, ".git")
-	if info, err := os.Lstat(g); err != nil {
+	info, err := os.Lstat(g)
+	if err != nil {
 		return ""
-	} else if info.Mode().IsRegular() {
-		data, err := os.ReadFile(g)
-		if err != nil {
+	}
+	if info.Mode().IsRegular() {
+		line, ok := readGitLine(g)
+		if !ok {
 			return ""
 		}
-		line, _, _ := strings.Cut(string(data), "\n")
 		gd, ok := strings.CutPrefix(line, "gitdir: ")
 		if !ok || gd == "" {
 			return ""
@@ -109,11 +140,10 @@ func gitBranch(dir string) string {
 		}
 		g = gd
 	}
-	data, err := os.ReadFile(filepath.Join(g, "HEAD"))
-	if err != nil {
+	line, ok := readGitLine(filepath.Join(g, "HEAD"))
+	if !ok {
 		return ""
 	}
-	line, _, _ := strings.Cut(string(data), "\n")
 	if ref, ok := strings.CutPrefix(line, "ref: refs/heads/"); ok {
 		return ref
 	}
@@ -132,15 +162,36 @@ var churnRe = regexp.MustCompile(`(\d+) insertion|(\d+) deletion`)
 // changed anything", not "what isn't staged yet") — so it belongs to
 // the fetch-path renderers only, never the frame path. A clean tree,
 // a non-repo, or any git failure is simply no churn.
-func gitChurn(ctx context.Context, dir string) string {
-	if dir == "" {
+//
+// The repository is the container-writable workspace, and git executes
+// programs named by repo config (core.fsmonitor, diff.external,
+// core.hooksPath, …), so this runs through runner.Runner with an
+// explicit minimal environment and every known config execution vector
+// forced off. The -c list is a denylist and may need to grow with git.
+func (a *App) gitChurn(ctx context.Context, dir string) string {
+	if dir == "" || a.deps.Executables.Git == "" {
 		return ""
 	}
 	if _, err := os.Lstat(filepath.Join(dir, ".git")); err != nil {
 		return ""
 	}
-	out, err := exec.CommandContext(ctx, "git", "-C", dir, "diff", "--shortstat", "HEAD").Output()
-	if err != nil || len(bytes.TrimSpace(out)) == 0 {
+	res, err := a.deps.Runner.Run(ctx, runner.Invocation{
+		Path: a.deps.Executables.Git,
+		Args: []string{
+			"--no-pager", "--no-optional-locks",
+			"-C", dir,
+			"-c", "core.fsmonitor=false",
+			"-c", "core.hooksPath=/dev/null",
+			"-c", "diff.external=",
+			"diff", "--no-ext-diff", "--no-textconv", "--shortstat", "HEAD",
+		},
+		Env: []string{"GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0"},
+	})
+	if err != nil || res.ExitCode != 0 {
+		return ""
+	}
+	out := res.Stdout
+	if len(bytes.TrimSpace(out)) == 0 {
 		return ""
 	}
 	ins, del := 0, 0

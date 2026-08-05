@@ -12,9 +12,10 @@ import (
 // invoke, resolved once at startup.
 type Executables struct {
 	Tmux string // "" when tmux is absent; TUI commands then fail with ErrUnavailable
+	Git  string // "" when git is absent; churn display then stays empty
 }
 
-// Resolve looks up host executables on the current PATH. Only tmux is
+// Resolve looks up host executables on the current PATH. Both are
 // optional; everything else the engine needs is the Docker API socket,
 // not a binary.
 func Resolve() (Executables, error) {
@@ -25,6 +26,13 @@ func Resolve() (Executables, error) {
 			return Executables{}, fmt.Errorf("resolve tmux: %w", err)
 		}
 		ex.Tmux = abs
+	}
+	if path, err := exec.LookPath("git"); err == nil {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return Executables{}, fmt.Errorf("resolve git: %w", err)
+		}
+		ex.Git = abs
 	}
 	return ex, nil
 }

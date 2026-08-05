@@ -50,7 +50,12 @@ func (h *Host) Run(ctx context.Context, inv Invocation) (Output, error) {
 	}
 	cmd := exec.CommandContext(ctx, inv.Path, inv.Args...)
 	cmd.Dir = inv.Dir
+	// os/exec treats a nil Env as "inherit os.Environ()", which would
+	// leak the engine's ambient environment; an empty slice means empty.
 	cmd.Env = inv.Env
+	if cmd.Env == nil {
+		cmd.Env = []string{}
+	}
 	cmd.Stdin = inv.Stdin
 
 	var outBuf, errBuf bytes.Buffer
@@ -67,11 +72,14 @@ func (h *Host) Run(ctx context.Context, inv Invocation) (Output, error) {
 	switch {
 	case err == nil:
 		return out, nil
+	// Cancellation must win over ExitError: a child killed by the
+	// context dies with an ExitError whose code is -1, which would
+	// otherwise report as a normally completed run.
+	case ctx.Err() != nil:
+		return out, fmt.Errorf("%w: %s: %v", domain.ErrCanceled, filepath.Base(inv.Path), context.Cause(ctx))
 	case errors.As(err, &exit):
 		out.ExitCode = exit.ExitCode()
 		return out, nil
-	case ctx.Err() != nil:
-		return out, fmt.Errorf("%w: %s: %v", domain.ErrCanceled, filepath.Base(inv.Path), context.Cause(ctx))
 	default:
 		return out, fmt.Errorf("run %s: %w", filepath.Base(inv.Path), err)
 	}
