@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -99,6 +100,15 @@ func (s *Service) Acquire(ctx context.Context, ver string) (store.Artifact, erro
 	}
 	obj, err := s.store.Publish(ctx, store.ArtifactObject, staging, digest)
 	if err != nil {
+		return store.Artifact{}, err
+	}
+	// Records are write-once and carry InstalledAt, so re-acquiring an
+	// installed version must reuse the existing record — a rewrite at a
+	// different wall-clock second is a byte-divergent record and reads
+	// as ErrConflict (same class as the 2026-08-04 provision failure).
+	if existing, err := s.store.ReadArtifactRecord(digest); err == nil {
+		return store.Artifact{Record: existing, Path: obj.Path}, nil
+	} else if !errors.Is(err, domain.ErrNotFound) {
 		return store.Artifact{}, err
 	}
 	record := store.ArtifactRecord{

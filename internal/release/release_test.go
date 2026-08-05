@@ -123,7 +123,11 @@ func newFixture(t *testing.T, entries []tarEntry) *fixture {
 	})
 
 	platform := domain.Platform{OS: "linux", Arch: "amd64"}
-	svc, err := NewService(NewHTTPSource(server.URL), ChecksumVerifier{}, st, platform, func() int64 { return 1784000000 })
+	// The clock ADVANCES between calls on purpose: a frozen clock once
+	// hid that re-acquire rewrote the record with a fresh InstalledAt
+	// and conflicted on every second update (review 2026-08-05 §1.2).
+	clock := int64(1784000000)
+	svc, err := NewService(NewHTTPSource(server.URL), ChecksumVerifier{}, st, platform, func() int64 { clock++; return clock })
 	if err != nil {
 		t.Fatal(err)
 	}
