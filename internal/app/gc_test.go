@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chrisdruta/vibe-tui-box/internal/dev"
 	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/registry"
@@ -353,6 +354,25 @@ func TestGCFailsClosedOnBadArtifactLabelAndMissingRecord(t *testing.T) {
 	delete(docker.Containers["rogue"].Labels, "dev.vibe.artifact")
 	if _, err := a.GC(ctx, GCRequest{}); err == nil || !strings.Contains(err.Error(), "record is unreadable") {
 		t.Fatalf("unreadable candidate record for a live root must abort gc, got %v", err)
+	}
+}
+
+// TestGCSkipsDevBuilder pins the dev↔gc agreement: the throwaway
+// build container is managed but project- and candidate-less by
+// design, and a stale one (hard kill mid-build) must not wedge GC
+// (review 2026-08-05 §2.7). The label set mirrors dev.runBuild's.
+func TestGCSkipsDevBuilder(t *testing.T) {
+	a, docker := newTestApp(t)
+	docker.Containers["vibe-devbuild-abc"] = &dockerapi.ContainerState{
+		ID:   "ctr-devbuild",
+		Name: "vibe-devbuild-abc",
+		Labels: map[string]string{
+			"dev.vibe.managed": "true",
+			"dev.vibe.role":    dev.BuilderRole,
+		},
+	}
+	if _, err := a.GC(context.Background(), GCRequest{}); err != nil {
+		t.Fatalf("a live dev-builder must not wedge gc: %v", err)
 	}
 }
 

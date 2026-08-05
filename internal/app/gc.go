@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chrisdruta/vibe-tui-box/internal/dev"
 	"github.com/chrisdruta/vibe-tui-box/internal/domain"
 	"github.com/chrisdruta/vibe-tui-box/internal/lock"
 	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
@@ -162,6 +163,13 @@ func (a *App) gcRoots(ctx context.Context) (gcRoots, error) {
 	}
 	liveCandidates := map[domain.Digest]bool{}
 	for _, c := range live {
+		// The dev-build container is managed but deliberately project-
+		// and candidate-less: it references no store objects (its
+		// mounts are throwaway host temp dirs), so it roots nothing
+		// and must not trip the fail-closed label checks below.
+		if c.Labels[runtime.RoleLabel] == dev.BuilderRole {
+			continue
+		}
 		// The project label gates journal cleanup (gcProjectState), so
 		// a container that cannot name its project validly fails the
 		// GC the same way an unparsable candidate does — a malformed

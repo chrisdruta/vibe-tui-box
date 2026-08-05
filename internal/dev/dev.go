@@ -25,6 +25,13 @@ import (
 // BuilderImage is the pinned-by-resolution build environment.
 const BuilderImage = "golang:1.26"
 
+// BuilderRole is the dev.vibe.role value on the throwaway build
+// container. It is managed but deliberately project- and
+// candidate-less, so GC recognizes it by this role instead of failing
+// closed on its missing labels (a hard kill mid-build can leave it
+// behind past the best-effort removal).
+const BuilderRole = "dev-builder"
+
 // SourcesFile is the tracked allowlist in the engine repository.
 const SourcesFile = "build/dev-sources.txt"
 
@@ -245,7 +252,7 @@ func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage,
 			{Kind: dockerapi.BindMount, Source: outDir, Target: "/out"},
 		},
 		Network: dockerapi.DefaultNetwork,
-		Labels:  map[string]string{"dev.vibe.managed": "true", "dev.vibe.role": "dev-builder"},
+		Labels:  map[string]string{"dev.vibe.managed": "true", "dev.vibe.role": BuilderRole},
 		Policy:  dockerapi.Policy{DropAllCapabilities: true, NoNewPrivileges: true},
 	})
 	if err != nil {
