@@ -363,6 +363,53 @@ func TestDownRemovesEverything(t *testing.T) {
 	}
 }
 
+// The project label alone is copyable; Down must not destroy a
+// container that lacks the managed label (review 2026-08-05 §2.1).
+func TestDownSkipsUnmanagedContainers(t *testing.T) {
+	f := newFixture(t, testManifest)
+	ctx := context.Background()
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	f.docker.Containers["intruder"] = &dockerapi.ContainerState{
+		ID: "intruder", Name: "intruder", Running: true,
+		Labels: map[string]string{ProjectLabel: string(testProjectID)},
+	}
+	if err := f.svc.Down(ctx, f.rec, DownOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.docker.Containers["intruder"]; !ok {
+		t.Fatal("down removed a container without the managed label")
+	}
+}
+
+// Down removes every generation itself, so a pending replacement
+// journal has no outcome left to recover; leaving it would dead-end
+// the next Up's sweep (review 2026-08-05 §2.2).
+func TestDownClearsPendingJournal(t *testing.T) {
+	f := newFixture(t, testManifest)
+	ctx := context.Background()
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	path := f.svc.journalPath(testProjectID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.Down(ctx, f.rec, DownOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("journal survived down: %v", err)
+	}
+	if _, err := f.svc.Up(ctx, f.cand, UpOptions{}); err != nil {
+		t.Fatalf("up after down should not dead-end on a stale journal: %v", err)
+	}
+}
+
 func TestStatusReportsSync(t *testing.T) {
 	f := newFixture(t, testManifest)
 	ctx := context.Background()

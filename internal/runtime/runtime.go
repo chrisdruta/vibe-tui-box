@@ -107,6 +107,12 @@ func (s *Service) Down(ctx context.Context, rec registry.Record, opts DownOption
 		return err
 	}
 	for _, c := range containers {
+		// The project label alone is copyable; only ManagedLabel proves
+		// ownership. Never destroy a container the engine cannot prove
+		// it created — same rule as clearDebris and reconcileContainer.
+		if c.Labels[ManagedLabel] != "true" {
+			continue
+		}
 		if c.Running {
 			if err := s.docker.StopContainer(ctx, c.ID, dockerapi.StopTimeout); err != nil {
 				return err
@@ -115,6 +121,13 @@ func (s *Service) Down(ctx context.Context, rec registry.Record, opts DownOption
 		if err := s.docker.RemoveContainer(ctx, c.ID, dockerapi.RemoveOptions{Force: true}); err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
+	}
+	// Down removed both generations of any pending replacement itself,
+	// under the project lock, so a leftover journal has no outcome left
+	// to recover; retaining it would dead-end the next Up's sweep on
+	// the neither-generation-exists fail-closed path.
+	if err := s.deleteJournal(rec.ID); err != nil {
+		return err
 	}
 	if err := s.docker.RemoveNetwork(ctx, dockerapi.NetworkName(model.NetworkName(rec.ID))); err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return err
