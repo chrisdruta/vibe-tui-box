@@ -1,0 +1,43 @@
+# Release pipeline (ROADMAP R1): a pushed v* tag becomes a DRAFT
+# GitHub release carrying the three-platform archives and
+# checksums.txt in exactly the layout internal/release verifies.
+# Draft on purpose — publishing is the operator's click, after the
+# R1 shakedown (`vibe update --version` against the real assets).
+# build/release.sh owns the packaging so local snapshots and this
+# workflow cannot drift.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the draft release and upload assets
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # The tag commit normally rode through CI on its branch, but a
+      # tag on an unpushed commit would not have — gate the release on
+      # the core checks either way.
+      - name: Verify
+        run: |
+          go vet ./...
+          go test ./...
+      - name: Build and package
+        run: bash build/release.sh "$GITHUB_REF_NAME"
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Draft release for $GITHUB_REF_NAME. Assets verified by internal/release: per-platform tar.gz (binary + payload) + checksums.txt." \
+            dist/vibe_*.tar.gz dist/checksums.txt

@@ -248,3 +248,26 @@ func TestAcquireMissingRelease(t *testing.T) {
 		t.Fatalf("unprefixed version should be invalid, got %v", err)
 	}
 }
+
+// TestDefaultBaseURL pins the release host against mechanical renames:
+// the module path is `vibe`, but the assets live on the GitHub repo,
+// and a global module-path substitution once rewrote this constant to
+// an unfetchable https://vibe/... — the archive name format is pinned
+// beside it because findChecksum and the GitHub asset URLs both key on
+// it verbatim.
+func TestDefaultBaseURL(t *testing.T) {
+	if DefaultBaseURL != "https://github.com/chrisdruta/vibe-tui-box/releases/download" {
+		t.Fatalf("DefaultBaseURL = %q — release assets live on the GitHub repo, not the module path", DefaultBaseURL)
+	}
+	d, err := NewHTTPSource(DefaultBaseURL).Resolve(context.Background(), "v1.0.0-beta.1", domain.Platform{OS: "linux", Arch: "amd64"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.ArchiveName != "vibe_v1.0.0-beta.1_linux_amd64.tar.gz" {
+		t.Fatalf("archive name = %q", d.ArchiveName)
+	}
+	if d.ArchiveURL != DefaultBaseURL+"/v1.0.0-beta.1/vibe_v1.0.0-beta.1_linux_amd64.tar.gz" ||
+		d.ChecksumsURL != DefaultBaseURL+"/v1.0.0-beta.1/checksums.txt" {
+		t.Fatalf("URL layout drifted: %+v", d)
+	}
+}

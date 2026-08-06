@@ -7,3 +7,4 @@
 .vibe.backup.*
 docs/initial-gpt-log.md
 .claude/settings.local.json
+/dist/

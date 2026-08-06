@@ -32,8 +32,12 @@ type Source interface {
 	OpenAttestation(ctx context.Context, d Descriptor) (io.ReadCloser, error)
 }
 
-// DefaultBaseURL is the canonical release source.
-const DefaultBaseURL = "https://vibe/releases/download"
+// DefaultBaseURL is the canonical release source. The repository name
+// deliberately differs from the module path (`vibe`, unpublished by
+// design — see the module decision record in BACKLOG.md): this URL is
+// where GitHub hosts the release assets, and TestDefaultBaseURL pins
+// it against exactly the mechanical rename that once broke it.
+const DefaultBaseURL = "https://github.com/chrisdruta/vibe-tui-box/releases/download"
 
 // HTTPSource fetches releases over HTTPS with explicit timeouts, a
 // redirect cap, and a fixed user agent.

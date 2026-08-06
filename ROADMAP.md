@@ -68,9 +68,18 @@ Everything else on this page is polish on a product nobody can install
 today ("build from source, copy the binary"). First milestone is a real
 tagged prerelease.
 
-- [ ] Release build pipeline (goreleaser or equivalent): the three-platform
-      matrix (`linux-amd64`, `linux-arm64`, `darwin-arm64`), `CGO_ENABLED=0`,
-      archives + `checksums.txt`, version stamped into `vibe version`.
+- [x] Release build pipeline — SHIPPED 2026-08-06 as `build/release.sh`
+      + `.github/workflows/release.yml` (hand-rolled, not goreleaser:
+      the archive layout is a verified contract — `mapEntry` admits
+      only `vibe` + `payload/**` — and goreleaser's default extra
+      files/pax entries would fight it). Three-platform matrix,
+      `CGO_ENABLED=0`, reproducible archives (verified: two builds of
+      one commit are byte-identical), `checksums.txt`, version+commit
+      stamped into `vibe version`. A pushed `v*` tag becomes a DRAFT
+      release; publishing stays the operator's click. Untested against
+      a live tag until the beta below runs through it. (Also fixed en
+      route: the module rename had mangled `DefaultBaseURL` to
+      `https://vibe/...` — now restored and pinned by test.)
 - [ ] Tag `v1.0.0-beta.1`; exercise `vibe update --version` and
       `vibe provision` against the real release assets (the code paths exist
       and are tested against fixtures; they have never seen a live release).
