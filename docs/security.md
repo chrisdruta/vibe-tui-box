@@ -122,6 +122,28 @@ content digest. The build context is a restricted copy containing only
 the Dockerfile and `.vibe/build/`; the env file and manifest never
 reach it.
 
+## Terminal passthrough (decision record, 2026-08-06)
+
+The UI server runs with `allow-passthrough on` — sixel image preview
+(`show-image.sh`) needs raw escape sequences to reach the outer
+terminal, and that is a deliberate trade: a passthrough-wrapped escape
+sequence authored inside a container can reach your terminal emulator,
+and what it can do there is decided by the emulator's own settings,
+not by vibe. The one concrete abuse with a tmux-side answer is
+clipboard writing (OSC 52 paste-jacking: the agent silently replaces
+what you next paste into a host shell), and that is closed where tmux
+can close it: the UI server sets `set-clipboard external`, so tmux
+forwards its *own* copy-mode yanks to the system clipboard but refuses
+OSC 52 arriving from pane applications — which is exactly the channel
+container bytes ride. Costs and residuals, recorded on purpose:
+yanking inside container nvim no longer reaches the host clipboard
+(copy from the host layer instead), and a passthrough-wrapped OSC 52
+can still be smuggled past tmux to the emulator itself — disable
+clipboard write access in your terminal emulator if you want that door
+shut too. Turning `allow-passthrough` off entirely would close the
+class at the cost of image preview; revisit if sixel leaves the
+picture.
+
 ## What is *not* protected
 
 - **Egress.** The project network reaches the internet. An agent can
