@@ -8,6 +8,40 @@ section at the bottom — as revisable records, not fences.
 
 ## Open
 
+- **REVIEW-2026-08-05 remainder (recorded 2026-08-06).** The multi-agent
+  review's highs, mediums, ordered pre-R1 list, and the selected
+  simplification/test items all shipped (commits `7f909b0..54bca4b`);
+  what survives is its low tail, none release-blocking, kept here so
+  the review file itself can eventually go. Store: `writeRecordOnce`'s
+  unlocked read-compare-write, `Store.Open`'s missing post-flock
+  revalidation against GC, and `Config` minting a snapshot without the
+  store-global hold. Fidelity/robustness: `dockerapi.mapErr` drops
+  daemon 409s (the fake mints `ErrConflict` for them), the
+  extension-approval digest omits file modes, `Compile` mounts the
+  stale record `Root` instead of the identity-resolved root, the
+  snapshot walker's staged modes pass through umask, `omitempty` on
+  `any`-typed output fields never omits (null in `--json`),
+  `main.go` constructs the full dependency graph before dispatch
+  (`DOCKER_HOST=bogus vibe version` fails), the doctor ready-marker
+  contract split (reserve the `VIBE_` env prefix in `model.Validate`),
+  schema mapping keys can inject newlines into diagnostics,
+  `terminal.Line` bounds runes not display columns, agent-session
+  `reap` exits 1 when no inner server exists, `sidebar.sh` spin cells
+  keep painting after an early-returned frame, and the agent address
+  grammar is not injective (`-a codex` vs `-s codex`). Structural:
+  single-source the remaining hand-mirrored vocabularies (address
+  grammar, cold-kinds, name charset — the click grammar already has
+  its contract test) through the theme.sh generation pipeline; the
+  remaining §6 test gaps (undoStart rollback, snapshot walker
+  defenses, tmux client env assembly, dispatcher exit-code/AfterRender
+  hooks, schema MaxNodes/MaxScalar, fake Exec 404/409 fidelity, and
+  payload tests for agent-ps/agent-state-hook/agent-session/
+  agent-watch/svc.sh); retire the `legacy-one-generation` verbs when
+  their grace window closes; and a doctor check that installed
+  `vibe-<digest>` binaries still hash to their names (tamper
+  detection, which the atomic-replace install fix traded away as an
+  install-time conflict).
+
 - **Reduced-trust profile for unattended runs (`vibe agent --jailed`).**
   A weaker-trust posture for letting an agent run without a human watching:
   read-only workspace bind (or a disposable worktree bind), a scratch
@@ -240,6 +274,31 @@ history). Read the mechanisms as historical; the calls stand.
   binary — rejected as a whole build path against a one-field policy
   delta; it remains the fallback if the official image ever grows a
   posture we can't hold.
+
+- **Module path is `vibe`; the repo name stays `vibe-tui-box`
+  (2026-08-06, Chris).** The Go module renamed from
+  `github.com/chrisdruta/vibe-tui-box` to the single-segment `vibe`
+  before the first tag: the module is deliberately unpublished (the
+  install story is the bootstrap installer over release binaries,
+  never `go install`), so the path's only jobs are import lines and
+  the identity `go version -m` stamps into shipped binaries — and a
+  dot-less first element makes unfetchability structural. Cost
+  accepted knowingly: `go install <path>@tag` support is foreclosed
+  unless renamed again. One-time migration note: a pre-rename
+  installed binary refuses the renamed source (`dev on` verifies
+  EngineModule); bootstrap with a local `go build -o bin/vibe` and
+  `bin/vibe dev sync`.
+
+- **Clipboard: `set-clipboard external`, passthrough stays on
+  (2026-08-06, Chris).** The OSC 52 paste-jacking trade is settled and
+  written down in docs/security.md "Terminal passthrough": the UI
+  server refuses OSC 52 from pane applications (the channel container
+  bytes ride) while the operator's copy-mode yanks still reach the
+  system clipboard; `allow-passthrough` stays on for sixel, with the
+  emulator's own clipboard setting named as the second lock against
+  wrapped smuggling. Container-nvim yanks landing on the host
+  clipboard is the accepted casualty. Revisit only if sixel leaves
+  the picture.
 
 - **Roster stays render-only — no dismiss affordance (2026-07-25;
   SUPERSEDED 2026-07-28, Chris — the sidebar right-click design).**
