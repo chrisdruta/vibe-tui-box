@@ -79,13 +79,14 @@ type Service struct {
 	store     *store.Store
 	docker    dockerapi.Client
 	platform  domain.Platform
+	now       func() time.Time
 }
 
-func NewService(snapshots *snapshot.Service, st *store.Store, docker dockerapi.Client, platform domain.Platform) (*Service, error) {
-	if snapshots == nil || st == nil || docker == nil {
-		return nil, fmt.Errorf("%w: dev service requires snapshots, store, and docker", domain.ErrInvalid)
+func NewService(snapshots *snapshot.Service, st *store.Store, docker dockerapi.Client, platform domain.Platform, now func() time.Time) (*Service, error) {
+	if snapshots == nil || st == nil || docker == nil || now == nil {
+		return nil, fmt.Errorf("%w: dev service requires snapshots, store, docker, and a clock", domain.ErrInvalid)
 	}
-	return &Service{snapshots: snapshots, store: st, docker: docker, platform: platform}, nil
+	return &Service{snapshots: snapshots, store: st, docker: docker, platform: platform, now: now}, nil
 }
 
 // ReadSources parses the allowlist file from the source root, falling
@@ -157,7 +158,7 @@ func (s *Service) Build(ctx context.Context, project domain.ProjectID, sourceRoo
 		return Record{}, store.Artifact{}, err
 	}
 	defer os.RemoveAll(outDir)
-	if err := s.runBuild(ctx, builderImage, snap.Path, outDir, sink, "dev-src-"+snap.Digest.Hex()[:12]); err != nil {
+	if err := s.runBuild(ctx, builderImage, snap.Path, outDir, sink, "dev-src-"+snap.Digest.Short()); err != nil {
 		return Record{}, store.Artifact{}, err
 	}
 
@@ -198,7 +199,7 @@ func (s *Service) Build(ctx context.Context, project domain.ProjectID, sourceRoo
 	if err != nil {
 		return Record{}, store.Artifact{}, err
 	}
-	version := "dev-" + outputDigest.Hex()[:12]
+	version := "dev-" + outputDigest.Short()
 	// An unchanged source tree republishes the identical artifact; reuse
 	// its record instead of writing one that differs only by timestamp
 	// (records are immutable — a divergent rewrite is a conflict).
@@ -214,7 +215,7 @@ func (s *Service) Build(ctx context.Context, project domain.ProjectID, sourceRoo
 				Source:  "dev-build",
 				Version: version,
 			},
-			InstalledAt: time.Now().UTC(),
+			InstalledAt: s.now().UTC(),
 		}
 		if err := s.store.WriteArtifactRecord(artifactRecord); err != nil {
 			return Record{}, store.Artifact{}, err

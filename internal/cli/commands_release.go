@@ -61,8 +61,8 @@ var releaseCommands = map[string]Command{
 		Summary: "check host, project, artifact, and container health",
 		Usage:   "vibe doctor [--json]",
 		Parse: func(args []string) (Request, error) {
-			var req DoctorRequest
-			return parseInto(args, "doctor", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "doctor", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			res, err := a.Doctor(ctx, app.DoctorRequest{Dir: dir})
@@ -77,8 +77,8 @@ var releaseCommands = map[string]Command{
 		Summary: "verify the manifest's required tools inside the dev container",
 		Usage:   "vibe bootstrap [--json]",
 		Parse: func(args []string) (Request, error) {
-			var req BootstrapRequest
-			return parseInto(args, "bootstrap", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "bootstrap", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			res, err := a.Bootstrap(ctx, app.BootstrapRequest{Dir: dir})
@@ -93,8 +93,8 @@ var releaseCommands = map[string]Command{
 		Summary: "install this binary and its embedded payload as an artifact",
 		Usage:   "vibe provision [--json]",
 		Parse: func(args []string) (Request, error) {
-			var req ProvisionRequest
-			return parseInto(args, "provision", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "provision", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			res, err := a.Provision(ctx, app.ProvisionRequest{Dir: dir})

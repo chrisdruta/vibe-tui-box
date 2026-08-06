@@ -18,8 +18,8 @@ var lifecycleCommands = map[string]Command{
 		Summary: "compile a candidate and start the project containers",
 		Usage:   "vibe up [--json]",
 		Parse: func(args []string) (Request, error) {
-			var req UpRequest
-			return parseInto(args, "up", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "up", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			res, err := a.Up(ctx, app.UpRequest{Dir: dir})
@@ -37,8 +37,8 @@ var lifecycleCommands = map[string]Command{
 		Summary: "recreate containers from freshly compiled inputs (unversioned agents re-pull)",
 		Usage:   "vibe rebuild [--json]",
 		Parse: func(args []string) (Request, error) {
-			var req RebuildRequest
-			return parseInto(args, "rebuild", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "rebuild", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			res, err := a.Up(ctx, app.UpRequest{Dir: dir, Force: true})
@@ -76,8 +76,8 @@ var lifecycleCommands = map[string]Command{
 		Summary: "show the project's runtime state",
 		Usage:   "vibe status [--json]",
 		Parse: func(args []string) (Request, error) {
-			var req StatusRequest
-			return parseInto(args, "status", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "status", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			res, err := a.Status(ctx, app.StatusRequest{Dir: dir})

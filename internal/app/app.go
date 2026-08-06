@@ -130,7 +130,7 @@ func New(deps Dependencies) (*App, error) {
 		return nil, err
 	}
 	platform, _ := domain.CurrentPlatform()
-	devSvc, err := dev.NewService(deps.Snapshots, deps.Store, deps.Docker, platform)
+	devSvc, err := dev.NewService(deps.Snapshots, deps.Store, deps.Docker, platform, deps.Clock.Now)
 	if err != nil {
 		return nil, err
 	}

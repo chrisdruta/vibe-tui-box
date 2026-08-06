@@ -68,8 +68,6 @@ func New(fsys fs.FS) (*Bundle, error) {
 	return &Bundle{fsys: fsys, manifest: manifest}, nil
 }
 
-func (b *Bundle) Manifest() Manifest { return b.manifest }
-
 // Digest is the payload content digest from the manifest.
 func (b *Bundle) Digest() domain.Digest { return b.manifest.Digest }
 

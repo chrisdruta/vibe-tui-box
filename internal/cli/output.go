@@ -67,7 +67,7 @@ func (r *configResult) RenderHuman(w io.Writer) error {
 		if d.IsZero() {
 			return "unresolved"
 		}
-		return d.Hex()[:12]
+		return d.Short()
 	}
 	img := func(id model.ImageID) string {
 		if id.Digest.IsZero() {

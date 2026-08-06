@@ -71,13 +71,3 @@ func TestRunNilEnvIsEmptyChildEnvironment(t *testing.T) {
 		t.Fatalf("nil Env inherited ambient environment:\n%s", out.Stdout)
 	}
 }
-
-func TestRequireTmux(t *testing.T) {
-	if _, err := (Executables{}).RequireTmux(); !errors.Is(err, domain.ErrUnavailable) {
-		t.Fatalf("empty tmux: got %v, want ErrUnavailable", err)
-	}
-	path, err := (Executables{Tmux: "/usr/bin/tmux"}).RequireTmux()
-	if err != nil || path != "/usr/bin/tmux" {
-		t.Fatalf("resolved tmux: got %q, %v", path, err)
-	}
-}

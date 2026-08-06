@@ -20,11 +20,10 @@ import (
 // verification.
 const EngineModule = "vibe"
 
-// DevOnRequest builds the engine from Source (default: the project
-// itself) and switches the project to the resulting dev artifact.
+// DevOnRequest builds the engine from the project itself and switches
+// the project to the resulting dev artifact.
 type DevOnRequest struct {
-	Dir    string
-	Source string
+	Dir string
 }
 
 type DevOnResult struct {
@@ -41,11 +40,7 @@ func (a *App) DevOn(ctx context.Context, req DevOnRequest) (DevOnResult, error) 
 		return fail(err)
 	}
 	fail = opFail[DevOnResult]("dev on", rec.ID)
-	sourceDir := req.Source
-	if sourceDir == "" {
-		sourceDir = req.Dir
-	}
-	sourceRoot, err := paths.Discover(sourceDir)
+	sourceRoot, err := paths.Discover(req.Dir)
 	if err != nil {
 		return fail(err)
 	}

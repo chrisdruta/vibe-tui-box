@@ -27,8 +27,8 @@ var commandTable = map[string]Command{
 		Usage:   "vibe version [--json]",
 		NoCwd:   true,
 		Parse: func(args []string) (Request, error) {
-			var req VersionRequest
-			return parseInto(args, "version", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "version", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			return &versionResult{Info: a.Version()}, nil
@@ -59,8 +59,8 @@ var commandTable = map[string]Command{
 		Summary: "print the canonical engine plan as JSON",
 		Usage:   "vibe config",
 		Parse: func(args []string) (Request, error) {
-			var req ConfigRequest
-			return parseInto(args, "config", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "config", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			res, err := a.Config(ctx, app.ConfigRequest{Dir: dir})
@@ -75,8 +75,8 @@ var commandTable = map[string]Command{
 		Summary: "list registered projects and the current project's agents",
 		Usage:   "vibe ps [--json]",
 		Parse: func(args []string) (Request, error) {
-			var req PSRequest
-			return parseInto(args, "ps", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "ps", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			res, err := a.PS(ctx, app.PSRequest{Dir: dir})
@@ -91,8 +91,8 @@ var commandTable = map[string]Command{
 		Summary: "remove the current project's registration (workspace untouched)",
 		Usage:   "vibe forget [--json]",
 		Parse: func(args []string) (Request, error) {
-			var req ForgetRequest
-			return parseInto(args, "forget", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "forget", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			res, err := a.Forget(ctx, app.ForgetRequest{Dir: dir})
@@ -116,22 +116,10 @@ func init() {
 // Typed requests. Each embeds Options so the dispatcher can select the
 // output mode without re-parsing.
 
-type VersionRequest struct{ Options }
-
 type RegisterRequest struct {
 	Options
 	Name string
 }
-
-type ConfigRequest struct{ Options }
-
-type PSRequest struct{ Options }
-
-type ForgetRequest struct{ Options }
-
-type UpRequest struct{ Options }
-
-type ProvisionRequest struct{ Options }
 
 type InitRequest struct {
 	Options
@@ -140,10 +128,6 @@ type InitRequest struct {
 	// interactive init may ask instead.
 	AutoMemory *bool
 }
-
-type DoctorRequest struct{ Options }
-
-type BootstrapRequest struct{ Options }
 
 type UpdateRequest struct {
 	Options
@@ -156,14 +140,10 @@ type GCRequest struct {
 	MinAge time.Duration
 }
 
-type RebuildRequest struct{ Options }
-
 type DownRequest struct {
 	Options
 	Volumes bool
 }
-
-type StatusRequest struct{ Options }
 
 type LogsRequest struct {
 	Options

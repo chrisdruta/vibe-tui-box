@@ -90,7 +90,7 @@ func (a *App) Provision(ctx context.Context, req ProvisionRequest) (ProvisionRes
 	existing, err := a.deps.Store.ReadArtifactRecord(digest)
 	switch {
 	case err == nil && existing.Release.Source == "dev-build":
-		return fail(fmt.Errorf("%w: this binary is already installed as dev artifact %s (`vibe dev`); dev builds cannot be provisioned as releases — build the engine outside dev mode (go build) and provision with that binary", domain.ErrConflict, digest.Hex()[:12]))
+		return fail(fmt.Errorf("%w: this binary is already installed as dev artifact %s (`vibe dev`); dev builds cannot be provisioned as releases — build the engine outside dev mode (go build) and provision with that binary", domain.ErrConflict, digest.Short()))
 	case err == nil:
 		record = existing
 	case errors.Is(err, domain.ErrNotFound):
@@ -186,7 +186,7 @@ func (a *App) Update(ctx context.Context, req UpdateRequest) (UpdateResult, erro
 // directory and atomically repoints the `vibe` symlink — the shim
 // handoff: the next invocation runs the new release.
 func (a *App) installBinary(artifact store.Artifact) (string, error) {
-	target := filepath.Join(a.deps.Layout.Bin, "vibe-"+artifact.Record.Digest.Hex()[:12])
+	target := filepath.Join(a.deps.Layout.Bin, "vibe-"+artifact.Record.Digest.Short())
 	if _, err := copyBinary(artifact.BinaryPath(), target); err != nil {
 		return "", err
 	}

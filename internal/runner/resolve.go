@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-
-	"vibe/internal/domain"
 )
 
 // Executables holds absolute paths to the host tools the engine may
@@ -35,12 +33,4 @@ func Resolve() (Executables, error) {
 		ex.Git = abs
 	}
 	return ex, nil
-}
-
-// RequireTmux returns the tmux path or a typed unavailable error.
-func (e Executables) RequireTmux() (string, error) {
-	if e.Tmux == "" {
-		return "", fmt.Errorf("%w: tmux not found on PATH", domain.ErrUnavailable)
-	}
-	return e.Tmux, nil
 }

@@ -229,29 +229,20 @@ func countInstructions(text string) int {
 	return n
 }
 
-// GenerateInstall renders the install Dockerfile for the given
-// selection. The output is a pure function of the selection (and the
-// refresh flag) — canonical layer order, engine-pinned toolchains,
-// manifest-pinned or channel-tracking agents — so identical inputs
-// yield identical bytes and a warm Docker layer cache. The result
-// always satisfies ValidateDockerfile. Nil means nothing to install.
+// GenerateInstallPlan renders the install Dockerfile for the given
+// selection, annotated with the bill of materials naming which part
+// owns each build step. The Dockerfile bytes are a pure function of
+// the selection (and the refresh flag) — canonical layer order,
+// engine-pinned toolchains, manifest-pinned or channel-tracking
+// agents — so identical inputs yield identical bytes and a warm
+// Docker layer cache. The result always satisfies ValidateDockerfile.
+// Nil means nothing to install.
 //
 // refresh weaves the AgentRefreshArg cache-buster into the UNVERSIONED
 // agent layers only; a manifest-pinned agent installs its exact version
 // in a plain layer no refresh can move, and the system toolchains are
 // never touched. A selection with only pinned agents ignores refresh
 // entirely.
-func GenerateInstall(agents []schema.AgentSpec, toolchains []schema.Toolchain, refresh bool) []byte {
-	plan := GenerateInstallPlan(agents, toolchains, refresh)
-	if plan == nil {
-		return nil
-	}
-	return plan.Dockerfile
-}
-
-// GenerateInstallPlan is GenerateInstall plus the bill of materials:
-// the same bytes, annotated with which part owns each build step. Nil
-// means nothing to install.
 func GenerateInstallPlan(agents []schema.AgentSpec, toolchains []schema.Toolchain, refresh bool) *InstallPlan {
 	want := map[string]bool{}
 	pin := map[schema.AgentKind]string{}
@@ -509,8 +500,7 @@ RUN tmp="$(mktemp -d)" \
 	var plugins strings.Builder
 	plugins.WriteString(`# Review-stack plugins at pinned SHAs into a root-owned native
 # packpath — no plugin manager, no runtime network; .git dirs stripped
-# so the bytes are inert. diffview is the maintained fork (upstream
-# dormant since 2024).
+# so the bytes are inert.
 RUN mkdir -p /opt/vibe/nvim/pack/vibe/start`)
 	for _, p := range reviewPlugins {
 		name := p.Repo[strings.IndexByte(p.Repo, '/')+1:]

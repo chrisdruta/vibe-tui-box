@@ -62,6 +62,17 @@ func (d Digest) String() string {
 
 func (d Digest) Hex() string { return d.hex }
 
+// Short is the conventional 12-hex-character display form ("" for the
+// zero digest) — the one short form shared by every renderer, and by
+// the installed-binary name (`vibe-<short>`) that releases.go mints
+// and gc.go's keep-set must reproduce exactly.
+func (d Digest) Short() string {
+	if len(d.hex) > 12 {
+		return d.hex[:12]
+	}
+	return d.hex
+}
+
 func (d Digest) IsZero() bool { return d == Digest{} }
 
 // MarshalText encodes the canonical string form; the zero digest

@@ -81,7 +81,7 @@ func checkArtifact(ctx context.Context, in *Input) Result {
 	if manifest.Digest != rec.PayloadDigest {
 		return Result{Status: Fail, Summary: "artifact payload digest does not match its record"}
 	}
-	return Result{Status: OK, Summary: fmt.Sprintf("artifact %s (version %s)", shortDigest(rec.Digest.Hex()), rec.Version)}
+	return Result{Status: OK, Summary: fmt.Sprintf("artifact %s (version %s)", rec.Digest.Short(), rec.Version)}
 }
 
 func checkDocker(ctx context.Context, in *Input) Result {
@@ -178,11 +178,4 @@ func parseTmuxVersion(v string) (maj, min int, ok bool) {
 		return maj, min, true
 	}
 	return 0, 0, false
-}
-
-func shortDigest(hex string) string {
-	if len(hex) > 12 {
-		return hex[:12]
-	}
-	return hex
 }

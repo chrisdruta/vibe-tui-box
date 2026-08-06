@@ -51,7 +51,7 @@ func TestGenerateInstallPlanCoversEverySteps(t *testing.T) {
 // GenerateInstall must stay byte-identical to the plan's Dockerfile —
 // it is the same generation, differently packaged.
 func TestGenerateInstallMatchesPlan(t *testing.T) {
-	got := GenerateInstall(allAgents, allToolchains, true)
+	got := generateInstall(allAgents, allToolchains, true)
 	plan := GenerateInstallPlan(allAgents, allToolchains, true)
 	if string(got) != string(plan.Dockerfile) {
 		t.Fatal("GenerateInstall and GenerateInstallPlan diverged")

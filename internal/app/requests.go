@@ -198,7 +198,7 @@ func (a *App) planDiff(ctx context.Context, rec registry.Record, pending domain.
 	if err != nil {
 		return "plan diff:", terminal.Encoded{Lines: []string{fmt.Sprintf("(approved plan unavailable: %v)", err)}}
 	}
-	label := fmt.Sprintf("plan diff (approved %s → this candidate):", shortDigest(*rec.Approved))
+	label := fmt.Sprintf("plan diff (approved %s → this candidate):", "sha256:"+(*rec.Approved).Short())
 	diff := terminal.Diff(prev, next, limits)
 	if len(diff.Lines) == 0 {
 		diff = terminal.Encoded{Lines: []string{"(no plan changes)"}}
@@ -226,14 +226,6 @@ func (a *App) candidatePlanJSON(ctx context.Context, digest domain.Digest) (stri
 		return "", fmt.Errorf("%w: candidate %s plan digest mismatch", domain.ErrConflict, digest)
 	}
 	return string(data), nil
-}
-
-func shortDigest(d domain.Digest) string {
-	hex := d.Hex()
-	if len(hex) > 12 {
-		hex = hex[:12]
-	}
-	return "sha256:" + hex
 }
 
 // RequestDecideRequest approves or rejects a pending request, addressed

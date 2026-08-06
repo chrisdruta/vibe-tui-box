@@ -14,7 +14,7 @@ var (
 )
 
 func TestGenerateInstallEmpty(t *testing.T) {
-	if got := GenerateInstall(nil, nil, false); got != nil {
+	if got := generateInstall(nil, nil, false); got != nil {
 		t.Fatalf("empty selection: want nil, got %q", got)
 	}
 }
@@ -45,7 +45,7 @@ func subsetSelections(fn func(agents []schema.AgentSpec, toolchains []schema.Too
 func TestGenerateInstallAllSubsetsValidate(t *testing.T) {
 	subsetSelections(func(agents []schema.AgentSpec, toolchains []schema.Toolchain, mask int) {
 		for _, refresh := range []bool{false, true} {
-			out := GenerateInstall(agents, toolchains, refresh)
+			out := generateInstall(agents, toolchains, refresh)
 			if out == nil {
 				t.Fatalf("mask %b: nil output for non-empty selection", mask)
 			}
@@ -61,7 +61,7 @@ func TestGenerateInstallAllSubsetsValidate(t *testing.T) {
 			}
 			pinned = append(pinned, a)
 		}
-		out := GenerateInstall(pinned, toolchains, true)
+		out := generateInstall(pinned, toolchains, true)
 		if err := ValidateDockerfile(out); err != nil {
 			t.Fatalf("mask %b pinned: generated dockerfile invalid: %v\n%s", mask, err, out)
 		}
@@ -69,12 +69,12 @@ func TestGenerateInstallAllSubsetsValidate(t *testing.T) {
 }
 
 func TestGenerateInstallDeterministic(t *testing.T) {
-	a := GenerateInstall(
+	a := generateInstall(
 		[]schema.AgentSpec{{Kind: schema.AgentGrok}, {Kind: schema.AgentClaude}},
 		[]schema.Toolchain{schema.ToolchainRokit, schema.ToolchainBun},
 		false,
 	)
-	b := GenerateInstall(
+	b := generateInstall(
 		[]schema.AgentSpec{{Kind: schema.AgentClaude}, {Kind: schema.AgentGrok}},
 		[]schema.Toolchain{schema.ToolchainBun, schema.ToolchainRokit},
 		false,
@@ -89,7 +89,7 @@ func TestGenerateInstallDeterministic(t *testing.T) {
 // plainly cacheable until the first rebuild mints a token.
 func TestGenerateInstallRefreshFalseHasNoBuster(t *testing.T) {
 	subsetSelections(func(agents []schema.AgentSpec, toolchains []schema.Toolchain, mask int) {
-		out := string(GenerateInstall(agents, toolchains, false))
+		out := string(generateInstall(agents, toolchains, false))
 		if strings.Contains(out, agentRefreshArgPrefix) {
 			t.Fatalf("mask %b: non-refresh output leaked a refresh arg:\n%s", mask, out)
 		}
@@ -97,7 +97,7 @@ func TestGenerateInstallRefreshFalseHasNoBuster(t *testing.T) {
 }
 
 func TestGenerateInstallRefresh(t *testing.T) {
-	out := string(GenerateInstall(allAgents, allToolchains, true))
+	out := string(generateInstall(allAgents, allToolchains, true))
 	if err := ValidateDockerfile([]byte(out)); err != nil {
 		t.Fatalf("refreshed dockerfile invalid: %v\n%s", err, out)
 	}
@@ -151,7 +151,7 @@ func TestGenerateInstallManifestPins(t *testing.T) {
 		{Kind: schema.AgentClaude, Version: "2.1.220"},
 		{Kind: schema.AgentCodex, Version: "0.144.1"},
 	}
-	out := string(GenerateInstall(pinned, nil, true))
+	out := string(generateInstall(pinned, nil, true))
 	if strings.Contains(out, agentRefreshArgPrefix) {
 		t.Fatalf("all-pinned selection must ignore refresh entirely:\n%s", out)
 	}
@@ -170,7 +170,7 @@ func TestGenerateInstallManifestPins(t *testing.T) {
 		{Kind: schema.AgentClaude, Version: "2.1.220"},
 		{Kind: schema.AgentGrok},
 	}
-	out = string(GenerateInstall(mixed, nil, true))
+	out = string(generateInstall(mixed, nil, true))
 	if got := strings.Count(out, "agents-refresh=${"); got != 1 ||
 		!strings.Contains(out, "agents-refresh=${"+AgentRefreshArgFor(schema.AgentGrok)+"}") {
 		t.Fatalf("want exactly the unversioned agent busted with its own arg, got %d references:\n%s", got, out)
@@ -192,7 +192,7 @@ func TestGenerateInstallChannelWordsRefresh(t *testing.T) {
 		{Kind: schema.AgentClaude, Version: "stable"},
 		{Kind: schema.AgentCodex, Version: "next"},
 	}
-	out := string(GenerateInstall(channels, nil, true))
+	out := string(generateInstall(channels, nil, true))
 	if got := strings.Count(out, "agents-refresh=${"); got != 2 ||
 		!strings.Contains(out, AgentRefreshArgFor(schema.AgentClaude)) ||
 		!strings.Contains(out, AgentRefreshArgFor(schema.AgentCodex)) {
@@ -212,7 +212,7 @@ func TestGenerateInstallChannelWordsRefresh(t *testing.T) {
 // Unversioned claude tracks LATEST — stable lags it by design, which
 // is exactly the staleness the per-rebuild refresh exists to kill.
 func TestGenerateInstallUnversionedClaudeTracksLatest(t *testing.T) {
-	out := string(GenerateInstall([]schema.AgentSpec{{Kind: schema.AgentClaude}}, nil, false))
+	out := string(generateInstall([]schema.AgentSpec{{Kind: schema.AgentClaude}}, nil, false))
 	if !strings.Contains(out, "bash -s -- latest") {
 		t.Fatalf("unversioned claude must install the latest channel:\n%s", out)
 	}
@@ -223,7 +223,7 @@ func TestGenerateInstallUnversionedClaudeTracksLatest(t *testing.T) {
 // SHA-pinned plugin packpath, and the parser compile; agent-less
 // selections carry none of it.
 func TestGenerateInstallReviewStack(t *testing.T) {
-	out := string(GenerateInstall([]schema.AgentSpec{{Kind: schema.AgentClaude}}, nil, false))
+	out := string(generateInstall([]schema.AgentSpec{{Kind: schema.AgentClaude}}, nil, false))
 	for _, w := range []string{
 		"neovim/releases/download/v" + nvimVersion + "/nvim-linux-${arch}.tar.gz",
 		nvimSHA256AMD64, nvimSHA256ARM64,
@@ -256,7 +256,7 @@ func TestGenerateInstallReviewStack(t *testing.T) {
 		}
 	}
 	// Agent-less selections carry none of the stack.
-	out = string(GenerateInstall(nil, []schema.Toolchain{schema.ToolchainGo}, false))
+	out = string(generateInstall(nil, []schema.Toolchain{schema.ToolchainGo}, false))
 	for _, a := range []string{"/opt/nvim", "lazygit", "/opt/vibe/nvim"} {
 		if strings.Contains(out, a) {
 			t.Errorf("toolchain-only image must not carry %q:\n%s", a, out)
@@ -338,7 +338,7 @@ func TestGenerateInstallContent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := string(GenerateInstall(tt.agents, tt.toolchains, false))
+			out := string(generateInstall(tt.agents, tt.toolchains, false))
 			for _, w := range tt.want {
 				if !strings.Contains(out, w) {
 					t.Errorf("missing %q in:\n%s", w, out)
@@ -360,4 +360,15 @@ func TestGenerateInstallContent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// generateInstall is the Dockerfile half of GenerateInstallPlan —
+// kept as a test helper because most assertions here compare bytes,
+// not the bill of materials.
+func generateInstall(agents []schema.AgentSpec, toolchains []schema.Toolchain, refresh bool) []byte {
+	plan := GenerateInstallPlan(agents, toolchains, refresh)
+	if plan == nil {
+		return nil
+	}
+	return plan.Dockerfile
 }

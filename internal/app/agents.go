@@ -200,36 +200,64 @@ type StopSessionResult struct {
 }
 
 func (a *App) StopSession(ctx context.Context, req StopSessionRequest) (StopSessionResult, error) {
-	fail := opFail[StopSessionResult]("stop", "")
-	rec, name, err := a.devContainer(ctx, req.Dir)
+	if err := a.sessionVerb(ctx, req.Dir, sessionVerbSpec{
+		Op: "stop", Verb: "kill", Arg: req.Session, AgentAddress: true,
+		Noun: "agent session address", Need: "stopping a session",
+	}); err != nil {
+		return StopSessionResult{}, err
+	}
+	return StopSessionResult{Session: req.Session}, nil
+}
+
+// sessionVerbSpec is the vocabulary of one agent-session.sh verb: the
+// op label for errors, the script verb, its single argument, whether
+// the argument must be an agent-convention address (vs any window
+// name), and the two error nouns.
+type sessionVerbSpec struct {
+	Op           string
+	Verb         string
+	Arg          string
+	AgentAddress bool
+	Noun         string
+	Need         string
+}
+
+// sessionVerb is the shared pipeline behind the four session verbs:
+// dev-container resolve → charset gate → payload probe → agent-session
+// exec → exit check. The wrappers differ only in sessionVerbSpec.
+func (a *App) sessionVerb(ctx context.Context, dir string, spec sessionVerbSpec) error {
+	var project domain.ProjectID
+	fail := func(err error) error { return opError(spec.Op, project, err) }
+	rec, name, err := a.devContainer(ctx, dir)
 	if err != nil {
 		return fail(err)
 	}
-	fail = opFail[StopSessionResult]("stop", rec.ID)
-	// Same policy both sides of the exec (agent-session.sh kill
-	// re-checks): charset-vetted, agent-convention addresses only.
-	if !tmuxui.SessionNameRe.MatchString(req.Session) ||
-		(req.Session != "agent" && !strings.HasPrefix(req.Session, "agent-")) {
-		return fail(fmt.Errorf("%w: agent session address %q", domain.ErrInvalid, req.Session))
+	project = rec.ID
+	// Same policy both sides of the exec (agent-session.sh re-checks):
+	// the shared closed charset, and agent-convention addresses only
+	// where the verb targets a session rather than a service window.
+	if !tmuxui.SessionNameRe.MatchString(spec.Arg) ||
+		(spec.AgentAddress && spec.Arg != "agent" && !strings.HasPrefix(spec.Arg, "agent-")) {
+		return fail(fmt.Errorf("%w: %s %q", domain.ErrInvalid, spec.Noun, spec.Arg))
 	}
 	ok, err := a.probeAgentSession(ctx, name)
 	if err != nil {
 		return fail(err)
 	}
 	if !ok {
-		return fail(fmt.Errorf("%w: stopping a session needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
+		return fail(fmt.Errorf("%w: %s needs the payload mounted and a tmux-capable image", domain.ErrUnavailable, spec.Need))
 	}
 	res, err := a.execIn(ctx, name, ContainerCommand{
-		Dir:  req.Dir,
-		Argv: []string{"bash", model.PayloadAgentSession, "kill", req.Session},
+		Dir:  dir,
+		Argv: []string{"bash", model.PayloadAgentSession, spec.Verb, spec.Arg},
 	})
 	if err != nil {
 		return fail(err)
 	}
 	if res.ExitCode != 0 {
-		return fail(fmt.Errorf("%w: agent-session kill exited %d", domain.ErrUnavailable, res.ExitCode))
+		return fail(fmt.Errorf("%w: agent-session %s exited %d", domain.ErrUnavailable, spec.Verb, res.ExitCode))
 	}
-	return StopSessionResult{Session: req.Session}, nil
+	return nil
 }
 
 // StopServiceRequest ends one workspace-service window of the
@@ -246,33 +274,11 @@ type StopServiceResult struct {
 }
 
 func (a *App) StopService(ctx context.Context, req StopServiceRequest) (StopServiceResult, error) {
-	fail := opFail[StopServiceResult]("svcstop", "")
-	rec, name, err := a.devContainer(ctx, req.Dir)
-	if err != nil {
-		return fail(err)
-	}
-	fail = opFail[StopServiceResult]("svcstop", rec.ID)
-	// Same policy both sides of the exec (agent-session.sh svc-kill
-	// re-checks): the shared closed charset, window names only.
-	if !tmuxui.SessionNameRe.MatchString(req.Name) {
-		return fail(fmt.Errorf("%w: service window name %q", domain.ErrInvalid, req.Name))
-	}
-	ok, err := a.probeAgentSession(ctx, name)
-	if err != nil {
-		return fail(err)
-	}
-	if !ok {
-		return fail(fmt.Errorf("%w: stopping a service needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
-	}
-	res, err := a.execIn(ctx, name, ContainerCommand{
-		Dir:  req.Dir,
-		Argv: []string{"bash", model.PayloadAgentSession, "svc-kill", req.Name},
-	})
-	if err != nil {
-		return fail(err)
-	}
-	if res.ExitCode != 0 {
-		return fail(fmt.Errorf("%w: agent-session svc-kill exited %d", domain.ErrUnavailable, res.ExitCode))
+	if err := a.sessionVerb(ctx, req.Dir, sessionVerbSpec{
+		Op: "svcstop", Verb: "svc-kill", Arg: req.Name,
+		Noun: "service window name", Need: "stopping a service",
+	}); err != nil {
+		return StopServiceResult{}, err
 	}
 	return StopServiceResult{Name: req.Name}, nil
 }
@@ -291,31 +297,11 @@ type SelectServiceResult struct {
 }
 
 func (a *App) SelectService(ctx context.Context, req SelectServiceRequest) (SelectServiceResult, error) {
-	fail := opFail[SelectServiceResult]("svcselect", "")
-	rec, name, err := a.devContainer(ctx, req.Dir)
-	if err != nil {
-		return fail(err)
-	}
-	fail = opFail[SelectServiceResult]("svcselect", rec.ID)
-	if !tmuxui.SessionNameRe.MatchString(req.Name) {
-		return fail(fmt.Errorf("%w: service window name %q", domain.ErrInvalid, req.Name))
-	}
-	ok, err := a.probeAgentSession(ctx, name)
-	if err != nil {
-		return fail(err)
-	}
-	if !ok {
-		return fail(fmt.Errorf("%w: selecting a service needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
-	}
-	res, err := a.execIn(ctx, name, ContainerCommand{
-		Dir:  req.Dir,
-		Argv: []string{"bash", model.PayloadAgentSession, "svc-select", req.Name},
-	})
-	if err != nil {
-		return fail(err)
-	}
-	if res.ExitCode != 0 {
-		return fail(fmt.Errorf("%w: agent-session svc-select exited %d", domain.ErrUnavailable, res.ExitCode))
+	if err := a.sessionVerb(ctx, req.Dir, sessionVerbSpec{
+		Op: "svcselect", Verb: "svc-select", Arg: req.Name,
+		Noun: "service window name", Need: "selecting a service",
+	}); err != nil {
+		return SelectServiceResult{}, err
 	}
 	return SelectServiceResult{Name: req.Name}, nil
 }
@@ -334,32 +320,11 @@ type DismissSessionResult struct {
 }
 
 func (a *App) DismissSession(ctx context.Context, req DismissSessionRequest) (DismissSessionResult, error) {
-	fail := opFail[DismissSessionResult]("dismiss", "")
-	rec, name, err := a.devContainer(ctx, req.Dir)
-	if err != nil {
-		return fail(err)
-	}
-	fail = opFail[DismissSessionResult]("dismiss", rec.ID)
-	if !tmuxui.SessionNameRe.MatchString(req.Session) ||
-		(req.Session != "agent" && !strings.HasPrefix(req.Session, "agent-")) {
-		return fail(fmt.Errorf("%w: agent session address %q", domain.ErrInvalid, req.Session))
-	}
-	ok, err := a.probeAgentSession(ctx, name)
-	if err != nil {
-		return fail(err)
-	}
-	if !ok {
-		return fail(fmt.Errorf("%w: dismissing a session needs the payload mounted and a tmux-capable image", domain.ErrUnavailable))
-	}
-	res, err := a.execIn(ctx, name, ContainerCommand{
-		Dir:  req.Dir,
-		Argv: []string{"bash", model.PayloadAgentSession, "dismiss", req.Session},
-	})
-	if err != nil {
-		return fail(err)
-	}
-	if res.ExitCode != 0 {
-		return fail(fmt.Errorf("%w: agent-session dismiss exited %d", domain.ErrUnavailable, res.ExitCode))
+	if err := a.sessionVerb(ctx, req.Dir, sessionVerbSpec{
+		Op: "dismiss", Verb: "dismiss", Arg: req.Session, AgentAddress: true,
+		Noun: "agent session address", Need: "dismissing a session",
+	}); err != nil {
+		return DismissSessionResult{}, err
 	}
 	return DismissSessionResult{Session: req.Session}, nil
 }

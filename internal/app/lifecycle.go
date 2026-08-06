@@ -42,11 +42,7 @@ type ConfigResult struct {
 
 func (a *App) Config(ctx context.Context, req ConfigRequest) (ConfigResult, error) {
 	fail := opFail[ConfigResult]("config", "")
-	root, err := paths.Discover(req.Dir)
-	if err != nil {
-		return fail(err)
-	}
-	rec, err := a.deps.Registry.Resolve(ctx, root)
+	root, rec, err := a.resolveProject(ctx, req.Dir)
 	if err != nil {
 		return fail(err)
 	}
@@ -179,8 +175,6 @@ func loadManifestFile(path string) (*schema.Document, error) {
 	return doc, nil
 }
 
-// UpRequest reconciles the project to a fresh candidate compiled from
-// the current workspace inputs.
 // UpRequest reconciles the project to a fresh candidate. Force (the
 // rebuild verb) is also the agent-refresh boundary: every rebuild mints
 // the token that re-pulls the unversioned agents, and nothing else does

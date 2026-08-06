@@ -248,11 +248,3 @@ func (a *App) Bootstrap(ctx context.Context, req BootstrapRequest) (BootstrapRes
 	}
 	return result, nil
 }
-
-// Presets lists the embedded preset names.
-func (a *App) Presets() []string {
-	if a.deps.Payload == nil {
-		return nil
-	}
-	return a.deps.Payload.Names()
-}

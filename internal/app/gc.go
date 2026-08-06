@@ -308,7 +308,7 @@ func (a *App) gcOrphanRecords(ctx context.Context, req GCRequest, roots gcRoots,
 func (a *App) gcBinaries(req GCRequest, roots gcRoots, result *GCResult) error {
 	keep := map[string]bool{}
 	for d := range roots.artifacts {
-		keep["vibe-"+d.Hex()[:12]] = true
+		keep["vibe-"+d.Short()] = true
 	}
 	if target, err := os.Readlink(filepath.Join(a.deps.Layout.Bin, "vibe")); err == nil {
 		keep[filepath.Base(target)] = true

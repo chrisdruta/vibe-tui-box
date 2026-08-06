@@ -43,21 +43,11 @@ func (a *App) RenderChooser(ctx context.Context, req ChooserRequest) (RenderResu
 	if req.Project == "" {
 		return fail(fmt.Errorf("%w: --project is required", domain.ErrInvalid))
 	}
-	records, err := a.deps.Registry.List(ctx)
+	rec, err := a.deps.Registry.Get(ctx, req.Project)
 	if err != nil {
 		return fail(err)
 	}
-	idx := -1
-	for i, rec := range records {
-		if rec.ID == req.Project {
-			idx = i
-			break
-		}
-	}
-	if idx < 0 {
-		return fail(fmt.Errorf("%w: project %q is not registered", domain.ErrNotFound, req.Project))
-	}
-	doc, err := loadManifestFile(filepath.Join(records[idx].Root, paths.ManifestRelPath))
+	doc, err := loadManifestFile(filepath.Join(rec.Root, paths.ManifestRelPath))
 	if err != nil {
 		return fail(err)
 	}

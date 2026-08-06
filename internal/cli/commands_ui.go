@@ -15,8 +15,6 @@ import (
 // uiCommands covers the tmux UI, the rebuild broker, and dev mode.
 // Typed requests for these commands follow.
 
-type TuiRequest struct{ Options }
-
 type RequestCmdRequest struct {
 	Options
 	Sub       string // list | show | approve | reject
@@ -51,8 +49,8 @@ var uiCommands = map[string]Command{
 		Summary: "open the project's tmux session running the agent",
 		Usage:   "vibe tui",
 		Parse: func(args []string) (Request, error) {
-			var req TuiRequest
-			return parseInto(args, "tui", &req.Options, nil)
+			var opts Options
+			return parseInto(args, "tui", &opts, nil)
 		},
 		Run: func(ctx context.Context, a *app.App, req Request, dir string) (Result, error) {
 			return nil, a.Tui(ctx, app.TuiRequest{Dir: dir})
@@ -662,29 +660,20 @@ func parseAgentCmd(args []string) (Request, error) {
 
 // parseClipCmd accepts flags before or after the optional DIR — the v1
 // verb allowed `vibe clip shots --path-only`, and stdlib flag parsing
-// stops at the first positional, so the trailing form is folded in here.
+// stops at the first positional, so parseInterleaved folds it in.
 func parseClipCmd(args []string) (Request, error) {
 	var req ClipCmdRequest
 	fs := newFlagSet("clip", &req.Options)
 	fs.BoolVar(&req.PathOnly, "path-only", false, "print only the container path on stdout")
-	if err := parseArgs(fs, args); err != nil {
+	positionals, err := parseInterleaved(fs, args)
+	if err != nil {
 		return nil, err
 	}
-	for _, arg := range fs.Args() {
-		switch {
-		case arg == "--path-only" || arg == "-path-only":
-			req.PathOnly = true
-		case arg == "--json" || arg == "-json":
-			req.JSON = true
-		case arg == "--quiet" || arg == "-quiet":
-			req.Quiet = true
-		case len(arg) > 0 && arg[0] == '-':
-			return nil, fmt.Errorf("unknown flag %q", arg)
-		case req.DestDir != "":
-			return nil, fmt.Errorf("unexpected argument %q", arg)
-		default:
-			req.DestDir = arg
-		}
+	if len(positionals) > 1 {
+		return nil, fmt.Errorf("unexpected argument %q", positionals[1])
+	}
+	if len(positionals) == 1 {
+		req.DestDir = positionals[0]
 	}
 	return &req, nil
 }
