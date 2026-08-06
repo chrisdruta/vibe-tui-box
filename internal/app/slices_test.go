@@ -826,3 +826,57 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 		t.Fatalf("scoped agents render: %+v, %v", scoped, err)
 	}
 }
+
+// TestRequestDecideDoesNotApproveOnFailure pins the pointer-moves-last
+// invariant for the approval door, the twin of
+// TestUpDoesNotApproveOnFailure: a failed replacement Up must leave
+// the approved candidate, the pending request, and the (unwritten)
+// result exactly as they were — the agent must be able to retry, and
+// the record must never point at containers that are not running.
+func TestRequestDecideDoesNotApproveOnFailure(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := a.Status(ctx, StatusRequest{Dir: dir})
+	if err != nil || before.Record.Approved == nil {
+		t.Fatalf("up must approve its candidate: %+v, %v", before.Record, err)
+	}
+	approved := *before.Record.Approved
+
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("SECRET=v2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeRequestFile(t, dir, "req-fail",
+		`{"format":1,"id":"req-fail","kind":"rebuild","reason":"env change","summary":"rotate secret"}`)
+	list, err := a.RequestList(ctx, RequestListRequest{Dir: dir})
+	if err != nil || len(list.Pending) != 1 {
+		t.Fatalf("pending: %+v, %v", list.Pending, err)
+	}
+
+	docker.StartErr = errors.New("boom")
+	if _, err := a.RequestDecide(ctx, RequestDecideRequest{
+		Dir: dir, ID: "req-fail", Approve: true, Yes: true,
+	}); err == nil {
+		t.Fatal("approve must fail when the replacement up fails")
+	}
+
+	after, err := a.Status(ctx, StatusRequest{Dir: dir})
+	if err != nil || after.Record.Approved == nil || *after.Record.Approved != approved {
+		t.Fatalf("failed approve moved the approved candidate: %+v, %v", after.Record, err)
+	}
+	bs, _ := a.brokerStore(mustResolve(t, a, dir).ID)
+	if results, _ := bs.ListResults(); len(results) != 0 {
+		t.Fatalf("failed approve must not write a result: %+v", results)
+	}
+	docker.StartErr = nil
+	relist, err := a.RequestList(ctx, RequestListRequest{Dir: dir})
+	if err != nil || len(relist.Pending) != 1 || relist.Pending[0].RequestID != "req-fail" {
+		t.Fatalf("request must stay pending for a retry: %+v, %v", relist.Pending, err)
+	}
+}

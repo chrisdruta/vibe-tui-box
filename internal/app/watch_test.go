@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,7 +11,9 @@ import (
 	"time"
 
 	"vibe/internal/dockerapi"
+	"vibe/internal/dockerapi/fake"
 	"vibe/internal/domain"
+	"vibe/internal/model"
 )
 
 func TestWatchRequiresInputsAndDeps(t *testing.T) {
@@ -285,5 +288,97 @@ func TestWatchContainerEventsRetriesAndStops(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("cancel must end the events loop")
+	}
+}
+
+// watchSentinelKey scripts the fake exec the sentinel stream runs.
+func watchSentinelKey() string {
+	return fake.ExecKey([]string{"bash", model.PayloadAgentWatch})
+}
+
+// TestWatchStream drives one sentinel connection end to end through
+// the fake: heartbeats keep the stream healthy without owing fetches,
+// "E" lines owe exactly one coalesced event, and stream end reports
+// streamed=true so the caller's backoff resets.
+func TestWatchStream(t *testing.T) {
+	a, docker := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Up(ctx, UpRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	rec := mustResolve(t, a, dir)
+
+	// Two events among heartbeats: the buffered channel coalesces them
+	// into one owed fetch (nobody consumes between lines).
+	docker.ExecOutputs[watchSentinelKey()] = "H\nE\nH\nE\n"
+	events := make(chan struct{}, 1)
+	streamed, err := a.watchStream(ctx, rec.ID, events)
+	if err != nil || !streamed {
+		t.Fatalf("stream: streamed=%v err=%v", streamed, err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("want one coalesced owed event, got %d", len(events))
+	}
+
+	// Heartbeats alone: healthy stream (streamed=true), nothing owed.
+	<-events
+	docker.ExecOutputs[watchSentinelKey()] = "H\nH\n"
+	streamed, err = a.watchStream(ctx, rec.ID, events)
+	if err != nil || !streamed {
+		t.Fatalf("heartbeat stream: streamed=%v err=%v", streamed, err)
+	}
+	if len(events) != 0 {
+		t.Fatal("heartbeats must not owe a fetch")
+	}
+
+	// A dead exec surfaces its error with streamed=false — the caller's
+	// backoff ladder grows on that verdict.
+	docker.ExecErr = errors.New("exec transport died")
+	if streamed, err = a.watchStream(ctx, rec.ID, events); err == nil || streamed {
+		t.Fatalf("exec error: streamed=%v err=%v", streamed, err)
+	}
+	docker.ExecErr = nil
+
+	// An unknown project is an error, not a silent idle stream.
+	if _, err := a.watchStream(ctx, domain.ProjectID("aaaaaaaaaaaaaaaaaaaaaaaaaa"), events); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown project: %v", err)
+	}
+}
+
+// TestWatchStreamContainerDown pins the reconnect contract: with no
+// running dev container the stream returns an error immediately (the
+// caller's backoff owns the retry), never a hang.
+func TestWatchStreamContainerDown(t *testing.T) {
+	a, _ := newTestApp(t)
+	ctx := context.Background()
+	dir := newProject(t)
+	if _, err := a.Register(ctx, RegisterRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	rec := mustResolve(t, a, dir)
+	events := make(chan struct{}, 1)
+	if streamed, err := a.watchStream(ctx, rec.ID, events); err == nil || streamed {
+		t.Fatalf("container down: streamed=%v err=%v", streamed, err)
+	}
+}
+
+// TestWatchLoserExitsQuietly pins the daemon-level singleton verdict:
+// a second `vibe _watch` losing the flock returns nil (redundant
+// spawns are the sidebar's normal retry, not an error).
+func TestWatchLoserExitsQuietly(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.deps.Tmux = &recordingTmux{}
+	cache := t.TempDir()
+	held, err := acquireWatchLock(filepath.Join(cache, "watch.p1.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	if err := a.Watch(context.Background(), WatchRequest{CacheDir: cache, Project: "p1"}); err != nil {
+		t.Fatalf("losing the singleton lock must exit nil, got %v", err)
 	}
 }
