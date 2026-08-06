@@ -9,7 +9,7 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // SDK adapts the Docker SDK to the engine Client interface. It is the

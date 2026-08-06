@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dev"
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/dev"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/registry"
+	"vibe/internal/store"
 )
 
 // publishTestArtifact fabricates one installed artifact with a chosen

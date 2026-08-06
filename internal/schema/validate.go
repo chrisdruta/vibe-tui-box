@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // SupportedSchema is the only manifest schema version this engine

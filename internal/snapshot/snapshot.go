@@ -15,9 +15,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/domain"
+	"vibe/internal/paths"
+	"vibe/internal/store"
 )
 
 // Entry selects one workspace path for the snapshot. Source is

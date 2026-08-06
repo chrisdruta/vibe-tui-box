@@ -10,8 +10,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	assets "github.com/chrisdruta/vibe-tui-box"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	assets "vibe"
+	"vibe/internal/domain"
 )
 
 func testFS(t *testing.T, files map[string]string) fstest.MapFS {

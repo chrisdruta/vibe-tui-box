@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // Invocation is one subprocess request. Path must be absolute (from

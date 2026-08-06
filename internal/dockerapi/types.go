@@ -8,7 +8,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // ImageRef is an image reference (name[:tag][@sha256:...]) already

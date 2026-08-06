@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"vibe/internal/schema"
 )
 
 // probeServer fakes the three release endpoints on one mux; the probe's

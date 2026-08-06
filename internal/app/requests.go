@@ -11,17 +11,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/broker"
-	"github.com/chrisdruta/vibe-tui-box/internal/builder"
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
-	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/broker"
+	"vibe/internal/builder"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/lock"
+	"vibe/internal/model"
+	"vibe/internal/registry"
+	"vibe/internal/runtime"
+	"vibe/internal/snapshot"
+	"vibe/internal/store"
+	"vibe/internal/terminal"
 )
 
 func (a *App) brokerStore(id domain.ProjectID) (*broker.Store, error) {

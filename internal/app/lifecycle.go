@@ -10,17 +10,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/builder"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
-	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
-	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
+	"vibe/internal/builder"
+	"vibe/internal/domain"
+	"vibe/internal/envfile"
+	"vibe/internal/lock"
+	"vibe/internal/model"
+	"vibe/internal/paths"
+	"vibe/internal/registry"
+	"vibe/internal/runtime"
+	"vibe/internal/schema"
+	"vibe/internal/snapshot"
+	"vibe/internal/tmux"
 )
 
 // ConfigRequest compiles and prints the canonical plan for the project

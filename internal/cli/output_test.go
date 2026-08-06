@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/app"
-	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
+	"vibe/internal/app"
+	"vibe/internal/runtime"
 )
 
 func decodeEnvelope(t *testing.T, r Result) (kind string, data map[string]any) {

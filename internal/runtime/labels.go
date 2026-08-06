@@ -4,7 +4,7 @@
 package runtime
 
 import (
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // Engine-owned Docker labels. Every managed object carries them; the

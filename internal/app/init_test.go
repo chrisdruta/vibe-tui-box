@@ -8,14 +8,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
-	"github.com/chrisdruta/vibe-tui-box/internal/doctor"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/dockerapi"
+	dockerfake "vibe/internal/dockerapi/fake"
+	"vibe/internal/doctor"
+	"vibe/internal/domain"
+	"vibe/internal/paths"
+	"vibe/internal/payload"
+	"vibe/internal/schema"
+	"vibe/internal/terminal"
 )
 
 // withPresetPayload adds a bundle whose minimal preset renders a valid

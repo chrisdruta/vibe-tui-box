@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
+	"vibe/internal/domain"
+	"vibe/internal/paths"
+	"vibe/internal/tmuxui"
 )
 
 // ChooserRequest drives the hidden `vibe _chooser` agents-chooser

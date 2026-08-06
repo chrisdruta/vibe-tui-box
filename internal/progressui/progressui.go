@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/dockerapi"
+	"vibe/internal/terminal"
 )
 
 // tailLines is how much of the failing step's raw output a failure

@@ -13,9 +13,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/app"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/app"
+	"vibe/internal/domain"
+	"vibe/internal/terminal"
 )
 
 // Stable exit codes.

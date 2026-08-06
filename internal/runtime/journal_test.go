@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // TestLoadJournalStrictness pins the decode contract at the unit

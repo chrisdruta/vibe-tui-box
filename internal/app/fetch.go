@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
+	"vibe/internal/domain"
+	"vibe/internal/tmuxui"
 )
 
 // The fetch path (`vibe _fetch`): ONE engine pass produces every cache

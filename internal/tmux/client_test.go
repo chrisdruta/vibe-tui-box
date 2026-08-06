@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/runner"
+	"vibe/internal/runner"
 )
 
 // fakeRunner records invocations and scripts exit codes by subcommand.

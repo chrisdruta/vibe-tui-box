@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"vibe/internal/schema"
 )
 
 // install.go generates the engine-authored Dockerfile that bakes

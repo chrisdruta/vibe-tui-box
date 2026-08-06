@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/app"
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
+	"vibe/internal/app"
+	"vibe/internal/dockerapi"
 )
 
 // lifecycleCommands covers container lifecycle and in-container

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/app"
-	"github.com/chrisdruta/vibe-tui-box/internal/envfile"
+	"vibe/internal/app"
+	"vibe/internal/envfile"
 )
 
 var commandOrder = []string{

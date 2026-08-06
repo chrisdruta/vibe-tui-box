@@ -9,12 +9,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/app"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
-	"github.com/chrisdruta/vibe-tui-box/internal/version"
+	"vibe/internal/app"
+	"vibe/internal/domain"
+	"vibe/internal/model"
+	"vibe/internal/registry"
+	"vibe/internal/runtime"
+	"vibe/internal/version"
 )
 
 // jsonObject wraps command output in a versioned envelope.

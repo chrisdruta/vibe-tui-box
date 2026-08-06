@@ -10,7 +10,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // Verified reports a successful verification.

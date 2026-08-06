@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/model"
 )
 
 func TestLogs(t *testing.T) {

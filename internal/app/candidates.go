@@ -6,15 +6,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/builder"
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/builder"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/model"
+	"vibe/internal/paths"
+	"vibe/internal/registry"
+	"vibe/internal/runtime"
+	"vibe/internal/schema"
+	"vibe/internal/store"
 )
 
 // prepareCandidate runs the shared candidate pipeline: freeze inputs,

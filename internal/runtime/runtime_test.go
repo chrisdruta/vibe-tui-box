@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
-	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/dockerapi"
+	dockerfake "vibe/internal/dockerapi/fake"
+	"vibe/internal/domain"
+	"vibe/internal/lock"
+	"vibe/internal/model"
+	"vibe/internal/paths"
+	"vibe/internal/registry"
+	"vibe/internal/schema"
+	"vibe/internal/snapshot"
+	"vibe/internal/store"
 )
 
 const testProjectID = domain.ProjectID("abcdefghijklmnopqrstuvwxyz")

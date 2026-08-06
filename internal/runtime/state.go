@@ -3,8 +3,8 @@ package runtime
 import (
 	"sort"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
 )
 
 // ContainerStatus is the reconciled view of one managed container.

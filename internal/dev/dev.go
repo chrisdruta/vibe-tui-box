@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/paths"
+	"vibe/internal/payload"
+	"vibe/internal/snapshot"
+	"vibe/internal/store"
+	"vibe/internal/terminal"
 )
 
 // BuilderImage is the pinned-by-resolution build environment.
@@ -234,7 +234,7 @@ func (s *Service) Build(ctx context.Context, project domain.ProjectID, sourceRoo
 }
 
 // versionPkg is the ldflags -X target carrying release metadata.
-const versionPkg = "github.com/chrisdruta/vibe-tui-box/internal/version"
+const versionPkg = "vibe/internal/version"
 
 // runBuild compiles inside the builder container: read-only source
 // snapshot, writable output staging, default network for module

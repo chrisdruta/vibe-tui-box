@@ -9,10 +9,10 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/runner"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/model"
+	"vibe/internal/runner"
 )
 
 // ClipRequest saves the host clipboard image for the project's agent.

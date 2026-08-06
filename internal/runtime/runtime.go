@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/lock"
+	"vibe/internal/model"
+	"vibe/internal/registry"
+	"vibe/internal/store"
 )
 
 // PlanFileName is the canonical plan inside a candidate object.

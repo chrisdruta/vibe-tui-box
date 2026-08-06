@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
+	"vibe/internal/domain"
+	"vibe/internal/paths"
 )
 
 func TestParseRequest(t *testing.T) {

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
+	"vibe/internal/dockerapi"
+	dockerfake "vibe/internal/dockerapi/fake"
+	"vibe/internal/domain"
+	"vibe/internal/model"
 )
 
 const testCoreDNSLogs = `.:53

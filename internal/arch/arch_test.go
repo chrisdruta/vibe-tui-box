@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-const module = "github.com/chrisdruta/vibe-tui-box"
+const module = "vibe"
 
 // imports maps each package directory (relative to the repo root) to
 // the union of its non-test files' direct imports.

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/terminal"
 )
 
 // SessionNameRe is the shared inner-session charset (tmux session

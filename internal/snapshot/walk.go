@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
+	"vibe/internal/domain"
+	"vibe/internal/paths"
 )
 
 // walker copies allowlisted entries from an open project root into a

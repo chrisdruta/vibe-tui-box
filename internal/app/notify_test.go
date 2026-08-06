@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
+	"vibe/internal/tmux"
 )
 
 // recordingTmux records the calls the engine makes against the tmux

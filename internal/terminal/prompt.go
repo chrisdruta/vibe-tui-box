@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // Confirmation separates trusted chrome from encoded untrusted content

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/builder"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"vibe/internal/builder"
+	"vibe/internal/payload"
+	"vibe/internal/schema"
 )
 
 // TestTrackedPresetsRenderValidProjects renders every preset shipped in

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/terminal"
 )
 
 // The sidebar frame renderer: the layout arithmetic that used to live

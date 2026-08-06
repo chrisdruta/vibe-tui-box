@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"vibe/internal/domain"
+	"vibe/internal/schema"
 )
 
 // resolve.go probes the version a channel-tracking agent's channel

@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/app"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/app"
+	"vibe/internal/domain"
 )
 
 // uiCommands covers the tmux UI, the rebuild broker, and dev mode.

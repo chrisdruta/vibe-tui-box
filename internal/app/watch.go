@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/model"
 )
 
 // The watch channel (docs/tui-layout.md "The watch channel"): `vibe

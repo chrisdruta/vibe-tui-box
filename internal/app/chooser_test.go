@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
+	"vibe/internal/paths"
 )
 
 func TestRenderChooser(t *testing.T) {

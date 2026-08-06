@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/dockerapi"
+	dockerfake "vibe/internal/dockerapi/fake"
+	"vibe/internal/model"
+	"vibe/internal/store"
 )
 
 // withArtifact publishes a minimal engine artifact into the fixture's

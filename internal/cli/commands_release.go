@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/app"
+	"vibe/internal/app"
 )
 
 // releaseCommands covers project setup, artifacts, and health.

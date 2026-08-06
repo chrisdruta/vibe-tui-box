@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
 )
 
 // BaseImageArg is the only build arg the engine supplies; extension

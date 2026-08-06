@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
+	"vibe/internal/dockerapi"
 )
 
 func testRenderer(buf *bytes.Buffer) *Renderer {

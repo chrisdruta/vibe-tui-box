@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // ManifestPath is the manifest's location inside the payload tree.

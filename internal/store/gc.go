@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
+	"vibe/internal/domain"
+	"vibe/internal/lock"
 )
 
 // Explicit garbage collection. The store never removes anything on its

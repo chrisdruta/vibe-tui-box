@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
+	"vibe/internal/domain"
+	"vibe/internal/lock"
+	"vibe/internal/paths"
 )
 
 type fixedClock struct{ t time.Time }

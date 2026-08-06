@@ -18,7 +18,7 @@ import (
 	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // buildSDK implements Client.Build: tar the frozen candidate context,

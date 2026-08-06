@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // ArtifactRecord is the persistent metadata for one installed release

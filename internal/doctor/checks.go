@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/dockerapi"
+	"vibe/internal/model"
+	"vibe/internal/payload"
+	"vibe/internal/runtime"
+	"vibe/internal/store"
 )
 
 // DefaultChecks is the standard suite in report order.

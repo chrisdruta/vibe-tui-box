@@ -1,4 +1,4 @@
-module github.com/chrisdruta/vibe-tui-box
+module vibe
 
 go 1.26.4
 

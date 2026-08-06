@@ -14,8 +14,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
+	"vibe/internal/domain"
+	"vibe/internal/payload"
 )
 
 // TemplateData is everything a preset template may reference. Unknown

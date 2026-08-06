@@ -7,10 +7,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/dockerapi"
+	"vibe/internal/paths"
+	"vibe/internal/registry"
+	"vibe/internal/store"
 )
 
 type Status string

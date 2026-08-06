@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
+	"vibe/internal/registry"
 )
 
 // bumpTuiSerial signals the tui that engine truth moved: state-mutating

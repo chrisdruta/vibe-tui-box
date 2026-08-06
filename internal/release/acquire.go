@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/domain"
+	"vibe/internal/payload"
+	"vibe/internal/store"
 )
 
 // Archive layout: the engine binary at "vibe", the payload under

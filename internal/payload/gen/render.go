@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
+	"vibe/internal/tmuxui"
 )
 
 const (

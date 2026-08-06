@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/doctor"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/initproject"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/dockerapi"
+	"vibe/internal/doctor"
+	"vibe/internal/domain"
+	"vibe/internal/initproject"
+	"vibe/internal/lock"
+	"vibe/internal/paths"
+	"vibe/internal/payload"
+	"vibe/internal/registry"
+	"vibe/internal/schema"
+	"vibe/internal/terminal"
 )
 
 // InitRequest seeds a new project: render the preset into .vibe/,

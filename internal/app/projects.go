@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
+	"vibe/internal/dockerapi"
+	"vibe/internal/model"
+	"vibe/internal/paths"
+	"vibe/internal/registry"
+	"vibe/internal/tmuxui"
 )
 
 // RegisterRequest registers the project containing Dir. DisplayName

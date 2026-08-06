@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dev"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/runtime"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/dev"
+	"vibe/internal/domain"
+	"vibe/internal/lock"
+	"vibe/internal/runtime"
+	"vibe/internal/store"
 )
 
 // GCRequest controls explicit store garbage collection. Nothing is ever

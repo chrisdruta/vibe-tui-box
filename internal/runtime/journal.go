@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/domain"
+	"vibe/internal/store"
 )
 
 // The replacement journal is the durable phase marker for one project's

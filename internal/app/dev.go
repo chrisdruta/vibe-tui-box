@@ -7,18 +7,18 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dev"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/dev"
+	"vibe/internal/domain"
+	"vibe/internal/lock"
+	"vibe/internal/paths"
+	"vibe/internal/registry"
+	"vibe/internal/store"
+	"vibe/internal/terminal"
 )
 
 // EngineModule identifies the engine repository for dev-mode source
 // verification.
-const EngineModule = "github.com/chrisdruta/vibe-tui-box"
+const EngineModule = "vibe"
 
 // DevOnRequest builds the engine from Source (default: the project
 // itself) and switches the project to the resulting dev artifact.

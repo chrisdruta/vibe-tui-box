@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/builder"
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"vibe/internal/builder"
+	"vibe/internal/dockerapi"
+	dockerfake "vibe/internal/dockerapi/fake"
+	"vibe/internal/domain"
+	"vibe/internal/model"
+	"vibe/internal/paths"
+	"vibe/internal/schema"
 )
 
 func writeManifest(t *testing.T, dir, manifest string) {

@@ -11,12 +11,12 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/tmux"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/model"
+	"vibe/internal/payload"
+	"vibe/internal/registry"
+	"vibe/internal/tmux"
 )
 
 func TestStartApproved(t *testing.T) {

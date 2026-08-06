@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
 )
 
 // Name suffixes for the two transient roles a container can hold

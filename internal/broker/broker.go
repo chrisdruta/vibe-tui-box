@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/domain"
+	"vibe/internal/paths"
+	"vibe/internal/store"
 )
 
 // RequestsRelDir is where agents drop request files inside the

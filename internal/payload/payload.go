@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 //go:generate go run ./gen

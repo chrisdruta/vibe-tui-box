@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
+	"vibe/internal/dockerapi"
 )
 
 // setupStreams wires stdio into dockerapi.Streams. When both ends are

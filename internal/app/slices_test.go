@@ -8,15 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/broker"
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
-	"github.com/chrisdruta/vibe-tui-box/internal/terminal"
+	"vibe/internal/broker"
+	"vibe/internal/dockerapi"
+	dockerfake "vibe/internal/dockerapi/fake"
+	"vibe/internal/domain"
+	"vibe/internal/model"
+	"vibe/internal/payload"
+	"vibe/internal/registry"
+	"vibe/internal/store"
+	"vibe/internal/terminal"
 )
 
 // seedReleaseArtifact publishes a minimal non-dev-build artifact (object

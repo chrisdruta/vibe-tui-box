@@ -15,11 +15,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/domain"
+	"vibe/internal/lock"
+	"vibe/internal/paths"
+	"vibe/internal/payload"
+	"vibe/internal/store"
 )
 
 type tarEntry struct {

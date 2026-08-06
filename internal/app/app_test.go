@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
-	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/lock"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/runner"
-	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
-	"github.com/chrisdruta/vibe-tui-box/internal/version"
+	dockerfake "vibe/internal/dockerapi/fake"
+	"vibe/internal/domain"
+	"vibe/internal/lock"
+	"vibe/internal/model"
+	"vibe/internal/paths"
+	"vibe/internal/registry"
+	"vibe/internal/runner"
+	"vibe/internal/snapshot"
+	"vibe/internal/store"
+	"vibe/internal/version"
 )
 
 type fixedClock struct{}

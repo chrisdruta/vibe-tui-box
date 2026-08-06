@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	dockerfake "github.com/chrisdruta/vibe-tui-box/internal/dockerapi/fake"
-	"github.com/chrisdruta/vibe-tui-box/internal/model"
+	dockerfake "vibe/internal/dockerapi/fake"
+	"vibe/internal/model"
 )
 
 // TestFetchCachesSinglePass pins the consolidated fetch path: one call

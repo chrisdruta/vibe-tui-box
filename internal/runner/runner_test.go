@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 func TestRunRejectsRelativePath(t *testing.T) {

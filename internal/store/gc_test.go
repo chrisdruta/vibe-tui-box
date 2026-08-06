@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 func publishTree(t *testing.T, s *Store, kind ObjectKind, files map[string]string) domain.Digest {

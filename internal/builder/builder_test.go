@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 func TestValidateDockerfile(t *testing.T) {

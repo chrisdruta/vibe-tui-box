@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/builder"
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"vibe/internal/builder"
+	"vibe/internal/dockerapi"
+	"vibe/internal/schema"
 )
 
 // Not a test: a visual smoke replay (go test -run Smoke -v -tags never).

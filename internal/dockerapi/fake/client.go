@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
 )
 
 // Call is one recorded client invocation.

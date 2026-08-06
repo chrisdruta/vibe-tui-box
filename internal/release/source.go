@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/version"
+	"vibe/internal/domain"
+	"vibe/internal/version"
 )
 
 // Descriptor names one downloadable release artifact.
@@ -33,7 +33,7 @@ type Source interface {
 }
 
 // DefaultBaseURL is the canonical release source.
-const DefaultBaseURL = "https://github.com/chrisdruta/vibe-tui-box/releases/download"
+const DefaultBaseURL = "https://vibe/releases/download"
 
 // HTTPSource fetches releases over HTTPS with explicit timeouts, a
 // redirect cap, and a fixed user agent.

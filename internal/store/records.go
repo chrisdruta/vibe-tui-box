@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // Versioned JSON records share one codec: deterministic marshalling, a

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // Client is the complete Docker surface the engine uses. Everything

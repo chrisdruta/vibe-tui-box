@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/runner"
-	"github.com/chrisdruta/vibe-tui-box/internal/tmuxui"
+	"vibe/internal/domain"
+	"vibe/internal/runner"
+	"vibe/internal/tmuxui"
 )
 
 // FrameRequest drives the hidden `vibe _frame` sidebar renderer. Input

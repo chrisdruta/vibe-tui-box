@@ -6,11 +6,11 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/registry"
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
-	"github.com/chrisdruta/vibe-tui-box/internal/snapshot"
-	"github.com/chrisdruta/vibe-tui-box/internal/store"
+	"vibe/internal/domain"
+	"vibe/internal/registry"
+	"vibe/internal/schema"
+	"vibe/internal/snapshot"
+	"vibe/internal/store"
 )
 
 // Fixed locations inside a candidate input snapshot.

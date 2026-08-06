@@ -10,10 +10,10 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
-	"github.com/chrisdruta/vibe-tui-box/internal/runner"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
+	"vibe/internal/payload"
+	"vibe/internal/runner"
 )
 
 // fakeRunner records invocations, materializes the PNG a real `save`

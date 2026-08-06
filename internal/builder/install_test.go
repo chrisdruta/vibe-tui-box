@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/schema"
+	"vibe/internal/schema"
 )
 
 var (

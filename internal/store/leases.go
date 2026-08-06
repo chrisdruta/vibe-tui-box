@@ -8,7 +8,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // Lease marks a published object as in use. It holds a shared flock on

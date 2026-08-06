@@ -3,7 +3,7 @@ package model
 import (
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // Generated Docker object names derive from the project ID — never from

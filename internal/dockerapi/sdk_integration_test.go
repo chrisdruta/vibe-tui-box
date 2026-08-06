@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/domain"
 )
 
 // requireDaemon skips unless a Docker daemon is reachable, so the suite

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/paths"
+	"vibe/internal/domain"
+	"vibe/internal/paths"
 )
 
 // RecordFormat is the current persistent format. v2 starts at 1 and has

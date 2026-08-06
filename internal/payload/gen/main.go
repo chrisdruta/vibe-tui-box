@@ -10,8 +10,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/payload"
+	"vibe/internal/domain"
+	"vibe/internal/payload"
 )
 
 func main() {

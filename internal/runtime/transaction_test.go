@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/dockerapi"
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
+	"vibe/internal/dockerapi"
+	"vibe/internal/domain"
 )
 
 // preexistingIDs snapshots which container IDs exist right now, so

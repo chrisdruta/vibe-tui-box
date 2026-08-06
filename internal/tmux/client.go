@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chrisdruta/vibe-tui-box/internal/domain"
-	"github.com/chrisdruta/vibe-tui-box/internal/runner"
+	"vibe/internal/domain"
+	"vibe/internal/runner"
 )
 
 // Socket is the engine's dedicated tmux server socket (tmux -L). A
