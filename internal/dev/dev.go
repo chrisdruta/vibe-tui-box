@@ -245,7 +245,17 @@ const versionPkg = "vibe/internal/version"
 // it with `vibe dev status` provenance.
 func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage, srcDir, outDir string, sink dockerapi.ProgressSink, version string) error {
 	name := dockerapi.ContainerName(fmt.Sprintf("vibe-devbuild-%s", domain.SHA256([]byte(srcDir + outDir)).Hex()[:10]))
-	sink.Emit(dockerapi.Progress{Stage: "dev-build", Message: "compiling engine in " + string(builder.Ref)})
+	status := "compiling engine in " + string(builder.Ref)
+	sink.Emit(dockerapi.Progress{Stage: "dev-build", Message: status})
+	// The status line above stays open until a Done or Failed event
+	// terminates it; every exit from this function must send one, or
+	// the next print lands on the same row.
+	ok := false
+	defer func() {
+		if !ok {
+			sink.Emit(dockerapi.Progress{Stage: "dev-build", Message: status, Failed: true})
+		}
+	}()
 	id, err := s.docker.CreateContainer(ctx, dockerapi.CreateRequest{
 		Name:  name,
 		Image: string(builder.Ref),
@@ -312,6 +322,8 @@ func (s *Service) runBuild(ctx context.Context, builder dockerapi.ResolvedImage,
 		}
 		return fmt.Errorf("%w: dev build failed with exit code %d", domain.ErrInvalid, code)
 	}
+	ok = true
+	sink.Emit(dockerapi.Progress{Stage: "dev-build", Message: status, Done: true})
 	return nil
 }
 

@@ -132,3 +132,28 @@ func TestRendererPullTicker(t *testing.T) {
 		t.Fatalf("pull ticks must not commit lines:\n%q", out)
 	}
 }
+
+// A status line must always be terminated — Done and Failed both close
+// it with a newline verdict, so whatever prints next (the result, an
+// error) starts on its own row instead of running into the ticker.
+func TestRendererStatusLineTerminates(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		end  dockerapi.Progress
+		want string
+	}{
+		{"done", dockerapi.Progress{Stage: "dev-build", Message: "compiling engine in golang:1.26", Done: true}, "compiling engine in golang:1.26: done\n"},
+		{"failed", dockerapi.Progress{Stage: "dev-build", Message: "compiling engine in golang:1.26", Failed: true}, "compiling engine in golang:1.26: failed\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			r := testRenderer(&buf)
+			sink := r.Sink()
+			sink(dockerapi.Progress{Stage: "dev-build", Message: "compiling engine in golang:1.26"})
+			sink(tc.end)
+			if out := buf.String(); !strings.Contains(out, tc.want) {
+				t.Fatalf("status line not terminated with %q:\n%q", tc.want, out)
+			}
+		})
+	}
+}

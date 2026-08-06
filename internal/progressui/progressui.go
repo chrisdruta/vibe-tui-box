@@ -110,9 +110,15 @@ func (r *Renderer) handle(p dockerapi.Progress) {
 	case dockerapi.StageBuild:
 		r.buildEvent(p)
 	default:
-		// Pulls and other stages: one overwriting status line.
-		if p.Done {
-			fmt.Fprintf(r.out, "\r%s%s: done\n", ansiEOL, r.clip(p.Message, 8))
+		// Pulls and other stages: one overwriting status line. Done and
+		// Failed both terminate it — anything printed after an open
+		// status line lands on the same row.
+		if p.Done || p.Failed {
+			verdict := "done"
+			if p.Failed {
+				verdict = "failed"
+			}
+			fmt.Fprintf(r.out, "\r%s%s: %s\n", ansiEOL, r.clip(p.Message, 10), verdict)
 			r.statusLine = false
 			return
 		}
