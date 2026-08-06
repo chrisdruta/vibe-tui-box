@@ -8,8 +8,10 @@
 #
 # Command strings keep their #{...} constructs LITERAL — display-menu
 # expands them against the choosing client's context when an item is
-# picked, exactly as the old inline conf menu did. The engine binary
-# and payload dir resolve through the stamped globals, never argv.
+# picked, exactly as the old inline conf menu did. Only server-shaped
+# ids ride those strings; the session path and engine binary are
+# fetched by the target scripts (win.sh, review.sh) from tmux, so a
+# workspace path with a quote never transits a shell string.
 set -euo pipefail
 
 # Positional params, not an array: "$@" expands empty-safely under
@@ -39,18 +41,18 @@ set --
 # launch variants in the chooser.
 exec tmux display-menu "$@" -M -O -T " vibe " \
   "agents" a "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/chooser.sh' '#{client_name}'\"" \
-  "restart default agent" r "new-window -c \"#{session_path}\" -n agent \"'#{@vibe_exe}' agent --restart\"" \
+  "restart default agent" r "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/win.sh' '#{session_id}' agent agent --restart\"" \
   "stop default agent" x "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' -w 70% -h 45% '#{client_name}' '#{@vibe_exe}' agent --stop\"" \
-  "container shell" s "new-window -c \"#{session_path}\" -n shell \"'#{@vibe_exe}' shell\"" \
-  "attach main proc" e "new-window -c \"#{session_path}\" -n attach \"'#{@vibe_exe}' attach\"" \
-  "host shell" h "new-window -c \"#{session_path}\"" \
+  "container shell" s "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/win.sh' '#{session_id}' shell shell\"" \
+  "attach main proc" e "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/win.sh' '#{session_id}' attach attach\"" \
+  "host shell" h "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/win.sh' '#{session_id}'\"" \
   "" \
   "project sidebar" b "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/sidebar.sh' toggle '#{window_id}'\"" \
   "host dock" t "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/dock.sh' '#{window_id}'\"" \
   "clip image → agent" v "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/clip-to-pane.sh' '#{window_id}' '#{client_name}'\"" \
   "projects (live)" o "choose-tree -Zs" \
-  "files (nvim)" f "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/review.sh' '#{client_name}' '#{@vibe_exe}' '#{session_path}' files\"" \
-  "git (lazygit)" g "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/review.sh' '#{client_name}' '#{@vibe_exe}' '#{session_path}' git\"" \
+  "files (nvim)" f "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/review.sh' '#{client_name}' '#{window_id}' files\"" \
+  "git (lazygit)" g "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/review.sh' '#{client_name}' '#{window_id}' git\"" \
   "requests" u "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' request list\"" \
   "ps · all projects" p "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' ps\"" \
   "network egress" E "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/popup.sh' '#{client_name}' '#{@vibe_exe}' _egress\"" \

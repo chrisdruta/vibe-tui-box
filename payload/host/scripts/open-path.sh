@@ -12,7 +12,12 @@
 # Anything that is not path-shaped, or does not resolve, exits silently
 # so the gesture is free over prose.
 #
-#   open-path.sh CLIENT SESSION_PATH EXE PANE X Y
+#   open-path.sh CLIENT PANE X Y
+#
+# The session path and engine binary are fetched from tmux here (the
+# pane id anchors the lookup), never passed through the binding's
+# shell string — a path with an apostrophe must not ride run-shell
+# (clip-to-pane.sh's rule).
 #
 # Known limits, recorded on purpose: a path wrapped across two screen
 # lines truncates at the wrap; wide glyphs left of the pointer shift
@@ -29,13 +34,14 @@
 set -u
 
 client="${1:-}"
-spath="${2:-}"
-exe="${3:-}"
-pane="${4:-}"
-x="${5:-}"
-y="${6:-}"
+pane="${2:-}"
+x="${3:-}"
+y="${4:-}"
 
-[ -n "$pane" ] && [ -n "$spath" ] && [ -n "$exe" ] && [ -x "$exe" ] || exit 0
+[ -n "$pane" ] || exit 0
+spath="$(tmux display-message -p -t "$pane" '#{session_path}' 2>/dev/null)"
+exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null)"
+[ -n "$spath" ] && [ -n "$exe" ] && [ -x "$exe" ] || exit 0
 case "$x" in '' | *[!0-9]*) exit 0 ;; esac
 case "$y" in '' | *[!0-9]*) exit 0 ;; esac
 
@@ -193,4 +199,4 @@ case "$cpath" in
 esac
 
 dir="$(cd "$(dirname "$0")" && pwd)"
-exec bash "$dir/review.sh" "$client" "$exe" "$spath" file "$cpath" "$lineno"
+exec bash "$dir/review.sh" "$client" "$pane" file "$cpath" "$lineno"

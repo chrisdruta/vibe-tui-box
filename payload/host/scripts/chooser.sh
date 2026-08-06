@@ -91,8 +91,10 @@ while IFS="$us" read -r ver label key verb arg; do
       esac
       # The viewer join key (@vibe_session) needs no stamping here:
       # `vibe agent` self-stamps its own window (the one definition
-      # for every launch door — app.stampViewerWindow).
-      cmd="new-window -c \"#{session_path}\" -n $name \"'#{@vibe_exe}' agent$flag\""
+      # for every launch door — app.stampViewerWindow). win.sh fetches
+      # the session path and engine binary itself; $name and $flag are
+      # charset-vetted above, so this string carries no host path.
+      cmd="run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/win.sh' '#{session_id}' $name agent$flag\""
       ;;
     attach)
       case "$arg" in "" | *[!A-Za-z0-9_-]*) continue ;; esac
@@ -110,7 +112,7 @@ done <<EOF
 $rows
 EOF
 args+=("")
-args+=("container shell" s "new-window -c \"#{session_path}\" -n shell \"'#{@vibe_exe}' shell\"")
-args+=("host shell" h "new-window -c \"#{session_path}\"")
+args+=("container shell" s "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/win.sh' '#{session_id}' shell shell\"")
+args+=("host shell" h "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/win.sh' '#{session_id}'\"")
 
 exec tmux display-menu "${args[@]}"

@@ -130,10 +130,10 @@ esac
 if [ -n "${svc:-}" ]; then
   case "$svc" in '' | *[!A-Za-z0-9_-]*) exit 0 ;; esac
   case "$sess" in '' | *[!\$A-Za-z0-9_-]*) exit 0 ;; esac
-  path="$(tmux display-message -p -t "$sess" '#{session_path}' 2>/dev/null)"
-  [ -n "$path" ] || exit 0
-  qp="'${path//\'/\'\\\'\'}'"
-  svcstop_cmd="run-shell -b \"cd $qp && '#{@vibe_exe}' _svcstop '$svc' >/dev/null 2>&1 && tmux display-message -c '#{client_name}' 'vibe: stopped service $svc' || tmux display-message -c '#{client_name}' 'vibe: stop failed — $svc (container down?)'\""
+  # agent-verb.sh fetches the workspace path and engine binary itself
+  # at fire time; only the vetted session id and window name ride this
+  # string, so a workspace path with a quote never transits it.
+  svcstop_cmd="run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/agent-verb.sh' '#{client_name}' '$sess' _svcstop '$svc'\""
   args=()
   [ -n "$client" ] && args+=(-c "$client")
   args+=(-M -O "${pos[@]}" -T " $svc ")
@@ -154,19 +154,14 @@ agent | agent-*) ;;
 esac
 case "$sess" in '' | *[!\$A-Za-z0-9_-]*) exit 0 ;; esac
 
-path="$(tmux display-message -p -t "$sess" '#{session_path}' 2>/dev/null)"
-[ -n "$path" ] || exit 0
-
 # `vibe _stop`/`_dismiss` resolve the project from the working
-# directory — review.sh's -d contract. Feedback lands as a
-# display-message either way; the watch channel repaints the roster.
-qp="'${path//\'/\'\\\'\'}'"
-on_ok="tmux display-message -c '#{client_name}' 'vibe: stopped $addr'"
-# Bury inside the success branch, failure-swallowed: a window the
-# operator already closed by hand must not flip the report to failed.
-[ -n "$wid" ] && on_ok="tmux kill-window -t '$wid' 2>/dev/null; $on_ok"
-stop_cmd="run-shell -b \"cd $qp && '#{@vibe_exe}' _stop '$addr' >/dev/null 2>&1 && { $on_ok; } || tmux display-message -c '#{client_name}' 'vibe: stop failed — $addr (container down?)'\""
-dismiss_cmd="run-shell -b \"cd $qp && '#{@vibe_exe}' _dismiss '$addr' >/dev/null 2>&1 && tmux display-message -c '#{client_name}' 'vibe: dismissed $addr' || tmux display-message -c '#{client_name}' 'vibe: dismiss failed — $addr (container down?)'\""
+# directory — review.sh's -d contract, honored inside agent-verb.sh,
+# which fetches the workspace path and engine binary at fire time and
+# posts the feedback display-message (burying $wid inside the success
+# branch). Only vetted words ride these strings, so a workspace path
+# with a quote never transits them.
+stop_cmd="run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/agent-verb.sh' '#{client_name}' '$sess' _stop '$addr' '$wid'\""
+dismiss_cmd="run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/agent-verb.sh' '#{client_name}' '$sess' _dismiss '$addr'\""
 
 args=()
 [ -n "$client" ] && args+=(-c "$client")

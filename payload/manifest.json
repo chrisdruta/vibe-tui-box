@@ -148,8 +148,8 @@
     {
       "path": "host/scripts/agent-menu.sh",
       "mode": "0755",
-      "size": 7471,
-      "digest": "sha256:683f22819e55911ce1837f23251514f6bcbdd70611105e55350a873005bded1d"
+      "size": 7010,
+      "digest": "sha256:bab25fbda731c63514e7306a31bb30a3b0d5bd7f7e698d28928ee0bb41a8c5aa"
     },
     {
       "path": "host/scripts/agent-open.sh",
@@ -158,10 +158,16 @@
       "digest": "sha256:9bb28222ea5b59799839719dfd4d17f8031db8bc973a892926f9ed6d32f494df"
     },
     {
+      "path": "host/scripts/agent-verb.sh",
+      "mode": "0755",
+      "size": 2080,
+      "digest": "sha256:4e94b7c3b193345cf16c6f3389dd5eee70619537d89550ffd5d49fa306000273"
+    },
+    {
       "path": "host/scripts/chooser.sh",
       "mode": "0755",
-      "size": 4856,
-      "digest": "sha256:1898dfd377922592a7ead13bc901e45159aa9741eeea5a6ef657798ec7d9da61"
+      "size": 5106,
+      "digest": "sha256:5ead459ff37ba99cd51544a5b608659702c50001f62d1add635736a4056f6ed3"
     },
     {
       "path": "host/scripts/clip-image.sh",
@@ -184,14 +190,14 @@
     {
       "path": "host/scripts/open-path.sh",
       "mode": "0755",
-      "size": 6869,
-      "digest": "sha256:40c66e3b03ef51d284bec2b39fb7ad39115d0e047be1331771d5b6f15b9d4395"
+      "size": 7187,
+      "digest": "sha256:29da0d4c49c9d1da1679ea520ef376cd2aa48bb85f007f91e47410ee676a8038"
     },
     {
       "path": "host/scripts/palette.sh",
       "mode": "0644",
-      "size": 4278,
-      "digest": "sha256:0765f7d700cefe1690fccbb293e41f5a0da641f1e1e5a4fc3a1f3b6ccd574f78"
+      "size": 4492,
+      "digest": "sha256:443745f89cb835117d75a71ba38d6faee0b42697bb85642087bf8b402ca99d01"
     },
     {
       "path": "host/scripts/popup.sh",
@@ -208,8 +214,8 @@
     {
       "path": "host/scripts/review.sh",
       "mode": "0755",
-      "size": 2352,
-      "digest": "sha256:671c8e037c2fdcce9e6f3ea0451e3ca4083bf5671a1f59ef4010f0e354a05e58"
+      "size": 2899,
+      "digest": "sha256:196ad803381978c69c495e4d39c7d64a1f8880ffdfd4235c31598acb48846f96"
     },
     {
       "path": "host/scripts/sidebar.sh",
@@ -236,10 +242,16 @@
       "digest": "sha256:7e4204773f5226af93ccdcdd9d4b5d8d45c8c3d805d084f67ae12daf4741d6f2"
     },
     {
+      "path": "host/scripts/win.sh",
+      "mode": "0755",
+      "size": 1428,
+      "digest": "sha256:b2c89af3124515738d444c376f6ba7b0836d519b8463a9110afe5339339dafe2"
+    },
+    {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 36543,
-      "digest": "sha256:bd02e06d445acbbb2ee13b7e53923e21549470b545cb655962ba0c04c5ed2269"
+      "size": 36474,
+      "digest": "sha256:6a0361a374031f6ec83f4d5bbbef25927057c2721c124aba28c986718dd43992"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -302,5 +314,5 @@
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
     }
   ],
-  "digest": "sha256:4234751caab56bbd6e21d9eba2d48e3bd7f02d7f737ef34c6348f3b24ab979c3"
+  "digest": "sha256:aafe8c8ae370dc50f7145a3d9b4f4b62864723d1c27580d6a3c8032072c8fd6d"
 }

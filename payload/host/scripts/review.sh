@@ -10,8 +10,13 @@
 # project. (A `review` mode — diffview — lived here for one day;
 # dogfood retired it in lazygit's favor, 2026-07-26.)
 #
-# Usage: review.sh CLIENT EXE SESSION_PATH files|git
-#        review.sh CLIENT EXE SESSION_PATH file PATH [LINE]
+# Usage: review.sh CLIENT TARGET files|git
+#        review.sh CLIENT TARGET file PATH [LINE]
+#
+# TARGET is a server-controlled pane/window/session id; the session
+# path and engine binary are fetched here from tmux, never passed
+# through a binding's shell string — a repo path (or ~/.vibe) with an
+# apostrophe must not ride run-shell (clip-to-pane.sh's rule).
 #
 # `file` is the ctrl+click door (open-path.sh): one container path,
 # already resolved and vetted by the dispatcher, plus an optional
@@ -19,20 +24,26 @@
 set -euo pipefail
 
 client="${1:?client}"
-exe="${2:?engine path}"
-path="${3:?session path}"
-mode="${4:?mode}"
+target="${2:?target}"
+mode="${3:?mode}"
 fpath=""
 flineno=""
 case "$mode" in
 files | git) ;;
 file)
-  fpath="${5:?file path}"
-  flineno="${6:-}"
+  fpath="${4:?file path}"
+  flineno="${5:-}"
   case "$flineno" in *[!0-9]*) flineno="" ;; esac
   ;;
 *) echo "review.sh: unknown mode '$mode'" >&2; exit 2 ;;
 esac
+
+path="$(tmux display-message -p -t "$target" '#{session_path}' 2>/dev/null || true)"
+exe="$(tmux show-options -gqv @vibe_exe 2>/dev/null || true)"
+if [ -z "$path" ] || [ -z "$exe" ] || [ ! -x "$exe" ]; then
+  tmux display-message -c "$client" "vibe: review unavailable (no session context)" 2>/dev/null || true
+  exit 0
+fi
 
 # Single-quote the engine path for the popup's /bin/sh string —
 # popup.sh's quoting rule.
