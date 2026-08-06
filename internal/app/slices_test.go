@@ -15,6 +15,7 @@ import (
 	"vibe/internal/model"
 	"vibe/internal/payload"
 	"vibe/internal/registry"
+	"vibe/internal/snapshot"
 	"vibe/internal/store"
 	"vibe/internal/terminal"
 )
@@ -878,5 +879,30 @@ func TestRequestDecideDoesNotApproveOnFailure(t *testing.T) {
 	relist, err := a.RequestList(ctx, RequestListRequest{Dir: dir})
 	if err != nil || len(relist.Pending) != 1 || relist.Pending[0].RequestID != "req-fail" {
 		t.Fatalf("request must stay pending for a retry: %+v, %v", relist.Pending, err)
+	}
+}
+
+// TestExtensionDigestCoversModes pins the approval digest's inputs:
+// path, size, MODE, and content — an exec-bit flip changes what COPY
+// bakes into the image, so it must re-prompt like any content change,
+// and files outside the Dockerfile/build-dir surface must not move
+// the digest at all.
+func TestExtensionDigestCoversModes(t *testing.T) {
+	base := []snapshot.File{
+		{Path: model.SnapshotDockerfilePath, Size: 10, Mode: 0o644, Digest: domain.SHA256([]byte("FROM base"))},
+		{Path: model.SnapshotBuildDir + "/tool.sh", Size: 4, Mode: 0o644, Digest: domain.SHA256([]byte("hi"))},
+	}
+	d1 := extensionDigest(base)
+
+	flipped := append([]snapshot.File(nil), base...)
+	flipped[1].Mode = 0o755
+	if d2 := extensionDigest(flipped); d2 == d1 {
+		t.Fatal("an exec-bit flip on a build-context file must change the approval digest")
+	}
+
+	unrelated := append([]snapshot.File(nil), base...)
+	unrelated = append(unrelated, snapshot.File{Path: "manifest/vibe.yaml", Size: 9, Mode: 0o644, Digest: domain.SHA256([]byte("schema: 1"))})
+	if d3 := extensionDigest(unrelated); d3 != d1 {
+		t.Fatal("files outside the build surface must not move the approval digest")
 	}
 }

@@ -16,10 +16,9 @@ section at the bottom — as revisable records, not fences.
   unlocked read-compare-write, `Store.Open`'s missing post-flock
   revalidation against GC, and `Config` minting a snapshot without the
   store-global hold. Fidelity/robustness: `dockerapi.mapErr` drops
-  daemon 409s (the fake mints `ErrConflict` for them), the
-  extension-approval digest omits file modes, `Compile` mounts the
-  stale record `Root` instead of the identity-resolved root, the
-  snapshot walker's staged modes pass through umask, `omitempty` on
+  daemon 409s (the fake mints `ErrConflict` for them), `Compile`
+  mounts the stale record `Root` instead of the identity-resolved
+  root, the snapshot walker's staged modes pass through umask, `omitempty` on
   `any`-typed output fields never omits (null in `--json`),
   `main.go` constructs the full dependency graph before dispatch
   (`DOCKER_HOST=bogus vibe version` fails), the doctor ready-marker
@@ -32,11 +31,10 @@ section at the bottom — as revisable records, not fences.
   single-source the remaining hand-mirrored vocabularies (address
   grammar, cold-kinds, name charset — the click grammar already has
   its contract test) through the theme.sh generation pipeline; the
-  remaining §6 test gaps (undoStart rollback, snapshot walker
-  defenses, tmux client env assembly, dispatcher exit-code/AfterRender
-  hooks, schema MaxNodes/MaxScalar, fake Exec 404/409 fidelity, and
-  payload tests for agent-ps/agent-state-hook/agent-session/
-  agent-watch/svc.sh); retire the `legacy-one-generation` verbs when
+  remaining §6 test gaps (undoStart rollback, tmux client env
+  assembly, dispatcher exit-code/AfterRender hooks, fake Exec 404/409
+  fidelity, and payload tests for agent-ps/agent-state-hook/
+  agent-session/agent-watch/svc.sh); retire the `legacy-one-generation` verbs when
   their grace window closes; and a doctor check that installed
   `vibe-<digest>` binaries still hash to their names (tamper
   detection, which the atomic-replace install fix traded away as an

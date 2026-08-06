@@ -156,10 +156,22 @@ func (w *walker) copyFile(source, dest string, depth int) error {
 	if err != nil {
 		return fmt.Errorf("stat %s: %w", source, err)
 	}
-	if n != before.Size() || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
+	if changedDuringCopy(before, after, n) {
 		return fmt.Errorf("%w: %s changed during snapshot", domain.ErrConflict, source)
 	}
 	return nil
+}
+
+// changedDuringCopy is the concurrent-mutation abort: the copy must
+// have moved exactly the promised bytes, and the open descriptor's
+// size and mtime must still match the pre-copy stat. A same-size
+// same-mtime rewrite is below this check's resolution — the digest
+// then records whichever content the copy actually read, which is
+// still one consistent frozen input.
+func changedDuringCopy(before, after fs.FileInfo, copied int64) bool {
+	return copied != before.Size() ||
+		after.Size() != before.Size() ||
+		!after.ModTime().Equal(before.ModTime())
 }
 
 func (w *walker) reject(p string, mode fs.FileMode) error {

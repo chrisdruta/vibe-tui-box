@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"vibe/internal/domain"
 )
 
@@ -317,5 +319,66 @@ func TestParsePortTable(t *testing.T) {
 		if _, err := ParsePort(b); err == nil {
 			t.Fatalf("ParsePort(%q) unexpectedly succeeded", b)
 		}
+	}
+}
+
+// TestLoadNodeAndScalarLimits closes the last two bounds of the
+// bounded-parse trust surface: total node count and single-scalar
+// size, both injected small so the tests stay tiny.
+func TestLoadNodeAndScalarLimits(t *testing.T) {
+	var many strings.Builder
+	many.WriteString("schema: 1\nruntime:\n  env:\n")
+	for i := 0; i < 60; i++ {
+		fmt.Fprintf(&many, "    K%d: \"v\"\n", i)
+	}
+	if _, err := Load(strings.NewReader(many.String()), Limits{MaxNodes: 50}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("node limit not enforced: %v", err)
+	}
+	if _, err := Load(strings.NewReader(many.String()), Limits{}); err != nil {
+		t.Fatalf("default node limit rejected a small manifest: %v", err)
+	}
+
+	fat := "schema: 1\nruntime:\n  env:\n    FAT: \"" + strings.Repeat("x", 100) + "\"\n"
+	if _, err := Load(strings.NewReader(fat), Limits{MaxScalar: 64}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("scalar limit not enforced: %v", err)
+	}
+	if _, err := Load(strings.NewReader(fat), Limits{}); err != nil {
+		t.Fatalf("default scalar limit rejected a small scalar: %v", err)
+	}
+}
+
+// TestOrderedEnvStringOnly pins env's !!str-only rule: unquoted YAML
+// scalars (numbers, booleans, null, timestamps) silently change
+// meaning across YAML implementations, so env values must be quoted
+// strings — and keys must be scalars at all.
+func TestOrderedEnvStringOnly(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		src  string
+	}{
+		{"integer value", "env:\n  PORT: 8080\n"},
+		{"boolean value", "env:\n  DEBUG: true\n"},
+		{"null value", "env:\n  EMPTY: null\n"},
+		{"mapping value", "env:\n  NESTED:\n    a: \"b\"\n"},
+		{"sequence key", "env:\n  ? [a, b]\n  : \"v\"\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var env struct {
+				Env OrderedEnv `yaml:"env"`
+			}
+			if err := yaml.Unmarshal([]byte(tc.src), &env); !errors.Is(err, domain.ErrInvalid) {
+				t.Fatalf("want ErrInvalid, got %v", err)
+			}
+		})
+	}
+
+	var ok struct {
+		Env OrderedEnv `yaml:"env"`
+	}
+	if err := yaml.Unmarshal([]byte("env:\n  B: \"2\"\n  A: \"1\"\n"), &ok); err != nil {
+		t.Fatal(err)
+	}
+	if len(ok.Env) != 2 || ok.Env[0].Key != "A" || ok.Env[1].Key != "B" {
+		t.Fatalf("env must sort by key: %+v", ok.Env)
 	}
 }

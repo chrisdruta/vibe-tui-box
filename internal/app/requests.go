@@ -435,6 +435,11 @@ func extensionDigest(files []snapshot.File) domain.Digest {
 			buf.WriteByte(0)
 			buf.WriteString(strconv.FormatInt(f.Size, 10))
 			buf.WriteByte(0)
+			// Mode is a build input: copyFile propagates the exec bit
+			// into the context and COPY carries it into the image, so a
+			// 0644↔0755 flip must re-prompt like any content change.
+			buf.WriteString(strconv.FormatUint(uint64(f.Mode), 8))
+			buf.WriteByte(0)
 			buf.WriteString(f.Digest.String())
 			buf.WriteByte('\n')
 		}
