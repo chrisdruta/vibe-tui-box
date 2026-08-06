@@ -184,7 +184,7 @@ func TestEgressResultRender(t *testing.T) {
 	if kind != "egress" {
 		t.Fatalf("kind = %q", kind)
 	}
-	if _, ok := data["Domains"].([]any); !ok {
+	if _, ok := data["domains"].([]any); !ok {
 		t.Fatalf("domains missing from envelope: %v", data)
 	}
 }

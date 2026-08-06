@@ -44,20 +44,20 @@ type EgressRequest struct {
 // EgressDomain is one deduplicated ledger entry. Name and LastType are
 // sanitized at construction — domains are container-controlled bytes.
 type EgressDomain struct {
-	Name     string
-	Queries  int
-	LastType string
+	Name     string `json:"name"`
+	Queries  int    `json:"queries"`
+	LastType string `json:"last_type"`
 }
 
 // EgressConn is one sampled live socket. Fields are engine-validated:
 // addresses pass a strict shape gate, Comm is sanitized, PID 0 means
 // the socket belongs to another uid and stays unattributed.
 type EgressConn struct {
-	Proto  string
-	Local  string
-	Remote string
-	PID    int
-	Comm   string
+	Proto  string `json:"proto"`
+	Local  string `json:"local"`
+	Remote string `json:"remote"`
+	PID    int    `json:"pid,omitempty"`
+	Comm   string `json:"comm,omitempty"`
 }
 
 // EgressResult is the fused view. Each half degrades independently:
@@ -65,18 +65,18 @@ type EgressConn struct {
 // unavailable with an engine-authored note, and only both missing is
 // an error.
 type EgressResult struct {
-	Project          domain.ProjectID
-	DNSAvailable     bool
-	DNSNote          string
-	Domains          []EgressDomain
-	UnparsedLogLines int
-	DomainsTruncated bool
-	LogTruncated     bool
-	SamplerAvailable bool
-	SamplerNote      string
-	Conns            []EgressConn
-	MalformedRows    int
-	ConnsTruncated   bool
+	Project          domain.ProjectID `json:"project"`
+	DNSAvailable     bool             `json:"dns_available"`
+	DNSNote          string           `json:"dns_note,omitempty"`
+	Domains          []EgressDomain   `json:"domains,omitempty"`
+	UnparsedLogLines int              `json:"unparsed_log_lines,omitempty"`
+	DomainsTruncated bool             `json:"domains_truncated,omitempty"`
+	LogTruncated     bool             `json:"log_truncated,omitempty"`
+	SamplerAvailable bool             `json:"sampler_available"`
+	SamplerNote      string           `json:"sampler_note,omitempty"`
+	Conns            []EgressConn     `json:"conns,omitempty"`
+	MalformedRows    int              `json:"malformed_rows,omitempty"`
+	ConnsTruncated   bool             `json:"conns_truncated,omitempty"`
 }
 
 // Egress reads the dns sidecar's query log through the logs API and

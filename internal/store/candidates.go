@@ -23,16 +23,15 @@ const (
 // <candidates>/<hex>.record.json; the candidate object itself holds the
 // canonical plan and frozen inputs.
 type CandidateRecord struct {
-	Format        int               `json:"format"`
-	Digest        domain.Digest     `json:"digest"`
-	ProjectID     domain.ProjectID  `json:"project_id"`
-	Kind          CandidateKind     `json:"kind"`
-	Snapshot      domain.Digest     `json:"snapshot"`
-	Plan          domain.Digest     `json:"plan"`
-	Extension     *domain.Digest    `json:"extension,omitempty"`
-	Images        []ResolvedImage   `json:"images,omitempty"`
-	CreatedAt     time.Time         `json:"created_at"`
-	SourceRequest *domain.RequestID `json:"source_request,omitempty"`
+	Format    int              `json:"format"`
+	Digest    domain.Digest    `json:"digest"`
+	ProjectID domain.ProjectID `json:"project_id"`
+	Kind      CandidateKind    `json:"kind"`
+	Snapshot  domain.Digest    `json:"snapshot"`
+	Plan      domain.Digest    `json:"plan"`
+	Extension *domain.Digest   `json:"extension,omitempty"`
+	Images    []ResolvedImage  `json:"images,omitempty"`
+	CreatedAt time.Time        `json:"created_at"`
 }
 
 // ResolvedImage records one image reference resolved to a registry
