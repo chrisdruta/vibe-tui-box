@@ -8,9 +8,9 @@
 <!-- TODO(brand): swap for assets/tui.gif once recorded; assets/brand/NOTES.md has the capture recipe -->
 <img src="assets/mark.svg" align="right" width="220" alt="vibe-tui-box mark: a line-art takeout box whose side panel is the tmux cockpit">
 
-`vibe` is a single compiled binary that runs coding agents (Claude Code by
-default; Codex and Grok opt-in) inside a locked-down container per project,
-on Windows + WSL2 or macOS.
+`vibe` is a single compiled binary that runs coding agents (Claude Code
+by default; Codex preinstalled alongside, Grok opt-in) inside a
+locked-down container per project, on Windows + WSL2 or macOS.
 
 The host needs a Docker daemon and tmux, nothing else (git, if
 present, feeds the sidebar's branch and churn display). The binary
