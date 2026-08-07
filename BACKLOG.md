@@ -40,6 +40,18 @@ section at the bottom — as revisable records, not fences.
   detection, which the atomic-replace install fix traded away as an
   install-time conflict).
 
+- **`vibe init` names its preset only after committing to it
+  (2026-08-07, from a live miss).** A bare `vibe init` runs the
+  auto-memory prompt, then seeds from "minimal" — the first moment the
+  chosen preset is visible is the success line, when re-running is
+  already a conflict (no `--force`, by design). Recovery today is easy
+  but only if you know it: presets differ solely in `vibe.yaml`
+  (three lines for bun), so hand-editing the manifest equals the
+  missed flag. Ideas, smallest first: say "preset: minimal" (and how
+  to change it) *before* the interactive prompt; add
+  `--list-presets`; or make bare interactive `init` ask which preset,
+  same pattern as the auto-memory question. Not release-blocking.
+
 - **Reduced-trust profile for unattended runs (`vibe agent --jailed`).**
   A weaker-trust posture for letting an agent run without a human watching:
   read-only workspace bind (or a disposable worktree bind), a scratch
