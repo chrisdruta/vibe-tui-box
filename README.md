@@ -10,10 +10,18 @@
 
 `vibe` is a single compiled binary that runs coding agents (Claude Code by
 default; Codex and Grok opt-in) inside a locked-down container per project,
-on Windows + WSL2 or macOS. The host needs git, docker, and tmux. The
-binary embeds everything the container mounts, so installing it installs
-the whole harness.
+on Windows + WSL2 or macOS.
 
+The host needs a Docker daemon and tmux, nothing else (git, if
+present, feeds the sidebar's branch and churn display). The binary
+embeds everything the container mounts, so installing it installs the
+whole harness.
+
+### What it is
+
+- **A cockpit, not a wrapper.** A host tmux TUI keeps every project's
+  agents in view with live state dots pushed by the agents' own hooks, and
+  review happens in-container.
 - **Closed by construction.** One closed `vibe.yaml` per project: no raw
   Docker, Compose, or shell passthrough anywhere in the schema. Containers
   drop all capabilities, set `no-new-privileges`, publish ports on
@@ -22,35 +30,49 @@ the whole harness.
   content-addressed snapshot and compiles a canonical plan. Identical
   inputs produce the identical candidate, and what you approved is exactly
   what runs.
-- **A cockpit, not a wrapper.** A host tmux TUI keeps every project's
-  agents in view with live state dots pushed by the agents' own hooks, and
-  review happens in-container. Nothing to install on the host.
+
+### What it deliberately is not
+
+Agent tooling has three layers:
+
+1. the agent CLIs themselves (Claude Code, Codex, Grok)
+2. the orchestrators that fan them out across worktrees
+3. the environment the agent process actually executes in
+
+`vibe` is the third layer only — a hardened container the CLIs run
+inside, plus the terminal affordances that make an agent workable
+there. Anything that *drives* an agent is ceded to the layers above.
+
+No orchestration UI, scheduler, or fleet manager; no first-party agent
+loop or model API client; no centralized credential store; no
+bind-mounting host credentials (`~/.claude`, SSH keys, keychains) into
+containers.
+
+Logins are per-project by design, not omission: each project's
+agent-state volume is a blast-radius cell, and "log in once, use
+everywhere" is exactly the cross-project token exposure the
+per-project boundary exists to prevent.
 
 ## Getting started
 
 You need a reachable Docker daemon (on Windows: Docker Desktop with WSL2
-integration enabled for your distro), git, and tmux; building from source
-also needs Go 1.26.4 or newer (`go.mod` is the floor). tmux 3.7 or newer
+integration enabled for your distro) and tmux; building from source also
+needs git and Go 1.26.4 or newer (`go.mod` is the floor). tmux 3.7 or newer
 is recommended; older versions work, but image previews degrade to
 low-fi. `vibe doctor` verifies the docker and tmux halves of this.
 
-No release is tagged yet, so today the binary builds from source. This
-step flips to a release download at v1.0; everything after it stays the
-same.
+No release is tagged yet, so today the binary builds from source; this
+step flips to a release download at v1.0.
 
 ```sh
 git clone https://github.com/chrisdruta/vibe-tui-box.git && cd vibe-tui-box
 go build -o bin/vibe ./cmd/vibe
 bin/vibe provision                # publish the embedded harness under ~/.vibe
-mkdir -p ~/.local/bin && cp bin/vibe ~/.local/bin/   # provision creates no PATH entry
+mkdir -p ~/.local/bin && cp bin/vibe ~/.local/bin/   # provision creates no
+                                  # PATH entry; open a new shell if not found
 ```
 
-If `vibe` is not found after that, open a new shell: a freshly created
-`~/.local/bin` joins PATH at login on most distros.
-
-Then, in a project of yours (not this repo: a directory that already has
-a `.vibe/vibe.yaml`, like this checkout, takes `vibe register` instead of
-`vibe init`):
+Then, in a project of yours:
 
 ```sh
 vibe init          # seed .vibe/vibe.yaml from a preset and register the project
@@ -74,12 +96,12 @@ my-project/
 
 ## Day to day
 
+Day to day is one command: `vibe tui`. You live in the cockpit; the
+agents live in their containers. The rest of the surface is occasional
+maintenance:
+
 ```sh
 vibe status                 # container state vs the approved candidate
-vibe exec -- go test ./...  # run argv in the container (explicit env only)
-vibe run  -- make dev       # same, plus the project's frozen env file
-vibe shell                  # interactive login shell
-vibe logs dns -f            # follow a container or sidecar log
 vibe rebuild                # recreate containers from fresh inputs
 vibe down                   # stop and remove; agent state survives
                             #   (--volumes wipes it: logins, memory, gh auth)
@@ -87,48 +109,46 @@ vibe gc --dry-run           # prune unreferenced store objects
 vibe update --version vX.Y.Z   # download, verify, and install a release
 ```
 
-`vibe agent` takes `-s NAME` for parallel sessions and `--cold` to start
-without repo instruction files; `vibe forget` unregisters a project and
-leaves the workspace untouched. The full command surface is in
-[docs/usage.md](docs/usage.md).
-
-When an agent inside the container wants a config change applied, it writes
-a request file; you decide on the host:
-
-```sh
-vibe request list           # poll + bind each request to an immutable candidate
-vibe request show add-port
-vibe request approve add-port   # applies exactly the frozen candidate you saw
-```
+`vibe exec`, `vibe run`, `vibe shell`, and `vibe logs` cover scripted
+and headless use, and when an agent inside the container wants a config
+change applied, it writes a request file that `vibe request
+list`/`show`/`approve` binds to an immutable candidate you review on
+the host. The full command surface is in [docs/usage.md](docs/usage.md).
 
 ## The cockpit
 
 `vibe tui` opens a host tmux session per project, and one tab runs the
-whole fleet: a sidebar that keeps every project's agents, workspace
-services, and engine sidecars in view (a parked project's row is one
-click from live: containers up, session open, you switched in), live
-state dots pushed by the agents' own hooks (nothing polls), a full-width
-host dock (`prefix+t`, VS Code ctrl+` feel), and a chooser for launching
-whatever the image installed. Agents run in tmux *inside* the container,
-so a closed terminal never kills a session. Reviewing their work needs
-nothing on the host: `prefix+f` (nvim + oil) and `prefix+g` (lazygit)
-open popups running in the container, pinned into the image at exact
-versions. Images preview over sixel, ctrl+click opens a path in nvim at
-its line, and `prefix+v` carries a host clipboard image through the
-boundary into the agent's prompt.
+whole fleet:
+
+- A sidebar keeps every project's agents, workspace services, and
+  engine sidecars in view, with live state dots pushed by the agents'
+  own hooks — nothing polls.
+- Agents run in tmux *inside* the container, so a closed terminal
+  never kills a session.
+- Reviewing their work needs nothing on the host: `prefix+f`
+  (nvim + oil) and `prefix+g` (lazygit) open popups running in the
+  container, pinned into the image at exact versions.
+- A full-width host dock (`prefix+t`, VS Code ``ctrl+` `` feel) and a
+  chooser for launching whatever the image installed.
+- Images preview over sixel, ctrl+click opens a path in nvim at its
+  line, and `prefix+v` carries a host clipboard image through the
+  boundary into the agent's prompt.
 
 ## How it holds together
 
 Projects author one closed `vibe.yaml`: base image, agents, toolchains,
 loopback-only ports, bounded data imports, sidecar services, env file.
-Unknown keys and enum values are errors. Every `up` freezes the inputs
-into a content-addressed snapshot, compiles a canonical plan, and
-reconciles containers against it by digest. The host never executes a
-byte a container could have written: workspace files are read as data
-through bounded strict parsers, frozen before use, and never re-read;
-agent-authored text reaches your terminal only through an encoder.
-[docs/security.md](docs/security.md) is the authoritative statement of
-the trust model.
+Unknown keys and enum values are errors.
+
+Every `up` freezes the inputs into a content-addressed snapshot,
+compiles a canonical plan, and reconciles containers against it by
+digest.
+
+The host never executes a byte a container could have written:
+workspace files are read as data through bounded strict parsers, frozen
+before use, and never re-read; agent-authored text reaches your
+terminal only through an encoder. [docs/security.md](docs/security.md)
+is the authoritative statement of the trust model.
 
 ## Documentation
 
@@ -143,27 +163,12 @@ the trust model.
 | [security](docs/security.md) | the trust model in practice |
 | [tui layout](docs/tui-layout.md) | the cockpit's design record |
 
-## What this deliberately is not
-
-Agent tooling has three layers: the agent CLIs themselves (Claude Code,
-Codex), the orchestrators that fan them out across worktrees, and the
-environment the agent process actually executes in. `vibe` is the third
-layer only: a hardened container the CLIs run inside, plus the terminal
-affordances that make an agent workable there. Anything that *drives* an
-agent is ceded to the layers above: no orchestration UI, scheduler, or
-fleet manager; no first-party agent loop or model API client; no centralized
-credential store; no bind-mounting host credentials (`~/.claude`, SSH
-keys, keychains) into containers. Logins are per-project by design, not
-omission: each project's agent-state volume is a blast-radius cell, and
-"log in once, use everywhere" is exactly the cross-project token
-exposure the per-project boundary exists to prevent.
-
 ## Status
 
 The Go engine replaced the original bash/compose harness in this tree
 (that line lives in git history up to tag `v0.7.3`). There is no
-migration: old installs reinstall, projects `vibe init` fresh. No release
-is tagged yet; [ROADMAP.md](ROADMAP.md) lays out the path to v1.0,
+migration: old installs reinstall, projects `vibe init` fresh.
+[ROADMAP.md](ROADMAP.md) lays out the path to v1.0,
 [CHANGELOG.md](CHANGELOG.md) has the cutover details, and
 [BACKLOG.md](BACKLOG.md) holds the unscheduled ideas.
 
