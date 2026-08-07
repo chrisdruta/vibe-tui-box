@@ -288,15 +288,20 @@ history). Read the mechanisms as historical; the calls stand.
   `bin/vibe dev sync`.
 
 - **Clipboard: `set-clipboard external`, passthrough stays on
-  (2026-08-06, Chris).** The OSC 52 paste-jacking trade is settled and
-  written down in docs/security.md "Terminal passthrough": the UI
-  server refuses OSC 52 from pane applications (the channel container
-  bytes ride) while the operator's copy-mode yanks still reach the
-  system clipboard; `allow-passthrough` stays on for sixel, with the
-  emulator's own clipboard setting named as the second lock against
-  wrapped smuggling. Container-nvim yanks landing on the host
-  clipboard is the accepted casualty. Revisit only if sixel leaves
-  the picture.
+  (2026-08-06, Chris; SUPERSEDED 2026-08-07, Chris — back to `on`).**
+  `external` refused OSC 52 from all pane applications, not just
+  container bytes: an account-login link deliverable only via OSC 52
+  was uncopyable, and completing the login required reverting the
+  setting live (edit, rebuild, `dev sync`). The usability degradation
+  (dead pane-copy paths, the already-accepted container-nvim
+  casualty, now login flows) outweighed the paste-jacking protection,
+  and the exposure is accepted knowingly — the emulator's own
+  clipboard-write setting remains the lock, as the original record
+  already named. `allow-passthrough` stays on for sixel unchanged.
+  The original record: the UI server refuses OSC 52 from pane
+  applications (the channel container bytes ride) while the
+  operator's copy-mode yanks still reach the system clipboard;
+  docs/security.md "Terminal passthrough" carries the full trade.
 
 - **Roster stays render-only — no dismiss affordance (2026-07-25;
   SUPERSEDED 2026-07-28, Chris — the sidebar right-click design).**

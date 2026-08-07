@@ -122,7 +122,8 @@ content digest. The build context is a restricted copy containing only
 the Dockerfile and `.vibe/build/`; the env file and manifest never
 reach it.
 
-## Terminal passthrough (decision record, 2026-08-06)
+## Terminal passthrough (decision record, 2026-08-06; clipboard part
+superseded 2026-08-07)
 
 The UI server runs with `allow-passthrough on` — sixel image preview
 (`show-image.sh`) needs raw escape sequences to reach the outer
@@ -131,18 +132,21 @@ sequence authored inside a container can reach your terminal emulator,
 and what it can do there is decided by the emulator's own settings,
 not by vibe. The one concrete abuse with a tmux-side answer is
 clipboard writing (OSC 52 paste-jacking: the agent silently replaces
-what you next paste into a host shell), and that is closed where tmux
-can close it: the UI server sets `set-clipboard external`, so tmux
-forwards its *own* copy-mode yanks to the system clipboard but refuses
-OSC 52 arriving from pane applications — which is exactly the channel
-container bytes ride. Costs and residuals, recorded on purpose:
-yanking inside container nvim no longer reaches the host clipboard
-(copy from the host layer instead), and a passthrough-wrapped OSC 52
-can still be smuggled past tmux to the emulator itself — disable
-clipboard write access in your terminal emulator if you want that door
-shut too. Turning `allow-passthrough` off entirely would close the
-class at the cost of image preview; revisit if sixel leaves the
-picture.
+what you next paste into a host shell). The 2026-08-06 record closed
+it with `set-clipboard external` — tmux forwards its own copy-mode
+yanks but refuses OSC 52 from pane applications. That lasted one day
+in practice: `external` also refuses *legitimate* pane-application
+copies, and an account-login flow whose link was only deliverable via
+OSC 52 became uncopyable, forcing a live revert to complete the
+login. The UI server now sets `set-clipboard on`: container-authored
+OSC 52 reaches the system clipboard, and the paste-jacking exposure
+is accepted knowingly — the operator judged the usability cost of
+`external` (dead pane-copy paths, container nvim yanks, login-link
+flows) higher than the risk. The remaining lock is your terminal
+emulator's own clipboard-write setting; disable it there if you want
+the door shut. Turning `allow-passthrough` off entirely would still
+close the wrapped-escape class at the cost of image preview; revisit
+if sixel leaves the picture.
 
 ## What is *not* protected
 
