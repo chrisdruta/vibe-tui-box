@@ -76,13 +76,16 @@ tagged prerelease.
       `CGO_ENABLED=0`, reproducible archives (verified: two builds of
       one commit are byte-identical), `checksums.txt`, version+commit
       stamped into `vibe version`. A pushed `v*` tag becomes a DRAFT
-      release; publishing stays the operator's click. Untested against
-      a live tag until the beta below runs through it. (Also fixed en
+      release; publishing stays the operator's click. Proven against a
+      live tag by the beta below (2026-08-07). (Also fixed en
       route: the module rename had mangled `DefaultBaseURL` to
       `https://vibe/...` — now restored and pinned by test.)
-- [ ] Tag `v1.0.0-beta.1`; exercise `vibe update --version` and
-      `vibe provision` against the real release assets (the code paths exist
-      and are tested against fixtures; they have never seen a live release).
+- [x] Tag `v1.0.0-beta.1`; exercise `vibe update --version` and
+      `vibe provision` against the real release assets — DONE 2026-08-07.
+      Tag pushed, workflow produced the draft with all four assets,
+      published as a prerelease, and both commands ran clean against the
+      live release on the author's WSL2 host: the update/provision paths
+      have now seen a real release.
 - [ ] Real-daemon CI for the build paths: tools-image generation, extension
       builds, and dev builds (today only `TestSDKLifecycle` meets a daemon).
 - [x] **Decide the `harness:` manifest field — REMOVED (2026-07-28).** It

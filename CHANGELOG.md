@@ -5,6 +5,13 @@ points (see [docs/installation.md](docs/installation.md)).
 
 ## Unreleased — v2 cutover
 
+**First tagged prerelease: `v1.0.0-beta.1` (2026-08-07).** Everything
+in this section rode into it. The release pipeline's first live run:
+tag → CI-verified draft with three platform archives + checksums →
+published as a prerelease, then `vibe update --version` and
+`vibe provision` exercised clean against the real assets (ROADMAP R1).
+This section keeps accumulating until `v1.0.0` folds it in.
+
 **BREAKING: the bash/compose harness is gone; `vibe` is one compiled Go
 binary.** Clean slate, no migration: v1 installs reinstall
 ([docs/installation.md](docs/installation.md)), projects `vibe init` fresh.
