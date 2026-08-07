@@ -17,15 +17,16 @@ present, feeds the sidebar's branch and churn display). The binary
 embeds everything the container mounts, so installing it installs the
 whole harness.
 
-### What it is
+### What vibe-tui-box is
 
 - **A cockpit, not a wrapper.** A host tmux TUI keeps every project's
-  agents in view with live state dots pushed by the agents' own hooks, and
-  review happens in-container.
+  agents in view with live state dots pushed by the agents' own hooks,
+  and review happens in-container.
 - **Closed by construction.** One closed `vibe.yaml` per project: no raw
   Docker, Compose, or shell passthrough anywhere in the schema. Containers
   drop all capabilities, set `no-new-privileges`, publish ports on
-  loopback only, and never see the Docker socket or your host home.
+  loopback only, and never get the Docker socket or your host home
+  mounted.
 - **Deterministic by digest.** Every `up` freezes inputs into a
   content-addressed snapshot and compiles a canonical plan. Identical
   inputs produce the identical candidate, and what you approved is exactly
@@ -117,19 +118,21 @@ the host. The full command surface is in [docs/usage.md](docs/usage.md).
 
 ## The cockpit
 
-`vibe tui` opens a host tmux session per project, and one tab runs the
-whole fleet:
+`vibe tui` opens a host tmux session per project, and one terminal tab
+holds the whole fleet — every window keeps it in view:
 
 - A sidebar keeps every project's agents, workspace services, and
-  engine sidecars in view, with live state dots pushed by the agents'
-  own hooks — nothing polls.
+  engine sidecars in view; agent state dots are pushed by the agents'
+  own hooks, not polled.
 - Agents run in tmux *inside* the container, so a closed terminal
   never kills a session.
 - Reviewing their work needs nothing on the host: `prefix+f`
   (nvim + oil) and `prefix+g` (lazygit) open popups running in the
   container, pinned into the image at exact versions.
-- A full-width host dock (`prefix+t`, VS Code ``ctrl+` `` feel) and a
-  chooser for launching whatever the image installed.
+- A command palette (`prefix+Space`) is the complete surface; a
+  full-width host dock (`prefix+t`, VS Code ``ctrl+` `` feel) and an
+  agents chooser — launch what's down, reach what's up — round out
+  the chrome.
 - Images preview over sixel, ctrl+click opens a path in nvim at its
   line, and `prefix+v` carries a host clipboard image through the
   boundary into the agent's prompt.
