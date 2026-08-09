@@ -10,7 +10,7 @@ import (
 
 var (
 	allAgents     = []schema.AgentSpec{{Kind: schema.AgentClaude}, {Kind: schema.AgentCodex}, {Kind: schema.AgentGrok}}
-	allToolchains = []schema.Toolchain{schema.ToolchainNode, schema.ToolchainBun, schema.ToolchainGo, schema.ToolchainRokit}
+	allToolchains = []schema.Toolchain{schema.ToolchainNode, schema.ToolchainBun, schema.ToolchainGo, schema.ToolchainRokit, schema.ToolchainUv}
 )
 
 func TestGenerateInstallEmpty(t *testing.T) {
@@ -119,16 +119,16 @@ func TestGenerateInstallRefresh(t *testing.T) {
 	}
 	// The pinned system toolchains sit in earlier layers and must not
 	// carry a cache-buster.
-	for _, layer := range []string{"go.dev/dl/go" + goVersion, "bun-v" + bunVersion, "rokit-" + rokitVersion} {
+	for _, layer := range []string{"go.dev/dl/go" + goVersion, "bun-v" + bunVersion, "rokit-" + rokitVersion, "astral.sh/uv/" + uvVersion} {
 		if !strings.Contains(out, layer) {
 			t.Fatalf("missing pinned layer %q", layer)
 		}
 	}
-	// bun/rokit precede the first cache-buster declaration, so a
+	// bun/rokit/uv precede the first cache-buster declaration, so a
 	// refresh never re-runs the engine-pinned user layers (remainder
 	// item 6).
 	buster := strings.Index(out, agentRefreshArgPrefix)
-	for _, layer := range []string{"bun-v" + bunVersion, "rokit-" + rokitVersion} {
+	for _, layer := range []string{"bun-v" + bunVersion, "rokit-" + rokitVersion, "astral.sh/uv/" + uvVersion} {
 		if strings.Index(out, layer) > buster {
 			t.Fatalf("pinned layer %q sits after the cache-buster:\n%s", layer, out)
 		}
@@ -334,6 +334,17 @@ func TestGenerateInstallContent(t *testing.T) {
 			name:       "bun pinned",
 			toolchains: []schema.Toolchain{schema.ToolchainBun},
 			want:       []string{"bun-v" + bunVersion, "ENV PATH=/home/vscode/.bun/bin:${PATH}"},
+		},
+		{
+			name:       "uv pinned into the agents' bin dir",
+			toolchains: []schema.Toolchain{schema.ToolchainUv},
+			want: []string{
+				"astral.sh/uv/" + uvVersion + "/install.sh",
+				"UV_NO_MODIFY_PATH=1",
+				"test -x /home/vscode/.local/bin/uv",
+				"ENV PATH=/home/vscode/.local/bin:${PATH}",
+			},
+			absent: []string{"nodesource", "bun.sh", "rokit", "go.dev"},
 		},
 	}
 	for _, tt := range tests {

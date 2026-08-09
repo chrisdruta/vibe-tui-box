@@ -15,7 +15,7 @@ schema: 1
 image:
   base: "mcr.microsoft.com/devcontainers/base:debian"
   agents: [claude, codex]     # claude | codex | grok; claude@2.1.220 pins, claude@stable tracks that channel, bare = latest per rebuild
-  toolchains: [go]            # node | bun | go | rokit
+  toolchains: [go]            # node | bun | go | rokit | uv
   extension: true             # opt into .vibe/Dockerfile (see extending.md)
 runtime:
   ports: ["127.0.0.1:34872:34872"]

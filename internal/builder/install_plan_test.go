@@ -77,7 +77,7 @@ func TestGenerateInstallPlanParts(t *testing.T) {
 	}
 	// Agents run codex, grok, claude — claude last (most volatile; a
 	// layer-cache miss rebuilds everything after it).
-	want := []string{"base", "tmux", "chafa", "review", "plugins", "parsers", "gh", "go", "node", "rokit", "bun", "codex", "grok", "claude"}
+	want := []string{"base", "tmux", "chafa", "review", "plugins", "parsers", "gh", "go", "node", "rokit", "bun", "uv", "codex", "grok", "claude"}
 	if strings.Join(ids, " ") != strings.Join(want, " ") {
 		t.Fatalf("part order: got %v want %v", ids, want)
 	}

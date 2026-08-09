@@ -312,7 +312,13 @@
       "mode": "0644",
       "size": 535,
       "digest": "sha256:f532e3af1213fc4cdded2ec2946aeccbc8ef938d09767ac104e52250533d4dd6"
+    },
+    {
+      "path": "presets/python/vibe.yaml.tmpl",
+      "mode": "0644",
+      "size": 340,
+      "digest": "sha256:5735db20bcd89d7abfccba525d73f782233cb1ff47b15813e4eeaecacedf16f7"
     }
   ],
-  "digest": "sha256:158a7a26f4c113607c53a7871feadd7e90f59c9534181474aa63661aa6c4162d"
+  "digest": "sha256:3a3a3e1493a1df36e392d583c6b296976a1d084ab6115f05ae7ba33cf3f695e5"
 }

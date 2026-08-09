@@ -33,6 +33,7 @@ const (
 	nodeMajor     = "22"
 	bunVersion    = "1.3.14"
 	rokitVersion  = "1.2.0"
+	uvVersion     = "0.12.3"
 	goVersion     = "1.26.5"
 	goSHA256AMD64 = "5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053"
 	goSHA256ARM64 = "fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49"
@@ -323,10 +324,10 @@ func wantsAgent(want map[string]bool) bool {
 
 // pathEntries lists the bin directories the selection installs into,
 // in fixed v1 PATH order. Node needs none: nodesource installs to
-// /usr/bin.
+// /usr/bin; uv shares the agents' ~/.local/bin.
 func pathEntries(want map[string]bool) []string {
 	var out []string
-	if wantsAgent(want) {
+	if wantsAgent(want) || want[string(schema.ToolchainUv)] {
 		out = append(out, "/home/vscode/.local/bin")
 	}
 	if want[string(schema.ToolchainBun)] {
@@ -570,7 +571,7 @@ func refreshArgDecl(bust bool, kind schema.AgentKind) string {
 }
 
 // userLayers renders the layers that install as vscode into the home
-// directory. Fixed order: bun, rokit, then agents as codex, grok,
+// directory. Fixed order: bun, rokit, uv, then agents as codex, grok,
 // claude — the engine-pinned toolchains sit BEFORE the agents so a
 // refresh-busted agent chain never re-runs them (branch-review
 // remainder item 6), and claude sits LAST among the agents because it
@@ -609,6 +610,13 @@ func userLayers(want map[string]bool, pin map[schema.AgentKind]string, refresh b
     && unzip -q rokit.zip \
     && ./rokit self-install \
     && rm -rf "$tmp"
+`})
+	}
+	if want[string(schema.ToolchainUv)] {
+		// The versioned installer URL pins exactly; UV_NO_MODIFY_PATH
+		// keeps it out of rc files (the ENV above owns PATH).
+		out = append(out, installChunk{part: InstallPart{ID: "uv", Title: "uv", Detail: uvVersion}, text: `RUN curl -fsSL https://astral.sh/uv/` + uvVersion + `/install.sh | env UV_INSTALL_DIR=/home/vscode/.local/bin UV_NO_MODIFY_PATH=1 sh \
+    && test -x /home/vscode/.local/bin/uv
 `})
 	}
 	if want[string(schema.AgentCodex)] {

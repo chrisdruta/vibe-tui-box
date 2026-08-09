@@ -1,0 +1,13 @@
+# Project manifest for the vibe harness (schema 1). Seeded by
+# `vibe init` from the "python" preset; edit freely, then `vibe up`.
+schema: 1
+image:
+  base: "mcr.microsoft.com/devcontainers/base:debian"
+  agents: [claude, codex]
+  toolchains: [uv]
+agent:
+  cmd: claude
+  tmux: true
+  memory: {{.AutoMemory}}
+bootstrap:
+  required: [git, uv]

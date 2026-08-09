@@ -198,15 +198,16 @@ const (
 	ToolchainBun   Toolchain = "bun"
 	ToolchainGo    Toolchain = "go"
 	ToolchainRokit Toolchain = "rokit"
+	ToolchainUv    Toolchain = "uv"
 )
 
 func (t *Toolchain) UnmarshalText(b []byte) error {
 	switch v := Toolchain(b); v {
-	case ToolchainNode, ToolchainBun, ToolchainGo, ToolchainRokit:
+	case ToolchainNode, ToolchainBun, ToolchainGo, ToolchainRokit, ToolchainUv:
 		*t = v
 		return nil
 	default:
-		return fmt.Errorf("%w: toolchain %q: known toolchains are node, bun, go, rokit", domain.ErrInvalid, b)
+		return fmt.Errorf("%w: toolchain %q: known toolchains are node, bun, go, rokit, uv", domain.ErrInvalid, b)
 	}
 }
 
