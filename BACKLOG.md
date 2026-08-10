@@ -52,6 +52,28 @@ section at the bottom — as revisable records, not fences.
   `--list-presets`; or make bare interactive `init` ask which preset,
   same pattern as the auto-memory question. Not release-blocking.
 
+- **Sidebar wheel-scroll for extreme fleets (2026-08-10).** The shrink
+  ladder (tui-layout.md, the fleet section) keeps every project on the
+  frame by compressing non-self blocks to signal rows, ending in a
+  `… +N projects` tally when even that overflows. Past the tally the
+  answer is a real scroll: the wheel is already claimed and swallowed
+  on sidebar panes (the `[0/0]` fix), so a `@vibe_sidebar_off` row
+  offset can ride it — frame render windows by the offset (the click
+  map is row-keyed and shifts with it), `▲`/`▼` edge markers carry a
+  bright dot when a hidden project has signal, and switching projects
+  auto-scrolls the active block into view. Demand-gated on a fleet the
+  ladder can't hold (~10+ live projects).
+
+- **Manual sidebar ordering (2026-08-10).** Projects sort
+  alphabetically by display name (frame.go), cold rows after — stable
+  on purpose: recency auto-sort was considered and rejected (it
+  reshuffles rows mid-work, destroying spatial memory and click
+  targets — the same jump class the 2026-08-10 meta-line fix killed).
+  When alphabetical stops matching priority, the answer is an optional
+  operator-set weight in the registry record (`vibe move <project>
+  up|down|N` or a palette action), sorting weight-then-name.
+  Demand-gated on actually feeling misordered.
+
 - **Reduced-trust profile for unattended runs (`vibe agent --jailed`).**
   A weaker-trust posture for letting an agent run without a human watching:
   read-only workspace bind (or a disposable worktree bind), a scratch

@@ -365,6 +365,56 @@ func rowAge(now, epoch int64) string {
 	return CompactAge(now - epoch)
 }
 
+// frameBlock is one assembled project block awaiting layout: the
+// assembly pass fills it, the budget pass measures and caps it, the
+// draw pass spends it (2026-08-10 — the two-pass split that keeps
+// every project on the frame under height pressure).
+type frameBlock struct {
+	sess     FrameSession
+	self     bool
+	agents   []agentRow
+	services []agentRow
+	meta     []string // wrapped meta rows, ready to draw
+	roster   int      // natural roster rows, the budget pass's measure
+	cap      int      // roster row cap under pressure; -1 = uncapped
+}
+
+// signalCap is the pressure budget for one non-self roster: exactly
+// the rows rosterBlock keeps when every dim row folds — the group
+// headers, the non-dim (signal) rows, and the `+N more` marker when
+// anything hid. Zero for a fully quiet roster: the block collapses to
+// name + meta, the cheapest shape that still names the project. The
+// header/marker arithmetic mirrors rosterBlock's — the two must agree
+// or the cap either wastes a row or folds a signal one.
+func signalCap(agents, services []agentRow) int {
+	signal := 0
+	for _, r := range agents {
+		if !r.dim {
+			signal++
+		}
+	}
+	for _, r := range services {
+		if !r.dim {
+			signal++
+		}
+	}
+	if signal == 0 {
+		return 0
+	}
+	headers := 0
+	if len(services) > 0 {
+		headers = 1
+		if len(agents) > 0 {
+			headers = 2
+		}
+	}
+	marker := 0
+	if signal < len(agents)+len(services) {
+		marker = 1
+	}
+	return headers + signal + marker
+}
+
 // rosterBlock lays out one project block's roster within avail rows:
 // grouped under counted `agents` / `services` headers when services
 // exist (flat otherwise, so the common agents-only project pays
@@ -564,12 +614,17 @@ func Frame(in FrameInput) FrameOutput {
 	ghosts, ghostMap := "", ""
 	var spin []string
 	seen := map[string]bool{}
+	// Pass 1 ASSEMBLES every block (rows, meta, the ghost join) without
+	// touching the canvas; the budget pass between the two decides each
+	// roster's row cap, and pass 2 draws. Split on purpose (2026-08-10,
+	// Chris — the dock-expanded dogfood: the old single greedy pass
+	// spent the height on the top blocks and the BOTTOM projects fell
+	// off the frame entirely, name and all, with no indicator): under
+	// height pressure every project stays visible and shrinks instead
+	// — see the budget pass for the ladder.
+	var blocks []frameBlock
 	for _, s := range sessions {
 		self := s.ID == in.SelfSession
-		gutter, nameC := " "+bar+ansiReset, cDim
-		if self {
-			gutter, nameC = " "+selfB+ansiReset, cFG
-		}
 		// Every live agent is a ROW — the sidebar is the project's
 		// roster (2026-07-26, Chris; supersedes idle-collapses-to-dot:
 		// three dogfood rounds read the dim dot as "claude is
@@ -753,8 +808,6 @@ func Frame(in FrameInput) FrameOutput {
 		if self {
 			ghosts, ghostMap = ghostCells(agentsByProject[s.Project], viewed)
 		}
-		c.putAt(row, gutter+ansiBold+nameC+terminal.Line(s.Name, max)+ansiReset, s.ID)
-		row++
 		// The dim meta line under the name (2026-07-26, supersedes the
 		// separate branch row + multi-line detail block): branch, then
 		// engine facts — the own project's compact `vibe _sidebar`
@@ -797,7 +850,64 @@ func Frame(in FrameInput) FrameOutput {
 				meta = append(meta, "dev")
 			}
 		}
-		for _, line := range wrapSegments(meta, max-2) {
+		blocks = append(blocks, frameBlock{
+			sess: s, self: self,
+			agents: agents, services: services,
+			meta: wrapSegments(meta, max-2),
+			cap:  -1,
+		})
+	}
+	// Cold registered projects, resolved before layout so the budget
+	// pass can count every fleet row it owes a slot.
+	var cold []FleetEntry
+	for _, f := range in.Fleet {
+		if !seen[f.ID] {
+			cold = append(cold, f)
+		}
+	}
+	// The budget pass — the shrink ladder (2026-08-10, Chris; the
+	// per-block fold rules are rosterBlock's, this only sets each
+	// block's row cap). Natural heights first; when the fleet fits,
+	// nothing changes. Under pressure every NON-SELF block is capped to
+	// its signal rows (rosterBlock folds dim rows first, so the cap
+	// keeps exactly the rows that need eyes plus the `+N more` marker;
+	// a fully quiet roster caps to zero and the block collapses to
+	// name + meta) — the self block always keeps its full roster: it
+	// is the one being worked. Degrade by shrinking, never by hiding —
+	// a project with an attention dot must survive any dock height.
+	need := 0
+	for i := range blocks {
+		blocks[i].roster = len(rosterBlock(blocks[i].agents, blocks[i].services, 1<<20, blocks[i].sess.SvcFold))
+		need += 2 + len(blocks[i].meta) + blocks[i].roster // name + meta + roster + slop
+	}
+	if need+len(cold) > c.limit-1 {
+		for i := range blocks {
+			if blocks[i].self {
+				continue
+			}
+			blocks[i].cap = signalCap(blocks[i].agents, blocks[i].services)
+		}
+	}
+	// Pass 2 draws the budgeted blocks. Even compressed, an extreme
+	// fleet can outgrow the pane — then the last slot becomes a dim
+	// `… +N projects` tally (same vocabulary as the per-block `+N
+	// more`) instead of the old silent clip; true scrolling is the
+	// backlogged answer past this point.
+	hiddenFleet := 0
+	for bi := range blocks {
+		b := blocks[bi]
+		if rest := len(blocks) - bi + len(cold); rest > 1 && row+1 >= c.limit {
+			hiddenFleet = rest
+			break
+		}
+		s, agents, services := b.sess, b.agents, b.services
+		gutter, nameC := " "+bar+ansiReset, cDim
+		if b.self {
+			gutter, nameC = " "+selfB+ansiReset, cFG
+		}
+		c.putAt(row, gutter+ansiBold+nameC+terminal.Line(s.Name, max)+ansiReset, s.ID)
+		row++
+		for _, line := range b.meta {
 			c.putAt(row, gutter+"  "+cDim+terminal.Line(line, max-2)+ansiReset, s.ID)
 			row++
 		}
@@ -808,6 +918,9 @@ func Frame(in FrameInput) FrameOutput {
 		avail := c.limit - row - 1
 		if avail < 0 {
 			avail = 0
+		}
+		if b.cap >= 0 && avail > b.cap {
+			avail = b.cap
 		}
 		for _, a := range rosterBlock(agents, services, avail, s.SvcFold) {
 			if a.header {
@@ -862,16 +975,32 @@ func Frame(in FrameInput) FrameOutput {
 	// visibly changed NOTHING — cold only encodes sessionless, so a
 	// running project's row must say ● for the dispatched up to have
 	// an effect the eye can find).
-	for _, f := range in.Fleet {
-		if seen[f.ID] {
-			continue
+	if hiddenFleet == 0 {
+		for i, f := range cold {
+			if len(cold)-i > 1 && row+1 >= c.limit {
+				hiddenFleet = len(cold) - i
+				break
+			}
+			glyph := f.Token
+			if glyph == "" {
+				glyph = string(StateNone)
+			}
+			c.putAt(row, "  "+cDim+glyph+" "+terminal.Line(f.Name, max-2)+ansiReset, "cold-"+f.ID)
+			row++
 		}
-		glyph := f.Token
-		if glyph == "" {
-			glyph = string(StateNone)
+	}
+	if hiddenFleet > 0 {
+		// Render-only: the tally names the loss, the backlogged scroll
+		// will reach it. Clamped onto the last content row when the
+		// break landed past it — later writes win on a row, so at
+		// worst it repaints a blank slop row.
+		if row >= c.limit {
+			row = c.limit - 1
 		}
-		c.putAt(row, "  "+cDim+glyph+" "+terminal.Line(f.Name, max-2)+ansiReset, "cold-"+f.ID)
-		row++
+		if row >= 0 {
+			c.putAt(row, "  "+cDim+terminal.Line(fmt.Sprintf("… +%d projects", hiddenFleet), max-2)+ansiReset, "")
+			row++
+		}
 	}
 	// Clear everything below the fleet section: rows a shrinking frame
 	// no longer draws would otherwise persist on the pane.

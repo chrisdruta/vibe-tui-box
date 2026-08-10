@@ -949,7 +949,18 @@ never does layout math. The contract the renderer implements:
   show): one line stays the common case, and this is overflow-driven
   wrapping, not a revival of the rejected always-on multi-line block.
   A single segment wider than the budget still character-clips — the
-  safety net, not the design. Non-agent rows claim the session as
+  safety net, not the design. Under HEIGHT pressure the frame shrinks
+  before it hides (2026-08-10, Chris — the dock-expanded dogfood: the
+  old greedy pass spent the pane on the top blocks and the bottom
+  projects fell off entirely, names and all): a measure pass takes
+  every block's natural height, and when the fleet doesn't fit,
+  non-self rosters cap to their SIGNAL rows (rosterBlock's dim-first
+  fold does the hiding, so attention/dead rows and the `+N more`
+  marker survive; a fully quiet roster caps to zero and the block
+  collapses to name + meta) while the self block always keeps its
+  full roster. A fleet that outgrows even that ends in a dim
+  `… +N projects` tally row, never a silent clip; true wheel-scroll
+  past that point is backlogged. Non-agent rows claim the session as
   click target. Cold registered projects (fleet entries with no live
   session) render dim and barless behind their fleet state token —
   cold only encodes SESSIONLESS, so a running project's row says `●`.

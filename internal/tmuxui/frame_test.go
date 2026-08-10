@@ -1228,3 +1228,94 @@ func TestFrameGroupedOverflowCountsEntries(t *testing.T) {
 		t.Fatalf("no overflow slot: %v", rows)
 	}
 }
+
+// pressureInput: three live projects whose natural blocks outgrow the
+// pane — alpha is self with two idle agents, beta is fully quiet,
+// gamma has one attention agent among idles.
+func pressureInput(height int) FrameInput {
+	return FrameInput{
+		Width: 30, Height: height, SelfSession: "$1",
+		Sessions: []FrameSession{
+			{ID: "$1", Name: "alpha", Path: "/a", Project: "pa", Windows: []FrameWindow{
+				{ID: "@1", Name: "claude", Glyph: "●", DotHex: "#111111", State: "idle", Session: "agent-a1"},
+				{ID: "@2", Name: "codex", Glyph: "●", DotHex: "#111111", State: "idle", Session: "agent-a2"},
+			}},
+			{ID: "$2", Name: "beta", Path: "/b", Project: "pb", Windows: []FrameWindow{
+				{ID: "@3", Name: "claude", Glyph: "●", DotHex: "#111111", State: "idle", Session: "agent-b1"},
+				{ID: "@4", Name: "codex", Glyph: "●", DotHex: "#111111", State: "idle", Session: "agent-b2"},
+			}},
+			{ID: "$3", Name: "gamma", Path: "/g", Project: "pg", Windows: []FrameWindow{
+				{ID: "@5", Name: "claude", Glyph: "●", DotHex: "#111111", Attn: true, State: "attention", Session: "agent-g1"},
+				{ID: "@6", Name: "codex", Glyph: "●", DotHex: "#111111", State: "idle", Session: "agent-g2"},
+				{ID: "@7", Name: "grok", Glyph: "●", DotHex: "#111111", State: "idle", Session: "agent-g3"},
+			}},
+		},
+	}
+}
+
+// Under height pressure the shrink ladder keeps EVERY project on the
+// frame: non-self rosters cap to their signal rows (quiet blocks
+// collapse to the name row), the self block keeps its full roster, and
+// nothing needs a scroll to stay glanceable (2026-08-10).
+func TestFramePressureShrinksNeverHides(t *testing.T) {
+	// Natural need: alpha 4 + beta 4 + gamma 5 = 13 rows on a 10-row
+	// content area — pressure. Compressed: alpha 4 (self, full) + beta
+	// 2 (quiet, name only) + gamma 4 (attention row + `+2 more`) = 10.
+	out := Frame(pressureInput(12))
+	rows := frameRows(t, out.Body)
+	all := ""
+	for _, content := range rows {
+		all += content + "\n"
+	}
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		if !strings.Contains(all, name) {
+			t.Fatalf("project %q fell off the frame:\n%s", name, all)
+		}
+	}
+	// Self keeps both idle rows; quiet beta keeps none.
+	if strings.Count(all, "claude") < 2 {
+		t.Fatalf("self roster was compressed:\n%s", all)
+	}
+	var betaRoster, gammaSignal, gammaMore bool
+	for row, content := range rows {
+		if strings.Contains(content, "beta") {
+			if next, ok := rows[row+1]; ok && strings.Contains(next, "claude") {
+				betaRoster = true
+			}
+		}
+		if strings.Contains(content, "gamma") {
+			if next, ok := rows[row+1]; ok && strings.Contains(next, "claude") {
+				gammaSignal = true
+			}
+			if more, ok := rows[row+2]; ok && strings.Contains(more, "+2 more") {
+				gammaMore = true
+			}
+		}
+	}
+	if betaRoster {
+		t.Fatalf("quiet beta must collapse to its name row:\n%s", all)
+	}
+	if !gammaSignal || !gammaMore {
+		t.Fatalf("gamma must keep its attention row and fold the idle ones (+2 more):\n%s", all)
+	}
+	if strings.Contains(all, "projects") {
+		t.Fatalf("compressed fleet fits — no tally expected:\n%s", all)
+	}
+}
+
+// A fleet no compression can fit ends in a dim `… +N projects` tally,
+// never a silent clip.
+func TestFramePressureTalliesTheRest(t *testing.T) {
+	out := Frame(pressureInput(6))
+	rows := frameRows(t, out.Body)
+	all := ""
+	for _, content := range rows {
+		all += content + "\n"
+	}
+	if !strings.Contains(all, "alpha") {
+		t.Fatalf("first block must render:\n%s", all)
+	}
+	if !strings.Contains(all, "+2 projects") {
+		t.Fatalf("clipped fleet must be tallied:\n%s", all)
+	}
+}
