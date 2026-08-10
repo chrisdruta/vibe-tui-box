@@ -48,7 +48,8 @@ exec tmux display-menu "$@" -M -O -T " vibe " \
   "host shell" h "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/win.sh' '#{session_id}'\"" \
   "" \
   "project sidebar" b "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/sidebar.sh' toggle '#{window_id}'\"" \
-  "host dock" t "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/dock.sh' '#{window_id}'\"" \
+  "dock" t "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/dock.sh' '#{window_id}'\"" \
+  "dock shell · container⇄host" T "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/dock.sh' flip '#{window_id}'\"" \
   "clip image → agent" v "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/clip-to-pane.sh' '#{window_id}' '#{client_name}'\"" \
   "projects (live)" o "choose-tree -Zs" \
   "files (nvim)" f "run-shell -b \"exec bash '#{@vibe_payload_dir}/scripts/review.sh' '#{client_name}' '#{window_id}' files\"" \

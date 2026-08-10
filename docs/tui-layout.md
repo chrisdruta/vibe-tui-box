@@ -109,7 +109,7 @@ Top-preferrers set `status-position top` in the user conf.
 | Segment | Content |
 | --- | --- |
 | branding | `🥡 <current project> (version)` start button (2026-08-04: the client's session `@vibe_name`, `vibe` before any session exists; 2026-08-10: the pinned engine version in dim parens — `@vibe_engine_ver`, moved off the sidebar meta line whose self-only row made project switches jump) — click opens the palette |
-| `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it. Sits in the LEFT cluster beside the brand (2026-07-29 polish pass — spliced into the absolute-centred winlist it floated with the tabs, a global chrome control reading as part of the window list; this table and the frame mockup always drew it at left). Outside the `#{client_prefix}` swap, it stays put while the cheatsheet replaces the middle |
+| `▤` cell | clickable — toggles the dock (prefix+t as a button; container shell by default since 2026-08-10 — "The dock's sub-tabs" below); clicking the collapsed dock strip itself also expands it. Sits in the LEFT cluster beside the brand (2026-07-29 polish pass — spliced into the absolute-centred winlist it floated with the tabs, a global chrome control reading as part of the window list; this table and the frame mockup always drew it at left). Outside the `#{client_prefix}` swap, it stays put while the cheatsheet replaces the middle |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
 | ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`ghost-N` index range resolved through `@vibe_ghost_map` → attach-only viewer spawn — range names clip at 15 bytes, "Launch surfaces"), rendered into `@vibe_ghosts` by `vibe _frame` |
 | `+` cell | clickable — opens the **agents chooser** (launch what's down, reach what's up — "Launch surfaces" below) |
@@ -180,6 +180,31 @@ language (bar position, accent overrides, extra binds), applied last so
 it wins. The store-owned conf is never forked, re-materialization never
 eats user edits, and `-q` keeps a missing file silent. Anything a knob
 would micro-manage lives here instead.
+
+### The dock's sub-tabs: container shell first (2026-08-10, Chris)
+
+The dock's actual job turned out to be launching a dev server and
+watching/stopping it — work that lives in the CONTAINER — so the dock
+now opens a container shell (`vibe shell` through `@vibe_exe`) and the
+host shell becomes the flip side. The border title is the sub-tab
+strip (`[container] · host` — brackets mark the shell in the slot):
+a clean click on the dock's top border row flips (MouseUp1Border,
+which never fires after a drag, so border drag-resize is untouched;
+dock.sh row-checks so every other border stays inert), prefix+T and
+the palette's `T` are the keyboard doors. Both shells stay ALIVE
+across flips: the parked one swaps into the detached `dockshelf`
+session (one window per origin window, `w<N>` for `@<N>` — the name
+dodges tmux's `@` window-id target grammar), so a dev server survives
+a visit to the host side. The shelf is invisible everywhere on
+purpose: `@vibe_shelf=1` blanks it out of the sidebar porcelain,
+ensure hooks exit early inside it, reap.sh never matches its name,
+and the window-unlinked hook reaps shelf windows whose origin died.
+`@vibe_role` stays `"host"` for whichever pane sits in the dock slot —
+the role names the SLOT (every conf gate keys on it), not the shell;
+`@vibe_dock_shell` carries that. Without an engine (bare tui) the dock
+degrades to the host shell alone and the flip refuses quietly; a
+container shell against a down container dies into the pane-died
+vocabulary and respawn retries it.
 
 ### Editor surfaces: the bundled review stack (2026-07-26, second call)
 

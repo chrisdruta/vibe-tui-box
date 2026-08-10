@@ -130,9 +130,10 @@ holds the whole fleet — every window keeps it in view:
   (nvim + oil) and `prefix+g` (lazygit) open popups running in the
   container, pinned into the image at exact versions.
 - A command palette (`prefix+Space`) is the complete surface; a
-  full-width host dock (`prefix+t`, VS Code ``ctrl+` `` feel) and an
-  agents chooser — launch what's down, reach what's up — round out
-  the chrome.
+  full-width dock (`prefix+t`, VS Code ``ctrl+` `` feel) opens a
+  container shell for dev servers — the host shell one border-click
+  away — and an agents chooser (launch what's down, reach what's up)
+  rounds out the chrome.
 - Images preview over sixel, ctrl+click opens a path in nvim at its
   line, and `prefix+v` carries a host clipboard image through the
   boundary into the agent's prompt.

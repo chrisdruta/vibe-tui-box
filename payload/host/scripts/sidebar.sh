@@ -120,6 +120,9 @@ EOF
 
 ensure_in() {
   win="$1"
+  # The dockshelf's windows are parked dock shells (dock.sh) — no
+  # sidebar grows there.
+  [ "$(tmux display-message -p -t "$win" '#{@vibe_shelf}' 2>/dev/null)" = "1" ] && return 0
   found=""
   for p in $(sidebar_panes "$win"); do
     if [ -z "$found" ]; then
@@ -398,7 +401,10 @@ frame() {
   out="$(
     {
       printf 'G%s%s\n' "$us" "$geo"
-      tmux list-sessions -F "S$us#{session_id}$us#{?#{@vibe_name},#{@vibe_name},#{session_name}}$us#{session_path}$us#{@vibe_project}$us#{@vibe_svc_fold}" 2>/dev/null
+      # The dockshelf (parked dock shells, dock.sh) renders as an empty
+      # line the frame parser skips — its windows drop with it, since a
+      # W row without its S row never joins.
+      tmux list-sessions -F "#{?#{@vibe_shelf},,S$us#{session_id}$us#{?#{@vibe_name},#{@vibe_name},#{session_name}}$us#{session_path}$us#{@vibe_project}$us#{@vibe_svc_fold}}" 2>/dev/null
       tmux list-windows -a -F "W$us#{session_id}$us#{@vibe_glyph}$us#{@vibe_dot_fg}$us#{@vibe_attn}$us#{window_id}$us#{window_name}$us#{window_active}$us#{@vibe_model}$us#{@vibe_state}$us#{@vibe_session}$us#{@vibe_state_epoch}" 2>/dev/null
     } | "$exe" _frame --cache "$cache_dir" --spin 2>/dev/null
   )" || return 0
