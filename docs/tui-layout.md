@@ -108,7 +108,7 @@ Top-preferrers set `status-position top` in the user conf.
 
 | Segment | Content |
 | --- | --- |
-| branding | `🥡 <current project>` start button (2026-08-04: the client's session `@vibe_name`, `vibe` before any session exists) — click opens the palette |
+| branding | `🥡 <current project> (version)` start button (2026-08-04: the client's session `@vibe_name`, `vibe` before any session exists; 2026-08-10: the pinned engine version in dim parens — `@vibe_engine_ver`, moved off the sidebar meta line whose self-only row made project switches jump) — click opens the palette |
 | `▤` cell | clickable — toggles the host dock (prefix+t as a button); clicking the collapsed dock strip itself also expands it. Sits in the LEFT cluster beside the brand (2026-07-29 polish pass — spliced into the absolute-centred winlist it floated with the tabs, a global chrome control reading as part of the window list; this table and the frame mockup always drew it at left). Outside the `#{client_prefix}` swap, it stays put while the cheatsheet replaces the middle |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
 | ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`ghost-N` index range resolved through `@vibe_ghost_map` → attach-only viewer spawn — range names clip at 15 bytes, "Launch surfaces"), rendered into `@vibe_ghosts` by `vibe _frame` |
@@ -939,7 +939,9 @@ never does layout math. The contract the renderer implements:
   multi-line detail block: three near-identical indented rows read as
   mush): `⎇ branch` then engine facts joined with ` · ` — the own
   project's compact `vibe _sidebar` line, other projects' fleet facts
-  (stale/stopped glyph, `▲n`, `dev`) — then the **nested agent
+  (stale/stopped glyph, `▲n`, `dev`; since 2026-08-10 both forms are
+  signal-only and agree row-for-row — see the engine-facts display
+  form below) — then the **nested agent
   rows**, and a blank slop row. Over the text budget the meta line
   **wraps at segment boundaries** onto continuation rows (2026-07-29,
   the polish pass — supersedes the raw character clip, whose
@@ -1001,19 +1003,26 @@ never does layout math. The contract the renderer implements:
   It exists for the cold start: the cheatsheet only appears once the
   prefix is already known.
 - The **engine-facts display form** (`vibe _sidebar`, views.go): ONE
-  compact line of ` · `-joined segments for the meta line — per
-  container its bare role when nominal (absence of a glyph IS the
-  nominal signal; the sidebar's ● belongs to agents alone), `◐ role`
-  stale / `○ role` stopped otherwise, the engine version riding the
-  first segment (`dev-` hashes stripped of the prefix, cut to 8, and
-  labeled: `dev build 9766b8d8` — 2026-07-31, Chris, the "what even
+  compact line of ` · `-joined SIGNAL segments for the meta line —
+  `◐ role` stale / `○ role` stopped, `▲n` pending, the `dev` chip. A
+  nominal container contributes nothing (2026-08-10, Chris —
+  supersedes the bare-role-when-nominal form: bare roles and the
+  version made the self block one row taller than its fleet
+  rendering, so every project switch jumped the rows below; absence
+  IS the nominal signal here too now, and self/fleet blocks keep the
+  same height for the same state). The engine version left this line
+  for the **tray's brand cell** the same day (`@vibe_engine_ver`,
+  session-scoped like `@vibe_name`, stamped at mint and restamped on
+  shim handoffs) but keeps its display form (views.go
+  DisplayVersion): `dev-` hashes stripped of the prefix, cut to 8,
+  and labeled `build 9766b8d8` — 2026-07-31, Chris, the "what even
   is this hash" dogfood: `build` names it in `vibe dev status`'s own
   vocabulary, whose binary digest this is the first 8 of; a
   git-SHA-instead was considered and rejected — the version string
   participates in content-addressed artifact-record reuse, so git
   identity would either break the identical-inputs-identical-records
   invariant or display stale SHAs on reused builds; release versions
-  as-is), then `▲n` pending. This
+  as-is. This
   supersedes the multi-line detail block with its `● dev · hash` rows
   (2026-07-26, same dogfood as the meta line: the detail's ● read as
   an agent named "dev"), which itself superseded the mode+version

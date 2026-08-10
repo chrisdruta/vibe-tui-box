@@ -17,6 +17,7 @@ import (
 	"vibe/internal/payload"
 	"vibe/internal/registry"
 	"vibe/internal/tmux"
+	"vibe/internal/tmuxui"
 )
 
 func TestStartApproved(t *testing.T) {
@@ -376,6 +377,9 @@ func TestTuiHappyPathWithConf(t *testing.T) {
 	}
 	if v, ok := rt.optionValue(session, "@vibe_project"); !ok || v != string(up.Record.ID) {
 		t.Fatalf("@vibe_project = %q (%v), want %q", v, ok, up.Record.ID)
+	}
+	if v, ok := rt.optionValue(session, "@vibe_engine_ver"); !ok || v != tmuxui.DisplayVersion(up.Record.ReleaseVersion) {
+		t.Fatalf("@vibe_engine_ver = %q (%v), want %q", v, ok, tmuxui.DisplayVersion(up.Record.ReleaseVersion))
 	}
 	// status-right stamped with the clickable engine-state cell; identity
 	// stays out of the bar on the rich path.

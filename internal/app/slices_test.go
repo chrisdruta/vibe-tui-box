@@ -780,11 +780,12 @@ func TestRenderersProduceProtocolLines(t *testing.T) {
 	if err != nil || len(state.Lines) != 1 || state.Lines[0] != "" {
 		t.Fatalf("state render: %+v, %v", state, err)
 	}
-	// _sidebar is display form too: the one compact meta segment line
-	// — a nominal container is its bare role (no glyph: ● belongs to
-	// agents on the sidebar surface).
+	// _sidebar is display form too, and nominal renders NOTHING — no
+	// bare roles, no version (the brand cell carries it): the self
+	// block must match its fleet rendering row-for-row or project
+	// switches jump (2026-08-10).
 	sidebar, err := a.RenderSidebar(ctx, RenderRequest{Project: rec.ID, Width: 40})
-	if err != nil || len(sidebar.Lines) != 1 || sidebar.Lines[0] != "dev" {
+	if err != nil || len(sidebar.Lines) != 0 {
 		t.Fatalf("sidebar render: %+v, %v", sidebar, err)
 	}
 	// _fleet porcelain: US-separated, version 3, project ID as join

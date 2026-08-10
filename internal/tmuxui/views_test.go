@@ -71,41 +71,64 @@ func TestSidebarDetailBlock(t *testing.T) {
 			}
 		}
 	}
-	// ONE compact line: a segment per non-sidecar container (bare role
-	// when nominal — no ● here, that dot belongs to agents; the version
-	// rides the first; sidecars render as services-tree rows instead),
-	// then ▲n — never the display name (bash-drawn) and never the old
-	// mode/state words.
+	// ONE compact line of SIGNAL only: ◐/○ roles, ▲n, the dev chip —
+	// nominal containers contribute nothing (the self block must match
+	// its fleet rendering row-for-row or project switches jump), never
+	// the display name (bash-drawn), never the version (the tray's
+	// brand cell carries it).
 	lines := Sidebar(v, 60)
-	if len(lines) != 1 || lines[0] != "dev v2.0.0 · ▲1" {
+	if len(lines) != 1 || lines[0] != "▲1" {
 		t.Fatalf("sidebar shape: %q", lines)
 	}
 	for _, line := range lines {
-		if strings.Contains(line, "myproj") {
-			t.Fatalf("detail block leaked the display name: %q", line)
+		if strings.Contains(line, "myproj") || strings.Contains(line, "v2.0.0") {
+			t.Fatalf("detail block leaked name or version: %q", line)
 		}
+	}
+	// Fully nominal renders NOTHING — no row, no jump.
+	v.Pending = 0
+	if lines := Sidebar(v, 60); lines != nil {
+		t.Fatalf("nominal project must render no detail line: %q", lines)
 	}
 }
 
-func TestSidebarDetailGlyphsAndDevHash(t *testing.T) {
+func TestSidebarDetailGlyphsAndDevChip(t *testing.T) {
 	v := runningView()
 	v.Mode, v.Version = "dev", "dev-9766b8d8ddce0f00"
 	v.Containers[0].InSync = false
 	v.Containers[1].Running = false
 	lines := Sidebar(v, 60)
-	// Stale renders ◐; the dev hash drops its prefix, cuts to 8, and
-	// wears the `build` label (the hex is the binary digest `vibe dev
-	// status` names). The stopped sidecar is NOT a segment — its row
-	// lives in the services tree.
-	if len(lines) != 1 || lines[0] != "◐ dev build 9766b8d8" {
-		t.Fatalf("stale/dev-hash line wrong: %q", lines)
+	// Stale renders ◐; dev mode appends its chip (mirroring the fleet
+	// meta). The stopped sidecar is NOT a segment — its row lives in
+	// the services tree — and the version stays off the line entirely.
+	if len(lines) != 1 || lines[0] != "◐ dev · dev" {
+		t.Fatalf("stale/dev line wrong: %q", lines)
 	}
-	// No containers: mode + version keep the line from rendering
-	// empty.
+	// No containers: only the dev chip renders, same as the fleet view
+	// of a cold dev project.
 	v.Containers = nil
 	lines = Sidebar(v, 60)
-	if len(lines) != 1 || lines[0] != "dev build 9766b8d8" {
+	if len(lines) != 1 || lines[0] != "dev" {
 		t.Fatalf("containerless line wrong: %q", lines)
+	}
+}
+
+func TestDisplayVersion(t *testing.T) {
+	// The dev hash drops its prefix, cuts to 8, and wears the `build`
+	// label (the hex is the binary digest `vibe dev status` names);
+	// releases pass through.
+	if got := DisplayVersion("dev-9766b8d8ddce0f00"); got != "build 9766b8d8" {
+		t.Fatalf("dev hash: %q", got)
+	}
+	if got := DisplayVersion("v1.0.0-beta.1"); got != "v1.0.0-beta.1" {
+		t.Fatalf("release: %q", got)
+	}
+	if got := DisplayVersion(""); got != "" {
+		t.Fatalf("empty: %q", got)
+	}
+	// Semi-trusted: control bytes never reach the status format.
+	if got := DisplayVersion("v2\x1b]0;pwned\a.0"); strings.ContainsAny(got, "\x1b\a\n") {
+		t.Fatalf("leaked control bytes: %q", got)
 	}
 }
 
@@ -155,8 +178,8 @@ func TestFleetSanitizesDisplayName(t *testing.T) {
 
 func TestSidebarSanitizesSemiTrustedText(t *testing.T) {
 	v := runningView()
-	v.Version = "v2\x1b]0;pwned\a.0"
 	v.Containers[0].Role = "dev\adev"
+	v.Containers[0].InSync = false // nominal roles never render — make it speak
 	for _, line := range Sidebar(v, 80) {
 		if strings.ContainsAny(line, "\x1b\a\n") {
 			t.Fatalf("sidebar leaked control bytes: %q", line)

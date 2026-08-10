@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"vibe/internal/registry"
+	"vibe/internal/tmux"
+	"vibe/internal/tmuxui"
 )
 
 // bumpTuiSerial signals the tui that engine truth moved: state-mutating
@@ -68,5 +70,9 @@ func (a *App) restampTui(ctx context.Context, rec registry.Record, exe string) {
 	}
 	_ = a.deps.Tmux.SetGlobalOption(ctx, "@vibe_exe", exe)
 	_ = a.deps.Tmux.SetGlobalOption(ctx, "@vibe_payload_dir", hostDir)
+	// The brand cell's version chip follows the handoff too (the join
+	// stamped the OLD pin at mint); session-scoped, and best-effort
+	// like everything else here — no session, no chip to fix.
+	_ = a.deps.Tmux.SetOption(ctx, tmux.SessionFor(rec.ID), "@vibe_engine_ver", tmuxui.DisplayVersion(rec.ReleaseVersion))
 	_ = a.deps.Tmux.SourceFile(ctx, conf)
 }

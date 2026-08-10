@@ -100,61 +100,66 @@ func State(v ProjectView) string {
 // meta row (docs/tui-layout.md, the meta line — 2026-07-26,
 // supersedes the multi-line detail block: three near-identical
 // indented rows read as mush, and the detail's ● collided with the
-// roster's agents-only dot). Segments join with ` · `: one per
-// container — bare role when nominal (absence of a glyph IS the
-// nominal signal), ◐/○ prefixed when stale/stopped — with the engine
-// version riding the first (`dev-` hashes render as `build <hex8>` —
-// 2026-07-31, Chris: the bare hash kept reading as "what even is
-// this?"; `build` names it in `vibe dev status`'s own vocabulary
-// ("dev build: source → binary", and the hex IS the binary digest's
-// first 8) — release versions as-is), then `▲n` for pending. `sidecar:*`
-// containers are NOT segments (2026-07-31, Chris — `sidecar:d…` was
-// the line's ragged clip magnet): they render as rows in the services
-// tree instead (frame.go, the sidecar rows), fed by the `_agents`
-// porcelain's sidecar kind. The frame draws the
-// line dim; the name row above it stays bash-drawn and never appears
-// here. Roles and versions are semi-trusted and go through the
-// encoder like everything else.
+// roster's agents-only dot). Segments join with ` · `: ◐/○-prefixed
+// roles for stale/stopped containers ONLY — a nominal container
+// contributes nothing (2026-08-10, Chris: bare roles and the version
+// made the self block one row taller than its fleet rendering, so
+// every project switch jumped the rows below; absence IS the nominal
+// signal here too now, and the version moved to the tray's brand
+// cell — DisplayVersion) — then `▲n` for pending and the `dev` chip,
+// mirroring the fleet meta exactly so self and non-self blocks keep
+// the same height for the same state. `sidecar:*` containers are NOT
+// segments (2026-07-31, Chris — `sidecar:d…` was the line's ragged
+// clip magnet): they render as rows in the services tree instead
+// (frame.go, the sidecar rows), fed by the `_agents` porcelain's
+// sidecar kind. The frame draws the line dim; the name row above it
+// stays bash-drawn and never appears here. Roles are semi-trusted and
+// go through the encoder like everything else.
 func Sidebar(v ProjectView, width int) []string {
 	if width <= 0 {
 		width = 40
-	}
-	ver := v.Version
-	if rest, ok := strings.CutPrefix(ver, "dev-"); ok {
-		if len(rest) > 8 {
-			rest = rest[:8]
-		}
-		ver = "build " + rest
 	}
 	var segs []string
 	for _, c := range v.Containers {
 		if strings.HasPrefix(c.Role, "sidecar:") {
 			continue
 		}
-		seg := c.Role
 		switch {
 		case !c.Running:
-			seg = string(StateStopped) + " " + seg
+			segs = append(segs, string(StateStopped)+" "+c.Role)
 		case !c.InSync:
-			seg = string(StateStale) + " " + seg
+			segs = append(segs, string(StateStale)+" "+c.Role)
 		}
-		if len(segs) == 0 && ver != "" {
-			seg += " " + ver
-		}
-		segs = append(segs, seg)
-	}
-	// No containers yet: mode + version keep the line from rendering
-	// empty under a registered project's name.
-	if len(segs) == 0 && (v.Mode != "" || ver != "") {
-		segs = append(segs, strings.TrimSpace(v.Mode+" "+ver))
 	}
 	if v.Pending > 0 {
 		segs = append(segs, fmt.Sprintf("▲%d", v.Pending))
+	}
+	if v.Mode == "dev" {
+		segs = append(segs, "dev")
 	}
 	if len(segs) == 0 {
 		return nil
 	}
 	return []string{terminal.Line(strings.Join(segs, " · "), width)}
+}
+
+// DisplayVersion renders a pinned engine version for the tray's brand
+// cell (2026-08-10 — the version left the sidebar meta line, whose
+// self-only row made project switches jump): `dev-` hashes drop the
+// prefix, cut to 8, and wear the `build` label (2026-07-31, Chris: the
+// bare hash kept reading as "what even is this?"; `build` names it in
+// `vibe dev status`'s own vocabulary, and the hex IS the binary
+// digest's first 8) — release versions as-is. The value lands in a
+// tmux option a status format expands, so it goes through the encoder
+// like every semi-trusted string.
+func DisplayVersion(version string) string {
+	if rest, ok := strings.CutPrefix(version, "dev-"); ok {
+		if len(rest) > 8 {
+			rest = rest[:8]
+		}
+		version = "build " + rest
+	}
+	return terminal.Line(version, 32)
 }
 
 // fleetSep separates `vibe _fleet` fields: US (0x1f) survives tmux

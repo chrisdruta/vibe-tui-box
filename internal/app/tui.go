@@ -314,6 +314,13 @@ func (a *App) mintSession(ctx context.Context, rec registry.Record, rootPath str
 		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_project", string(rec.ID)); err != nil {
 			return err
 		}
+		// The pinned engine version rides the tray's brand cell, not
+		// the sidebar meta line (2026-08-10 — the self-only detail row
+		// made project switches jump). Per-session: each project's bar
+		// names its own pin; restampTui refreshes it on shim handoffs.
+		if err := a.deps.Tmux.SetOption(ctx, session, "@vibe_engine_ver", tmuxui.DisplayVersion(rec.ReleaseVersion)); err != nil {
+			return err
+		}
 		// The tray's right cluster: the v1 prefix/copy flashes, the
 		// clickable engine-state cell (range "req" → request list in the
 		// conf's mouse dispatch), and the 12-hour clock (2026-07-31; %l

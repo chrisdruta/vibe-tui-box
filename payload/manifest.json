@@ -250,8 +250,8 @@
     {
       "path": "host/tmux-tui.conf",
       "mode": "0644",
-      "size": 37677,
-      "digest": "sha256:6dbf28dddb52856d240730b4941e29f0e7a358b600966ee978970f58d6833816"
+      "size": 38087,
+      "digest": "sha256:129b53646fe893f3581022a4a3d8eca5658bc430e3570cf2c1441c07b6476c1e"
     },
     {
       "path": "presets/bun/vibe.yaml.tmpl",
@@ -320,5 +320,5 @@
       "digest": "sha256:5735db20bcd89d7abfccba525d73f782233cb1ff47b15813e4eeaecacedf16f7"
     }
   ],
-  "digest": "sha256:ec0f5ab7ee2cc5a036ba601c55a4a06309e38861c46c90628b7bd4e429319b8d"
+  "digest": "sha256:0c92e829f1e173e6852b6aa872dfe7621992f94d677066b79f729be917be35e8"
 }
