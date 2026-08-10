@@ -183,6 +183,15 @@ func (r *ExecRequest) containerCommand(dir string) (app.ContainerCommand, func()
 	if term := os.Getenv("TERM"); term != "" && tty {
 		env = append([]envfile.Entry{{Key: "TERM", Value: term}}, r.Env...)
 	}
+	if tty {
+		// A bare docker exec has NO locale, and bash/readline under the
+		// POSIX locale sanitizes multibyte prompt bytes to `?` (the
+		// dock's container shell rendered `vscode ?????`). Pinned to
+		// C.UTF-8 — present in every glibc base — rather than
+		// forwarding the host's LANG, which the container may not have
+		// generated. An explicit -e LANG still wins.
+		env = append([]envfile.Entry{{Key: "LANG", Value: "C.UTF-8"}}, env...)
+	}
 	return app.ContainerCommand{
 		Dir:     dir,
 		User:    r.User,
