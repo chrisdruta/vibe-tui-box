@@ -49,8 +49,10 @@
 #                     pane marked @vibe_dock_min back to one row. Same
 #                     rule as the sidebar's fit.
 #   flip              prefix+T / palette T — swap container/host shell
-#   flipborder Y      MouseUp1Border — flip only when the click row Y
-#                     is the dock's own top border
+#   flipborder PANE   MouseUp1Border — flip only when PANE (the event's
+#                     #{mouse_pane}: the pane ABOVE the clicked border;
+#                     border events carry no coordinates on 3.7b) sits
+#                     directly on the dock
 #   reapshelf         the conf's window-unlinked hook — drop shelf
 #                     windows whose origin window is gone
 #
@@ -71,7 +73,7 @@ ensure | fit | flip | flipborder | reapshelf)
   ;;
 esac
 win="${1:-}"
-mousey="${2:-}"
+mousep="${2:-}"
 tab="$(printf '\t')"
 
 if [ "$mode" = "reapshelf" ]; then
@@ -170,10 +172,16 @@ fit)
   exit 0
   ;;
 flipborder)
-  # Only the dock's own top border row flips; every other border click
-  # stays a no-op (the bind claims MouseUp window-wide).
-  [ -n "$mousey" ] || exit 0
-  [ "$mousey" -eq "$((top - 1))" ] 2>/dev/null || exit 0
+  # Only the dock's own top border flips: the event's mouse pane is
+  # the pane above the clicked border, and it must sit DIRECTLY on the
+  # dock (its bottom + the border row = the dock's top). Borders
+  # between stacked panes higher up stay inert; the sidebar rule's
+  # clean click resolves to the sidebar (also directly on the dock)
+  # and flips too — the recorded trade, see the conf's bind comment.
+  [ -n "$mousep" ] || exit 0
+  mb="$(tmux display-message -p -t "$mousep" '#{pane_bottom}' 2>/dev/null)"
+  case "$mb" in '' | *[!0-9]*) exit 0 ;; esac
+  [ "$((mb + 2))" -eq "$top" ] || exit 0
   mode="flip"
   ;;
 esac
@@ -183,13 +191,15 @@ if [ "$mode" = "flip" ]; then
   [ -n "$cur" ] || cur="host" # pre-flip docks were host shells
   want="container"
   [ "$cur" = "container" ] && want="host"
-  cmd=""
-  if [ "$want" = "container" ]; then
-    cmd="$(engine_cmd)" || exit 0
-  fi
   key="w${win#@}"
   other="$(tmux list-panes -t "=$shelf:$key" -F '#{pane_id}' 2>/dev/null | head -n 1)"
   if [ -z "$other" ]; then
+    # Only CREATING the other shell needs the engine (a parked
+    # container shell swaps back engine-free).
+    cmd=""
+    if [ "$want" = "container" ]; then
+      cmd="$(engine_cmd)" || exit 0
+    fi
     sp="$(tmux display-message -p -t "$win" '#{session_path}' 2>/dev/null)"
     if tmux has-session -t "=$shelf" 2>/dev/null; then
       if [ -n "$cmd" ]; then
