@@ -121,8 +121,11 @@ EOF
 ensure_in() {
   win="$1"
   # The dockshelf's windows are parked dock shells (dock.sh) — no
-  # sidebar grows there.
-  [ "$(tmux display-message -p -t "$win" '#{@vibe_shelf}' 2>/dev/null)" = "1" ] && return 0
+  # sidebar grows there. Checked by name AND option: hooks can fire
+  # before flip stamps @vibe_shelf on the fresh session.
+  case "$(tmux display-message -p -t "$win" '#{session_name}/#{@vibe_shelf}' 2>/dev/null)" in
+    dockshelf/* | */1) return 0 ;;
+  esac
   found=""
   for p in $(sidebar_panes "$win"); do
     if [ -z "$found" ]; then

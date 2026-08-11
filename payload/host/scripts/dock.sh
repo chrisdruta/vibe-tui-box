@@ -98,7 +98,12 @@ fi
 [ -n "$win" ] || exit 0
 # Never operate inside the shelf itself (its windows are parked dock
 # panes; the session-created/resize hooks fire for it like any other).
-[ "$(tmux display-message -p -t "$win" '#{@vibe_shelf}' 2>/dev/null)" = "1" ] && exit 0
+# The NAME check matters: session-created fires before flip can stamp
+# @vibe_shelf on the fresh session, and that race once grew a dock
+# inside the shelf.
+case "$(tmux display-message -p -t "$win" "#{session_name}$tab#{@vibe_shelf}" 2>/dev/null)" in
+"$shelf$tab"* | *"${tab}1") exit 0 ;;
+esac
 
 dock_size() { # expanded height knob: @vibe_dock_size (conf), rows or NN%
   s="$(tmux show-options -gqv @vibe_dock_size 2>/dev/null)"
@@ -172,16 +177,13 @@ fit)
   exit 0
   ;;
 flipborder)
-  # Only the dock's own top border flips: the event's mouse pane is
-  # the pane above the clicked border, and it must sit DIRECTLY on the
-  # dock (its bottom + the border row = the dock's top). Borders
-  # between stacked panes higher up stay inert; the sidebar rule's
-  # clean click resolves to the sidebar (also directly on the dock)
-  # and flips too — the recorded trade, see the conf's bind comment.
-  [ -n "$mousep" ] || exit 0
-  mb="$(tmux display-message -p -t "$mousep" '#{pane_bottom}' 2>/dev/null)"
-  case "$mb" in '' | *[!0-9]*) exit 0 ;; esac
-  [ "$((mb + 2))" -eq "$top" ] || exit 0
+  # Only the dock's own title row flips: with pane-border-status top,
+  # a title row belongs to ITS pane, so the event's mouse pane is the
+  # dock itself exactly when the click landed on the dock's sub-tabs
+  # (measured on the pinned 3.7b — a bare division border resolves to
+  # the pane above/left instead, so the sidebar rule and stacked-pane
+  # borders stay inert for free).
+  [ "$mousep" = "$pane" ] || exit 0
   mode="flip"
   ;;
 esac
