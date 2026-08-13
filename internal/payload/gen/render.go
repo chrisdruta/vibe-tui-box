@@ -63,7 +63,10 @@ func renderTheme(root string) error {
 	}{
 		{themeBegin, themeEnd, themeBlock()},
 		{winlistBegin, winlistEnd, `set -g @vibe_winlist "` + winlist() + "\"\n"},
-		{borderBegin, borderEnd, `set -g status-format[0] "#[fg=#{@thm_border}]` + strings.Repeat("─", barBorderWidth) + "\"\n"},
+		// ╰ leads and an align=right ╯ overdraws the clipped fill —
+		// the tray rule is the dock panel's bottom edge, capped to
+		// match the dock title's ╭╮ (2026-08-13, the inset-panel ask).
+		{borderBegin, borderEnd, `set -g status-format[0] "#[fg=#{@thm_border}]╰` + strings.Repeat("─", barBorderWidth-1) + `#[align=right]╯"` + "\n"},
 	} {
 		spliced, err = spliceBlock(spliced, block.begin, block.end, block.content)
 		if err != nil {

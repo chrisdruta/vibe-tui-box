@@ -64,7 +64,7 @@ func TestRenderThemeIdempotent(t *testing.T) {
 		t.Fatalf("winlist block wrong:\n%s", conf1)
 	}
 	if strings.Contains(conf1, `"stale"`) ||
-		!strings.Contains(conf1, strings.Repeat("─", barBorderWidth)) {
+		!strings.Contains(conf1, "╰"+strings.Repeat("─", barBorderWidth-1)+`#[align=right]╯`) {
 		t.Fatalf("border block wrong:\n%s", conf1)
 	}
 

@@ -161,9 +161,13 @@ if [ -z "$pane" ]; then
     pane="$(tmux split-window -d -f -v -l "$size" -t "$win" -c "${sp:-$HOME}" -P -F '#{pane_id}' 2>/dev/null)" || exit 0
   fi
   [ -n "$pane" ] || exit 0
+  # window-style: the dock body sits on the raised @thm_surface — with
+  # the title's ╭╮ caps and the tray rule's ╰╯ it reads as an inset
+  # panel (2026-08-13; real side borders would cost content columns).
   tmux set-option -p -t "$pane" @vibe_role "host" \; \
     set-option -p -t "$pane" @vibe_title "$(title_for "$shell")" \; \
-    set-option -p -t "$pane" @vibe_dock_shell "$shell" 2>/dev/null
+    set-option -p -t "$pane" @vibe_dock_shell "$shell" \; \
+    set-option -p -t "$pane" window-style "bg=#{@thm_surface}" 2>/dev/null
   [ "$mode" = "ensure" ] && tmux set-option -p -t "$pane" @vibe_dock_min 1 2>/dev/null
   exit 0
 fi
@@ -218,7 +222,12 @@ if [ "$mode" = "flip" ]; then
       else
         other="$(tmux new-session -d -s "$shelf" -n "$key" -c "${sp:-$HOME}" -x 200 -y 50 -P -F '#{pane_id}' 2>/dev/null)"
       fi
-      tmux set-option -t "=$shelf" @vibe_shelf 1 2>/dev/null
+      # Plain name target: set-option alone REJECTS the `=` exact
+      # prefix ("no such session: =dockshelf", measured on 3.7b) while
+      # has-session/list-panes/new-window all accept it — the silent
+      # 2>/dev/null here once ate that error and the unstamped shelf
+      # rendered as a project block in the sidebar.
+      tmux set-option -t "$shelf" @vibe_shelf 1 2>/dev/null
     fi
   fi
   [ -n "$other" ] || exit 0
@@ -230,7 +239,8 @@ if [ "$mode" = "flip" ]; then
   tmux swap-pane -d -s "$pane" -t "$other" 2>/dev/null || exit 0
   tmux set-option -p -t "$other" @vibe_role "host" \; \
     set-option -p -t "$other" @vibe_title "$(title_for "$want")" \; \
-    set-option -p -t "$other" @vibe_dock_shell "$want" 2>/dev/null
+    set-option -p -t "$other" @vibe_dock_shell "$want" \; \
+    set-option -p -t "$other" window-style "bg=#{@thm_surface}" 2>/dev/null
   [ -n "$minv" ] && tmux set-option -p -t "$other" @vibe_dock_min "$minv" 2>/dev/null
   [ -n "$hv" ] && tmux set-option -p -t "$other" @vibe_dock_h "$hv" 2>/dev/null
   tmux set-option -p -t "$pane" @vibe_role "shelf" \; \
