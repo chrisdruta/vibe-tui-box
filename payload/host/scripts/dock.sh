@@ -121,11 +121,12 @@ engine_cmd() { # /bin/sh string for the container shell; fails without an engine
   printf "'%s' shell" "${exe//\'/\'\\\'\'}"
 }
 
-title_for() { # the border sub-tabs: brackets mark the shell in the dock
+title_for() { # the border sub-tabs: brackets mark the shell in the dock;
+  # the `shell:` label names the surface like the sidebar's `projects`
   if [ "$1" = "container" ]; then
-    printf '[container] · host'
+    printf 'shell: [container] · host'
   else
-    printf 'container · [host]'
+    printf 'shell: container · [host]'
   fi
 }
 

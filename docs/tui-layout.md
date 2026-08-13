@@ -187,7 +187,8 @@ The dock's actual job turned out to be launching a dev server and
 watching/stopping it — work that lives in the CONTAINER — so the dock
 now opens a container shell (`vibe shell` through `@vibe_exe`) and the
 host shell becomes the flip side. The border title is the sub-tab
-strip (`[container] · host` — brackets mark the shell in the slot):
+strip (`shell: [container] · host` — brackets mark the shell in the
+slot, the label names the surface like the sidebar's `projects`):
 a clean click on the dock's top border row flips (MouseUp1Border,
 which never fires after a drag, so border drag-resize is untouched;
 dock.sh row-checks so every other border stays inert), prefix+T and
