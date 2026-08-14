@@ -56,6 +56,14 @@ vibe rebuild     # recreate containers on the new artifact's payload
 
 When you finish a change the operator will try live, say so and name
 this cycle — it is the standing reminder this section exists for.
+Two refinements the dock work taught (2026-08-14): `dev sync`
+re-sources the tmux conf on a RUNNING ui, so binds and hooks land
+live, but anything stamped on panes/sessions at creation (titles,
+tints, `@vibe_engine_ver`) only lands on re-mint or flip; and TUI
+chrome/mouse changes should be proven headlessly against the pinned
+tmux BEFORE the sync — `build/tui-screendump.py` plus the SGR
+injection rig (docs/tui-layout.md "Verification", which also records
+the measured 3.7b mouse/format quirks so they aren't re-derived).
 
 Integration tests that need a Docker daemon (`internal/dockerapi`
 `TestSDKLifecycle`) skip themselves when no daemon is reachable — never

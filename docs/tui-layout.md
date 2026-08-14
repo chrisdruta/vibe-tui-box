@@ -1152,3 +1152,21 @@ container stopped, `prefix+f/g` must hold the popup open with the
 `vibe up` hint, never flash-and-close; and the parser layer's proof
 is a `vibe rebuild` (the headless nvim-treesitter install is the one
 build step this repo's tests cannot execute).
+
+**The headless eye** (2026-08-11 → 08-14, the border-click and
+corner-caps work): `build/tui-screendump.py` attaches a pty client
+and renders its byte stream into a character grid — the only way to
+SEE borders, title rows, and status lines, which `capture-pane`
+never captures. Pair it with SGR injection (the rig above) to drive
+clicks and read the result. Chrome/mouse work should run through it
+BEFORE a dev sync: a screenshot says something is off; the grid says
+which cell. Facts it measured on the pinned 3.7b, recorded so they
+aren't re-derived: `*Border` mouse events expand `#{mouse_x}`/`{y}`
+EMPTY (pane-relative formats, no pane) but resolve `#{mouse_pane}` —
+to the pane whose TITLE row was clicked under `pane-border-status
+top`, else the pane above/left of a bare division line; `set-option
+-t` alone rejects the `=` exact-match prefix that
+has-session/list-panes/new-window accept; border formats start
+drawing two cells in from `pane_left`; `#[align=right]` works in
+border formats but a clipped over-width status fill drops trailing
+aligned segments.

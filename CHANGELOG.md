@@ -12,6 +12,32 @@ published as a prerelease, then `vibe update --version` and
 `vibe provision` exercised clean against the real assets (ROADMAP R1).
 This section keeps accumulating until `v1.0.0` folds it in.
 
+**Since the beta** (2026-08-07 → 08-14, the TUI-instrument arc):
+
+- The dock grew sub-tabs and flipped its default: it now opens a
+  CONTAINER shell (`vibe shell` — the dev-server surface) with the
+  host shell behind the `shell: [container] · host` border tab —
+  border-click, `prefix+T`, or the palette flip it, and the parked
+  shell survives in the hidden dockshelf session. The dock body sits
+  on the raised surface canvas (rounded corner caps were tried and
+  reverted — tui-layout.md has the record).
+- The sidebar shrinks before it hides: under height pressure non-self
+  blocks compress to their signal rows and quiet projects to
+  name + meta (the self block keeps its roster), ending in a
+  `… +N projects` tally — never a silent clip. Meta lines went
+  signal-only (self and fleet render the same rows, so project
+  switches stopped jumping) and the engine version moved to the
+  tray's brand cell (`@vibe_engine_ver`).
+- `uv` joined the toolchains (pinned installer, agents' bin dir) with
+  a `python` preset; tty execs pin `LANG=C.UTF-8` (a bare docker exec
+  has no locale and readline showed `?????` for prompt glyphs);
+  wheel-scroll on the sidebar no longer opens an empty copy-mode;
+  `set-clipboard` reverted to `on` (docs/security.md, the OSC 52
+  trade re-decided after a login-link lockout).
+- `build/tui-screendump.py`: the headless eye for chrome work —
+  renders an attached client's bytes into a character grid, borders
+  included.
+
 **BREAKING: the bash/compose harness is gone; `vibe` is one compiled Go
 binary.** Clean slate, no migration: v1 installs reinstall
 ([docs/installation.md](docs/installation.md)), projects `vibe init` fresh.
