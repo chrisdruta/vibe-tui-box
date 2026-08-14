@@ -63,10 +63,11 @@ func renderTheme(root string) error {
 	}{
 		{themeBegin, themeEnd, themeBlock()},
 		{winlistBegin, winlistEnd, `set -g @vibe_winlist "` + winlist() + "\"\n"},
-		// ╰ leads and an align=right ╯ overdraws the clipped fill —
-		// the tray rule is the dock panel's bottom edge, capped to
-		// match the dock title's ╭╮ (2026-08-13, the inset-panel ask).
-		{borderBegin, borderEnd, `set -g status-format[0] "#[fg=#{@thm_border}]╰` + strings.Repeat("─", barBorderWidth-1) + `#[align=right]╯"` + "\n"},
+		// A plain rule: ╰/╯ end caps were tried and reverted
+		// (2026-08-14) — the clipped fixed-width fill drops an
+		// #[align=right] cap, and half-capped corners read as junk
+		// (the conf's pane-border-format comment has the full record).
+		{borderBegin, borderEnd, `set -g status-format[0] "#[fg=#{@thm_border}]` + strings.Repeat("─", barBorderWidth) + "\"\n"},
 	} {
 		spliced, err = spliceBlock(spliced, block.begin, block.end, block.content)
 		if err != nil {

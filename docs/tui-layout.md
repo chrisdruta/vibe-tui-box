@@ -205,7 +205,16 @@ the role names the SLOT (every conf gate keys on it), not the shell;
 `@vibe_dock_shell` carries that. Without an engine (bare tui) the dock
 degrades to the host shell alone and the flip refuses quietly; a
 container shell against a down container dies into the pane-died
-vocabulary and respawn retries it.
+vocabulary and respawn retries it. The dock body sits on the raised
+`@thm_surface` canvas (dock.sh stamps `window-style` on whichever
+pane holds the slot) — that lift is the "inset panel" answer. Rounded
+corner caps (`╭╮` on the title line, `╰╯` on the tray rule) were
+tried and reverted the next day (2026-08-14): tmux starts border
+formats two cells in so the left corner floats off its edge, the
+sidebar rule's `┴` junction punches through the line, and the tray
+rule's clipped fixed-width fill drops an `#[align=right]` cap —
+corners the grid cannot close read as junk, recorded so they aren't
+re-proposed.
 
 ### Editor surfaces: the bundled review stack (2026-07-26, second call)
 

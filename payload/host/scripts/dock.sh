@@ -161,9 +161,11 @@ if [ -z "$pane" ]; then
     pane="$(tmux split-window -d -f -v -l "$size" -t "$win" -c "${sp:-$HOME}" -P -F '#{pane_id}' 2>/dev/null)" || exit 0
   fi
   [ -n "$pane" ] || exit 0
-  # window-style: the dock body sits on the raised @thm_surface — with
-  # the title's ╭╮ caps and the tray rule's ╰╯ it reads as an inset
-  # panel (2026-08-13; real side borders would cost content columns).
+  # window-style: the dock body sits on the raised @thm_surface — the
+  # lifted canvas IS the inset look (2026-08-13; corner caps were
+  # tried and reverted next day — the conf's pane-border-format
+  # comment has the record — and real side borders would cost content
+  # columns).
   tmux set-option -p -t "$pane" @vibe_role "host" \; \
     set-option -p -t "$pane" @vibe_title "$(title_for "$shell")" \; \
     set-option -p -t "$pane" @vibe_dock_shell "$shell" \; \
