@@ -16,10 +16,18 @@
 # The dock holds a CONTAINER shell by default (2026-08-10, Chris — the
 # dock's actual job is launching a dev server and watching/stopping
 # it, which lives in the container; the host shell was the default
-# only by construction order) and flips to the host shell and back on
-# the border sub-tabs: the title reads `[container] · host`, a clean
-# click on the border row (MouseUp1Border — drags still resize) or
-# prefix+T swaps shells. BOTH shells stay alive across flips: the
+# only by construction order) and flips to the host shell and back
+# with prefix+T, the palette, or the title row's right-click menu.
+# The title row is the dock's ONE button (2026-08-14, Chris — border
+# events carry no coordinates on the pinned 3.7b, so `[container] ·
+# host` can never be two targets; show/hide is the frequent action
+# and wins the plain click): a clean left click (MouseUp1Border —
+# drags still resize) toggles collapse/expand, right-click
+# (MouseUp3Border) opens the shell menu, and the leading ▸/▾ chevron
+# in the title carries the collapsed state. Clicking the collapsed
+# 1-row strip focuses it to type (the old auto-expand stole exactly
+# that click); the superseded ▤ tray cell is gone with it.
+# BOTH shells stay alive across flips: the
 # inactive one parks as a window in the detached `dockshelf` session
 # (one shelf window per origin window, named w<N> for origin @<N> —
 # the name dodges tmux's `@` window-id target grammar), swapped in and
@@ -49,10 +57,16 @@
 #                     pane marked @vibe_dock_min back to one row. Same
 #                     rule as the sidebar's fit.
 #   flip              prefix+T / palette T — swap container/host shell
-#   flipborder PANE   MouseUp1Border — flip only when PANE (the event's
-#                     #{mouse_pane}: the pane ABOVE the clicked border;
-#                     border events carry no coordinates on 3.7b) sits
-#                     directly on the dock
+#   flipto SHELL      the title menu's shell items — flip only when the
+#                     dock shows the OTHER shell (a stale menu pick
+#                     must not double-flip)
+#   toggleborder PANE MouseUp1Border — toggle only when PANE (the
+#                     event's #{mouse_pane}: the pane ABOVE the clicked
+#                     border; border events carry no coordinates on
+#                     3.7b) sits directly on the dock
+#   menuborder PANE CLIENT
+#                     MouseUp3Border — the title row's shell menu:
+#                     container / host / collapse-or-expand
 #   reapshelf         the conf's window-unlinked hook — drop shelf
 #                     windows whose origin window is gone
 #
@@ -67,13 +81,14 @@ shelf="dockshelf"
 
 mode="toggle"
 case "${1:-}" in
-ensure | fit | flip | flipborder | reapshelf)
+ensure | fit | flip | flipto | toggleborder | menuborder | reapshelf)
   mode="$1"
   shift
   ;;
 esac
 win="${1:-}"
-mousep="${2:-}"
+arg2="${2:-}" # toggleborder/menuborder: the event's mouse pane; flipto: the shell
+arg3="${3:-}" # menuborder: the client
 tab="$(printf '\t')"
 
 if [ "$mode" = "reapshelf" ]; then
@@ -121,12 +136,16 @@ engine_cmd() { # /bin/sh string for the container shell; fails without an engine
   printf "'%s' shell" "${exe//\'/\'\\\'\'}"
 }
 
-title_for() { # the border sub-tabs: brackets mark the shell in the dock;
-  # the `shell:` label names the surface like the sidebar's `projects`
+title_for() { # $1 shell, $2 collapsed(1)/expanded(0): brackets mark the
+  # shell in the dock, the `shell:` label names the surface like the
+  # sidebar's `projects`, and the chevron carries the panel state — the
+  # tell that the title row is the toggle button
+  chev="▾"
+  [ "${2:-0}" = "1" ] && chev="▸"
   if [ "$1" = "container" ]; then
-    printf 'shell: [container] · host'
+    printf '%s shell: [container] · host' "$chev"
   else
-    printf 'shell: container · [host]'
+    printf '%s shell: container · [host]' "$chev"
   fi
 }
 
@@ -144,14 +163,18 @@ done <<EOF
 $(tmux list-panes -t "$win" -F "#{pane_id}$tab#{@vibe_role}$tab#{pane_height}$tab#{pane_top}" 2>/dev/null)
 EOF
 if [ -z "$pane" ]; then
-  case "$mode" in fit | flip | flipborder) exit 0 ;; esac
+  case "$mode" in fit | flip | flipto | toggleborder | menuborder) exit 0 ;; esac
   # No dock in this window yet: grow one, stamp its role/title, and
   # never steal focus (-d). Toggle opens it at the layout default;
   # ensure (the session-created hook) parks it collapsed as the slim
   # chrome bar. The path comes from tmux directly, never interpolated
   # into a shell string.
   size="$(dock_size)"
-  [ "$mode" = "ensure" ] && size=1
+  min=0
+  if [ "$mode" = "ensure" ]; then
+    size=1
+    min=1
+  fi
   sp="$(tmux display-message -p -t "$win" '#{session_path}' 2>/dev/null)"
   if cmd="$(engine_cmd)"; then
     shell="container"
@@ -167,10 +190,10 @@ if [ -z "$pane" ]; then
   # comment has the record — and real side borders would cost content
   # columns).
   tmux set-option -p -t "$pane" @vibe_role "host" \; \
-    set-option -p -t "$pane" @vibe_title "$(title_for "$shell")" \; \
+    set-option -p -t "$pane" @vibe_title "$(title_for "$shell" "$min")" \; \
     set-option -p -t "$pane" @vibe_dock_shell "$shell" \; \
     set-option -p -t "$pane" window-style "bg=#{@thm_surface}" 2>/dev/null
-  [ "$mode" = "ensure" ] && tmux set-option -p -t "$pane" @vibe_dock_min 1 2>/dev/null
+  [ "$min" = "1" ] && tmux set-option -p -t "$pane" @vibe_dock_min 1 2>/dev/null
   exit 0
 fi
 case "$mode" in
@@ -183,23 +206,60 @@ fit)
   fi
   exit 0
   ;;
-flipborder)
-  # Only the dock's own title row flips: with pane-border-status top,
-  # a title row belongs to ITS pane, so the event's mouse pane is the
-  # dock itself exactly when the click landed on the dock's sub-tabs
+toggleborder)
+  # Only the dock's own title row toggles: with pane-border-status
+  # top, a title row belongs to ITS pane, so the event's mouse pane is
+  # the dock itself exactly when the click landed on the dock's title
   # (measured on the pinned 3.7b — a bare division border resolves to
   # the pane above/left instead, so the sidebar rule and stacked-pane
   # borders stay inert for free).
-  [ "$mousep" = "$pane" ] || exit 0
-  mode="flip"
+  [ "$arg2" = "$pane" ] || exit 0
+  mode="toggle"
+  ;;
+menuborder)
+  # The title row's right-click: the flip's mouse door, as a menu —
+  # border events cannot hit-test `[container] · host` into two
+  # targets, so the shells become items instead. Anchored above the
+  # tray like the other bottom-edge doors; -M -O and the item
+  # commands' literal #{...} constructs per the tray-door lesson
+  # (chooser.sh records the mechanism).
+  [ "$arg2" = "$pane" ] || exit 0
+  case "${win#@}" in '' | *[!0-9]*) exit 0 ;; esac
+  cur="$(tmux show-options -pqv -t "$pane" @vibe_dock_shell 2>/dev/null)"
+  [ -n "$cur" ] || cur="host"
+  size_lbl="collapse"
+  [ "$(tmux show-options -pqv -t "$pane" @vibe_dock_min 2>/dev/null)" = "1" ] && size_lbl="expand"
+  # The toggle item LEADS: a disabled item wears a leading dash, and a
+  # leading-dash FIRST item parses as a display-menu flag ("invalid
+  # flag -[", headless rig 2026-08-14) — the dash-less toggle label
+  # ends option scanning so the shell items are always positional.
+  args=()
+  [ -n "$arg3" ] && args+=(-c "$arg3")
+  args+=(-M -O -y S -T " shell ")
+  args+=("$size_lbl" t "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/dock.sh' '$win'\"")
+  args+=("")
+  if [ "$cur" = "container" ]; then
+    args+=("-[container]" '' '')
+    args+=("host" h "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/dock.sh' flipto '$win' host\"")
+  else
+    args+=("container" c "run-shell -b \"bash '#{@vibe_payload_dir}/scripts/dock.sh' flipto '$win' container\"")
+    args+=("-[host]" '' '')
+  fi
+  exec tmux display-menu "${args[@]}"
   ;;
 esac
 
-if [ "$mode" = "flip" ]; then
+if [ "$mode" = "flip" ] || [ "$mode" = "flipto" ]; then
   cur="$(tmux show-options -pqv -t "$pane" @vibe_dock_shell 2>/dev/null)"
   [ -n "$cur" ] || cur="host" # pre-flip docks were host shells
   want="container"
   [ "$cur" = "container" ] && want="host"
+  if [ "$mode" = "flipto" ]; then
+    # An explicit destination: a menu picked against a since-flipped
+    # dock must not bounce it back.
+    case "$arg2" in container | host) want="$arg2" ;; *) exit 0 ;; esac
+    [ "$want" = "$cur" ] && exit 0
+  fi
   key="w${win#@}"
   other="$(tmux list-panes -t "=$shelf:$key" -F '#{pane_id}' 2>/dev/null | head -n 1)"
   if [ -z "$other" ]; then
@@ -238,9 +298,11 @@ if [ "$mode" = "flip" ]; then
   # from the parked one.
   minv="$(tmux show-options -pqv -t "$pane" @vibe_dock_min 2>/dev/null)"
   hv="$(tmux show-options -pqv -t "$pane" @vibe_dock_h 2>/dev/null)"
+  st=0
+  [ "$minv" = "1" ] && st=1
   tmux swap-pane -d -s "$pane" -t "$other" 2>/dev/null || exit 0
   tmux set-option -p -t "$other" @vibe_role "host" \; \
-    set-option -p -t "$other" @vibe_title "$(title_for "$want")" \; \
+    set-option -p -t "$other" @vibe_title "$(title_for "$want" "$st")" \; \
     set-option -p -t "$other" @vibe_dock_shell "$want" \; \
     set-option -p -t "$other" window-style "bg=#{@thm_surface}" 2>/dev/null
   [ -n "$minv" ] && tmux set-option -p -t "$other" @vibe_dock_min "$minv" 2>/dev/null
@@ -251,10 +313,15 @@ if [ "$mode" = "flip" ]; then
   exit 0
 fi
 
+# The toggle restamps the title too — the chevron is state, and state
+# lives where it changes.
+cur="$(tmux show-options -pqv -t "$pane" @vibe_dock_shell 2>/dev/null)"
+[ -n "$cur" ] || cur="host"
 if [ "$h" -gt 2 ]; then
   # collapse: remember the height so expand restores exactly this shape
   tmux set-option -p -t "$pane" @vibe_dock_h "$h" \; \
     set-option -p -t "$pane" @vibe_dock_min 1 \; \
+    set-option -p -t "$pane" @vibe_title "$(title_for "$cur" 1)" \; \
     resize-pane -t "$pane" -y 1
 else
   prev="$(tmux show-options -pqv -t "$pane" @vibe_dock_h 2>/dev/null)"
@@ -264,6 +331,7 @@ else
     '' | *[!0-9]*) prev="$(dock_size)" ;;
   esac
   tmux set-option -p -t "$pane" @vibe_dock_min 0 \; \
+    set-option -p -t "$pane" @vibe_title "$(title_for "$cur" 0)" \; \
     resize-pane -t "$pane" -y "$prev"
 fi
 exit 0

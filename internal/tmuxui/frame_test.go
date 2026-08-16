@@ -356,15 +356,19 @@ func TestFrameFooterHint(t *testing.T) {
 	out := Frame(twoSessionInput())
 	rows := frameRows(t, out.Body)
 	clicks := mapRows(t, out.Map)
-	// Height 24 has slack → both footer rows render: the palette
-	// pointer with the review-stack keys under it, render-only.
-	if !strings.Contains(rows[22], "palette") {
-		t.Fatalf("palette hint missing above the keys row: %q", rows[22])
+	// Height 24 has slack → both footer rows render one row off the
+	// bottom edge, the padding row keeping them clear of the dock title
+	// below; render-only.
+	if !strings.Contains(rows[21], "palette") {
+		t.Fatalf("palette hint missing above the keys row: %q", rows[21])
 	}
-	if !strings.Contains(rows[23], "f files · g git · v clip") {
-		t.Fatalf("keys hint missing on the last row: %q", rows[23])
+	if !strings.Contains(rows[22], "f files · g git · v clip") {
+		t.Fatalf("keys hint missing above the padding row: %q", rows[22])
 	}
-	for _, r := range []int{22, 23} {
+	if r, ok := rows[23]; ok {
+		t.Fatalf("the padding row must stay blank: %q", r)
+	}
+	for _, r := range []int{21, 22, 23} {
 		if _, ok := clicks[r]; ok {
 			t.Fatal("the footer must not be clickable")
 		}

@@ -1015,13 +1015,21 @@ func Frame(in FrameInput) FrameOutput {
 	// pointer, cheat = daily-loop keys, palette = complete. The second row
 	// renders only when the frame has slack, so a short pane loses the
 	// new hint, never the old one. They own the last rows, so the
-	// content clip lifts for exactly these writes.
+	// content clip lifts for exactly these writes. With one more row of
+	// slack the block lifts off the bottom edge entirely — the blank
+	// row keeps the hints from stacking into the dock's title directly
+	// below (2026-08-14 dogfood); the padding is the first thing a
+	// shrinking pane gives back, before either hint row.
 	if fr := in.Height - 1; fr > c.used {
 		c.limit = in.Height
-		if fr-1 > c.used {
+		switch {
+		case fr-2 > c.used:
+			c.putAt(fr-2, " "+cDim+terminal.Line("C-Space · Space palette", max)+ansiReset, "")
+			c.putAt(fr-1, " "+cDim+terminal.Line("f files · g git · v clip", max)+ansiReset, "")
+		case fr-1 > c.used:
 			c.putAt(fr-1, " "+cDim+terminal.Line("C-Space · Space palette", max)+ansiReset, "")
 			c.putAt(fr, " "+cDim+terminal.Line("f files · g git · v clip", max)+ansiReset, "")
-		} else {
+		default:
 			c.putAt(fr, " "+cDim+terminal.Line("C-Space · Space palette", max)+ansiReset, "")
 		}
 	}

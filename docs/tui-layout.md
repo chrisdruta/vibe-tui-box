@@ -109,7 +109,7 @@ Top-preferrers set `status-position top` in the user conf.
 | Segment | Content |
 | --- | --- |
 | branding | `🥡 <current project> (version)` start button (2026-08-04: the client's session `@vibe_name`, `vibe` before any session exists; 2026-08-10: the pinned engine version in dim parens — `@vibe_engine_ver`, moved off the sidebar meta line whose self-only row made project switches jump) — click opens the palette |
-| `▤` cell | clickable — toggles the dock (prefix+t as a button; container shell by default since 2026-08-10 — "The dock's sub-tabs" below); clicking the collapsed dock strip itself also expands it. Sits in the LEFT cluster beside the brand (2026-07-29 polish pass — spliced into the absolute-centred winlist it floated with the tabs, a global chrome control reading as part of the window list; this table and the frame mockup always drew it at left). Outside the `#{client_prefix}` swap, it stays put while the cheatsheet replaces the middle |
+| `▤` cell | REMOVED 2026-08-14 (Chris) — a tray button for the panel one row above it; once the dock's title row took the toggle click ("The dock's one button" below) the duplicate control read as clutter. Lived in the LEFT cluster beside the brand from the 2026-07-29 polish pass until then |
 | tabs | per-window `dot name`, absolute-centred; the name is the CLI actually running (state-render renames the window from the title channel's display field), attention flash |
 | ghost cells | container-side sessions with no window, dim italic on surface behind a hairline inset; clickable per session (`ghost-N` index range resolved through `@vibe_ghost_map` → attach-only viewer spawn — range names clip at 15 bytes, "Launch surfaces"), rendered into `@vibe_ghosts` by `vibe _frame` |
 | `+` cell | clickable — opens the **agents chooser** (launch what's down, reach what's up — "Launch surfaces" below) |
@@ -189,9 +189,12 @@ now opens a container shell (`vibe shell` through `@vibe_exe`) and the
 host shell becomes the flip side. The border title is the sub-tab
 strip (`shell: [container] · host` — brackets mark the shell in the
 slot, the label names the surface like the sidebar's `projects`):
-a clean click on the dock's top border row flips (MouseUp1Border,
-which never fires after a drag, so border drag-resize is untouched;
-dock.sh row-checks so every other border stays inert), prefix+T and
+originally a clean click on the dock's top border row flipped
+(MouseUp1Border, which never fires after a drag, so border
+drag-resize is untouched; dock.sh row-checks so every other border
+stays inert) — superseded 2026-08-14, the left click is the panel
+toggle and the flip's mouse door is the title's right-click menu
+("The dock's one button" below); prefix+T and
 the palette's `T` are the keyboard doors. Both shells stay ALIVE
 across flips: the parked one swaps into the detached `dockshelf`
 session (one window per origin window, `w<N>` for `@<N>` — the name
@@ -215,6 +218,35 @@ sidebar rule's `┴` junction punches through the line, and the tray
 rule's clipped fixed-width fill drops an `#[align=right]` cap —
 corners the grid cannot close read as junk, recorded so they aren't
 re-proposed.
+
+### The dock's one button (2026-08-14, Chris)
+
+The first live day with the clickable title row re-derived every
+gesture around it. Three complaints, one cause — the dock grew a real
+control surface and the older gestures weren't re-cut against it: the
+`▤` tray cell was a button for the panel one row above it; the
+collapsed strip's auto-expand ("taskbar feel") stole exactly the
+click that wanted to focus the 1-row prompt and type; and the title
+click held the flip, the rarer action, while show/hide had no mouse
+door of its own.
+
+The constraint that shapes the answer: border events carry no
+coordinates on the pinned 3.7b (`#{mouse_x}`/`{y}` expand empty —
+"Verification"), so `[container] · host` can never be two click
+targets; the title row is ONE button, and the frequent action wins
+it. The cut: LEFT click on the title toggles collapse/expand (the
+IDE panel-header gesture; dock.sh `toggleborder`); RIGHT click
+(MouseUp3Border, on the release like every script-opened menu) opens
+the shell menu — collapse-or-expand atop container / host, current
+shell a disabled `[x]` item, `flipto` so a stale pick never
+double-flips — which is now the flip's mouse door beside prefix+T
+and the palette; clicking the collapsed strip focuses it to type
+(stock select + pass-through, the auto-expand arm deleted); the `▤`
+cell is gone from the tray. A leading `▸`/`▾` chevron in the title
+carries the panel state and marks the row as the button — stamped
+wherever the state changes (create, toggle, flip), so like every
+at-creation stamp it lands on existing docks only at their next
+toggle/flip after a `dev sync`.
 
 ### Editor surfaces: the bundled review stack (2026-07-26, second call)
 
@@ -1043,11 +1075,15 @@ never does layout math. The contract the renderer implements:
   and live rows get stop/open. A dead viewer-less row's LEFT-click
   degrades to the project switch — its old attach spawn refused dead
   sessions by design and minted corpse windows.
-- The **footer hint row** owns the last row: dim
+- The **footer hint row** owns the last rows: dim
   `C-Space · Space palette`, truncated to the text budget, render-only
   (no click target — the palette's mouse doors are the tray cells).
   It exists for the cold start: the cheatsheet only appears once the
-  prefix is already known.
+  prefix is already known. With one more row of slack the block lifts
+  one row off the bottom edge (2026-08-14, Chris — flush against the
+  dock's title row directly below, the hints and the sub-tabs stacked
+  into one unreadable blob); the padding row is the first thing a
+  shrinking pane takes back, before either hint.
 - The **engine-facts display form** (`vibe _sidebar`, views.go): ONE
   compact line of ` · `-joined SIGNAL segments for the meta line —
   `◐ role` stale / `○ role` stopped, `▲n` pending, the `dev` chip. A
@@ -1169,4 +1205,7 @@ top`, else the pane above/left of a bare division line; `set-option
 has-session/list-panes/new-window accept; border formats start
 drawing two cells in from `pane_left`; `#[align=right]` works in
 border formats but a clipped over-width status fill drops trailing
-aligned segments.
+aligned segments; a `display-menu` whose FIRST item name starts with
+`-` (the disabled-item marker) dies as "invalid flag" — lead the item
+list with a dash-less name to end option scanning (the dock shell
+menu's toggle-first order is load-bearing).
