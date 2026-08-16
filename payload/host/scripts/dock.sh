@@ -184,15 +184,14 @@ if [ -z "$pane" ]; then
     pane="$(tmux split-window -d -f -v -l "$size" -t "$win" -c "${sp:-$HOME}" -P -F '#{pane_id}' 2>/dev/null)" || exit 0
   fi
   [ -n "$pane" ] || exit 0
-  # window-style: the dock body sits on the raised @thm_surface — the
-  # lifted canvas IS the inset look (2026-08-13; corner caps were
-  # tried and reverted next day — the conf's pane-border-format
-  # comment has the record — and real side borders would cost content
-  # columns).
+  # No body tint: the dock content sits on the plain canvas and the
+  # inset look is carried by the title CHIP in pane-border-format
+  # (2026-08-16, Chris — the flat-slab dogfood superseded the
+  # 2026-08-13 @thm_surface window-style lift; docs/tui-layout.md
+  # "The dock's chip").
   tmux set-option -p -t "$pane" @vibe_role "host" \; \
     set-option -p -t "$pane" @vibe_title "$(title_for "$shell" "$min")" \; \
-    set-option -p -t "$pane" @vibe_dock_shell "$shell" \; \
-    set-option -p -t "$pane" window-style "bg=#{@thm_surface}" 2>/dev/null
+    set-option -p -t "$pane" @vibe_dock_shell "$shell" 2>/dev/null
   [ "$min" = "1" ] && tmux set-option -p -t "$pane" @vibe_dock_min 1 2>/dev/null
   exit 0
 fi
@@ -201,6 +200,11 @@ ensure)
   exit 0
   ;;
 fit)
+  # The unconditional unstamp is the no-user-action heal for docks
+  # tinted before the chip cut: window-resized fires on the first
+  # attach after a dev sync, so live panes shed the old @thm_surface
+  # window-style without waiting for a toggle or flip.
+  tmux set-option -pu -t "$pane" window-style 2>/dev/null
   if [ "$(tmux show-options -pqv -t "$pane" @vibe_dock_min 2>/dev/null)" = "1" ] && [ "$h" -gt 1 ]; then
     tmux resize-pane -t "$pane" -y 1 2>/dev/null
   fi
@@ -301,14 +305,19 @@ if [ "$mode" = "flip" ] || [ "$mode" = "flipto" ]; then
   st=0
   [ "$minv" = "1" ] && st=1
   tmux swap-pane -d -s "$pane" -t "$other" 2>/dev/null || exit 0
+  # The -pu window-style unstamps are the tint-era migration door: a
+  # pane stamped before the chip cut (2026-08-16) rides its option
+  # through swap-pane, so both the incoming and the parked pane are
+  # stripped here until no stamped pane can remain.
   tmux set-option -p -t "$other" @vibe_role "host" \; \
     set-option -p -t "$other" @vibe_title "$(title_for "$want" "$st")" \; \
     set-option -p -t "$other" @vibe_dock_shell "$want" \; \
-    set-option -p -t "$other" window-style "bg=#{@thm_surface}" 2>/dev/null
+    set-option -pu -t "$other" window-style 2>/dev/null
   [ -n "$minv" ] && tmux set-option -p -t "$other" @vibe_dock_min "$minv" 2>/dev/null
   [ -n "$hv" ] && tmux set-option -p -t "$other" @vibe_dock_h "$hv" 2>/dev/null
   tmux set-option -p -t "$pane" @vibe_role "shelf" \; \
     set-option -pu -t "$pane" @vibe_dock_min \; \
+    set-option -pu -t "$pane" window-style \; \
     set-option -p -t "$pane" @vibe_dock_shell "$cur" 2>/dev/null
   exit 0
 fi
@@ -318,10 +327,13 @@ fi
 cur="$(tmux show-options -pqv -t "$pane" @vibe_dock_shell 2>/dev/null)"
 [ -n "$cur" ] || cur="host"
 if [ "$h" -gt 2 ]; then
-  # collapse: remember the height so expand restores exactly this shape
+  # collapse: remember the height so expand restores exactly this
+  # shape (the -pu window-style rides both branches as tint-era
+  # migration, like the chevron restamp)
   tmux set-option -p -t "$pane" @vibe_dock_h "$h" \; \
     set-option -p -t "$pane" @vibe_dock_min 1 \; \
     set-option -p -t "$pane" @vibe_title "$(title_for "$cur" 1)" \; \
+    set-option -pu -t "$pane" window-style \; \
     resize-pane -t "$pane" -y 1
 else
   prev="$(tmux show-options -pqv -t "$pane" @vibe_dock_h 2>/dev/null)"
@@ -332,6 +344,7 @@ else
   esac
   tmux set-option -p -t "$pane" @vibe_dock_min 0 \; \
     set-option -p -t "$pane" @vibe_title "$(title_for "$cur" 0)" \; \
+    set-option -pu -t "$pane" window-style \; \
     resize-pane -t "$pane" -y "$prev"
 fi
 exit 0

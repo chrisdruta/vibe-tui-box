@@ -208,9 +208,11 @@ the role names the SLOT (every conf gate keys on it), not the shell;
 `@vibe_dock_shell` carries that. Without an engine (bare tui) the dock
 degrades to the host shell alone and the flip refuses quietly; a
 container shell against a down container dies into the pane-died
-vocabulary and respawn retries it. The dock body sits on the raised
-`@thm_surface` canvas (dock.sh stamps `window-style` on whichever
-pane holds the slot) — that lift is the "inset panel" answer. Rounded
+vocabulary and respawn retries it. The dock body originally sat on a
+raised `@thm_surface` canvas (dock.sh stamped `window-style` on
+whichever pane held the slot) as the "inset panel" answer —
+superseded 2026-08-16: the body renders on the plain canvas and the
+inset is carried by the title chip ("The dock's chip" below). Rounded
 corner caps (`╭╮` on the title line, `╰╯` on the tray rule) were
 tried and reverted the next day (2026-08-14): tmux starts border
 formats two cells in so the left corner floats off its edge, the
@@ -247,6 +249,45 @@ carries the panel state and marks the row as the button — stamped
 wherever the state changes (create, toggle, flip), so like every
 at-creation stamp it lands on existing docks only at their next
 toggle/flip after a `dev sync`.
+
+### The dock's chip (2026-08-16, Chris)
+
+The gesture cut left the LOOK unresolved: the dock read as a flat
+navy slab — a full-width `@thm_surface` body tint against the
+`@thm_bg` canvas, a dim title on a thin border line, no edges of its
+own. A conversion to a floating `display-popup` (real rounded box,
+lazygit-pattern) was weighed and REJECTED by the operator: popups
+are modal, and the dock's job is watching a dev server WHILE working
+with the agent. The guidance adopted instead is ansi.md's: "Leave
+the background color alone most of the time" — spend
+saturated/inverted color on headers, not body backgrounds.
+
+The cut: the per-pane `window-style` surface stamp is GONE (dock
+content sits on the plain canvas), and the surface color moved into
+the title as a role-gated **chip** in the shared
+`pane-border-format` — `▐` half-block cap, then the stamped title on
+`@thm_accent` in bright bold when the dock is the active pane (the
+established selected pair: menu-selected-style, mode-style) or on
+`@thm_surface` in `@thm_fg` when not, then a `▌` cap. The caps are
+colored glyphs INSIDE the format's text run — not corner caps drawn
+on the border line at pane edges, so none of the reverted 2026-08-14
+failure modes (two-cells-in float, `┴` punch-through, clipped
+align-right cap) apply, and that revert stands un-reopened. The gate
+is `@vibe_role=host` (the slot, not the shell), so agent and sidebar
+titles keep their look and a bare-tui host-shell dock still wears
+the chip.
+
+Migration is self-healing: dock.sh unstamps `window-style` (`-pu`,
+inheriting the global canvas) on fit — `window-resized` fires on the
+first attach after a dev sync, so live docks shed the tint with no
+user action — and on both toggle branches and both sides of a flip,
+so panes stamped before the cut (including shelf-parked ones riding
+their options through swap-pane) are stripped wherever they next
+surface. Decided against in the same pass: a dock-specific
+`pane-border-style` (a second stamped property with its own
+migration story; the chip alone carries the distinction) and any
+extra collapsed-strip treatment (the chip IS the taskbar band; a
+strip tint would recreate the body-bg problem at 1-row scale).
 
 ### Editor surfaces: the bundled review stack (2026-07-26, second call)
 
@@ -1208,4 +1249,8 @@ border formats but a clipped over-width status fill drops trailing
 aligned segments; a `display-menu` whose FIRST item name starts with
 `-` (the disabled-item marker) dies as "invalid flag" — lead the item
 list with a dash-less name to end option scanning (the dock shell
-menu's toggle-first order is load-bearing).
+menu's toggle-first order is load-bearing); the screendump grid
+STRIPS SGR while parsing, so color/background assertions (the chip's
+active/inactive bg, the body-tint removal) must read the raw pty
+byte stream for the 24-bit triplets, or ask
+`tmux show-options -pqv window-style` directly.
